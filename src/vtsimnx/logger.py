@@ -4,7 +4,7 @@ from pathlib import Path
 
 def get_logger(name: str = __name__) -> logging.Logger:
     # ログ保存先
-    log_dir = Path(__file__).resolve().parent.parent / "output" / "log"
+    log_dir = Path.cwd()
     log_dir.mkdir(parents=True, exist_ok=True)
 
     # ログファイル
