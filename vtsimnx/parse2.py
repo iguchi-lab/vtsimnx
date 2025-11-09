@@ -183,7 +183,7 @@ def _set_calc_flags(sim: SimConfigType, nodes: List[Dict[str, Any]]) -> None:
 
 # ========= メイン =========
 
-def parse(raw_config: Dict[str, Any], df: Optional[Any] = None) -> Dict[str, Any]:
+def parse2(raw_config: Dict[str, Any], df: Optional[Any] = None) -> Dict[str, Any]:
     """
     設定データの読み込み・整形。
     - raw_config は dict 前提で、破壊的変更をしない
