@@ -1,0 +1,12 @@
+[project]
+name = "vtsimnx"
+version = "0.1.0"
+description = "Network-based ventilation and thermal simulation tool"
+authors = [
+  { name="Masato Iguchi", email="iguchi.masato@gmail.com" }
+]
+requires-python = ">=3.8"
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
