@@ -177,16 +177,6 @@ def parse(raw_config):
         "aircon": aircon_config,
     }
 
-    # 設定ファイルの保存
-    output_json = {
-        "simulation": sim_config,
-        "nodes": node_config,
-        "ventilation_branches": ventilation_config,
-        "thermal_branches": thermal_config,
-        "surfaces": surface_config,
-        "aircon": aircon_config,
-    }
-
     logger.info("設定データの処理が完了しました")
     return output_json
   
