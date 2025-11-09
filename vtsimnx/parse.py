@@ -162,7 +162,7 @@ def _parse_chain_branches(raw: Dict[str, Any], field: str) -> List[Dict[str, Any
 
 def _parse_surface(raw: Dict[str, Any]) -> List[Dict[str, Any]]:
     """surface セクションの解析。キーとコメントを分離して付加。"""
-    items = raw.get("surface")
+    items = raw.get("surfaces")
     surface_config: List[Dict[str, Any]] = []
     if items is None:
         logger.info("表面の設定が見つかりませんでした。")
