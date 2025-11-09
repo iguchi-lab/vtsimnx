@@ -9,7 +9,7 @@ def get_logger(name: str = __name__) -> logging.Logger:
 
     # ログファイル
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    log_path = log_dir / f"vtsimNx_{timestamp}.log"
+    log_path = log_dir / f"vtsimNx_{name}_{timestamp}.log"
 
     # ロガー作成
     logger = logging.getLogger(name)
