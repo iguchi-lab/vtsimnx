@@ -1,2 +1,2 @@
-from .parse import parse
-__all__ = ["parse"]
+from .resolve import resolve
+__all__ = ["resolve"]
