@@ -4,6 +4,13 @@ from .logger import get_logger
 
 logger = get_logger(__name__)
 
+# ------------------------------
+# 文字列区切り
+# ------------------------------
+CHAIN_DELIMITER = "->"  # ノード連鎖の区切り
+COMMENT_DELIMITER = "||"  # インラインコメントの区切り
+COMPOUND_DELIMITER = "&&"  # 複合キー（AND条件）の区切り
+
 def parse(raw_config):
   logger.info("設定データの読み込み開始")
   try:
