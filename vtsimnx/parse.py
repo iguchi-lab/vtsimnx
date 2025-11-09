@@ -203,7 +203,7 @@ def _parse_aircon(raw: Dict[str, Any]) -> List[Dict[str, Any]]:
 # ------------------------------
 # エントリポイント
 # ------------------------------
-def parse(raw_config: Dict[str, Any], output_path: Optional[str] = "input_data.json") -> Dict[str, Any]:
+def parse(raw_config: Dict[str, Any], output_path: Optional[str] = "parsed_input_data.json") -> Dict[str, Any]:
     """
     設定 raw_config を正規化して dict を返す。
     output_path を None にするとファイル出力しない。
