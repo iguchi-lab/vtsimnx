@@ -219,8 +219,8 @@ input_data = {'simulation':           {},
 
 input_data['simulation'] = {
     'index': {
-        'start': '2025-01-01 01:00:00', 'end':   '2025-01-02 00:00:00',
-        'timestep': 3600, 'length':   24
+        'start': '2025-01-01 01:00:00', 'end':   '2025-01-01 10:00:00',
+        'timestep': 3600, 'length':   10
     },
     'tolerance': {
         'ventilation': 1e-6, 'thermal': 1e-6, 'convergence': 1e-6
