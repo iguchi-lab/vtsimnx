@@ -194,51 +194,40 @@ def validate_node_config(
         # ノードタイプの既定値
         node["type"] = node.get("type", NodeTypeEnum.NORMAL)
 
-        # p の正規化（換気に関与するノードのみ）
+        # p の既定値・形式（換気に関与するノードのみ）
         if node["key"] in ventilation_nodes:
-            length = sim_config["index"]["length"]
             p_val = node.get("p")
             if p_val is None:
-                node["p"] = [0.0] * length
+                node["p"] = 0.0
             elif isinstance(p_val, (int, float)):
-                node["p"] = [float(p_val)] * length
+                node["p"] = float(p_val)
             elif isinstance(p_val, list):
-                if len(p_val) == 1:
-                    node["p"] = p_val * length
-                elif len(p_val) != length:
-                    errors.append(f"ノード {node['key']} の'p'の長さが不正です")
+                # ベクトルが与えられた場合はそのまま（長さチェックは行わない）
+                node["p"] = p_val
         elif "p" in node:
             del node["p"]
 
-        # t の正規化（どちらかに関与するノード）
+        # t の既定値・形式（どちらかに関与するノード）
         if node["key"] in thermal_nodes or node["key"] in ventilation_nodes:
-            length = sim_config["index"]["length"]
             t_val = node.get("t")
             if t_val is None:
-                node["t"] = [20.0] * length
+                node["t"] = 20.0
             elif isinstance(t_val, (int, float)):
-                node["t"] = [float(t_val)] * length
+                node["t"] = float(t_val)
             elif isinstance(t_val, list):
-                if len(t_val) == 1:
-                    node["t"] = t_val * length
-                elif len(t_val) != length:
-                    errors.append(f"ノード {node['key']} の't'の長さが不正です")
+                node["t"] = t_val
         elif "t" in node:
             del node["t"]
 
         # エアコン特有の pre_temp
         if node.get("type") == NodeTypeEnum.AIRCON:
-            length = sim_config["index"]["length"]
             pre = node.get("pre_temp")
             if pre is None:
-                node["pre_temp"] = [20.0] * length
+                node["pre_temp"] = 20.0
             elif isinstance(pre, (int, float)):
-                node["pre_temp"] = [float(pre)] * length
+                node["pre_temp"] = float(pre)
             elif isinstance(pre, list):
-                if len(pre) == 1:
-                    node["pre_temp"] = pre * length
-                elif len(pre) != length:
-                    errors.append(f"ノード {node['key']} の'pre_temp'の長さが不正です")
+                node["pre_temp"] = pre
         elif "pre_temp" in node:
             del node["pre_temp"]
 
@@ -304,7 +293,8 @@ def validate_ventilation_config(
             errors.extend(result.errors)
             continue
 
-        branch["enable"] = branch.get("enable", [True] * sim_config["index"]["length"])
+        # enable はデフォルトでスカラー True（巨大化回避）
+        branch["enable"] = branch.get("enable", True)
 
         # タイプ判定と必須確認
         result = validate_branch_type(branch, branch_types, "換気ブランチ")
@@ -317,17 +307,14 @@ def validate_ventilation_config(
             errors.extend(result.errors)
             continue
 
-        # FIXED_FLOW の vol を時系列化
+        # FIXED_FLOW の vol はスカラーのまま（配列が来た場合はそのまま）
         if branch["type"] == VentilationBranchTypeEnum.FIXED_FLOW:
-            length = sim_config["index"]["length"]
             vol_value = branch.get("vol")
             if isinstance(vol_value, (int, float)):
-                branch["vol"] = [float(vol_value)] * length
+                branch["vol"] = float(vol_value)
             elif isinstance(vol_value, list):
-                if len(vol_value) == 1:
-                    branch["vol"] = vol_value * length
-                elif len(vol_value) != length:
-                    errors.append(f"換気ブランチ {branch['key']} の'vol'の長さが不正です")
+                # ベクトルが来た場合は長さチェックを行わず受け入れ
+                branch["vol"] = vol_value
             else:
                 errors.append(f"換気ブランチ {branch['key']} の'vol'は数値または配列である必要があります")
 
@@ -387,7 +374,8 @@ def validate_thermal_config(
             errors.extend(result.errors)
             continue
 
-        branch["enable"] = branch.get("enable", [True] * sim_config["index"]["length"])
+        # enable はデフォルトでスカラー True
+        branch["enable"] = branch.get("enable", True)
 
         # 自動タイプ判定（u_value × area → conductance）
         if "type" not in branch:
