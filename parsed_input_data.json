@@ -12771,1243 +12771,418 @@
             "subtype": "solar_gain"
         },
         {
-            "key": "2階ホール-外部||E_外壁_一般部_wall_s->2階ホール-外部||E_外壁_熱橋部_wall_s",
-            "conductance": 0.06162776200751221,
+            "key": "1階トイレ-外部||N_外壁_一般部_wall_s->1階トイレ-外部||N_外壁_熱橋部_wall_s",
+            "conductance": 0.1673740902510744,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||E_外壁_一般部_wall_s->2階ホール-外部||N_外壁_一般部_wall_s",
-            "conductance": 1.4271499705905861,
+            "key": "1階トイレ-外部||N_外壁_一般部_wall_s->1階トイレ-床下||外皮床_一般部_floor_s",
+            "conductance": 0.8983561415969237,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||E_外壁_一般部_wall_s->2階ホール-外部||N_外壁_熱橋部_wall_s",
-            "conductance": 0.2923078253016863,
+            "key": "1階トイレ-外部||N_外壁_一般部_wall_s->1階トイレ-床下||外皮床_熱橋部_floor_s",
+            "conductance": 0.18400065550780367,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||E_外壁_一般部_wall_s->2階ホール-子供室1||間仕切壁_wall_s",
-            "conductance": 1.180672180931831,
+            "key": "1階トイレ-外部||N_外壁_一般部_wall_s->1階トイレ-ホール||間仕切壁_wall_s",
+            "conductance": 1.336645442207645,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||E_外壁_一般部_wall_s->2階ホール-子供室2||間仕切壁_wall_s",
-            "conductance": 1.180672180931831,
+            "key": "1階トイレ-外部||N_外壁_一般部_wall_s->1階トイレ-片流れ(3)||外皮天井_floor_s",
+            "conductance": 1.0823567971047274,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||E_外壁_一般部_wall_s->2階ホール-切妻||外皮天井_floor_s",
-            "conductance": 1.7909632941740592,
+            "key": "1階トイレ-外部||N_外壁_一般部_wall_s->1階トイレ-ホール||室内建具_wall_s",
+            "conductance": 0.9271755213752544,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||E_外壁_一般部_wall_s->2階ホール-片流れ(3)||0_外壁_一般部_wall_s",
-            "conductance": 0.31469070918245035,
+            "key": "1階トイレ-外部||N_外壁_一般部_wall_s->1階トイレ-外部||N_窓_glass_s",
+            "conductance": 0.3520919701425017,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||E_外壁_一般部_wall_s->2階ホール-片流れ(3)||0_外壁_熱橋部_wall_s",
-            "conductance": 0.06445472356748982,
+            "key": "1階トイレ-外部||N_外壁_熱橋部_wall_s->1階トイレ-床下||外皮床_一般部_floor_s",
+            "conductance": 0.18400065550780365,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||E_外壁_一般部_wall_s->2階ホール-階間(L4)||床_floor_s",
-            "conductance": 1.3087169104131706,
+            "key": "1階トイレ-外部||N_外壁_熱橋部_wall_s->1階トイレ-床下||外皮床_熱橋部_floor_s",
+            "conductance": 0.03768688124858629,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||E_外壁_一般部_wall_s->2階ホール-2階トイレ||室内建具_wall_s",
-            "conductance": 0.23646701989930474,
+            "key": "1階トイレ-外部||N_外壁_熱橋部_wall_s->1階トイレ-ホール||間仕切壁_wall_s",
+            "conductance": 0.2737707532232526,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||E_外壁_一般部_wall_s->2階ホール-外部||N_窓_glass_s",
-            "conductance": 0.16462893790457928,
+            "key": "1階トイレ-外部||N_外壁_熱橋部_wall_s->1階トイレ-片流れ(3)||外皮天井_floor_s",
+            "conductance": 0.22168753675638994,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||E_外壁_熱橋部_wall_s->2階ホール-外部||N_外壁_一般部_wall_s",
-            "conductance": 0.2923078253016863,
+            "key": "1階トイレ-外部||N_外壁_熱橋部_wall_s->1階トイレ-ホール||室内建具_wall_s",
+            "conductance": 0.18990342004071475,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||E_外壁_熱橋部_wall_s->2階ホール-外部||N_外壁_熱橋部_wall_s",
-            "conductance": 0.05987027747142972,
+            "key": "1階トイレ-外部||N_外壁_熱橋部_wall_s->1階トイレ-外部||N_窓_glass_s",
+            "conductance": 0.07211522280027144,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||E_外壁_熱橋部_wall_s->2階ホール-子供室1||間仕切壁_wall_s",
-            "conductance": 0.2418244226004955,
+            "key": "1階トイレ-床下||外皮床_一般部_floor_s->1階トイレ-床下||外皮床_熱橋部_floor_s",
+            "conductance": 0.20227886631983716,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||E_外壁_熱橋部_wall_s->2階ホール-子供室2||間仕切壁_wall_s",
-            "conductance": 0.2418244226004955,
+            "key": "1階トイレ-床下||外皮床_一般部_floor_s->1階トイレ-ホール||間仕切壁_wall_s",
+            "conductance": 1.4694247907713187,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||E_外壁_熱橋部_wall_s->2階ホール-切妻||外皮天井_floor_s",
-            "conductance": 0.36682380724047,
+            "key": "1階トイレ-床下||外皮床_一般部_floor_s->1階トイレ-片流れ(3)||外皮天井_floor_s",
+            "conductance": 1.189875684234336,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||E_外壁_熱橋部_wall_s->2階ホール-片流れ(3)||0_外壁_一般部_wall_s",
-            "conductance": 0.06445472356748982,
+            "key": "1階トイレ-床下||外皮床_一般部_floor_s->1階トイレ-ホール||室内建具_wall_s",
+            "conductance": 1.0192790499886903,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||E_外壁_熱橋部_wall_s->2階ホール-片流れ(3)||0_外壁_熱橋部_wall_s",
-            "conductance": 0.013201569887317195,
+            "key": "1階トイレ-床下||外皮床_一般部_floor_s->1階トイレ-外部||N_窓_glass_s",
+            "conductance": 0.38706799366659134,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||E_外壁_熱橋部_wall_s->2階ホール-階間(L4)||床_floor_s",
-            "conductance": 0.2680504515304084,
+            "key": "1階トイレ-床下||外皮床_熱橋部_floor_s->1階トイレ-ホール||間仕切壁_wall_s",
+            "conductance": 0.300966523410993,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||E_外壁_熱橋部_wall_s->2階ホール-2階トイレ||室内建具_wall_s",
-            "conductance": 0.04843300407576121,
+            "key": "1階トイレ-床下||外皮床_熱橋部_floor_s->1階トイレ-片流れ(3)||外皮天井_floor_s",
+            "conductance": 0.24370947749377972,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||E_外壁_熱橋部_wall_s->2階ホール-外部||N_窓_glass_s",
-            "conductance": 0.03371918005274515,
+            "key": "1階トイレ-床下||外皮床_熱橋部_floor_s->1階トイレ-ホール||室内建具_wall_s",
+            "conductance": 0.20876799819045466,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||N_外壁_一般部_wall_s->2階ホール-外部||N_外壁_熱橋部_wall_s",
-            "conductance": 1.3864508778070808,
+            "key": "1階トイレ-床下||外皮床_熱橋部_floor_s->1階トイレ-外部||N_窓_glass_s",
+            "conductance": 0.07927898665460303,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||N_外壁_一般部_wall_s->2階ホール-子供室1||間仕切壁_wall_s",
-            "conductance": 5.600068968272996,
+            "key": "1階トイレ-ホール||間仕切壁_wall_s->1階トイレ-片流れ(3)||外皮天井_floor_s",
+            "conductance": 1.7703913141823113,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||N_外壁_一般部_wall_s->2階ホール-子供室2||間仕切壁_wall_s",
-            "conductance": 5.600068968272996,
+            "key": "1階トイレ-ホール||間仕切壁_wall_s->1階トイレ-ホール||室内建具_wall_s",
+            "conductance": 1.5165641257634017,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||N_外壁_一般部_wall_s->2階ホール-切妻||外皮天井_floor_s",
-            "conductance": 8.494752505394391,
+            "key": "1階トイレ-ホール||間仕切壁_wall_s->1階トイレ-外部||N_窓_glass_s",
+            "conductance": 0.5759104275050894,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||N_外壁_一般部_wall_s->2階ホール-片流れ(3)||0_外壁_一般部_wall_s",
-            "conductance": 1.4926155655718054,
+            "key": "1階トイレ-片流れ(3)||外皮天井_floor_s->1階トイレ-ホール||室内建具_wall_s",
+            "conductance": 1.228047048179145,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||N_外壁_一般部_wall_s->2階ホール-片流れ(3)||0_外壁_熱橋部_wall_s",
-            "conductance": 0.3057164411412132,
+            "key": "1階トイレ-片流れ(3)||外皮天井_floor_s->1階トイレ-外部||N_窓_glass_s",
+            "conductance": 0.4663469803211943,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||N_外壁_一般部_wall_s->2階ホール-階間(L4)||床_floor_s",
-            "conductance": 6.207400391592745,
+            "key": "1階トイレ-ホール||室内建具_wall_s->1階トイレ-外部||N_窓_glass_s",
+            "conductance": 0.39948518434743274,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||N_外壁_一般部_wall_s->2階ホール-2階トイレ||室内建具_wall_s",
-            "conductance": 1.1215912778710142,
+            "key": "浴室-外部||N_外壁_一般部_wall_s->浴室-外部||N_外壁_熱橋部_wall_s",
+            "conductance": 0.4449447006802721,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||N_外壁_一般部_wall_s->2階ホール-外部||N_窓_glass_s",
-            "conductance": 0.7808546871253897,
+            "key": "浴室-外部||N_外壁_一般部_wall_s->浴室-外部||W_外壁_一般部_wall_s",
+            "conductance": 1.885559557823129,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||N_外壁_熱橋部_wall_s->2階ホール-子供室1||間仕切壁_wall_s",
-            "conductance": 1.1470020778390475,
+            "key": "浴室-外部||N_外壁_一般部_wall_s->浴室-外部||W_外壁_熱橋部_wall_s",
+            "conductance": 0.3861989455782313,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||N_外壁_熱橋部_wall_s->2階ホール-子供室2||間仕切壁_wall_s",
-            "conductance": 1.1470020778390475,
+            "key": "浴室-外部||N_外壁_一般部_wall_s->浴室-床下||外皮床_一般部_floor_s",
+            "conductance": 1.7580851088435374,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||N_外壁_熱橋部_wall_s->2階ホール-切妻||外皮天井_floor_s",
-            "conductance": 1.7398890673699352,
+            "key": "浴室-外部||N_外壁_一般部_wall_s->浴室-床下||外皮床_熱橋部_floor_s",
+            "conductance": 0.36008972108843545,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||N_外壁_熱橋部_wall_s->2階ホール-片流れ(3)||0_外壁_一般部_wall_s",
-            "conductance": 0.30571644114121316,
+            "key": "浴室-外部||N_外壁_一般部_wall_s->浴室-洗面所||間仕切壁_wall_s",
+            "conductance": 2.617321768707483,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||N_外壁_熱橋部_wall_s->2階ホール-片流れ(3)||0_外壁_熱橋部_wall_s",
-            "conductance": 0.06261662047470631,
+            "key": "浴室-外部||N_外壁_一般部_wall_s->浴室-ホール||間仕切壁_wall_s",
+            "conductance": 2.617321768707483,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||N_外壁_熱橋部_wall_s->2階ホール-階間(L4)||床_floor_s",
-            "conductance": 1.2713952609286343,
+            "key": "浴室-外部||N_外壁_一般部_wall_s->浴室-片流れ(3)||外皮天井_floor_s",
+            "conductance": 2.1181748299319727,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||N_外壁_熱橋部_wall_s->2階ホール-2階トイレ||室内建具_wall_s",
-            "conductance": 0.22972351474466557,
+            "key": "浴室-外部||N_外壁_一般部_wall_s->浴室-洗面所||室内建具_wall_s",
+            "conductance": 0.9099832653061225,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-外部||N_外壁_熱橋部_wall_s->2階ホール-外部||N_窓_glass_s",
-            "conductance": 0.1599340925437545,
+            "key": "浴室-外部||N_外壁_一般部_wall_s->浴室-外部||W_窓_glass_s",
+            "conductance": 0.34556326530612247,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-子供室1||間仕切壁_wall_s->2階ホール-子供室2||間仕切壁_wall_s",
-            "conductance": 4.6329017821465674,
+            "key": "浴室-外部||N_外壁_熱橋部_wall_s->浴室-外部||W_外壁_一般部_wall_s",
+            "conductance": 0.38619894557823126,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-子供室1||間仕切壁_wall_s->2階ホール-切妻||外皮天井_floor_s",
-            "conductance": 7.0276552385519055,
+            "key": "浴室-外部||N_外壁_熱橋部_wall_s->浴室-外部||W_外壁_熱橋部_wall_s",
+            "conductance": 0.07910098885337268,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-子供室1||間仕切壁_wall_s->2階ホール-片流れ(3)||0_外壁_一般部_wall_s",
-            "conductance": 1.234831455286502,
+            "key": "浴室-外部||N_外壁_熱橋部_wall_s->浴室-床下||外皮床_一般部_floor_s",
+            "conductance": 0.36008972108843545,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-子供室1||間仕切壁_wall_s->2階ホール-片流れ(3)||0_外壁_熱橋部_wall_s",
-            "conductance": 0.2529172860225366,
+            "key": "浴室-外部||N_外壁_熱橋部_wall_s->浴室-床下||外皮床_熱橋部_floor_s",
+            "conductance": 0.07375331636751087,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-子供室1||間仕切壁_wall_s->2階ホール-階間(L4)||床_floor_s",
-            "conductance": 5.135343243027252,
+            "key": "浴室-外部||N_外壁_熱橋部_wall_s->浴室-洗面所||間仕切壁_wall_s",
+            "conductance": 0.5360779526268339,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-子供室1||間仕切壁_wall_s->2階ホール-2階トイレ||室内建具_wall_s",
-            "conductance": 0.9278853991848478,
+            "key": "浴室-外部||N_外壁_熱橋部_wall_s->浴室-ホール||間仕切壁_wall_s",
+            "conductance": 0.5360779526268339,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-子供室1||間仕切壁_wall_s->2階ホール-外部||N_窓_glass_s",
-            "conductance": 0.645996163989451,
+            "key": "浴室-外部||N_外壁_熱橋部_wall_s->浴室-片流れ(3)||外皮天井_floor_s",
+            "conductance": 0.43384303745594627,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-子供室2||間仕切壁_wall_s->2階ホール-切妻||外皮天井_floor_s",
-            "conductance": 7.0276552385519055,
+            "key": "浴室-外部||N_外壁_熱橋部_wall_s->浴室-洗面所||室内建具_wall_s",
+            "conductance": 0.18638211458077208,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-子供室2||間仕切壁_wall_s->2階ホール-片流れ(3)||0_外壁_一般部_wall_s",
-            "conductance": 1.234831455286502,
+            "key": "浴室-外部||N_外壁_熱橋部_wall_s->浴室-外部||W_窓_glass_s",
+            "conductance": 0.0707780181952299,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-子供室2||間仕切壁_wall_s->2階ホール-片流れ(3)||0_外壁_熱橋部_wall_s",
-            "conductance": 0.2529172860225366,
+            "key": "浴室-外部||W_外壁_一般部_wall_s->浴室-外部||W_外壁_熱橋部_wall_s",
+            "conductance": 0.33520935374149663,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-子供室2||間仕切壁_wall_s->2階ホール-階間(L4)||床_floor_s",
-            "conductance": 5.135343243027252,
+            "key": "浴室-外部||W_外壁_一般部_wall_s->浴室-床下||外皮床_一般部_floor_s",
+            "conductance": 1.5259662925170068,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-子供室2||間仕切壁_wall_s->2階ホール-2階トイレ||室内建具_wall_s",
-            "conductance": 0.9278853991848478,
+            "key": "浴室-外部||W_外壁_一般部_wall_s->浴室-床下||外皮床_熱橋部_floor_s",
+            "conductance": 0.31254731292517013,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-子供室2||間仕切壁_wall_s->2階ホール-外部||N_窓_glass_s",
-            "conductance": 0.645996163989451,
+            "key": "浴室-外部||W_外壁_一般部_wall_s->浴室-洗面所||間仕切壁_wall_s",
+            "conductance": 2.2717585034013603,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-切妻||外皮天井_floor_s->2階ホール-片流れ(3)||0_外壁_一般部_wall_s",
-            "conductance": 1.873117573723328,
+            "key": "浴室-外部||W_外壁_一般部_wall_s->浴室-ホール||間仕切壁_wall_s",
+            "conductance": 2.2717585034013603,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-切妻||外皮天井_floor_s->2階ホール-片流れ(3)||0_外壁_熱橋部_wall_s",
-            "conductance": 0.38365058738911534,
+            "key": "浴室-外部||W_外壁_一般部_wall_s->浴室-片流れ(3)||外皮天井_floor_s",
+            "conductance": 1.838513605442177,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-切妻||外皮天井_floor_s->2階ホール-階間(L4)||床_floor_s",
-            "conductance": 7.789809398225846,
+            "key": "浴室-外部||W_外壁_一般部_wall_s->浴室-洗面所||室内建具_wall_s",
+            "conductance": 0.7898387755102041,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-切妻||外皮天井_floor_s->2階ホール-2階トイレ||室内建具_wall_s",
-            "conductance": 1.4075106689043393,
+            "key": "浴室-外部||W_外壁_一般部_wall_s->浴室-外部||W_窓_glass_s",
+            "conductance": 0.2999387755102041,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-切妻||外皮天井_floor_s->2階ホール-外部||N_窓_glass_s",
-            "conductance": 0.9799124910093503,
+            "key": "浴室-外部||W_外壁_熱橋部_wall_s->浴室-床下||外皮床_一般部_floor_s",
+            "conductance": 0.31254731292517013,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-片流れ(3)||0_外壁_一般部_wall_s->2階ホール-片流れ(3)||0_外壁_熱橋部_wall_s",
-            "conductance": 0.06741136226324625,
+            "key": "浴室-外部||W_外壁_熱橋部_wall_s->浴室-床下||外皮床_熱橋部_floor_s",
+            "conductance": 0.06401571469551678,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-片流れ(3)||0_外壁_一般部_wall_s->2階ホール-階間(L4)||床_floor_s",
-            "conductance": 1.36874979621194,
+            "key": "浴室-外部||W_外壁_熱橋部_wall_s->浴室-洗面所||間仕切壁_wall_s",
+            "conductance": 0.465299934431604,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-片流れ(3)||0_外壁_一般部_wall_s->2階ホール-2階トイレ||室内建具_wall_s",
-            "conductance": 0.24731413090386,
+            "key": "浴室-外部||W_外壁_熱橋部_wall_s->浴室-ホール||間仕切壁_wall_s",
+            "conductance": 0.465299934431604,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-片流れ(3)||0_外壁_一般部_wall_s->2階ホール-外部||N_窓_glass_s",
-            "conductance": 0.17218072404699114,
+            "key": "浴室-外部||W_外壁_熱橋部_wall_s->浴室-片流れ(3)||外皮天井_floor_s",
+            "conductance": 0.3765630276206869,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-片流れ(3)||0_外壁_熱橋部_wall_s->2階ホール-階間(L4)||床_floor_s",
-            "conductance": 0.2803463438024455,
+            "key": "浴室-外部||W_外壁_熱橋部_wall_s->浴室-洗面所||室内建具_wall_s",
+            "conductance": 0.1617742070322105,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-片流れ(3)||0_外壁_熱橋部_wall_s->2階ホール-2階トイレ||室内建具_wall_s",
-            "conductance": 0.05065470151042916,
+            "key": "浴室-外部||W_外壁_熱橋部_wall_s->浴室-外部||W_窓_glass_s",
+            "conductance": 0.0614332431767888,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-片流れ(3)||0_外壁_熱橋部_wall_s->2階ホール-外部||N_窓_glass_s",
-            "conductance": 0.035265931431311445,
+            "key": "浴室-床下||外皮床_一般部_floor_s->浴室-床下||外皮床_熱橋部_floor_s",
+            "conductance": 0.2914173537414967,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-階間(L4)||床_floor_s->2階ホール-2階トイレ||室内建具_wall_s",
-            "conductance": 1.0285152241668665,
+            "key": "浴室-床下||外皮床_一般部_floor_s->浴室-洗面所||間仕切壁_wall_s",
+            "conductance": 2.1181748299319727,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-階間(L4)||床_floor_s->2階ホール-外部||N_窓_glass_s",
-            "conductance": 0.7160549029009831,
+            "key": "浴室-床下||外皮床_一般部_floor_s->浴室-ホール||間仕切壁_wall_s",
+            "conductance": 2.1181748299319727,
             "subtype": "radiation"
         },
         {
-            "key": "2階ホール-2階トイレ||室内建具_wall_s->2階ホール-外部||N_窓_glass_s",
-            "conductance": 0.12938120354830976,
+            "key": "浴室-床下||外皮床_一般部_floor_s->浴室-片流れ(3)||外皮天井_floor_s",
+            "conductance": 1.7142197278911566,
             "subtype": "radiation"
         },
         {
-            "key": "クローゼット-外部||N_外壁_一般部_wall_s->クローゼット-外部||N_外壁_熱橋部_wall_s",
-            "conductance": 0.8386933513041384,
+            "key": "浴室-床下||外皮床_一般部_floor_s->浴室-洗面所||室内建具_wall_s",
+            "conductance": 0.736441224489796,
             "subtype": "radiation"
         },
         {
-            "key": "クローゼット-外部||N_外壁_一般部_wall_s->クローゼット-外部||W_外壁_一般部_wall_s",
-            "conductance": 2.394362186314077,
+            "key": "浴室-床下||外皮床_一般部_floor_s->浴室-外部||W_窓_glass_s",
+            "conductance": 0.27966122448979597,
             "subtype": "radiation"
         },
         {
-            "key": "クローゼット-外部||N_外壁_一般部_wall_s->クローゼット-外部||W_外壁_熱橋部_wall_s",
-            "conductance": 0.4904115321366182,
+            "key": "浴室-床下||外皮床_熱橋部_floor_s->浴室-洗面所||間仕切壁_wall_s",
+            "conductance": 0.43384303745594627,
             "subtype": "radiation"
         },
         {
-            "key": "クローゼット-外部||N_外壁_一般部_wall_s->クローゼット-寝室||間仕切壁_wall_s",
-            "conductance": 4.933490301789048,
+            "key": "浴室-床下||外皮床_熱橋部_floor_s->浴室-ホール||間仕切壁_wall_s",
+            "conductance": 0.43384303745594627,
             "subtype": "radiation"
         },
         {
-            "key": "クローゼット-外部||N_外壁_一般部_wall_s->クローゼット-2階ホール||間仕切壁_wall_s",
-            "conductance": 3.2915042166134567,
+            "key": "浴室-床下||外皮床_熱橋部_floor_s->浴室-片流れ(3)||外皮天井_floor_s",
+            "conductance": 0.3511052454716827,
             "subtype": "radiation"
         },
         {
-            "key": "クローゼット-外部||N_外壁_一般部_wall_s->クローゼット-切妻||外皮天井_floor_s",
-            "conductance": 3.7434269923498578,
+            "key": "浴室-床下||外皮床_熱橋部_floor_s->浴室-洗面所||室内建具_wall_s",
+            "conductance": 0.15083735923284977,
             "subtype": "radiation"
         },
         {
-            "key": "クローゼット-外部||N_外壁_一般部_wall_s->クローゼット-階間(L4)||床_floor_s",
-            "conductance": 3.7434269923498578,
+            "key": "浴室-床下||外皮床_熱橋部_floor_s->浴室-外部||W_窓_glass_s",
+            "conductance": 0.05728000983525942,
             "subtype": "radiation"
         },
         {
-            "key": "クローゼット-外部||N_外壁_一般部_wall_s->クローゼット-寝室||室内建具_wall_s",
-            "conductance": 1.071056978495271,
+            "key": "浴室-洗面所||間仕切壁_wall_s->浴室-ホール||間仕切壁_wall_s",
+            "conductance": 3.1533997213343166,
             "subtype": "radiation"
         },
         {
-            "key": "クローゼット-外部||N_外壁_一般部_wall_s->クローゼット-外部||W_窓_glass_s",
-            "conductance": 0.4067304981627613,
+            "key": "浴室-洗面所||間仕切壁_wall_s->浴室-片流れ(3)||外皮天井_floor_s",
+            "conductance": 2.5520178673879186,
             "subtype": "radiation"
         },
         {
-            "key": "クローゼット-外部||N_外壁_熱橋部_wall_s->クローゼット-外部||W_外壁_一般部_wall_s",
-            "conductance": 0.4904115321366183,
+            "key": "浴室-洗面所||間仕切壁_wall_s->浴室-洗面所||室内建具_wall_s",
+            "conductance": 1.0963653798868944,
             "subtype": "radiation"
         },
         {
-            "key": "クローゼット-外部||N_外壁_熱橋部_wall_s->クローゼット-外部||W_外壁_熱橋部_wall_s",
-            "conductance": 0.1004457354978616,
+            "key": "浴室-洗面所||間仕切壁_wall_s->浴室-外部||W_窓_glass_s",
+            "conductance": 0.41634128350135235,
             "subtype": "radiation"
         },
         {
-            "key": "クローゼット-外部||N_外壁_熱橋部_wall_s->クローゼット-寝室||間仕切壁_wall_s",
-            "conductance": 1.0104739172339017,
+            "key": "浴室-ホール||間仕切壁_wall_s->浴室-片流れ(3)||外皮天井_floor_s",
+            "conductance": 2.5520178673879186,
             "subtype": "radiation"
         },
         {
-            "key": "クローゼット-外部||N_外壁_熱橋部_wall_s->クローゼット-2階ホール||間仕切壁_wall_s",
-            "conductance": 0.6741635142461299,
+            "key": "浴室-ホール||間仕切壁_wall_s->浴室-洗面所||室内建具_wall_s",
+            "conductance": 1.0963653798868944,
             "subtype": "radiation"
         },
         {
-            "key": "クローゼット-外部||N_外壁_熱橋部_wall_s->クローゼット-切妻||外皮天井_floor_s",
-            "conductance": 0.7667260104812964,
+            "key": "浴室-ホール||間仕切壁_wall_s->浴室-外部||W_窓_glass_s",
+            "conductance": 0.41634128350135235,
             "subtype": "radiation"
         },
         {
-            "key": "クローゼット-外部||N_外壁_熱橋部_wall_s->クローゼット-階間(L4)||床_floor_s",
-            "conductance": 0.7667260104812964,
+            "key": "浴室-片流れ(3)||外皮天井_floor_s->浴室-洗面所||室内建具_wall_s",
+            "conductance": 0.8872785837226457,
             "subtype": "radiation"
         },
         {
-            "key": "クローゼット-外部||N_外壁_熱橋部_wall_s->クローゼット-寝室||室内建具_wall_s",
-            "conductance": 0.21937311607734478,
+            "key": "浴室-片流れ(3)||外皮天井_floor_s->浴室-外部||W_窓_glass_s",
+            "conductance": 0.33694123432505535,
             "subtype": "radiation"
         },
         {
-            "key": "クローゼット-外部||N_外壁_熱橋部_wall_s->クローゼット-外部||W_窓_glass_s",
-            "conductance": 0.08330624661164993,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-外部||W_外壁_一般部_wall_s->クローゼット-外部||W_外壁_熱橋部_wall_s",
-            "conductance": 0.28675972031805314,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-外部||W_外壁_一般部_wall_s->クローゼット-寝室||間仕切壁_wall_s",
-            "conductance": 2.884773718450696,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-外部||W_外壁_一般部_wall_s->クローゼット-2階ホール||間仕切壁_wall_s",
-            "conductance": 1.9246505571953496,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-外部||W_外壁_一般部_wall_s->クローゼット-切妻||外皮天井_floor_s",
-            "conductance": 2.1889046382748027,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-外部||W_外壁_一般部_wall_s->クローゼット-階間(L4)||床_floor_s",
-            "conductance": 2.1889046382748027,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-外部||W_外壁_一般部_wall_s->クローゼット-寝室||室内建具_wall_s",
-            "conductance": 0.6262821721583037,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-外部||W_外壁_一般部_wall_s->クローゼット-外部||W_窓_glass_s",
-            "conductance": 0.23782867297150778,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-外部||W_外壁_熱橋部_wall_s->クローゼット-寝室||間仕切壁_wall_s",
-            "conductance": 0.5908572676344798,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-外部||W_外壁_熱橋部_wall_s->クローゼット-2階ホール||間仕切壁_wall_s",
-            "conductance": 0.3942055358110957,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-外部||W_外壁_熱橋部_wall_s->クローゼット-切妻||外皮天井_floor_s",
-            "conductance": 0.4483298656707427,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-外部||W_外壁_熱橋部_wall_s->クローゼット-階間(L4)||床_floor_s",
-            "conductance": 0.4483298656707427,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-外部||W_外壁_熱橋部_wall_s->クローゼット-寝室||室内建具_wall_s",
-            "conductance": 0.1282746617673634,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-外部||W_外壁_熱橋部_wall_s->クローゼット-外部||W_窓_glass_s",
-            "conductance": 0.04871189687368231,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-寝室||間仕切壁_wall_s->クローゼット-2階ホール||間仕切壁_wall_s",
-            "conductance": 3.9656677308595865,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-寝室||間仕切壁_wall_s->クローゼット-切妻||外皮天井_floor_s",
-            "conductance": 4.510153002831154,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-寝室||間仕切壁_wall_s->クローゼット-階間(L4)||床_floor_s",
-            "conductance": 4.510153002831154,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-寝室||間仕切壁_wall_s->クローゼット-寝室||室内建具_wall_s",
-            "conductance": 1.290430094572616,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-寝室||間仕切壁_wall_s->クローゼット-外部||W_窓_glass_s",
-            "conductance": 0.49003674477441117,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-2階ホール||間仕切壁_wall_s->クローゼット-切妻||外皮天井_floor_s",
-            "conductance": 3.0090639118125413,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-2階ホール||間仕切壁_wall_s->クローゼット-階間(L4)||床_floor_s",
-            "conductance": 3.0090639118125413,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-2階ホール||間仕切壁_wall_s->クローゼット-寝室||室内建具_wall_s",
-            "conductance": 0.8609434371423409,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-2階ホール||間仕切壁_wall_s->クローゼット-外部||W_窓_glass_s",
-            "conductance": 0.32694054575025605,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-切妻||外皮天井_floor_s->クローゼット-階間(L4)||床_floor_s",
-            "conductance": 3.4222076983314254,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-切妻||外皮天井_floor_s->クローゼット-寝室||室内建具_wall_s",
-            "conductance": 0.979150774049756,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-切妻||外皮天井_floor_s->クローゼット-外部||W_窓_glass_s",
-            "conductance": 0.371829407866996,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-階間(L4)||床_floor_s->クローゼット-寝室||室内建具_wall_s",
-            "conductance": 0.979150774049756,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-階間(L4)||床_floor_s->クローゼット-外部||W_窓_glass_s",
-            "conductance": 0.371829407866996,
-            "subtype": "radiation"
-        },
-        {
-            "key": "クローゼット-寝室||室内建具_wall_s->クローゼット-外部||W_窓_glass_s",
-            "conductance": 0.10638660321667369,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||E_外壁_一般部_wall_s->子供室2-外部||E_外壁_熱橋部_wall_s",
-            "conductance": 1.0920774904386374,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||E_外壁_一般部_wall_s->子供室2-外部||S_外壁_一般部_wall_s",
-            "conductance": 3.5416273366939843,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||E_外壁_一般部_wall_s->子供室2-外部||S_外壁_熱橋部_wall_s",
-            "conductance": 0.7253935508891295,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||E_外壁_一般部_wall_s->子供室2-切妻||外皮天井_floor_s",
-            "conductance": 8.5626634915726,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||E_外壁_一般部_wall_s->子供室2-階間(L4)||床_floor_s",
-            "conductance": 8.5626634915726,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||E_外壁_一般部_wall_s->子供室2-2階ホール||室内建具_wall_s",
-            "conductance": 1.130557798051647,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||E_外壁_一般部_wall_s->子供室2-外部||E_窓_glass_s",
-            "conductance": 0.5247314674501316,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||E_外壁_一般部_wall_s->子供室2-外部||S_窓_glass_s",
-            "conductance": 1.3778176258955728,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||E_外壁_熱橋部_wall_s->子供室2-外部||S_外壁_一般部_wall_s",
-            "conductance": 0.7253935508891296,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||E_外壁_熱橋部_wall_s->子供室2-外部||S_外壁_熱橋部_wall_s",
-            "conductance": 0.1485745827122314,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||E_外壁_熱橋部_wall_s->子供室2-切妻||外皮天井_floor_s",
-            "conductance": 1.7537985464666779,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||E_外壁_熱橋部_wall_s->子供室2-階間(L4)||床_floor_s",
-            "conductance": 1.7537985464666779,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||E_外壁_熱橋部_wall_s->子供室2-2階ホール||室内建具_wall_s",
-            "conductance": 0.231560030926241,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||E_外壁_熱橋部_wall_s->子供室2-外部||E_窓_glass_s",
-            "conductance": 0.1074751198391836,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||E_外壁_熱橋部_wall_s->子供室2-外部||S_窓_glass_s",
-            "conductance": 0.2822036101231897,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||S_外壁_一般部_wall_s->子供室2-外部||S_外壁_熱橋部_wall_s",
-            "conductance": 0.481830097477965,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||S_外壁_一般部_wall_s->子供室2-切妻||外皮天井_floor_s",
-            "conductance": 5.6876008612958096,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||S_外壁_一般部_wall_s->子供室2-階間(L4)||床_floor_s",
-            "conductance": 5.6876008612958096,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||S_外壁_一般部_wall_s->子供室2-2階ホール||室内建具_wall_s",
-            "conductance": 0.7509534284830679,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||S_外壁_一般部_wall_s->子供室2-外部||E_窓_glass_s",
-            "conductance": 0.34854378537188807,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||S_外壁_一般部_wall_s->子供室2-外部||S_窓_glass_s",
-            "conductance": 0.9151914849234577,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||S_外壁_熱橋部_wall_s->子供室2-切妻||外皮天井_floor_s",
-            "conductance": 1.1649302968919129,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||S_外壁_熱橋部_wall_s->子供室2-階間(L4)||床_floor_s",
-            "conductance": 1.1649302968919129,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||S_外壁_熱橋部_wall_s->子供室2-2階ホール||室内建具_wall_s",
-            "conductance": 0.15380973836400189,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||S_外壁_熱橋部_wall_s->子供室2-外部||E_窓_glass_s",
-            "conductance": 0.0713884861605072,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||S_外壁_熱橋部_wall_s->子供室2-外部||S_窓_glass_s",
-            "conductance": 0.18744885835781666,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-切妻||外皮天井_floor_s->子供室2-階間(L4)||床_floor_s",
-            "conductance": 13.751026751198395,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-切妻||外皮天井_floor_s->子供室2-2階ホール||室内建具_wall_s",
-            "conductance": 1.8155951755064175,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-切妻||外皮天井_floor_s->子供室2-外部||E_窓_glass_s",
-            "conductance": 0.8426813050873668,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-切妻||外皮天井_floor_s->子供室2-外部||S_窓_glass_s",
-            "conductance": 2.2126768207824346,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-階間(L4)||床_floor_s->子供室2-2階ホール||室内建具_wall_s",
-            "conductance": 1.8155951755064175,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-階間(L4)||床_floor_s->子供室2-外部||E_窓_glass_s",
-            "conductance": 0.8426813050873668,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-階間(L4)||床_floor_s->子供室2-外部||S_窓_glass_s",
-            "conductance": 2.2126768207824346,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-2階ホール||室内建具_wall_s->子供室2-外部||E_窓_glass_s",
-            "conductance": 0.11126209989175818,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-2階ホール||室内建具_wall_s->子供室2-外部||S_窓_glass_s",
-            "conductance": 0.2921473016854802,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室2-外部||E_窓_glass_s->子供室2-外部||S_窓_glass_s",
-            "conductance": 0.13559579403123556,
-            "subtype": "radiation"
-        },
-        {
-            "key": "片流れ(3)-外部||E_外壁_一般部_wall_s->片流れ(3)-外部||E_外壁_熱橋部_wall_s",
-            "conductance": 0.02649411581920904,
-            "subtype": "radiation"
-        },
-        {
-            "key": "片流れ(3)-外部||E_外壁_一般部_wall_s->片流れ(3)-外部||屋根_ceiling_s",
-            "conductance": 2.599907005649717,
-            "subtype": "radiation"
-        },
-        {
-            "key": "片流れ(3)-外部||E_外壁_一般部_wall_s->片流れ(3)-外部||W_外壁_一般部_wall_s",
-            "conductance": 0.12935362429378527,
-            "subtype": "radiation"
-        },
-        {
-            "key": "片流れ(3)-外部||E_外壁_一般部_wall_s->片流れ(3)-外部||W_外壁_熱橋部_wall_s",
-            "conductance": 0.02649411581920904,
-            "subtype": "radiation"
-        },
-        {
-            "key": "片流れ(3)-外部||E_外壁_一般部_wall_s->片流れ(3)-階間(L4)||_外皮天井_floor_s",
-            "conductance": 0.3336975141242937,
-            "subtype": "radiation"
-        },
-        {
-            "key": "片流れ(3)-外部||E_外壁_熱橋部_wall_s->片流れ(3)-外部||屋根_ceiling_s",
-            "conductance": 0.5325110734463278,
-            "subtype": "radiation"
-        },
-        {
-            "key": "片流れ(3)-外部||E_外壁_熱橋部_wall_s->片流れ(3)-外部||W_外壁_一般部_wall_s",
-            "conductance": 0.02649411581920904,
-            "subtype": "radiation"
-        },
-        {
-            "key": "片流れ(3)-外部||E_外壁_熱橋部_wall_s->片流れ(3)-外部||W_外壁_熱橋部_wall_s",
-            "conductance": 0.005426505649717516,
-            "subtype": "radiation"
-        },
-        {
-            "key": "片流れ(3)-外部||E_外壁_熱橋部_wall_s->片流れ(3)-階間(L4)||_外皮天井_floor_s",
-            "conductance": 0.06834768361581922,
-            "subtype": "radiation"
-        },
-        {
-            "key": "片流れ(3)-外部||屋根_ceiling_s->片流れ(3)-外部||W_外壁_一般部_wall_s",
-            "conductance": 2.599907005649717,
-            "subtype": "radiation"
-        },
-        {
-            "key": "片流れ(3)-外部||屋根_ceiling_s->片流れ(3)-外部||W_外壁_熱橋部_wall_s",
-            "conductance": 0.5325110734463278,
-            "subtype": "radiation"
-        },
-        {
-            "key": "片流れ(3)-外部||屋根_ceiling_s->片流れ(3)-階間(L4)||_外皮天井_floor_s",
-            "conductance": 6.7070598870056495,
-            "subtype": "radiation"
-        },
-        {
-            "key": "片流れ(3)-外部||W_外壁_一般部_wall_s->片流れ(3)-外部||W_外壁_熱橋部_wall_s",
-            "conductance": 0.02649411581920904,
-            "subtype": "radiation"
-        },
-        {
-            "key": "片流れ(3)-外部||W_外壁_一般部_wall_s->片流れ(3)-階間(L4)||_外皮天井_floor_s",
-            "conductance": 0.3336975141242937,
-            "subtype": "radiation"
-        },
-        {
-            "key": "片流れ(3)-外部||W_外壁_熱橋部_wall_s->片流れ(3)-階間(L4)||_外皮天井_floor_s",
-            "conductance": 0.06834768361581922,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室1-外部||S_外壁_一般部_wall_s->子供室1-外部||S_外壁_熱橋部_wall_s",
-            "conductance": 0.48207857878242477,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室1-外部||S_外壁_一般部_wall_s->子供室1-子供室2||間仕切壁_wall_s",
-            "conductance": 4.617944934247847,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室1-外部||S_外壁_一般部_wall_s->子供室1-切妻||外皮天井_floor_s",
-            "conductance": 5.685250285183848,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室1-外部||S_外壁_一般部_wall_s->子供室1-階間(L4)||床_floor_s",
-            "conductance": 5.685250285183848,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室1-外部||S_外壁_一般部_wall_s->子供室1-2階ホール||室内建具_wall_s",
-            "conductance": 0.7513406975400959,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室1-外部||S_外壁_一般部_wall_s->子供室1-外部||S_窓_glass_s",
-            "conductance": 0.9156634520653912,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室1-外部||S_外壁_熱橋部_wall_s->子供室1-子供室2||間仕切壁_wall_s",
-            "conductance": 0.9458441431591976,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室1-外部||S_外壁_熱橋部_wall_s->子供室1-切妻||外皮天井_floor_s",
-            "conductance": 1.1644488535918724,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室1-外部||S_外壁_熱橋部_wall_s->子供室1-階間(L4)||床_floor_s",
-            "conductance": 1.1644488535918724,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室1-外部||S_外壁_熱橋部_wall_s->子供室1-2階ホール||室内建具_wall_s",
-            "conductance": 0.1538890585323088,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室1-外部||S_外壁_熱橋部_wall_s->子供室1-外部||S_窓_glass_s",
-            "conductance": 0.18754552632664642,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室1-子供室2||間仕切壁_wall_s->子供室1-切妻||外皮天井_floor_s",
-            "conductance": 11.154531483677998,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室1-子供室2||間仕切壁_wall_s->子供室1-階間(L4)||床_floor_s",
-            "conductance": 11.154531483677998,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室1-子供室2||間仕切壁_wall_s->子供室1-2階ホール||室内建具_wall_s",
-            "conductance": 1.474139755556702,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室1-子供室2||間仕切壁_wall_s->子供室1-外部||S_窓_glass_s",
-            "conductance": 1.7965430354288079,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室1-切妻||外皮天井_floor_s->子供室1-階間(L4)||床_floor_s",
-            "conductance": 13.73258109432211,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室1-切妻||外皮天井_floor_s->子供室1-2階ホール||室内建具_wall_s",
-            "conductance": 1.814844824918777,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室1-切妻||外皮天井_floor_s->子供室1-外部||S_窓_glass_s",
-            "conductance": 2.2117623639832917,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室1-階間(L4)||床_floor_s->子供室1-2階ホール||室内建具_wall_s",
-            "conductance": 1.814844824918777,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室1-階間(L4)||床_floor_s->子供室1-外部||S_窓_glass_s",
-            "conductance": 2.2117623639832917,
-            "subtype": "radiation"
-        },
-        {
-            "key": "子供室1-2階ホール||室内建具_wall_s->子供室1-外部||S_窓_glass_s",
-            "conductance": 0.2922979629725131,
-            "subtype": "radiation"
-        },
-        {
-            "key": "片流れ(4)-外部||0_外壁_一般部_wall_s->片流れ(4)-外部||0_外壁_熱橋部_wall_s",
-            "conductance": 0.23752320531208496,
-            "subtype": "radiation"
-        },
-        {
-            "key": "片流れ(4)-外部||0_外壁_一般部_wall_s->片流れ(4)-外部||屋根_ceiling_s",
-            "conductance": 4.763931049136786,
-            "subtype": "radiation"
-        },
-        {
-            "key": "片流れ(4)-外部||0_外壁_一般部_wall_s->片流れ(4)-外部||S_外壁_一般部_wall_s",
-            "conductance": 0.1467055091633466,
-            "subtype": "radiation"
-        },
-        {
-            "key": "片流れ(4)-外部||0_外壁_一般部_wall_s->片流れ(4)-外部||S_外壁_熱橋部_wall_s",
-            "conductance": 0.030048116334661354,
-            "subtype": "radiation"
-        },
-        {
-            "key": "片流れ(4)-外部||0_外壁_熱橋部_wall_s->片流れ(4)-外部||屋根_ceiling_s",
-            "conductance": 0.9757449136786188,
-            "subtype": "radiation"
-        },
-        {
-            "key": "片流れ(4)-外部||0_外壁_熱橋部_wall_s->片流れ(4)-外部||S_外壁_一般部_wall_s",
-            "conductance": 0.03004811633466135,
-            "subtype": "radiation"
-        },
-        {
-            "key": "片流れ(4)-外部||0_外壁_熱橋部_wall_s->片流れ(4)-外部||S_外壁_熱橋部_wall_s",
-            "conductance": 0.006154433466135458,
-            "subtype": "radiation"
-        },
-        {
-            "key": "片流れ(4)-外部||屋根_ceiling_s->片流れ(4)-外部||S_外壁_一般部_wall_s",
-            "conductance": 0.6026659760956175,
-            "subtype": "radiation"
-        },
-        {
-            "key": "片流れ(4)-外部||屋根_ceiling_s->片流れ(4)-外部||S_外壁_熱橋部_wall_s",
-            "conductance": 0.12343760956175298,
-            "subtype": "radiation"
-        },
-        {
-            "key": "片流れ(4)-外部||S_外壁_一般部_wall_s->片流れ(4)-外部||S_外壁_熱橋部_wall_s",
-            "conductance": 0.0038012677290836646,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||E_外壁_一般部_wall_s->階間(L4)-外部||E_外壁_熱橋部_wall_s",
-            "conductance": 0.342590600141643,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||E_外壁_一般部_wall_s->階間(L4)-外部||N_外壁_一般部_wall_s",
-            "conductance": 0.8393875703966005,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||E_外壁_一般部_wall_s->階間(L4)-外部||N_外壁_熱橋部_wall_s",
-            "conductance": 0.17192275538243626,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||E_外壁_一般部_wall_s->階間(L4)-外部||S_外壁_一般部_wall_s",
-            "conductance": 2.9286661215297447,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||E_外壁_一般部_wall_s->階間(L4)-外部||S_外壁_熱橋部_wall_s",
-            "conductance": 0.5998472779036828,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||E_外壁_一般部_wall_s->階間(L4)-外部||W_外壁_一般部_wall_s",
-            "conductance": 0.153172914305949,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||E_外壁_一般部_wall_s->階間(L4)-外部||W_外壁_熱橋部_wall_s",
-            "conductance": 0.03137276558073654,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||E_外壁_一般部_wall_s->階間(L4)-2階ホール||床_floor_s",
-            "conductance": 1.8528386260623229,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||E_外壁_一般部_wall_s->階間(L4)-片流れ(4)||0_外壁_一般部_wall_s",
-            "conductance": 1.519475309915014,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||E_外壁_一般部_wall_s->階間(L4)-片流れ(4)||0_外壁_熱橋部_wall_s",
-            "conductance": 0.31121783456090646,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||E_外壁_熱橋部_wall_s->階間(L4)-外部||N_外壁_一般部_wall_s",
-            "conductance": 0.17192275538243623,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||E_外壁_熱橋部_wall_s->階間(L4)-外部||N_外壁_熱橋部_wall_s",
-            "conductance": 0.035213094475920685,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||E_外壁_熱橋部_wall_s->階間(L4)-外部||S_外壁_一般部_wall_s",
-            "conductance": 0.5998472779036828,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||E_外壁_熱橋部_wall_s->階間(L4)-外部||S_外壁_熱橋部_wall_s",
-            "conductance": 0.12286028583569407,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||E_外壁_熱橋部_wall_s->階間(L4)-外部||W_外壁_一般部_wall_s",
-            "conductance": 0.03137276558073654,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||E_外壁_熱橋部_wall_s->階間(L4)-外部||W_外壁_熱橋部_wall_s",
-            "conductance": 0.0064257471671388105,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||E_外壁_熱橋部_wall_s->階間(L4)-2階ホール||床_floor_s",
-            "conductance": 0.37949706798866856,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||E_外壁_熱橋部_wall_s->階間(L4)-片流れ(4)||0_外壁_一般部_wall_s",
-            "conductance": 0.31121783456090646,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||E_外壁_熱橋部_wall_s->階間(L4)-片流れ(4)||0_外壁_熱橋部_wall_s",
-            "conductance": 0.06374341189801701,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||N_外壁_一般部_wall_s->階間(L4)-外部||N_外壁_熱橋部_wall_s",
-            "conductance": 0.08627625453257791,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||N_外壁_一般部_wall_s->階間(L4)-外部||S_外壁_一般部_wall_s",
-            "conductance": 1.4696969181303117,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||N_外壁_一般部_wall_s->階間(L4)-外部||S_外壁_熱橋部_wall_s",
-            "conductance": 0.30102226033994334,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||N_外壁_一般部_wall_s->階間(L4)-外部||W_外壁_一般部_wall_s",
-            "conductance": 0.07686699362606231,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||N_外壁_一般部_wall_s->階間(L4)-外部||W_外壁_熱橋部_wall_s",
-            "conductance": 0.01574384206798867,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||N_外壁_一般部_wall_s->階間(L4)-2階ホール||床_floor_s",
-            "conductance": 0.929812790368272,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||N_外壁_一般部_wall_s->階間(L4)-片流れ(4)||0_外壁_一般部_wall_s",
-            "conductance": 0.7625205767705381,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||N_外壁_一般部_wall_s->階間(L4)-片流れ(4)||0_外壁_熱橋部_wall_s",
-            "conductance": 0.1561789133144476,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||N_外壁_熱橋部_wall_s->階間(L4)-外部||S_外壁_一般部_wall_s",
-            "conductance": 0.30102226033994334,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||N_外壁_熱橋部_wall_s->階間(L4)-外部||S_外壁_熱橋部_wall_s",
-            "conductance": 0.06165516175637394,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||N_外壁_熱橋部_wall_s->階間(L4)-外部||W_外壁_一般部_wall_s",
-            "conductance": 0.015743842067988668,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||N_外壁_熱橋部_wall_s->階間(L4)-外部||W_外壁_熱橋部_wall_s",
-            "conductance": 0.0032246423512747877,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||N_外壁_熱橋部_wall_s->階間(L4)-2階ホール||床_floor_s",
-            "conductance": 0.19044358356940513,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||N_外壁_熱橋部_wall_s->階間(L4)-片流れ(4)||0_外壁_一般部_wall_s",
-            "conductance": 0.15617891331444758,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||N_外壁_熱橋部_wall_s->階間(L4)-片流れ(4)||0_外壁_熱橋部_wall_s",
-            "conductance": 0.0319884521246459,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||S_外壁_一般部_wall_s->階間(L4)-外部||S_外壁_熱橋部_wall_s",
-            "conductance": 1.0502820470254959,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||S_外壁_一般部_wall_s->階間(L4)-外部||W_外壁_一般部_wall_s",
-            "conductance": 0.26819286827195465,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||S_外壁_一般部_wall_s->階間(L4)-外部||W_外壁_熱橋部_wall_s",
-            "conductance": 0.054931069405099155,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||S_外壁_一般部_wall_s->階間(L4)-2階ホール||床_floor_s",
-            "conductance": 3.2441643342776203,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||S_外壁_一般部_wall_s->階間(L4)-片流れ(4)||0_外壁_一般部_wall_s",
-            "conductance": 2.66047325325779,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||S_外壁_一般部_wall_s->階間(L4)-片流れ(4)||0_外壁_熱橋部_wall_s",
-            "conductance": 0.5449162084985836,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||S_外壁_熱橋部_wall_s->階間(L4)-外部||W_外壁_一般部_wall_s",
-            "conductance": 0.054931069405099155,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||S_外壁_熱橋部_wall_s->階間(L4)-外部||W_外壁_熱橋部_wall_s",
-            "conductance": 0.01125094192634561,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||S_外壁_熱橋部_wall_s->階間(L4)-2階ホール||床_floor_s",
-            "conductance": 0.6644673937677056,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||S_外壁_熱橋部_wall_s->階間(L4)-片流れ(4)||0_外壁_一般部_wall_s",
-            "conductance": 0.5449162084985836,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||S_外壁_熱橋部_wall_s->階間(L4)-片流れ(4)||0_外壁_熱橋部_wall_s",
-            "conductance": 0.11160934390934846,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||W_外壁_一般部_wall_s->階間(L4)-外部||W_外壁_熱橋部_wall_s",
-            "conductance": 0.00287296388101983,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||W_外壁_一般部_wall_s->階間(L4)-2階ホール||床_floor_s",
-            "conductance": 0.1696738668555241,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||W_外壁_一般部_wall_s->階間(L4)-片流れ(4)||0_外壁_一般部_wall_s",
-            "conductance": 0.13914609065155806,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||W_外壁_一般部_wall_s->階間(L4)-片流れ(4)||0_外壁_熱橋部_wall_s",
-            "conductance": 0.028499801699716713,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||W_外壁_熱橋部_wall_s->階間(L4)-2階ホール||床_floor_s",
-            "conductance": 0.03475247875354108,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||W_外壁_熱橋部_wall_s->階間(L4)-片流れ(4)||0_外壁_一般部_wall_s",
-            "conductance": 0.028499801699716713,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-外部||W_外壁_熱橋部_wall_s->階間(L4)-片流れ(4)||0_外壁_熱橋部_wall_s",
-            "conductance": 0.005837308781869689,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-2階ホール||床_floor_s->階間(L4)-片流れ(4)||0_外壁_一般部_wall_s",
-            "conductance": 1.6831647592067986,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-2階ホール||床_floor_s->階間(L4)-片流れ(4)||0_外壁_熱橋部_wall_s",
-            "conductance": 0.34474458923512746,
-            "subtype": "radiation"
-        },
-        {
-            "key": "階間(L4)-片流れ(4)||0_外壁_一般部_wall_s->階間(L4)-片流れ(4)||0_外壁_熱橋部_wall_s",
-            "conductance": 0.2827180328611898,
+            "key": "浴室-洗面所||室内建具_wall_s->浴室-外部||W_窓_glass_s",
+            "conductance": 0.14475239734447995,
             "subtype": "radiation"
         },
         {
@@ -14536,183 +13711,1123 @@
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-外部||N_外壁_一般部_wall_s->洗面所-外部||N_外壁_熱橋部_wall_s",
-            "conductance": 0.08099396376970226,
+            "key": "台所-外部||E_外壁_一般部_wall_s->台所-外部||E_外壁_熱橋部_wall_s",
+            "conductance": 0.8997365498240922,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-外部||N_外壁_一般部_wall_s->洗面所-床下||外皮床_一般部_floor_s",
-            "conductance": 0.8668278794877408,
+            "key": "台所-外部||E_外壁_一般部_wall_s->台所-外部||N_外壁_一般部_wall_s",
+            "conductance": 2.0554692334373916,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-外部||N_外壁_一般部_wall_s->洗面所-床下||外皮床_熱橋部_floor_s",
-            "conductance": 0.1775430596541156,
+            "key": "台所-外部||E_外壁_一般部_wall_s->台所-外部||N_外壁_熱橋部_wall_s",
+            "conductance": 0.4209997225112731,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-外部||N_外壁_一般部_wall_s->洗面所-1階トイレ||間仕切壁_wall_s",
-            "conductance": 1.290476477670753,
+            "key": "台所-外部||E_外壁_一般部_wall_s->台所-床下||外皮床_一般部_floor_s",
+            "conductance": 4.8626529293890295,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-外部||N_外壁_一般部_wall_s->洗面所-ホール||間仕切壁_wall_s",
-            "conductance": 1.290476477670753,
+            "key": "台所-外部||E_外壁_一般部_wall_s->台所-床下||外皮床_熱橋部_floor_s",
+            "conductance": 0.9959650578266689,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-外部||N_外壁_一般部_wall_s->洗面所-片流れ(3)||外皮天井_floor_s",
-            "conductance": 1.0443709391418563,
+            "key": "台所-外部||E_外壁_一般部_wall_s->台所-1階トイレ||間仕切壁_wall_s",
+            "conductance": 2.893930865665726,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-外部||N_外壁_一般部_wall_s->洗面所-ホール||室内建具_wall_s",
-            "conductance": 0.44866932793345005,
+            "key": "台所-外部||E_外壁_一般部_wall_s->台所-ホール||間仕切壁_wall_s",
+            "conductance": 3.092048382141619,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-外部||N_外壁_一般部_wall_s->洗面所-外部||N_窓_glass_s",
-            "conductance": 0.17038075744308231,
+            "key": "台所-外部||E_外壁_一般部_wall_s->台所-片流れ(3)||外皮天井_floor_s",
+            "conductance": 3.169880263614291,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-外部||N_外壁_熱橋部_wall_s->洗面所-床下||外皮床_一般部_floor_s",
-            "conductance": 0.17754305965411557,
+            "key": "台所-外部||E_外壁_一般部_wall_s->台所-階間(L4)||天井_ceiling_s",
+            "conductance": 2.9293089936078496,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-外部||N_外壁_熱橋部_wall_s->洗面所-床下||外皮床_熱橋部_floor_s",
-            "conductance": 0.03636424113397548,
+            "key": "台所-外部||E_外壁_一般部_wall_s->台所-ホール||室内建具_wall_s",
+            "conductance": 1.0061539586740005,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-外部||N_外壁_熱橋部_wall_s->洗面所-1階トイレ||間仕切壁_wall_s",
-            "conductance": 0.2643144592819614,
+            "key": "台所-外部||E_外壁_一般部_wall_s->台所-外部||E_窓_glass_s",
+            "conductance": 0.6934113076656262,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-外部||N_外壁_熱橋部_wall_s->洗面所-ホール||間仕切壁_wall_s",
-            "conductance": 0.2643144592819614,
+            "key": "台所-外部||E_外壁_一般部_wall_s->台所-外部||N_窓_glass_s",
+            "conductance": 1.1462513453248109,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-外部||N_外壁_熱橋部_wall_s->洗面所-片流れ(3)||外皮天井_floor_s",
-            "conductance": 0.21390730078809103,
+            "key": "台所-外部||E_外壁_熱橋部_wall_s->台所-外部||N_外壁_一般部_wall_s",
+            "conductance": 0.4209997225112731,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-外部||N_外壁_熱橋部_wall_s->洗面所-ホール||室内建具_wall_s",
-            "conductance": 0.09189612740805603,
+            "key": "台所-外部||E_外壁_熱橋部_wall_s->台所-外部||N_外壁_熱橋部_wall_s",
+            "conductance": 0.08622885882761017,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-外部||N_外壁_熱橋部_wall_s->洗面所-外部||N_窓_glass_s",
-            "conductance": 0.03489726357267951,
+            "key": "台所-外部||E_外壁_熱橋部_wall_s->台所-床下||外皮床_一般部_floor_s",
+            "conductance": 0.9959650578266689,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-床下||外皮床_一般部_floor_s->洗面所-床下||外皮床_熱橋部_floor_s",
-            "conductance": 0.3891837930166376,
+            "key": "台所-外部||E_外壁_熱橋部_wall_s->台所-床下||外皮床_熱橋部_floor_s",
+            "conductance": 0.20399284316931773,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-床下||外皮床_一般部_floor_s->洗面所-1階トイレ||間仕切壁_wall_s",
-            "conductance": 2.828792808669002,
+            "key": "台所-外部||E_外壁_熱橋部_wall_s->台所-1階トイレ||間仕切壁_wall_s",
+            "conductance": 0.5927328279074379,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-床下||外皮床_一般部_floor_s->洗面所-ホール||間仕切壁_wall_s",
-            "conductance": 2.828792808669002,
+            "key": "台所-外部||E_外壁_熱橋部_wall_s->台所-ホール||間仕切壁_wall_s",
+            "conductance": 0.6333111144145486,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-床下||外皮床_一般部_floor_s->洗面所-片流れ(3)||外皮天井_floor_s",
-            "conductance": 2.289316429509632,
+            "key": "台所-外部||E_外壁_熱橋部_wall_s->台所-片流れ(3)||外皮天井_floor_s",
+            "conductance": 0.6492525841137705,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-床下||外皮床_一般部_floor_s->洗面所-ホール||室内建具_wall_s",
-            "conductance": 0.983506937390543,
+            "key": "台所-外部||E_外壁_熱橋部_wall_s->台所-階間(L4)||天井_ceiling_s",
+            "conductance": 0.5999789504979932,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-床下||外皮床_一般部_floor_s->洗面所-外部||N_窓_glass_s",
-            "conductance": 0.37348364711033283,
+            "key": "台所-外部||E_外壁_熱橋部_wall_s->台所-ホール||室内建具_wall_s",
+            "conductance": 0.20607972647539768,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-床下||外皮床_熱橋部_floor_s->洗面所-1階トイレ||間仕切壁_wall_s",
-            "conductance": 0.5793912981611209,
+            "key": "台所-外部||E_外壁_熱橋部_wall_s->台所-外部||E_窓_glass_s",
+            "conductance": 0.1420240027748873,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-床下||外皮床_熱橋部_floor_s->洗面所-ホール||間仕切壁_wall_s",
-            "conductance": 0.5793912981611209,
+            "key": "台所-外部||E_外壁_熱橋部_wall_s->台所-外部||N_窓_glass_s",
+            "conductance": 0.23477437193399742,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-床下||外皮床_熱橋部_floor_s->洗面所-片流れ(3)||外皮天井_floor_s",
-            "conductance": 0.4688961361646235,
+            "key": "台所-外部||N_外壁_一般部_wall_s->台所-外部||N_外壁_熱橋部_wall_s",
+            "conductance": 0.19699184876864384,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-床下||外皮床_熱橋部_floor_s->洗面所-ホール||室内建具_wall_s",
-            "conductance": 0.2014411799474606,
+            "key": "台所-外部||N_外壁_一般部_wall_s->台所-床下||外皮床_一般部_floor_s",
+            "conductance": 2.2753055150884496,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-床下||外皮床_熱橋部_floor_s->洗面所-外部||N_窓_glass_s",
-            "conductance": 0.07649665061295974,
+            "key": "台所-外部||N_外壁_一般部_wall_s->台所-床下||外皮床_熱橋部_floor_s",
+            "conductance": 0.4660264308012488,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-1階トイレ||間仕切壁_wall_s->洗面所-ホール||間仕切壁_wall_s",
-            "conductance": 4.211321147110332,
+            "key": "台所-外部||N_外壁_一般部_wall_s->台所-1階トイレ||間仕切壁_wall_s",
+            "conductance": 1.3541120360735346,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-1階トイレ||間仕切壁_wall_s->洗面所-片流れ(3)||外皮天井_floor_s",
-            "conductance": 3.4081841068301224,
+            "key": "台所-外部||N_外壁_一般部_wall_s->台所-ホール||間仕切壁_wall_s",
+            "conductance": 1.4468140825528966,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-1階トイレ||間仕切壁_wall_s->洗面所-ホール||室内建具_wall_s",
-            "conductance": 1.464180604203152,
+            "key": "台所-外部||N_外壁_一般部_wall_s->台所-片流れ(3)||外皮天井_floor_s",
+            "conductance": 1.4832327436697885,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-1階トイレ||間仕切壁_wall_s->洗面所-外部||N_窓_glass_s",
-            "conductance": 0.5560179509632224,
+            "key": "台所-外部||N_外壁_一般部_wall_s->台所-階間(L4)||天井_ceiling_s",
+            "conductance": 1.3706659729448492,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-ホール||間仕切壁_wall_s->洗面所-片流れ(3)||外皮天井_floor_s",
-            "conductance": 3.4081841068301224,
+            "key": "台所-外部||N_外壁_一般部_wall_s->台所-ホール||室内建具_wall_s",
+            "conductance": 0.4707939646201873,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-ホール||間仕切壁_wall_s->洗面所-ホール||室内建具_wall_s",
-            "conductance": 1.464180604203152,
+            "key": "台所-外部||N_外壁_一般部_wall_s->台所-外部||E_窓_glass_s",
+            "conductance": 0.32445716267776625,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-ホール||間仕切壁_wall_s->洗面所-外部||N_窓_glass_s",
-            "conductance": 0.5560179509632224,
+            "key": "台所-外部||N_外壁_一般部_wall_s->台所-外部||N_窓_glass_s",
+            "conductance": 0.5363475546305932,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-片流れ(3)||外皮天井_floor_s->洗面所-ホール||室内建具_wall_s",
-            "conductance": 1.1849481173380034,
+            "key": "台所-外部||N_外壁_熱橋部_wall_s->台所-床下||外皮床_一般部_floor_s",
+            "conductance": 0.4660264308012488,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-片流れ(3)||外皮天井_floor_s->洗面所-外部||N_窓_glass_s",
-            "conductance": 0.4499802977232925,
+            "key": "台所-外部||N_外壁_熱橋部_wall_s->台所-床下||外皮床_熱橋部_floor_s",
+            "conductance": 0.09545119667013531,
             "subtype": "radiation"
         },
         {
-            "key": "洗面所-ホール||室内建具_wall_s->洗面所-外部||N_窓_glass_s",
-            "conductance": 0.1933147985989492,
+            "key": "台所-外部||N_外壁_熱橋部_wall_s->台所-1階トイレ||間仕切壁_wall_s",
+            "conductance": 0.2773482483524108,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-外部||N_外壁_熱橋部_wall_s->台所-ホール||間仕切壁_wall_s",
+            "conductance": 0.2963354144987861,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-外部||N_外壁_熱橋部_wall_s->台所-片流れ(3)||外皮天井_floor_s",
+            "conductance": 0.3037946583420049,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-外部||N_外壁_熱橋部_wall_s->台所-階間(L4)||天井_ceiling_s",
+            "conductance": 0.2807388137356921,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-外部||N_外壁_熱橋部_wall_s->台所-ホール||室内建具_wall_s",
+            "conductance": 0.09642767950052032,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-外部||N_外壁_熱橋部_wall_s->台所-外部||E_窓_glass_s",
+            "conductance": 0.06645508151231358,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-外部||N_外壁_熱橋部_wall_s->台所-外部||N_窓_glass_s",
+            "conductance": 0.1098543184183143,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-床下||外皮床_一般部_floor_s->台所-床下||外皮床_熱橋部_floor_s",
+            "conductance": 1.1024853848669542,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-床下||外皮床_一般部_floor_s->台所-1階トイレ||間仕切壁_wall_s",
+            "conductance": 3.203442188196819,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-床下||外皮床_一般部_floor_s->台所-ホール||間仕切壁_wall_s",
+            "conductance": 3.4227487438679947,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-床下||外皮床_一般部_floor_s->台所-片流れ(3)||外皮天井_floor_s",
+            "conductance": 3.5089048907388136,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-床下||外皮床_一般部_floor_s->台所-階間(L4)||天井_ceiling_s",
+            "conductance": 3.2426040731381,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-床下||外皮床_一般部_floor_s->台所-ホール||室内建具_wall_s",
+            "conductance": 1.1137640077300432,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-床下||外皮床_一般部_floor_s->台所-外部||E_窓_glass_s",
+            "conductance": 0.7675729448491155,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-床下||外皮床_一般部_floor_s->台所-外部||N_窓_glass_s",
+            "conductance": 1.2688450720975177,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-床下||外皮床_熱橋部_floor_s->台所-1階トイレ||間仕切壁_wall_s",
+            "conductance": 0.6561267132451316,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-床下||外皮床_熱橋部_floor_s->台所-ホール||間仕切壁_wall_s",
+            "conductance": 0.7010449234428424,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-床下||外皮床_熱橋部_floor_s->台所-片流れ(3)||外皮天井_floor_s",
+            "conductance": 0.7186913631633716,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-床下||外皮床_熱橋部_floor_s->台所-階間(L4)||天井_ceiling_s",
+            "conductance": 0.6641478222090085,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-床下||外皮床_熱橋部_floor_s->台所-ホール||室内建具_wall_s",
+            "conductance": 0.22812033893265948,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-床下||外皮床_熱橋部_floor_s->台所-外部||E_窓_glass_s",
+            "conductance": 0.15721373569198754,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-床下||外皮床_熱橋部_floor_s->台所-外部||N_窓_glass_s",
+            "conductance": 0.25988393042961205,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-1階トイレ||間仕切壁_wall_s->台所-ホール||間仕切壁_wall_s",
+            "conductance": 2.0369946979832516,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-1階トイレ||間仕切壁_wall_s->台所-片流れ(3)||外皮天井_floor_s",
+            "conductance": 2.08826916406521,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-1階トイレ||間仕切壁_wall_s->台所-階間(L4)||天井_ceiling_s",
+            "conductance": 1.9297844507209752,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-1階トイレ||間仕切壁_wall_s->台所-ホール||室内建具_wall_s",
+            "conductance": 0.6628390069867698,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-1階トイレ||間仕切壁_wall_s->台所-外部||E_窓_glass_s",
+            "conductance": 0.4568088796392647,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-1階トイレ||間仕切壁_wall_s->台所-外部||N_窓_glass_s",
+            "conductance": 0.7551330459342948,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-ホール||間仕切壁_wall_s->台所-片流れ(3)||外皮天井_floor_s",
+            "conductance": 2.2312313562261537,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-ホール||間仕切壁_wall_s->台所-階間(L4)||天井_ceiling_s",
+            "conductance": 2.061896833655419,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-ホール||間仕切壁_wall_s->台所-ホール||室内建具_wall_s",
+            "conductance": 0.7082167385164265,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-ホール||間仕切壁_wall_s->台所-外部||E_窓_glass_s",
+            "conductance": 0.4880818591744712,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-ホール||間仕切壁_wall_s->台所-外部||N_窓_glass_s",
+            "conductance": 0.8068291957782076,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-片流れ(3)||外皮天井_floor_s->台所-階間(L4)||天井_ceiling_s",
+            "conductance": 2.113798126951093,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-片流れ(3)||外皮天井_floor_s->台所-ホール||室内建具_wall_s",
+            "conductance": 0.7260437044745058,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-片流れ(3)||外皮天井_floor_s->台所-外部||E_窓_glass_s",
+            "conductance": 0.5003676725633022,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-片流れ(3)||外皮天井_floor_s->台所-外部||N_窓_glass_s",
+            "conductance": 0.8271383975026017,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-階間(L4)||天井_ceiling_s->台所-ホール||室内建具_wall_s",
+            "conductance": 0.6709421733313514,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-階間(L4)||天井_ceiling_s->台所-外部||E_窓_glass_s",
+            "conductance": 0.46239334027055157,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-階間(L4)||天井_ceiling_s->台所-外部||N_窓_glass_s",
+            "conductance": 0.7643645012635648,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-ホール||室内建具_wall_s->台所-外部||E_窓_glass_s",
+            "conductance": 0.15882206035379814,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-ホール||室内建具_wall_s->台所-外部||N_窓_glass_s",
+            "conductance": 0.2625425895644419,
+            "subtype": "radiation"
+        },
+        {
+            "key": "台所-外部||E_窓_glass_s->台所-外部||N_窓_glass_s",
+            "conductance": 0.18093652445369413,
+            "subtype": "radiation"
+        },
+        {
+            "key": "子供室1-外部||S_外壁_一般部_wall_s->子供室1-外部||S_外壁_熱橋部_wall_s",
+            "conductance": 0.48207857878242477,
+            "subtype": "radiation"
+        },
+        {
+            "key": "子供室1-外部||S_外壁_一般部_wall_s->子供室1-子供室2||間仕切壁_wall_s",
+            "conductance": 4.617944934247847,
+            "subtype": "radiation"
+        },
+        {
+            "key": "子供室1-外部||S_外壁_一般部_wall_s->子供室1-切妻||外皮天井_floor_s",
+            "conductance": 5.685250285183848,
+            "subtype": "radiation"
+        },
+        {
+            "key": "子供室1-外部||S_外壁_一般部_wall_s->子供室1-階間(L4)||床_floor_s",
+            "conductance": 5.685250285183848,
+            "subtype": "radiation"
+        },
+        {
+            "key": "子供室1-外部||S_外壁_一般部_wall_s->子供室1-2階ホール||室内建具_wall_s",
+            "conductance": 0.7513406975400959,
+            "subtype": "radiation"
+        },
+        {
+            "key": "子供室1-外部||S_外壁_一般部_wall_s->子供室1-外部||S_窓_glass_s",
+            "conductance": 0.9156634520653912,
+            "subtype": "radiation"
+        },
+        {
+            "key": "子供室1-外部||S_外壁_熱橋部_wall_s->子供室1-子供室2||間仕切壁_wall_s",
+            "conductance": 0.9458441431591976,
+            "subtype": "radiation"
+        },
+        {
+            "key": "子供室1-外部||S_外壁_熱橋部_wall_s->子供室1-切妻||外皮天井_floor_s",
+            "conductance": 1.1644488535918724,
+            "subtype": "radiation"
+        },
+        {
+            "key": "子供室1-外部||S_外壁_熱橋部_wall_s->子供室1-階間(L4)||床_floor_s",
+            "conductance": 1.1644488535918724,
+            "subtype": "radiation"
+        },
+        {
+            "key": "子供室1-外部||S_外壁_熱橋部_wall_s->子供室1-2階ホール||室内建具_wall_s",
+            "conductance": 0.1538890585323088,
+            "subtype": "radiation"
+        },
+        {
+            "key": "子供室1-外部||S_外壁_熱橋部_wall_s->子供室1-外部||S_窓_glass_s",
+            "conductance": 0.18754552632664642,
+            "subtype": "radiation"
+        },
+        {
+            "key": "子供室1-子供室2||間仕切壁_wall_s->子供室1-切妻||外皮天井_floor_s",
+            "conductance": 11.154531483677998,
+            "subtype": "radiation"
+        },
+        {
+            "key": "子供室1-子供室2||間仕切壁_wall_s->子供室1-階間(L4)||床_floor_s",
+            "conductance": 11.154531483677998,
+            "subtype": "radiation"
+        },
+        {
+            "key": "子供室1-子供室2||間仕切壁_wall_s->子供室1-2階ホール||室内建具_wall_s",
+            "conductance": 1.474139755556702,
+            "subtype": "radiation"
+        },
+        {
+            "key": "子供室1-子供室2||間仕切壁_wall_s->子供室1-外部||S_窓_glass_s",
+            "conductance": 1.7965430354288079,
+            "subtype": "radiation"
+        },
+        {
+            "key": "子供室1-切妻||外皮天井_floor_s->子供室1-階間(L4)||床_floor_s",
+            "conductance": 13.73258109432211,
+            "subtype": "radiation"
+        },
+        {
+            "key": "子供室1-切妻||外皮天井_floor_s->子供室1-2階ホール||室内建具_wall_s",
+            "conductance": 1.814844824918777,
+            "subtype": "radiation"
+        },
+        {
+            "key": "子供室1-切妻||外皮天井_floor_s->子供室1-外部||S_窓_glass_s",
+            "conductance": 2.2117623639832917,
+            "subtype": "radiation"
+        },
+        {
+            "key": "子供室1-階間(L4)||床_floor_s->子供室1-2階ホール||室内建具_wall_s",
+            "conductance": 1.814844824918777,
+            "subtype": "radiation"
+        },
+        {
+            "key": "子供室1-階間(L4)||床_floor_s->子供室1-外部||S_窓_glass_s",
+            "conductance": 2.2117623639832917,
+            "subtype": "radiation"
+        },
+        {
+            "key": "子供室1-2階ホール||室内建具_wall_s->子供室1-外部||S_窓_glass_s",
+            "conductance": 0.2922979629725131,
+            "subtype": "radiation"
+        },
+        {
+            "key": "片流れ(4)-外部||0_外壁_一般部_wall_s->片流れ(4)-外部||0_外壁_熱橋部_wall_s",
+            "conductance": 0.23752320531208496,
+            "subtype": "radiation"
+        },
+        {
+            "key": "片流れ(4)-外部||0_外壁_一般部_wall_s->片流れ(4)-外部||屋根_ceiling_s",
+            "conductance": 4.763931049136786,
+            "subtype": "radiation"
+        },
+        {
+            "key": "片流れ(4)-外部||0_外壁_一般部_wall_s->片流れ(4)-外部||S_外壁_一般部_wall_s",
+            "conductance": 0.1467055091633466,
+            "subtype": "radiation"
+        },
+        {
+            "key": "片流れ(4)-外部||0_外壁_一般部_wall_s->片流れ(4)-外部||S_外壁_熱橋部_wall_s",
+            "conductance": 0.030048116334661354,
+            "subtype": "radiation"
+        },
+        {
+            "key": "片流れ(4)-外部||0_外壁_熱橋部_wall_s->片流れ(4)-外部||屋根_ceiling_s",
+            "conductance": 0.9757449136786188,
+            "subtype": "radiation"
+        },
+        {
+            "key": "片流れ(4)-外部||0_外壁_熱橋部_wall_s->片流れ(4)-外部||S_外壁_一般部_wall_s",
+            "conductance": 0.03004811633466135,
+            "subtype": "radiation"
+        },
+        {
+            "key": "片流れ(4)-外部||0_外壁_熱橋部_wall_s->片流れ(4)-外部||S_外壁_熱橋部_wall_s",
+            "conductance": 0.006154433466135458,
+            "subtype": "radiation"
+        },
+        {
+            "key": "片流れ(4)-外部||屋根_ceiling_s->片流れ(4)-外部||S_外壁_一般部_wall_s",
+            "conductance": 0.6026659760956175,
+            "subtype": "radiation"
+        },
+        {
+            "key": "片流れ(4)-外部||屋根_ceiling_s->片流れ(4)-外部||S_外壁_熱橋部_wall_s",
+            "conductance": 0.12343760956175298,
+            "subtype": "radiation"
+        },
+        {
+            "key": "片流れ(4)-外部||S_外壁_一般部_wall_s->片流れ(4)-外部||S_外壁_熱橋部_wall_s",
+            "conductance": 0.0038012677290836646,
+            "subtype": "radiation"
+        },
+        {
+            "key": "片流れ(3)-外部||E_外壁_一般部_wall_s->片流れ(3)-外部||E_外壁_熱橋部_wall_s",
+            "conductance": 0.02649411581920904,
+            "subtype": "radiation"
+        },
+        {
+            "key": "片流れ(3)-外部||E_外壁_一般部_wall_s->片流れ(3)-外部||屋根_ceiling_s",
+            "conductance": 2.599907005649717,
+            "subtype": "radiation"
+        },
+        {
+            "key": "片流れ(3)-外部||E_外壁_一般部_wall_s->片流れ(3)-外部||W_外壁_一般部_wall_s",
+            "conductance": 0.12935362429378527,
+            "subtype": "radiation"
+        },
+        {
+            "key": "片流れ(3)-外部||E_外壁_一般部_wall_s->片流れ(3)-外部||W_外壁_熱橋部_wall_s",
+            "conductance": 0.02649411581920904,
+            "subtype": "radiation"
+        },
+        {
+            "key": "片流れ(3)-外部||E_外壁_一般部_wall_s->片流れ(3)-階間(L4)||_外皮天井_floor_s",
+            "conductance": 0.3336975141242937,
+            "subtype": "radiation"
+        },
+        {
+            "key": "片流れ(3)-外部||E_外壁_熱橋部_wall_s->片流れ(3)-外部||屋根_ceiling_s",
+            "conductance": 0.5325110734463278,
+            "subtype": "radiation"
+        },
+        {
+            "key": "片流れ(3)-外部||E_外壁_熱橋部_wall_s->片流れ(3)-外部||W_外壁_一般部_wall_s",
+            "conductance": 0.02649411581920904,
+            "subtype": "radiation"
+        },
+        {
+            "key": "片流れ(3)-外部||E_外壁_熱橋部_wall_s->片流れ(3)-外部||W_外壁_熱橋部_wall_s",
+            "conductance": 0.005426505649717516,
+            "subtype": "radiation"
+        },
+        {
+            "key": "片流れ(3)-外部||E_外壁_熱橋部_wall_s->片流れ(3)-階間(L4)||_外皮天井_floor_s",
+            "conductance": 0.06834768361581922,
+            "subtype": "radiation"
+        },
+        {
+            "key": "片流れ(3)-外部||屋根_ceiling_s->片流れ(3)-外部||W_外壁_一般部_wall_s",
+            "conductance": 2.599907005649717,
+            "subtype": "radiation"
+        },
+        {
+            "key": "片流れ(3)-外部||屋根_ceiling_s->片流れ(3)-外部||W_外壁_熱橋部_wall_s",
+            "conductance": 0.5325110734463278,
+            "subtype": "radiation"
+        },
+        {
+            "key": "片流れ(3)-外部||屋根_ceiling_s->片流れ(3)-階間(L4)||_外皮天井_floor_s",
+            "conductance": 6.7070598870056495,
+            "subtype": "radiation"
+        },
+        {
+            "key": "片流れ(3)-外部||W_外壁_一般部_wall_s->片流れ(3)-外部||W_外壁_熱橋部_wall_s",
+            "conductance": 0.02649411581920904,
+            "subtype": "radiation"
+        },
+        {
+            "key": "片流れ(3)-外部||W_外壁_一般部_wall_s->片流れ(3)-階間(L4)||_外皮天井_floor_s",
+            "conductance": 0.3336975141242937,
+            "subtype": "radiation"
+        },
+        {
+            "key": "片流れ(3)-外部||W_外壁_熱橋部_wall_s->片流れ(3)-階間(L4)||_外皮天井_floor_s",
+            "conductance": 0.06834768361581922,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||E_外壁_一般部_wall_s->階間(L4)-外部||E_外壁_熱橋部_wall_s",
+            "conductance": 0.342590600141643,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||E_外壁_一般部_wall_s->階間(L4)-外部||N_外壁_一般部_wall_s",
+            "conductance": 0.8393875703966005,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||E_外壁_一般部_wall_s->階間(L4)-外部||N_外壁_熱橋部_wall_s",
+            "conductance": 0.17192275538243626,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||E_外壁_一般部_wall_s->階間(L4)-外部||S_外壁_一般部_wall_s",
+            "conductance": 2.9286661215297447,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||E_外壁_一般部_wall_s->階間(L4)-外部||S_外壁_熱橋部_wall_s",
+            "conductance": 0.5998472779036828,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||E_外壁_一般部_wall_s->階間(L4)-外部||W_外壁_一般部_wall_s",
+            "conductance": 0.153172914305949,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||E_外壁_一般部_wall_s->階間(L4)-外部||W_外壁_熱橋部_wall_s",
+            "conductance": 0.03137276558073654,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||E_外壁_一般部_wall_s->階間(L4)-2階ホール||床_floor_s",
+            "conductance": 1.8528386260623229,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||E_外壁_一般部_wall_s->階間(L4)-片流れ(4)||0_外壁_一般部_wall_s",
+            "conductance": 1.519475309915014,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||E_外壁_一般部_wall_s->階間(L4)-片流れ(4)||0_外壁_熱橋部_wall_s",
+            "conductance": 0.31121783456090646,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||E_外壁_熱橋部_wall_s->階間(L4)-外部||N_外壁_一般部_wall_s",
+            "conductance": 0.17192275538243623,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||E_外壁_熱橋部_wall_s->階間(L4)-外部||N_外壁_熱橋部_wall_s",
+            "conductance": 0.035213094475920685,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||E_外壁_熱橋部_wall_s->階間(L4)-外部||S_外壁_一般部_wall_s",
+            "conductance": 0.5998472779036828,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||E_外壁_熱橋部_wall_s->階間(L4)-外部||S_外壁_熱橋部_wall_s",
+            "conductance": 0.12286028583569407,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||E_外壁_熱橋部_wall_s->階間(L4)-外部||W_外壁_一般部_wall_s",
+            "conductance": 0.03137276558073654,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||E_外壁_熱橋部_wall_s->階間(L4)-外部||W_外壁_熱橋部_wall_s",
+            "conductance": 0.0064257471671388105,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||E_外壁_熱橋部_wall_s->階間(L4)-2階ホール||床_floor_s",
+            "conductance": 0.37949706798866856,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||E_外壁_熱橋部_wall_s->階間(L4)-片流れ(4)||0_外壁_一般部_wall_s",
+            "conductance": 0.31121783456090646,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||E_外壁_熱橋部_wall_s->階間(L4)-片流れ(4)||0_外壁_熱橋部_wall_s",
+            "conductance": 0.06374341189801701,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||N_外壁_一般部_wall_s->階間(L4)-外部||N_外壁_熱橋部_wall_s",
+            "conductance": 0.08627625453257791,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||N_外壁_一般部_wall_s->階間(L4)-外部||S_外壁_一般部_wall_s",
+            "conductance": 1.4696969181303117,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||N_外壁_一般部_wall_s->階間(L4)-外部||S_外壁_熱橋部_wall_s",
+            "conductance": 0.30102226033994334,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||N_外壁_一般部_wall_s->階間(L4)-外部||W_外壁_一般部_wall_s",
+            "conductance": 0.07686699362606231,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||N_外壁_一般部_wall_s->階間(L4)-外部||W_外壁_熱橋部_wall_s",
+            "conductance": 0.01574384206798867,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||N_外壁_一般部_wall_s->階間(L4)-2階ホール||床_floor_s",
+            "conductance": 0.929812790368272,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||N_外壁_一般部_wall_s->階間(L4)-片流れ(4)||0_外壁_一般部_wall_s",
+            "conductance": 0.7625205767705381,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||N_外壁_一般部_wall_s->階間(L4)-片流れ(4)||0_外壁_熱橋部_wall_s",
+            "conductance": 0.1561789133144476,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||N_外壁_熱橋部_wall_s->階間(L4)-外部||S_外壁_一般部_wall_s",
+            "conductance": 0.30102226033994334,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||N_外壁_熱橋部_wall_s->階間(L4)-外部||S_外壁_熱橋部_wall_s",
+            "conductance": 0.06165516175637394,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||N_外壁_熱橋部_wall_s->階間(L4)-外部||W_外壁_一般部_wall_s",
+            "conductance": 0.015743842067988668,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||N_外壁_熱橋部_wall_s->階間(L4)-外部||W_外壁_熱橋部_wall_s",
+            "conductance": 0.0032246423512747877,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||N_外壁_熱橋部_wall_s->階間(L4)-2階ホール||床_floor_s",
+            "conductance": 0.19044358356940513,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||N_外壁_熱橋部_wall_s->階間(L4)-片流れ(4)||0_外壁_一般部_wall_s",
+            "conductance": 0.15617891331444758,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||N_外壁_熱橋部_wall_s->階間(L4)-片流れ(4)||0_外壁_熱橋部_wall_s",
+            "conductance": 0.0319884521246459,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||S_外壁_一般部_wall_s->階間(L4)-外部||S_外壁_熱橋部_wall_s",
+            "conductance": 1.0502820470254959,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||S_外壁_一般部_wall_s->階間(L4)-外部||W_外壁_一般部_wall_s",
+            "conductance": 0.26819286827195465,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||S_外壁_一般部_wall_s->階間(L4)-外部||W_外壁_熱橋部_wall_s",
+            "conductance": 0.054931069405099155,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||S_外壁_一般部_wall_s->階間(L4)-2階ホール||床_floor_s",
+            "conductance": 3.2441643342776203,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||S_外壁_一般部_wall_s->階間(L4)-片流れ(4)||0_外壁_一般部_wall_s",
+            "conductance": 2.66047325325779,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||S_外壁_一般部_wall_s->階間(L4)-片流れ(4)||0_外壁_熱橋部_wall_s",
+            "conductance": 0.5449162084985836,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||S_外壁_熱橋部_wall_s->階間(L4)-外部||W_外壁_一般部_wall_s",
+            "conductance": 0.054931069405099155,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||S_外壁_熱橋部_wall_s->階間(L4)-外部||W_外壁_熱橋部_wall_s",
+            "conductance": 0.01125094192634561,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||S_外壁_熱橋部_wall_s->階間(L4)-2階ホール||床_floor_s",
+            "conductance": 0.6644673937677056,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||S_外壁_熱橋部_wall_s->階間(L4)-片流れ(4)||0_外壁_一般部_wall_s",
+            "conductance": 0.5449162084985836,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||S_外壁_熱橋部_wall_s->階間(L4)-片流れ(4)||0_外壁_熱橋部_wall_s",
+            "conductance": 0.11160934390934846,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||W_外壁_一般部_wall_s->階間(L4)-外部||W_外壁_熱橋部_wall_s",
+            "conductance": 0.00287296388101983,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||W_外壁_一般部_wall_s->階間(L4)-2階ホール||床_floor_s",
+            "conductance": 0.1696738668555241,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||W_外壁_一般部_wall_s->階間(L4)-片流れ(4)||0_外壁_一般部_wall_s",
+            "conductance": 0.13914609065155806,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||W_外壁_一般部_wall_s->階間(L4)-片流れ(4)||0_外壁_熱橋部_wall_s",
+            "conductance": 0.028499801699716713,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||W_外壁_熱橋部_wall_s->階間(L4)-2階ホール||床_floor_s",
+            "conductance": 0.03475247875354108,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||W_外壁_熱橋部_wall_s->階間(L4)-片流れ(4)||0_外壁_一般部_wall_s",
+            "conductance": 0.028499801699716713,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-外部||W_外壁_熱橋部_wall_s->階間(L4)-片流れ(4)||0_外壁_熱橋部_wall_s",
+            "conductance": 0.005837308781869689,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-2階ホール||床_floor_s->階間(L4)-片流れ(4)||0_外壁_一般部_wall_s",
+            "conductance": 1.6831647592067986,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-2階ホール||床_floor_s->階間(L4)-片流れ(4)||0_外壁_熱橋部_wall_s",
+            "conductance": 0.34474458923512746,
+            "subtype": "radiation"
+        },
+        {
+            "key": "階間(L4)-片流れ(4)||0_外壁_一般部_wall_s->階間(L4)-片流れ(4)||0_外壁_熱橋部_wall_s",
+            "conductance": 0.2827180328611898,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||N_外壁_一般部_wall_s->クローゼット-外部||N_外壁_熱橋部_wall_s",
+            "conductance": 0.8386933513041384,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||N_外壁_一般部_wall_s->クローゼット-外部||W_外壁_一般部_wall_s",
+            "conductance": 2.394362186314077,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||N_外壁_一般部_wall_s->クローゼット-外部||W_外壁_熱橋部_wall_s",
+            "conductance": 0.4904115321366182,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||N_外壁_一般部_wall_s->クローゼット-寝室||間仕切壁_wall_s",
+            "conductance": 4.933490301789048,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||N_外壁_一般部_wall_s->クローゼット-2階ホール||間仕切壁_wall_s",
+            "conductance": 3.2915042166134567,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||N_外壁_一般部_wall_s->クローゼット-切妻||外皮天井_floor_s",
+            "conductance": 3.7434269923498578,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||N_外壁_一般部_wall_s->クローゼット-階間(L4)||床_floor_s",
+            "conductance": 3.7434269923498578,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||N_外壁_一般部_wall_s->クローゼット-寝室||室内建具_wall_s",
+            "conductance": 1.071056978495271,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||N_外壁_一般部_wall_s->クローゼット-外部||W_窓_glass_s",
+            "conductance": 0.4067304981627613,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||N_外壁_熱橋部_wall_s->クローゼット-外部||W_外壁_一般部_wall_s",
+            "conductance": 0.4904115321366183,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||N_外壁_熱橋部_wall_s->クローゼット-外部||W_外壁_熱橋部_wall_s",
+            "conductance": 0.1004457354978616,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||N_外壁_熱橋部_wall_s->クローゼット-寝室||間仕切壁_wall_s",
+            "conductance": 1.0104739172339017,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||N_外壁_熱橋部_wall_s->クローゼット-2階ホール||間仕切壁_wall_s",
+            "conductance": 0.6741635142461299,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||N_外壁_熱橋部_wall_s->クローゼット-切妻||外皮天井_floor_s",
+            "conductance": 0.7667260104812964,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||N_外壁_熱橋部_wall_s->クローゼット-階間(L4)||床_floor_s",
+            "conductance": 0.7667260104812964,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||N_外壁_熱橋部_wall_s->クローゼット-寝室||室内建具_wall_s",
+            "conductance": 0.21937311607734478,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||N_外壁_熱橋部_wall_s->クローゼット-外部||W_窓_glass_s",
+            "conductance": 0.08330624661164993,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||W_外壁_一般部_wall_s->クローゼット-外部||W_外壁_熱橋部_wall_s",
+            "conductance": 0.28675972031805314,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||W_外壁_一般部_wall_s->クローゼット-寝室||間仕切壁_wall_s",
+            "conductance": 2.884773718450696,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||W_外壁_一般部_wall_s->クローゼット-2階ホール||間仕切壁_wall_s",
+            "conductance": 1.9246505571953496,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||W_外壁_一般部_wall_s->クローゼット-切妻||外皮天井_floor_s",
+            "conductance": 2.1889046382748027,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||W_外壁_一般部_wall_s->クローゼット-階間(L4)||床_floor_s",
+            "conductance": 2.1889046382748027,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||W_外壁_一般部_wall_s->クローゼット-寝室||室内建具_wall_s",
+            "conductance": 0.6262821721583037,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||W_外壁_一般部_wall_s->クローゼット-外部||W_窓_glass_s",
+            "conductance": 0.23782867297150778,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||W_外壁_熱橋部_wall_s->クローゼット-寝室||間仕切壁_wall_s",
+            "conductance": 0.5908572676344798,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||W_外壁_熱橋部_wall_s->クローゼット-2階ホール||間仕切壁_wall_s",
+            "conductance": 0.3942055358110957,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||W_外壁_熱橋部_wall_s->クローゼット-切妻||外皮天井_floor_s",
+            "conductance": 0.4483298656707427,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||W_外壁_熱橋部_wall_s->クローゼット-階間(L4)||床_floor_s",
+            "conductance": 0.4483298656707427,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||W_外壁_熱橋部_wall_s->クローゼット-寝室||室内建具_wall_s",
+            "conductance": 0.1282746617673634,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-外部||W_外壁_熱橋部_wall_s->クローゼット-外部||W_窓_glass_s",
+            "conductance": 0.04871189687368231,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-寝室||間仕切壁_wall_s->クローゼット-2階ホール||間仕切壁_wall_s",
+            "conductance": 3.9656677308595865,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-寝室||間仕切壁_wall_s->クローゼット-切妻||外皮天井_floor_s",
+            "conductance": 4.510153002831154,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-寝室||間仕切壁_wall_s->クローゼット-階間(L4)||床_floor_s",
+            "conductance": 4.510153002831154,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-寝室||間仕切壁_wall_s->クローゼット-寝室||室内建具_wall_s",
+            "conductance": 1.290430094572616,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-寝室||間仕切壁_wall_s->クローゼット-外部||W_窓_glass_s",
+            "conductance": 0.49003674477441117,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-2階ホール||間仕切壁_wall_s->クローゼット-切妻||外皮天井_floor_s",
+            "conductance": 3.0090639118125413,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-2階ホール||間仕切壁_wall_s->クローゼット-階間(L4)||床_floor_s",
+            "conductance": 3.0090639118125413,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-2階ホール||間仕切壁_wall_s->クローゼット-寝室||室内建具_wall_s",
+            "conductance": 0.8609434371423409,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-2階ホール||間仕切壁_wall_s->クローゼット-外部||W_窓_glass_s",
+            "conductance": 0.32694054575025605,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-切妻||外皮天井_floor_s->クローゼット-階間(L4)||床_floor_s",
+            "conductance": 3.4222076983314254,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-切妻||外皮天井_floor_s->クローゼット-寝室||室内建具_wall_s",
+            "conductance": 0.979150774049756,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-切妻||外皮天井_floor_s->クローゼット-外部||W_窓_glass_s",
+            "conductance": 0.371829407866996,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-階間(L4)||床_floor_s->クローゼット-寝室||室内建具_wall_s",
+            "conductance": 0.979150774049756,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-階間(L4)||床_floor_s->クローゼット-外部||W_窓_glass_s",
+            "conductance": 0.371829407866996,
+            "subtype": "radiation"
+        },
+        {
+            "key": "クローゼット-寝室||室内建具_wall_s->クローゼット-外部||W_窓_glass_s",
+            "conductance": 0.10638660321667369,
             "subtype": "radiation"
         },
         {
@@ -14988,591 +15103,6 @@
         {
             "key": "寝室-外部||S_窓_glass_s->寝室-外部||W_窓_glass_s",
             "conductance": 0.14012432086928733,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||E_外壁_一般部_wall_s->2階トイレ-外部||E_外壁_熱橋部_wall_s",
-            "conductance": 0.18785583093788064,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||E_外壁_一般部_wall_s->2階トイレ-外部||N_外壁_一般部_wall_s",
-            "conductance": 1.5061921641900122,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||E_外壁_一般部_wall_s->2階トイレ-外部||N_外壁_熱橋部_wall_s",
-            "conductance": 0.3084971902557856,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||E_外壁_一般部_wall_s->2階トイレ-2階ホール||間仕切壁_wall_s",
-            "conductance": 3.3201718635809985,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||E_外壁_一般部_wall_s->2階トイレ-切妻||外皮天井_floor_s",
-            "conductance": 0.8414481364190011,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||E_外壁_一般部_wall_s->2階トイレ-片流れ(3)||0_外壁_一般部_wall_s",
-            "conductance": 0.10518101705237513,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||E_外壁_一般部_wall_s->2階トイレ-片流れ(3)||0_外壁_熱橋部_wall_s",
-            "conductance": 0.02154309987819732,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||E_外壁_一般部_wall_s->2階トイレ-階間(L4)||床_floor_s",
-            "conductance": 0.8414481364190011,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||E_外壁_一般部_wall_s->2階トイレ-外部||N_窓_glass_s",
-            "conductance": 0.2737240925700365,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||E_外壁_熱橋部_wall_s->2階トイレ-外部||N_外壁_一般部_wall_s",
-            "conductance": 0.3084971902557856,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||E_外壁_熱橋部_wall_s->2階トイレ-外部||N_外壁_熱橋部_wall_s",
-            "conductance": 0.06318617149817296,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||E_外壁_熱橋部_wall_s->2階トイレ-2階ホール||間仕切壁_wall_s",
-            "conductance": 0.6800352009744215,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||E_外壁_熱橋部_wall_s->2階トイレ-切妻||外皮天井_floor_s",
-            "conductance": 0.17234479902557853,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||E_外壁_熱橋部_wall_s->2階トイレ-片流れ(3)||0_外壁_一般部_wall_s",
-            "conductance": 0.021543099878197317,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||E_外壁_熱橋部_wall_s->2階トイレ-片流れ(3)||0_外壁_熱橋部_wall_s",
-            "conductance": 0.004412442143727162,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||E_外壁_熱橋部_wall_s->2階トイレ-階間(L4)||床_floor_s",
-            "conductance": 0.17234479902557853,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||E_外壁_熱橋部_wall_s->2階トイレ-外部||N_窓_glass_s",
-            "conductance": 0.056063970767356884,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||N_外壁_一般部_wall_s->2階トイレ-外部||N_外壁_熱橋部_wall_s",
-            "conductance": 0.5066146518879415,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||N_外壁_一般部_wall_s->2階トイレ-2階ホール||間仕切壁_wall_s",
-            "conductance": 5.452392326431181,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||N_外壁_一般部_wall_s->2階トイレ-切妻||外皮天井_floor_s",
-            "conductance": 1.3818276735688182,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||N_外壁_一般部_wall_s->2階トイレ-片流れ(3)||0_外壁_一般部_wall_s",
-            "conductance": 0.17272845919610227,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||N_外壁_一般部_wall_s->2階トイレ-片流れ(3)||0_外壁_熱橋部_wall_s",
-            "conductance": 0.035378118148599265,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||N_外壁_一般部_wall_s->2階トイレ-階間(L4)||床_floor_s",
-            "conductance": 1.3818276735688182,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||N_外壁_一般部_wall_s->2階トイレ-外部||N_窓_glass_s",
-            "conductance": 0.44951020706455536,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||N_外壁_熱橋部_wall_s->2階トイレ-2階ホール||間仕切壁_wall_s",
-            "conductance": 1.116755054811206,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||N_外壁_熱橋部_wall_s->2階トイレ-切妻||外皮天井_floor_s",
-            "conductance": 0.2830249451887941,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||N_外壁_熱橋部_wall_s->2階トイレ-片流れ(3)||0_外壁_一般部_wall_s",
-            "conductance": 0.035378118148599265,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||N_外壁_熱橋部_wall_s->2階トイレ-片流れ(3)||0_外壁_熱橋部_wall_s",
-            "conductance": 0.007246120584652863,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||N_外壁_熱橋部_wall_s->2階トイレ-階間(L4)||床_floor_s",
-            "conductance": 0.2830249451887941,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-外部||N_外壁_熱橋部_wall_s->2階トイレ-外部||N_窓_glass_s",
-            "conductance": 0.0920683556638246,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-2階ホール||間仕切壁_wall_s->2階トイレ-切妻||外皮天井_floor_s",
-            "conductance": 3.0460292326431175,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-2階ホール||間仕切壁_wall_s->2階トイレ-片流れ(3)||0_外壁_一般部_wall_s",
-            "conductance": 0.3807536540803897,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-2階ホール||間仕切壁_wall_s->2階トイレ-片流れ(3)||0_外壁_熱橋部_wall_s",
-            "conductance": 0.07798568818514007,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-2階ホール||間仕切壁_wall_s->2階トイレ-階間(L4)||床_floor_s",
-            "conductance": 3.0460292326431175,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-2階ホール||間仕切壁_wall_s->2階トイレ-外部||N_窓_glass_s",
-            "conductance": 0.9908769792935446,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-切妻||外皮天井_floor_s->2階トイレ-片流れ(3)||0_外壁_一般部_wall_s",
-            "conductance": 0.0964963459196102,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-切妻||外皮天井_floor_s->2階トイレ-片流れ(3)||0_外壁_熱橋部_wall_s",
-            "conductance": 0.019764311814859922,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-切妻||外皮天井_floor_s->2階トイレ-階間(L4)||床_floor_s",
-            "conductance": 0.7719707673568816,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-切妻||外皮天井_floor_s->2階トイレ-外部||N_窓_glass_s",
-            "conductance": 0.2511230207064555,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-片流れ(3)||0_外壁_一般部_wall_s->2階トイレ-片流れ(3)||0_外壁_熱橋部_wall_s",
-            "conductance": 0.0024705389768574903,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-片流れ(3)||0_外壁_一般部_wall_s->2階トイレ-階間(L4)||床_floor_s",
-            "conductance": 0.0964963459196102,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-片流れ(3)||0_外壁_一般部_wall_s->2階トイレ-外部||N_窓_glass_s",
-            "conductance": 0.031390377588306935,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-片流れ(3)||0_外壁_熱橋部_wall_s->2階トイレ-階間(L4)||床_floor_s",
-            "conductance": 0.019764311814859922,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-片流れ(3)||0_外壁_熱橋部_wall_s->2階トイレ-外部||N_窓_glass_s",
-            "conductance": 0.0064293544457978075,
-            "subtype": "radiation"
-        },
-        {
-            "key": "2階トイレ-階間(L4)||床_floor_s->2階トイレ-外部||N_窓_glass_s",
-            "conductance": 0.2511230207064555,
-            "subtype": "radiation"
-        },
-        {
-            "key": "床下-外部||E_外壁_wall_s->床下-外部||N_外壁_wall_s",
-            "conductance": 4.796259236826166,
-            "subtype": "radiation"
-        },
-        {
-            "key": "床下-外部||E_外壁_wall_s->床下-外部||S_外壁_wall_s",
-            "conductance": 5.519832828588734,
-            "subtype": "radiation"
-        },
-        {
-            "key": "床下-外部||E_外壁_wall_s->床下-外部||W_外壁_wall_s",
-            "conductance": 2.9149678982434892,
-            "subtype": "radiation"
-        },
-        {
-            "key": "床下-外部||N_外壁_wall_s->床下-外部||S_外壁_wall_s",
-            "conductance": 6.903510599636584,
-            "subtype": "radiation"
-        },
-        {
-            "key": "床下-外部||N_外壁_wall_s->床下-外部||W_外壁_wall_s",
-            "conductance": 3.645674136886736,
-            "subtype": "radiation"
-        },
-        {
-            "key": "床下-外部||S_外壁_wall_s->床下-外部||W_外壁_wall_s",
-            "conductance": 4.1956680799515444,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||E_外壁_一般部_wall_s->LD-外部||E_外壁_熱橋部_wall_s",
-            "conductance": 0.35933698055675783,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||E_外壁_一般部_wall_s->LD-外部||S_外壁_一般部_wall_s",
-            "conductance": 1.933974289236527,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||E_外壁_一般部_wall_s->LD-外部||S_外壁_熱橋部_wall_s",
-            "conductance": 0.3961152158677224,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||E_外壁_一般部_wall_s->LD-床下||外皮床_一般部_floor_s",
-            "conductance": 5.727436925345589,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||E_外壁_一般部_wall_s->LD-床下||外皮床_熱橋部_floor_s",
-            "conductance": 1.1730894907334337,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||E_外壁_一般部_wall_s->LD-和室||間仕切壁_wall_s",
-            "conductance": 1.8204825844555896,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||E_外壁_一般部_wall_s->LD-台所||間仕切壁_wall_s",
-            "conductance": 1.749970935057662,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||E_外壁_一般部_wall_s->LD-階間(L4)||天井_ceiling_s",
-            "conductance": 6.900526416079022,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||E_外壁_一般部_wall_s->LD-ホール||室内建具_wall_s",
-            "conductance": 0.455761661108424,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||E_外壁_一般部_wall_s->LD-外部||E_窓_glass_s",
-            "conductance": 0.6874885816297958,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||E_外壁_一般部_wall_s->LD-外部||S_窓_glass_s",
-            "conductance": 2.2211169560347246,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||E_外壁_熱橋部_wall_s->LD-外部||S_外壁_一般部_wall_s",
-            "conductance": 0.39611521586772236,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||E_外壁_熱橋部_wall_s->LD-外部||S_外壁_熱橋部_wall_s",
-            "conductance": 0.08113203216567808,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||E_外壁_熱橋部_wall_s->LD-床下||外皮床_一般部_floor_s",
-            "conductance": 1.1730894907334337,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||E_外壁_熱橋部_wall_s->LD-床下||外皮床_熱橋部_floor_s",
-            "conductance": 0.2402713414755226,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||E_外壁_熱橋部_wall_s->LD-和室||間仕切壁_wall_s",
-            "conductance": 0.37286992693668697,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||E_外壁_熱橋部_wall_s->LD-台所||間仕切壁_wall_s",
-            "conductance": 0.3584277818792801,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||E_外壁_熱橋部_wall_s->LD-階間(L4)||天井_ceiling_s",
-            "conductance": 1.4133608322089561,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||E_外壁_熱橋部_wall_s->LD-ホール||室内建具_wall_s",
-            "conductance": 0.09334877396196636,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||E_外壁_熱橋部_wall_s->LD-外部||E_窓_glass_s",
-            "conductance": 0.1408109143097172,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||E_外壁_熱橋部_wall_s->LD-外部||S_窓_glass_s",
-            "conductance": 0.45492756930831707,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||S_外壁_一般部_wall_s->LD-外部||S_外壁_熱橋部_wall_s",
-            "conductance": 0.43665771332196235,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||S_外壁_一般部_wall_s->LD-床下||外皮床_一般部_floor_s",
-            "conductance": 6.313641614444643,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||S_外壁_一般部_wall_s->LD-床下||外皮床_熱橋部_floor_s",
-            "conductance": 1.2931555113922764,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||S_外壁_一般部_wall_s->LD-和室||間仕切壁_wall_s",
-            "conductance": 2.0068094600442965,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||S_外壁_一般部_wall_s->LD-台所||間仕切壁_wall_s",
-            "conductance": 1.9290809246200453,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||S_外壁_一般部_wall_s->LD-階間(L4)||天井_ceiling_s",
-            "conductance": 7.60679712583692,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||S_外壁_一般部_wall_s->LD-ホール||室内建具_wall_s",
-            "conductance": 0.5024089880603855,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||S_外壁_一般部_wall_s->LD-外部||E_窓_glass_s",
-            "conductance": 0.7578532203864464,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||S_外壁_一般部_wall_s->LD-外部||S_窓_glass_s",
-            "conductance": 2.4484488658639036,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||S_外壁_熱橋部_wall_s->LD-床下||外皮床_一般部_floor_s",
-            "conductance": 1.2931555113922766,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||S_外壁_熱橋部_wall_s->LD-床下||外皮床_熱橋部_floor_s",
-            "conductance": 0.264863177032153,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||S_外壁_熱橋部_wall_s->LD-和室||間仕切壁_wall_s",
-            "conductance": 0.411033262900639,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||S_外壁_熱橋部_wall_s->LD-台所||間仕切壁_wall_s",
-            "conductance": 0.3951129604643467,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||S_外壁_熱橋部_wall_s->LD-階間(L4)||天井_ceiling_s",
-            "conductance": 1.5580186884244294,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||S_外壁_熱橋部_wall_s->LD-ホール||室内建具_wall_s",
-            "conductance": 0.10290304574730787,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||S_外壁_熱橋部_wall_s->LD-外部||E_窓_glass_s",
-            "conductance": 0.15522294875385048,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||S_外壁_熱橋部_wall_s->LD-外部||S_窓_glass_s",
-            "conductance": 0.5014895267432092,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-床下||外皮床_一般部_floor_s->LD-床下||外皮床_熱橋部_floor_s",
-            "conductance": 3.8296613700516797,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-床下||外皮床_一般部_floor_s->LD-和室||間仕切壁_wall_s",
-            "conductance": 5.943137231740536,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-床下||外皮床_一般部_floor_s->LD-台所||間仕切壁_wall_s",
-            "conductance": 5.712945296708333,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-床下||外皮床_一般部_floor_s->LD-階間(L4)||天井_ceiling_s",
-            "conductance": 22.52741982383341,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-床下||外皮床_一般部_floor_s->LD-ホール||室内建具_wall_s",
-            "conductance": 1.4878769618899725,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-床下||外皮床_一般部_floor_s->LD-外部||E_窓_glass_s",
-            "conductance": 2.244371366563988,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-床下||外皮床_一般部_floor_s->LD-外部||S_窓_glass_s",
-            "conductance": 7.251045953514422,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-床下||外皮床_熱橋部_floor_s->LD-和室||間仕切壁_wall_s",
-            "conductance": 1.2172690715613148,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-床下||外皮床_熱橋部_floor_s->LD-台所||間仕切壁_wall_s",
-            "conductance": 1.1701213258318273,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-床下||外皮床_熱橋部_floor_s->LD-階間(L4)||天井_ceiling_s",
-            "conductance": 4.614049843435758,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-床下||外皮床_熱橋部_floor_s->LD-ホール||室内建具_wall_s",
-            "conductance": 0.30474588376059675,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-床下||外皮床_熱橋部_floor_s->LD-外部||E_窓_glass_s",
-            "conductance": 0.45969052086250356,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-床下||外皮床_熱橋部_floor_s->LD-外部||S_窓_glass_s",
-            "conductance": 1.4851539904788575,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-和室||間仕切壁_wall_s->LD-台所||間仕切壁_wall_s",
-            "conductance": 1.81587637789262,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-和室||間仕切壁_wall_s->LD-階間(L4)||天井_ceiling_s",
-            "conductance": 7.160406303301852,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-和室||間仕切壁_wall_s->LD-ホール||室内建具_wall_s",
-            "conductance": 0.47292604567093505,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-和室||間仕切壁_wall_s->LD-外部||E_窓_glass_s",
-            "conductance": 0.713380005600672,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-和室||間仕切壁_wall_s->LD-外部||S_窓_glass_s",
-            "conductance": 2.3047661719406327,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-台所||間仕切壁_wall_s->LD-階間(L4)||天井_ceiling_s",
-            "conductance": 6.883066622540161,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-台所||間仕切壁_wall_s->LD-ホール||室内建具_wall_s",
-            "conductance": 0.45460848756396227,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-台所||間仕切壁_wall_s->LD-外部||E_窓_glass_s",
-            "conductance": 0.6857490898907871,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-台所||間仕切壁_wall_s->LD-外部||S_窓_glass_s",
-            "conductance": 2.215497059647158,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-階間(L4)||天井_ceiling_s->LD-ホール||室内建具_wall_s",
-            "conductance": 1.7926228456505693,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-階間(L4)||天井_ceiling_s->LD-外部||E_窓_glass_s",
-            "conductance": 2.7040618874264917,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-階間(L4)||天井_ceiling_s->LD-外部||S_窓_glass_s",
-            "conductance": 8.73619994399328,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-ホール||室内建具_wall_s->LD-外部||E_窓_glass_s",
-            "conductance": 0.17859619154298517,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-ホール||室内建具_wall_s->LD-外部||S_窓_glass_s",
-            "conductance": 0.5770030803696443,
-            "subtype": "radiation"
-        },
-        {
-            "key": "LD-外部||E_窓_glass_s->LD-外部||S_窓_glass_s",
-            "conductance": 0.8703738448613834,
             "subtype": "radiation"
         },
         {
@@ -15966,393 +15496,873 @@
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||E_外壁_一般部_wall_s->台所-外部||E_外壁_熱橋部_wall_s",
-            "conductance": 0.8997365498240922,
+            "key": "子供室2-外部||E_外壁_一般部_wall_s->子供室2-外部||E_外壁_熱橋部_wall_s",
+            "conductance": 1.0920774904386374,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||E_外壁_一般部_wall_s->台所-外部||N_外壁_一般部_wall_s",
-            "conductance": 2.0554692334373916,
+            "key": "子供室2-外部||E_外壁_一般部_wall_s->子供室2-外部||S_外壁_一般部_wall_s",
+            "conductance": 3.5416273366939843,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||E_外壁_一般部_wall_s->台所-外部||N_外壁_熱橋部_wall_s",
-            "conductance": 0.4209997225112731,
+            "key": "子供室2-外部||E_外壁_一般部_wall_s->子供室2-外部||S_外壁_熱橋部_wall_s",
+            "conductance": 0.7253935508891295,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||E_外壁_一般部_wall_s->台所-床下||外皮床_一般部_floor_s",
-            "conductance": 4.8626529293890295,
+            "key": "子供室2-外部||E_外壁_一般部_wall_s->子供室2-切妻||外皮天井_floor_s",
+            "conductance": 8.5626634915726,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||E_外壁_一般部_wall_s->台所-床下||外皮床_熱橋部_floor_s",
-            "conductance": 0.9959650578266689,
+            "key": "子供室2-外部||E_外壁_一般部_wall_s->子供室2-階間(L4)||床_floor_s",
+            "conductance": 8.5626634915726,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||E_外壁_一般部_wall_s->台所-1階トイレ||間仕切壁_wall_s",
-            "conductance": 2.893930865665726,
+            "key": "子供室2-外部||E_外壁_一般部_wall_s->子供室2-2階ホール||室内建具_wall_s",
+            "conductance": 1.130557798051647,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||E_外壁_一般部_wall_s->台所-ホール||間仕切壁_wall_s",
-            "conductance": 3.092048382141619,
+            "key": "子供室2-外部||E_外壁_一般部_wall_s->子供室2-外部||E_窓_glass_s",
+            "conductance": 0.5247314674501316,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||E_外壁_一般部_wall_s->台所-片流れ(3)||外皮天井_floor_s",
-            "conductance": 3.169880263614291,
+            "key": "子供室2-外部||E_外壁_一般部_wall_s->子供室2-外部||S_窓_glass_s",
+            "conductance": 1.3778176258955728,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||E_外壁_一般部_wall_s->台所-階間(L4)||天井_ceiling_s",
-            "conductance": 2.9293089936078496,
+            "key": "子供室2-外部||E_外壁_熱橋部_wall_s->子供室2-外部||S_外壁_一般部_wall_s",
+            "conductance": 0.7253935508891296,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||E_外壁_一般部_wall_s->台所-ホール||室内建具_wall_s",
-            "conductance": 1.0061539586740005,
+            "key": "子供室2-外部||E_外壁_熱橋部_wall_s->子供室2-外部||S_外壁_熱橋部_wall_s",
+            "conductance": 0.1485745827122314,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||E_外壁_一般部_wall_s->台所-外部||E_窓_glass_s",
-            "conductance": 0.6934113076656262,
+            "key": "子供室2-外部||E_外壁_熱橋部_wall_s->子供室2-切妻||外皮天井_floor_s",
+            "conductance": 1.7537985464666779,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||E_外壁_一般部_wall_s->台所-外部||N_窓_glass_s",
-            "conductance": 1.1462513453248109,
+            "key": "子供室2-外部||E_外壁_熱橋部_wall_s->子供室2-階間(L4)||床_floor_s",
+            "conductance": 1.7537985464666779,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||E_外壁_熱橋部_wall_s->台所-外部||N_外壁_一般部_wall_s",
-            "conductance": 0.4209997225112731,
+            "key": "子供室2-外部||E_外壁_熱橋部_wall_s->子供室2-2階ホール||室内建具_wall_s",
+            "conductance": 0.231560030926241,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||E_外壁_熱橋部_wall_s->台所-外部||N_外壁_熱橋部_wall_s",
-            "conductance": 0.08622885882761017,
+            "key": "子供室2-外部||E_外壁_熱橋部_wall_s->子供室2-外部||E_窓_glass_s",
+            "conductance": 0.1074751198391836,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||E_外壁_熱橋部_wall_s->台所-床下||外皮床_一般部_floor_s",
-            "conductance": 0.9959650578266689,
+            "key": "子供室2-外部||E_外壁_熱橋部_wall_s->子供室2-外部||S_窓_glass_s",
+            "conductance": 0.2822036101231897,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||E_外壁_熱橋部_wall_s->台所-床下||外皮床_熱橋部_floor_s",
-            "conductance": 0.20399284316931773,
+            "key": "子供室2-外部||S_外壁_一般部_wall_s->子供室2-外部||S_外壁_熱橋部_wall_s",
+            "conductance": 0.481830097477965,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||E_外壁_熱橋部_wall_s->台所-1階トイレ||間仕切壁_wall_s",
-            "conductance": 0.5927328279074379,
+            "key": "子供室2-外部||S_外壁_一般部_wall_s->子供室2-切妻||外皮天井_floor_s",
+            "conductance": 5.6876008612958096,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||E_外壁_熱橋部_wall_s->台所-ホール||間仕切壁_wall_s",
-            "conductance": 0.6333111144145486,
+            "key": "子供室2-外部||S_外壁_一般部_wall_s->子供室2-階間(L4)||床_floor_s",
+            "conductance": 5.6876008612958096,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||E_外壁_熱橋部_wall_s->台所-片流れ(3)||外皮天井_floor_s",
-            "conductance": 0.6492525841137705,
+            "key": "子供室2-外部||S_外壁_一般部_wall_s->子供室2-2階ホール||室内建具_wall_s",
+            "conductance": 0.7509534284830679,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||E_外壁_熱橋部_wall_s->台所-階間(L4)||天井_ceiling_s",
-            "conductance": 0.5999789504979932,
+            "key": "子供室2-外部||S_外壁_一般部_wall_s->子供室2-外部||E_窓_glass_s",
+            "conductance": 0.34854378537188807,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||E_外壁_熱橋部_wall_s->台所-ホール||室内建具_wall_s",
-            "conductance": 0.20607972647539768,
+            "key": "子供室2-外部||S_外壁_一般部_wall_s->子供室2-外部||S_窓_glass_s",
+            "conductance": 0.9151914849234577,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||E_外壁_熱橋部_wall_s->台所-外部||E_窓_glass_s",
-            "conductance": 0.1420240027748873,
+            "key": "子供室2-外部||S_外壁_熱橋部_wall_s->子供室2-切妻||外皮天井_floor_s",
+            "conductance": 1.1649302968919129,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||E_外壁_熱橋部_wall_s->台所-外部||N_窓_glass_s",
-            "conductance": 0.23477437193399742,
+            "key": "子供室2-外部||S_外壁_熱橋部_wall_s->子供室2-階間(L4)||床_floor_s",
+            "conductance": 1.1649302968919129,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||N_外壁_一般部_wall_s->台所-外部||N_外壁_熱橋部_wall_s",
-            "conductance": 0.19699184876864384,
+            "key": "子供室2-外部||S_外壁_熱橋部_wall_s->子供室2-2階ホール||室内建具_wall_s",
+            "conductance": 0.15380973836400189,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||N_外壁_一般部_wall_s->台所-床下||外皮床_一般部_floor_s",
-            "conductance": 2.2753055150884496,
+            "key": "子供室2-外部||S_外壁_熱橋部_wall_s->子供室2-外部||E_窓_glass_s",
+            "conductance": 0.0713884861605072,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||N_外壁_一般部_wall_s->台所-床下||外皮床_熱橋部_floor_s",
-            "conductance": 0.4660264308012488,
+            "key": "子供室2-外部||S_外壁_熱橋部_wall_s->子供室2-外部||S_窓_glass_s",
+            "conductance": 0.18744885835781666,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||N_外壁_一般部_wall_s->台所-1階トイレ||間仕切壁_wall_s",
-            "conductance": 1.3541120360735346,
+            "key": "子供室2-切妻||外皮天井_floor_s->子供室2-階間(L4)||床_floor_s",
+            "conductance": 13.751026751198395,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||N_外壁_一般部_wall_s->台所-ホール||間仕切壁_wall_s",
-            "conductance": 1.4468140825528966,
+            "key": "子供室2-切妻||外皮天井_floor_s->子供室2-2階ホール||室内建具_wall_s",
+            "conductance": 1.8155951755064175,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||N_外壁_一般部_wall_s->台所-片流れ(3)||外皮天井_floor_s",
-            "conductance": 1.4832327436697885,
+            "key": "子供室2-切妻||外皮天井_floor_s->子供室2-外部||E_窓_glass_s",
+            "conductance": 0.8426813050873668,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||N_外壁_一般部_wall_s->台所-階間(L4)||天井_ceiling_s",
-            "conductance": 1.3706659729448492,
+            "key": "子供室2-切妻||外皮天井_floor_s->子供室2-外部||S_窓_glass_s",
+            "conductance": 2.2126768207824346,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||N_外壁_一般部_wall_s->台所-ホール||室内建具_wall_s",
-            "conductance": 0.4707939646201873,
+            "key": "子供室2-階間(L4)||床_floor_s->子供室2-2階ホール||室内建具_wall_s",
+            "conductance": 1.8155951755064175,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||N_外壁_一般部_wall_s->台所-外部||E_窓_glass_s",
-            "conductance": 0.32445716267776625,
+            "key": "子供室2-階間(L4)||床_floor_s->子供室2-外部||E_窓_glass_s",
+            "conductance": 0.8426813050873668,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||N_外壁_一般部_wall_s->台所-外部||N_窓_glass_s",
-            "conductance": 0.5363475546305932,
+            "key": "子供室2-階間(L4)||床_floor_s->子供室2-外部||S_窓_glass_s",
+            "conductance": 2.2126768207824346,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||N_外壁_熱橋部_wall_s->台所-床下||外皮床_一般部_floor_s",
-            "conductance": 0.4660264308012488,
+            "key": "子供室2-2階ホール||室内建具_wall_s->子供室2-外部||E_窓_glass_s",
+            "conductance": 0.11126209989175818,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||N_外壁_熱橋部_wall_s->台所-床下||外皮床_熱橋部_floor_s",
-            "conductance": 0.09545119667013531,
+            "key": "子供室2-2階ホール||室内建具_wall_s->子供室2-外部||S_窓_glass_s",
+            "conductance": 0.2921473016854802,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||N_外壁_熱橋部_wall_s->台所-1階トイレ||間仕切壁_wall_s",
-            "conductance": 0.2773482483524108,
+            "key": "子供室2-外部||E_窓_glass_s->子供室2-外部||S_窓_glass_s",
+            "conductance": 0.13559579403123556,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||N_外壁_熱橋部_wall_s->台所-ホール||間仕切壁_wall_s",
-            "conductance": 0.2963354144987861,
+            "key": "2階ホール-外部||E_外壁_一般部_wall_s->2階ホール-外部||E_外壁_熱橋部_wall_s",
+            "conductance": 0.06162776200751221,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||N_外壁_熱橋部_wall_s->台所-片流れ(3)||外皮天井_floor_s",
-            "conductance": 0.3037946583420049,
+            "key": "2階ホール-外部||E_外壁_一般部_wall_s->2階ホール-外部||N_外壁_一般部_wall_s",
+            "conductance": 1.4271499705905861,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||N_外壁_熱橋部_wall_s->台所-階間(L4)||天井_ceiling_s",
-            "conductance": 0.2807388137356921,
+            "key": "2階ホール-外部||E_外壁_一般部_wall_s->2階ホール-外部||N_外壁_熱橋部_wall_s",
+            "conductance": 0.2923078253016863,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||N_外壁_熱橋部_wall_s->台所-ホール||室内建具_wall_s",
-            "conductance": 0.09642767950052032,
+            "key": "2階ホール-外部||E_外壁_一般部_wall_s->2階ホール-子供室1||間仕切壁_wall_s",
+            "conductance": 1.180672180931831,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||N_外壁_熱橋部_wall_s->台所-外部||E_窓_glass_s",
-            "conductance": 0.06645508151231358,
+            "key": "2階ホール-外部||E_外壁_一般部_wall_s->2階ホール-子供室2||間仕切壁_wall_s",
+            "conductance": 1.180672180931831,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||N_外壁_熱橋部_wall_s->台所-外部||N_窓_glass_s",
-            "conductance": 0.1098543184183143,
+            "key": "2階ホール-外部||E_外壁_一般部_wall_s->2階ホール-切妻||外皮天井_floor_s",
+            "conductance": 1.7909632941740592,
             "subtype": "radiation"
         },
         {
-            "key": "台所-床下||外皮床_一般部_floor_s->台所-床下||外皮床_熱橋部_floor_s",
-            "conductance": 1.1024853848669542,
+            "key": "2階ホール-外部||E_外壁_一般部_wall_s->2階ホール-片流れ(3)||0_外壁_一般部_wall_s",
+            "conductance": 0.31469070918245035,
             "subtype": "radiation"
         },
         {
-            "key": "台所-床下||外皮床_一般部_floor_s->台所-1階トイレ||間仕切壁_wall_s",
-            "conductance": 3.203442188196819,
+            "key": "2階ホール-外部||E_外壁_一般部_wall_s->2階ホール-片流れ(3)||0_外壁_熱橋部_wall_s",
+            "conductance": 0.06445472356748982,
             "subtype": "radiation"
         },
         {
-            "key": "台所-床下||外皮床_一般部_floor_s->台所-ホール||間仕切壁_wall_s",
-            "conductance": 3.4227487438679947,
+            "key": "2階ホール-外部||E_外壁_一般部_wall_s->2階ホール-階間(L4)||床_floor_s",
+            "conductance": 1.3087169104131706,
             "subtype": "radiation"
         },
         {
-            "key": "台所-床下||外皮床_一般部_floor_s->台所-片流れ(3)||外皮天井_floor_s",
-            "conductance": 3.5089048907388136,
+            "key": "2階ホール-外部||E_外壁_一般部_wall_s->2階ホール-2階トイレ||室内建具_wall_s",
+            "conductance": 0.23646701989930474,
             "subtype": "radiation"
         },
         {
-            "key": "台所-床下||外皮床_一般部_floor_s->台所-階間(L4)||天井_ceiling_s",
-            "conductance": 3.2426040731381,
+            "key": "2階ホール-外部||E_外壁_一般部_wall_s->2階ホール-外部||N_窓_glass_s",
+            "conductance": 0.16462893790457928,
             "subtype": "radiation"
         },
         {
-            "key": "台所-床下||外皮床_一般部_floor_s->台所-ホール||室内建具_wall_s",
-            "conductance": 1.1137640077300432,
+            "key": "2階ホール-外部||E_外壁_熱橋部_wall_s->2階ホール-外部||N_外壁_一般部_wall_s",
+            "conductance": 0.2923078253016863,
             "subtype": "radiation"
         },
         {
-            "key": "台所-床下||外皮床_一般部_floor_s->台所-外部||E_窓_glass_s",
-            "conductance": 0.7675729448491155,
+            "key": "2階ホール-外部||E_外壁_熱橋部_wall_s->2階ホール-外部||N_外壁_熱橋部_wall_s",
+            "conductance": 0.05987027747142972,
             "subtype": "radiation"
         },
         {
-            "key": "台所-床下||外皮床_一般部_floor_s->台所-外部||N_窓_glass_s",
-            "conductance": 1.2688450720975177,
+            "key": "2階ホール-外部||E_外壁_熱橋部_wall_s->2階ホール-子供室1||間仕切壁_wall_s",
+            "conductance": 0.2418244226004955,
             "subtype": "radiation"
         },
         {
-            "key": "台所-床下||外皮床_熱橋部_floor_s->台所-1階トイレ||間仕切壁_wall_s",
-            "conductance": 0.6561267132451316,
+            "key": "2階ホール-外部||E_外壁_熱橋部_wall_s->2階ホール-子供室2||間仕切壁_wall_s",
+            "conductance": 0.2418244226004955,
             "subtype": "radiation"
         },
         {
-            "key": "台所-床下||外皮床_熱橋部_floor_s->台所-ホール||間仕切壁_wall_s",
-            "conductance": 0.7010449234428424,
+            "key": "2階ホール-外部||E_外壁_熱橋部_wall_s->2階ホール-切妻||外皮天井_floor_s",
+            "conductance": 0.36682380724047,
             "subtype": "radiation"
         },
         {
-            "key": "台所-床下||外皮床_熱橋部_floor_s->台所-片流れ(3)||外皮天井_floor_s",
-            "conductance": 0.7186913631633716,
+            "key": "2階ホール-外部||E_外壁_熱橋部_wall_s->2階ホール-片流れ(3)||0_外壁_一般部_wall_s",
+            "conductance": 0.06445472356748982,
             "subtype": "radiation"
         },
         {
-            "key": "台所-床下||外皮床_熱橋部_floor_s->台所-階間(L4)||天井_ceiling_s",
-            "conductance": 0.6641478222090085,
+            "key": "2階ホール-外部||E_外壁_熱橋部_wall_s->2階ホール-片流れ(3)||0_外壁_熱橋部_wall_s",
+            "conductance": 0.013201569887317195,
             "subtype": "radiation"
         },
         {
-            "key": "台所-床下||外皮床_熱橋部_floor_s->台所-ホール||室内建具_wall_s",
-            "conductance": 0.22812033893265948,
+            "key": "2階ホール-外部||E_外壁_熱橋部_wall_s->2階ホール-階間(L4)||床_floor_s",
+            "conductance": 0.2680504515304084,
             "subtype": "radiation"
         },
         {
-            "key": "台所-床下||外皮床_熱橋部_floor_s->台所-外部||E_窓_glass_s",
-            "conductance": 0.15721373569198754,
+            "key": "2階ホール-外部||E_外壁_熱橋部_wall_s->2階ホール-2階トイレ||室内建具_wall_s",
+            "conductance": 0.04843300407576121,
             "subtype": "radiation"
         },
         {
-            "key": "台所-床下||外皮床_熱橋部_floor_s->台所-外部||N_窓_glass_s",
-            "conductance": 0.25988393042961205,
+            "key": "2階ホール-外部||E_外壁_熱橋部_wall_s->2階ホール-外部||N_窓_glass_s",
+            "conductance": 0.03371918005274515,
             "subtype": "radiation"
         },
         {
-            "key": "台所-1階トイレ||間仕切壁_wall_s->台所-ホール||間仕切壁_wall_s",
-            "conductance": 2.0369946979832516,
+            "key": "2階ホール-外部||N_外壁_一般部_wall_s->2階ホール-外部||N_外壁_熱橋部_wall_s",
+            "conductance": 1.3864508778070808,
             "subtype": "radiation"
         },
         {
-            "key": "台所-1階トイレ||間仕切壁_wall_s->台所-片流れ(3)||外皮天井_floor_s",
-            "conductance": 2.08826916406521,
+            "key": "2階ホール-外部||N_外壁_一般部_wall_s->2階ホール-子供室1||間仕切壁_wall_s",
+            "conductance": 5.600068968272996,
             "subtype": "radiation"
         },
         {
-            "key": "台所-1階トイレ||間仕切壁_wall_s->台所-階間(L4)||天井_ceiling_s",
-            "conductance": 1.9297844507209752,
+            "key": "2階ホール-外部||N_外壁_一般部_wall_s->2階ホール-子供室2||間仕切壁_wall_s",
+            "conductance": 5.600068968272996,
             "subtype": "radiation"
         },
         {
-            "key": "台所-1階トイレ||間仕切壁_wall_s->台所-ホール||室内建具_wall_s",
-            "conductance": 0.6628390069867698,
+            "key": "2階ホール-外部||N_外壁_一般部_wall_s->2階ホール-切妻||外皮天井_floor_s",
+            "conductance": 8.494752505394391,
             "subtype": "radiation"
         },
         {
-            "key": "台所-1階トイレ||間仕切壁_wall_s->台所-外部||E_窓_glass_s",
-            "conductance": 0.4568088796392647,
+            "key": "2階ホール-外部||N_外壁_一般部_wall_s->2階ホール-片流れ(3)||0_外壁_一般部_wall_s",
+            "conductance": 1.4926155655718054,
             "subtype": "radiation"
         },
         {
-            "key": "台所-1階トイレ||間仕切壁_wall_s->台所-外部||N_窓_glass_s",
-            "conductance": 0.7551330459342948,
+            "key": "2階ホール-外部||N_外壁_一般部_wall_s->2階ホール-片流れ(3)||0_外壁_熱橋部_wall_s",
+            "conductance": 0.3057164411412132,
             "subtype": "radiation"
         },
         {
-            "key": "台所-ホール||間仕切壁_wall_s->台所-片流れ(3)||外皮天井_floor_s",
-            "conductance": 2.2312313562261537,
+            "key": "2階ホール-外部||N_外壁_一般部_wall_s->2階ホール-階間(L4)||床_floor_s",
+            "conductance": 6.207400391592745,
             "subtype": "radiation"
         },
         {
-            "key": "台所-ホール||間仕切壁_wall_s->台所-階間(L4)||天井_ceiling_s",
-            "conductance": 2.061896833655419,
+            "key": "2階ホール-外部||N_外壁_一般部_wall_s->2階ホール-2階トイレ||室内建具_wall_s",
+            "conductance": 1.1215912778710142,
             "subtype": "radiation"
         },
         {
-            "key": "台所-ホール||間仕切壁_wall_s->台所-ホール||室内建具_wall_s",
-            "conductance": 0.7082167385164265,
+            "key": "2階ホール-外部||N_外壁_一般部_wall_s->2階ホール-外部||N_窓_glass_s",
+            "conductance": 0.7808546871253897,
             "subtype": "radiation"
         },
         {
-            "key": "台所-ホール||間仕切壁_wall_s->台所-外部||E_窓_glass_s",
-            "conductance": 0.4880818591744712,
+            "key": "2階ホール-外部||N_外壁_熱橋部_wall_s->2階ホール-子供室1||間仕切壁_wall_s",
+            "conductance": 1.1470020778390475,
             "subtype": "radiation"
         },
         {
-            "key": "台所-ホール||間仕切壁_wall_s->台所-外部||N_窓_glass_s",
-            "conductance": 0.8068291957782076,
+            "key": "2階ホール-外部||N_外壁_熱橋部_wall_s->2階ホール-子供室2||間仕切壁_wall_s",
+            "conductance": 1.1470020778390475,
             "subtype": "radiation"
         },
         {
-            "key": "台所-片流れ(3)||外皮天井_floor_s->台所-階間(L4)||天井_ceiling_s",
-            "conductance": 2.113798126951093,
+            "key": "2階ホール-外部||N_外壁_熱橋部_wall_s->2階ホール-切妻||外皮天井_floor_s",
+            "conductance": 1.7398890673699352,
             "subtype": "radiation"
         },
         {
-            "key": "台所-片流れ(3)||外皮天井_floor_s->台所-ホール||室内建具_wall_s",
-            "conductance": 0.7260437044745058,
+            "key": "2階ホール-外部||N_外壁_熱橋部_wall_s->2階ホール-片流れ(3)||0_外壁_一般部_wall_s",
+            "conductance": 0.30571644114121316,
             "subtype": "radiation"
         },
         {
-            "key": "台所-片流れ(3)||外皮天井_floor_s->台所-外部||E_窓_glass_s",
-            "conductance": 0.5003676725633022,
+            "key": "2階ホール-外部||N_外壁_熱橋部_wall_s->2階ホール-片流れ(3)||0_外壁_熱橋部_wall_s",
+            "conductance": 0.06261662047470631,
             "subtype": "radiation"
         },
         {
-            "key": "台所-片流れ(3)||外皮天井_floor_s->台所-外部||N_窓_glass_s",
-            "conductance": 0.8271383975026017,
+            "key": "2階ホール-外部||N_外壁_熱橋部_wall_s->2階ホール-階間(L4)||床_floor_s",
+            "conductance": 1.2713952609286343,
             "subtype": "radiation"
         },
         {
-            "key": "台所-階間(L4)||天井_ceiling_s->台所-ホール||室内建具_wall_s",
-            "conductance": 0.6709421733313514,
+            "key": "2階ホール-外部||N_外壁_熱橋部_wall_s->2階ホール-2階トイレ||室内建具_wall_s",
+            "conductance": 0.22972351474466557,
             "subtype": "radiation"
         },
         {
-            "key": "台所-階間(L4)||天井_ceiling_s->台所-外部||E_窓_glass_s",
-            "conductance": 0.46239334027055157,
+            "key": "2階ホール-外部||N_外壁_熱橋部_wall_s->2階ホール-外部||N_窓_glass_s",
+            "conductance": 0.1599340925437545,
             "subtype": "radiation"
         },
         {
-            "key": "台所-階間(L4)||天井_ceiling_s->台所-外部||N_窓_glass_s",
-            "conductance": 0.7643645012635648,
+            "key": "2階ホール-子供室1||間仕切壁_wall_s->2階ホール-子供室2||間仕切壁_wall_s",
+            "conductance": 4.6329017821465674,
             "subtype": "radiation"
         },
         {
-            "key": "台所-ホール||室内建具_wall_s->台所-外部||E_窓_glass_s",
-            "conductance": 0.15882206035379814,
+            "key": "2階ホール-子供室1||間仕切壁_wall_s->2階ホール-切妻||外皮天井_floor_s",
+            "conductance": 7.0276552385519055,
             "subtype": "radiation"
         },
         {
-            "key": "台所-ホール||室内建具_wall_s->台所-外部||N_窓_glass_s",
-            "conductance": 0.2625425895644419,
+            "key": "2階ホール-子供室1||間仕切壁_wall_s->2階ホール-片流れ(3)||0_外壁_一般部_wall_s",
+            "conductance": 1.234831455286502,
             "subtype": "radiation"
         },
         {
-            "key": "台所-外部||E_窓_glass_s->台所-外部||N_窓_glass_s",
-            "conductance": 0.18093652445369413,
+            "key": "2階ホール-子供室1||間仕切壁_wall_s->2階ホール-片流れ(3)||0_外壁_熱橋部_wall_s",
+            "conductance": 0.2529172860225366,
+            "subtype": "radiation"
+        },
+        {
+            "key": "2階ホール-子供室1||間仕切壁_wall_s->2階ホール-階間(L4)||床_floor_s",
+            "conductance": 5.135343243027252,
+            "subtype": "radiation"
+        },
+        {
+            "key": "2階ホール-子供室1||間仕切壁_wall_s->2階ホール-2階トイレ||室内建具_wall_s",
+            "conductance": 0.9278853991848478,
+            "subtype": "radiation"
+        },
+        {
+            "key": "2階ホール-子供室1||間仕切壁_wall_s->2階ホール-外部||N_窓_glass_s",
+            "conductance": 0.645996163989451,
+            "subtype": "radiation"
+        },
+        {
+            "key": "2階ホール-子供室2||間仕切壁_wall_s->2階ホール-切妻||外皮天井_floor_s",
+            "conductance": 7.0276552385519055,
+            "subtype": "radiation"
+        },
+        {
+            "key": "2階ホール-子供室2||間仕切壁_wall_s->2階ホール-片流れ(3)||0_外壁_一般部_wall_s",
+            "conductance": 1.234831455286502,
+            "subtype": "radiation"
+        },
+        {
+            "key": "2階ホール-子供室2||間仕切壁_wall_s->2階ホール-片流れ(3)||0_外壁_熱橋部_wall_s",
+            "conductance": 0.2529172860225366,
+            "subtype": "radiation"
+        },
+        {
+            "key": "2階ホール-子供室2||間仕切壁_wall_s->2階ホール-階間(L4)||床_floor_s",
+            "conductance": 5.135343243027252,
+            "subtype": "radiation"
+        },
+        {
+            "key": "2階ホール-子供室2||間仕切壁_wall_s->2階ホール-2階トイレ||室内建具_wall_s",
+            "conductance": 0.9278853991848478,
+            "subtype": "radiation"
+        },
+        {
+            "key": "2階ホール-子供室2||間仕切壁_wall_s->2階ホール-外部||N_窓_glass_s",
+            "conductance": 0.645996163989451,
+            "subtype": "radiation"
+        },
+        {
+            "key": "2階ホール-切妻||外皮天井_floor_s->2階ホール-片流れ(3)||0_外壁_一般部_wall_s",
+            "conductance": 1.873117573723328,
+            "subtype": "radiation"
+        },
+        {
+            "key": "2階ホール-切妻||外皮天井_floor_s->2階ホール-片流れ(3)||0_外壁_熱橋部_wall_s",
+            "conductance": 0.38365058738911534,
+            "subtype": "radiation"
+        },
+        {
+            "key": "2階ホール-切妻||外皮天井_floor_s->2階ホール-階間(L4)||床_floor_s",
+            "conductance": 7.789809398225846,
+            "subtype": "radiation"
+        },
+        {
+            "key": "2階ホール-切妻||外皮天井_floor_s->2階ホール-2階トイレ||室内建具_wall_s",
+            "conductance": 1.4075106689043393,
+            "subtype": "radiation"
+        },
+        {
+            "key": "2階ホール-切妻||外皮天井_floor_s->2階ホール-外部||N_窓_glass_s",
+            "conductance": 0.9799124910093503,
+            "subtype": "radiation"
+        },
+        {
+            "key": "2階ホール-片流れ(3)||0_外壁_一般部_wall_s->2階ホール-片流れ(3)||0_外壁_熱橋部_wall_s",
+            "conductance": 0.06741136226324625,
+            "subtype": "radiation"
+        },
+        {
+            "key": "2階ホール-片流れ(3)||0_外壁_一般部_wall_s->2階ホール-階間(L4)||床_floor_s",
+            "conductance": 1.36874979621194,
+            "subtype": "radiation"
+        },
+        {
+            "key": "2階ホール-片流れ(3)||0_外壁_一般部_wall_s->2階ホール-2階トイレ||室内建具_wall_s",
+            "conductance": 0.24731413090386,
+            "subtype": "radiation"
+        },
+        {
+            "key": "2階ホール-片流れ(3)||0_外壁_一般部_wall_s->2階ホール-外部||N_窓_glass_s",
+            "conductance": 0.17218072404699114,
+            "subtype": "radiation"
+        },
+        {
+            "key": "2階ホール-片流れ(3)||0_外壁_熱橋部_wall_s->2階ホール-階間(L4)||床_floor_s",
+            "conductance": 0.2803463438024455,
+            "subtype": "radiation"
+        },
+        {
+            "key": "2階ホール-片流れ(3)||0_外壁_熱橋部_wall_s->2階ホール-2階トイレ||室内建具_wall_s",
+            "conductance": 0.05065470151042916,
+            "subtype": "radiation"
+        },
+        {
+            "key": "2階ホール-片流れ(3)||0_外壁_熱橋部_wall_s->2階ホール-外部||N_窓_glass_s",
+            "conductance": 0.035265931431311445,
+            "subtype": "radiation"
+        },
+        {
+            "key": "2階ホール-階間(L4)||床_floor_s->2階ホール-2階トイレ||室内建具_wall_s",
+            "conductance": 1.0285152241668665,
+            "subtype": "radiation"
+        },
+        {
+            "key": "2階ホール-階間(L4)||床_floor_s->2階ホール-外部||N_窓_glass_s",
+            "conductance": 0.7160549029009831,
+            "subtype": "radiation"
+        },
+        {
+            "key": "2階ホール-2階トイレ||室内建具_wall_s->2階ホール-外部||N_窓_glass_s",
+            "conductance": 0.12938120354830976,
+            "subtype": "radiation"
+        },
+        {
+            "key": "床下-外部||E_外壁_wall_s->床下-外部||N_外壁_wall_s",
+            "conductance": 4.796259236826166,
+            "subtype": "radiation"
+        },
+        {
+            "key": "床下-外部||E_外壁_wall_s->床下-外部||S_外壁_wall_s",
+            "conductance": 5.519832828588734,
+            "subtype": "radiation"
+        },
+        {
+            "key": "床下-外部||E_外壁_wall_s->床下-外部||W_外壁_wall_s",
+            "conductance": 2.9149678982434892,
+            "subtype": "radiation"
+        },
+        {
+            "key": "床下-外部||N_外壁_wall_s->床下-外部||S_外壁_wall_s",
+            "conductance": 6.903510599636584,
+            "subtype": "radiation"
+        },
+        {
+            "key": "床下-外部||N_外壁_wall_s->床下-外部||W_外壁_wall_s",
+            "conductance": 3.645674136886736,
+            "subtype": "radiation"
+        },
+        {
+            "key": "床下-外部||S_外壁_wall_s->床下-外部||W_外壁_wall_s",
+            "conductance": 4.1956680799515444,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||E_外壁_一般部_wall_s->LD-外部||E_外壁_熱橋部_wall_s",
+            "conductance": 0.35933698055675783,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||E_外壁_一般部_wall_s->LD-外部||S_外壁_一般部_wall_s",
+            "conductance": 1.933974289236527,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||E_外壁_一般部_wall_s->LD-外部||S_外壁_熱橋部_wall_s",
+            "conductance": 0.3961152158677224,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||E_外壁_一般部_wall_s->LD-床下||外皮床_一般部_floor_s",
+            "conductance": 5.727436925345589,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||E_外壁_一般部_wall_s->LD-床下||外皮床_熱橋部_floor_s",
+            "conductance": 1.1730894907334337,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||E_外壁_一般部_wall_s->LD-和室||間仕切壁_wall_s",
+            "conductance": 1.8204825844555896,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||E_外壁_一般部_wall_s->LD-台所||間仕切壁_wall_s",
+            "conductance": 1.749970935057662,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||E_外壁_一般部_wall_s->LD-階間(L4)||天井_ceiling_s",
+            "conductance": 6.900526416079022,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||E_外壁_一般部_wall_s->LD-ホール||室内建具_wall_s",
+            "conductance": 0.455761661108424,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||E_外壁_一般部_wall_s->LD-外部||E_窓_glass_s",
+            "conductance": 0.6874885816297958,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||E_外壁_一般部_wall_s->LD-外部||S_窓_glass_s",
+            "conductance": 2.2211169560347246,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||E_外壁_熱橋部_wall_s->LD-外部||S_外壁_一般部_wall_s",
+            "conductance": 0.39611521586772236,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||E_外壁_熱橋部_wall_s->LD-外部||S_外壁_熱橋部_wall_s",
+            "conductance": 0.08113203216567808,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||E_外壁_熱橋部_wall_s->LD-床下||外皮床_一般部_floor_s",
+            "conductance": 1.1730894907334337,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||E_外壁_熱橋部_wall_s->LD-床下||外皮床_熱橋部_floor_s",
+            "conductance": 0.2402713414755226,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||E_外壁_熱橋部_wall_s->LD-和室||間仕切壁_wall_s",
+            "conductance": 0.37286992693668697,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||E_外壁_熱橋部_wall_s->LD-台所||間仕切壁_wall_s",
+            "conductance": 0.3584277818792801,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||E_外壁_熱橋部_wall_s->LD-階間(L4)||天井_ceiling_s",
+            "conductance": 1.4133608322089561,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||E_外壁_熱橋部_wall_s->LD-ホール||室内建具_wall_s",
+            "conductance": 0.09334877396196636,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||E_外壁_熱橋部_wall_s->LD-外部||E_窓_glass_s",
+            "conductance": 0.1408109143097172,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||E_外壁_熱橋部_wall_s->LD-外部||S_窓_glass_s",
+            "conductance": 0.45492756930831707,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||S_外壁_一般部_wall_s->LD-外部||S_外壁_熱橋部_wall_s",
+            "conductance": 0.43665771332196235,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||S_外壁_一般部_wall_s->LD-床下||外皮床_一般部_floor_s",
+            "conductance": 6.313641614444643,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||S_外壁_一般部_wall_s->LD-床下||外皮床_熱橋部_floor_s",
+            "conductance": 1.2931555113922764,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||S_外壁_一般部_wall_s->LD-和室||間仕切壁_wall_s",
+            "conductance": 2.0068094600442965,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||S_外壁_一般部_wall_s->LD-台所||間仕切壁_wall_s",
+            "conductance": 1.9290809246200453,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||S_外壁_一般部_wall_s->LD-階間(L4)||天井_ceiling_s",
+            "conductance": 7.60679712583692,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||S_外壁_一般部_wall_s->LD-ホール||室内建具_wall_s",
+            "conductance": 0.5024089880603855,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||S_外壁_一般部_wall_s->LD-外部||E_窓_glass_s",
+            "conductance": 0.7578532203864464,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||S_外壁_一般部_wall_s->LD-外部||S_窓_glass_s",
+            "conductance": 2.4484488658639036,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||S_外壁_熱橋部_wall_s->LD-床下||外皮床_一般部_floor_s",
+            "conductance": 1.2931555113922766,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||S_外壁_熱橋部_wall_s->LD-床下||外皮床_熱橋部_floor_s",
+            "conductance": 0.264863177032153,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||S_外壁_熱橋部_wall_s->LD-和室||間仕切壁_wall_s",
+            "conductance": 0.411033262900639,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||S_外壁_熱橋部_wall_s->LD-台所||間仕切壁_wall_s",
+            "conductance": 0.3951129604643467,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||S_外壁_熱橋部_wall_s->LD-階間(L4)||天井_ceiling_s",
+            "conductance": 1.5580186884244294,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||S_外壁_熱橋部_wall_s->LD-ホール||室内建具_wall_s",
+            "conductance": 0.10290304574730787,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||S_外壁_熱橋部_wall_s->LD-外部||E_窓_glass_s",
+            "conductance": 0.15522294875385048,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||S_外壁_熱橋部_wall_s->LD-外部||S_窓_glass_s",
+            "conductance": 0.5014895267432092,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-床下||外皮床_一般部_floor_s->LD-床下||外皮床_熱橋部_floor_s",
+            "conductance": 3.8296613700516797,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-床下||外皮床_一般部_floor_s->LD-和室||間仕切壁_wall_s",
+            "conductance": 5.943137231740536,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-床下||外皮床_一般部_floor_s->LD-台所||間仕切壁_wall_s",
+            "conductance": 5.712945296708333,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-床下||外皮床_一般部_floor_s->LD-階間(L4)||天井_ceiling_s",
+            "conductance": 22.52741982383341,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-床下||外皮床_一般部_floor_s->LD-ホール||室内建具_wall_s",
+            "conductance": 1.4878769618899725,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-床下||外皮床_一般部_floor_s->LD-外部||E_窓_glass_s",
+            "conductance": 2.244371366563988,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-床下||外皮床_一般部_floor_s->LD-外部||S_窓_glass_s",
+            "conductance": 7.251045953514422,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-床下||外皮床_熱橋部_floor_s->LD-和室||間仕切壁_wall_s",
+            "conductance": 1.2172690715613148,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-床下||外皮床_熱橋部_floor_s->LD-台所||間仕切壁_wall_s",
+            "conductance": 1.1701213258318273,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-床下||外皮床_熱橋部_floor_s->LD-階間(L4)||天井_ceiling_s",
+            "conductance": 4.614049843435758,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-床下||外皮床_熱橋部_floor_s->LD-ホール||室内建具_wall_s",
+            "conductance": 0.30474588376059675,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-床下||外皮床_熱橋部_floor_s->LD-外部||E_窓_glass_s",
+            "conductance": 0.45969052086250356,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-床下||外皮床_熱橋部_floor_s->LD-外部||S_窓_glass_s",
+            "conductance": 1.4851539904788575,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-和室||間仕切壁_wall_s->LD-台所||間仕切壁_wall_s",
+            "conductance": 1.81587637789262,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-和室||間仕切壁_wall_s->LD-階間(L4)||天井_ceiling_s",
+            "conductance": 7.160406303301852,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-和室||間仕切壁_wall_s->LD-ホール||室内建具_wall_s",
+            "conductance": 0.47292604567093505,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-和室||間仕切壁_wall_s->LD-外部||E_窓_glass_s",
+            "conductance": 0.713380005600672,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-和室||間仕切壁_wall_s->LD-外部||S_窓_glass_s",
+            "conductance": 2.3047661719406327,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-台所||間仕切壁_wall_s->LD-階間(L4)||天井_ceiling_s",
+            "conductance": 6.883066622540161,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-台所||間仕切壁_wall_s->LD-ホール||室内建具_wall_s",
+            "conductance": 0.45460848756396227,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-台所||間仕切壁_wall_s->LD-外部||E_窓_glass_s",
+            "conductance": 0.6857490898907871,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-台所||間仕切壁_wall_s->LD-外部||S_窓_glass_s",
+            "conductance": 2.215497059647158,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-階間(L4)||天井_ceiling_s->LD-ホール||室内建具_wall_s",
+            "conductance": 1.7926228456505693,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-階間(L4)||天井_ceiling_s->LD-外部||E_窓_glass_s",
+            "conductance": 2.7040618874264917,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-階間(L4)||天井_ceiling_s->LD-外部||S_窓_glass_s",
+            "conductance": 8.73619994399328,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-ホール||室内建具_wall_s->LD-外部||E_窓_glass_s",
+            "conductance": 0.17859619154298517,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-ホール||室内建具_wall_s->LD-外部||S_窓_glass_s",
+            "conductance": 0.5770030803696443,
+            "subtype": "radiation"
+        },
+        {
+            "key": "LD-外部||E_窓_glass_s->LD-外部||S_窓_glass_s",
+            "conductance": 0.8703738448613834,
             "subtype": "radiation"
         },
         {
@@ -16536,418 +16546,408 @@
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-外部||N_外壁_一般部_wall_s->1階トイレ-外部||N_外壁_熱橋部_wall_s",
-            "conductance": 0.1673740902510744,
+            "key": "2階トイレ-外部||E_外壁_一般部_wall_s->2階トイレ-外部||E_外壁_熱橋部_wall_s",
+            "conductance": 0.18785583093788064,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-外部||N_外壁_一般部_wall_s->1階トイレ-床下||外皮床_一般部_floor_s",
-            "conductance": 0.8983561415969237,
+            "key": "2階トイレ-外部||E_外壁_一般部_wall_s->2階トイレ-外部||N_外壁_一般部_wall_s",
+            "conductance": 1.5061921641900122,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-外部||N_外壁_一般部_wall_s->1階トイレ-床下||外皮床_熱橋部_floor_s",
-            "conductance": 0.18400065550780367,
+            "key": "2階トイレ-外部||E_外壁_一般部_wall_s->2階トイレ-外部||N_外壁_熱橋部_wall_s",
+            "conductance": 0.3084971902557856,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-外部||N_外壁_一般部_wall_s->1階トイレ-ホール||間仕切壁_wall_s",
-            "conductance": 1.336645442207645,
+            "key": "2階トイレ-外部||E_外壁_一般部_wall_s->2階トイレ-2階ホール||間仕切壁_wall_s",
+            "conductance": 3.3201718635809985,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-外部||N_外壁_一般部_wall_s->1階トイレ-片流れ(3)||外皮天井_floor_s",
-            "conductance": 1.0823567971047274,
+            "key": "2階トイレ-外部||E_外壁_一般部_wall_s->2階トイレ-切妻||外皮天井_floor_s",
+            "conductance": 0.8414481364190011,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-外部||N_外壁_一般部_wall_s->1階トイレ-ホール||室内建具_wall_s",
-            "conductance": 0.9271755213752544,
+            "key": "2階トイレ-外部||E_外壁_一般部_wall_s->2階トイレ-片流れ(3)||0_外壁_一般部_wall_s",
+            "conductance": 0.10518101705237513,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-外部||N_外壁_一般部_wall_s->1階トイレ-外部||N_窓_glass_s",
-            "conductance": 0.3520919701425017,
+            "key": "2階トイレ-外部||E_外壁_一般部_wall_s->2階トイレ-片流れ(3)||0_外壁_熱橋部_wall_s",
+            "conductance": 0.02154309987819732,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-外部||N_外壁_熱橋部_wall_s->1階トイレ-床下||外皮床_一般部_floor_s",
-            "conductance": 0.18400065550780365,
+            "key": "2階トイレ-外部||E_外壁_一般部_wall_s->2階トイレ-階間(L4)||床_floor_s",
+            "conductance": 0.8414481364190011,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-外部||N_外壁_熱橋部_wall_s->1階トイレ-床下||外皮床_熱橋部_floor_s",
-            "conductance": 0.03768688124858629,
+            "key": "2階トイレ-外部||E_外壁_一般部_wall_s->2階トイレ-外部||N_窓_glass_s",
+            "conductance": 0.2737240925700365,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-外部||N_外壁_熱橋部_wall_s->1階トイレ-ホール||間仕切壁_wall_s",
-            "conductance": 0.2737707532232526,
+            "key": "2階トイレ-外部||E_外壁_熱橋部_wall_s->2階トイレ-外部||N_外壁_一般部_wall_s",
+            "conductance": 0.3084971902557856,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-外部||N_外壁_熱橋部_wall_s->1階トイレ-片流れ(3)||外皮天井_floor_s",
-            "conductance": 0.22168753675638994,
+            "key": "2階トイレ-外部||E_外壁_熱橋部_wall_s->2階トイレ-外部||N_外壁_熱橋部_wall_s",
+            "conductance": 0.06318617149817296,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-外部||N_外壁_熱橋部_wall_s->1階トイレ-ホール||室内建具_wall_s",
-            "conductance": 0.18990342004071475,
+            "key": "2階トイレ-外部||E_外壁_熱橋部_wall_s->2階トイレ-2階ホール||間仕切壁_wall_s",
+            "conductance": 0.6800352009744215,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-外部||N_外壁_熱橋部_wall_s->1階トイレ-外部||N_窓_glass_s",
-            "conductance": 0.07211522280027144,
+            "key": "2階トイレ-外部||E_外壁_熱橋部_wall_s->2階トイレ-切妻||外皮天井_floor_s",
+            "conductance": 0.17234479902557853,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-床下||外皮床_一般部_floor_s->1階トイレ-床下||外皮床_熱橋部_floor_s",
-            "conductance": 0.20227886631983716,
+            "key": "2階トイレ-外部||E_外壁_熱橋部_wall_s->2階トイレ-片流れ(3)||0_外壁_一般部_wall_s",
+            "conductance": 0.021543099878197317,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-床下||外皮床_一般部_floor_s->1階トイレ-ホール||間仕切壁_wall_s",
-            "conductance": 1.4694247907713187,
+            "key": "2階トイレ-外部||E_外壁_熱橋部_wall_s->2階トイレ-片流れ(3)||0_外壁_熱橋部_wall_s",
+            "conductance": 0.004412442143727162,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-床下||外皮床_一般部_floor_s->1階トイレ-片流れ(3)||外皮天井_floor_s",
-            "conductance": 1.189875684234336,
+            "key": "2階トイレ-外部||E_外壁_熱橋部_wall_s->2階トイレ-階間(L4)||床_floor_s",
+            "conductance": 0.17234479902557853,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-床下||外皮床_一般部_floor_s->1階トイレ-ホール||室内建具_wall_s",
-            "conductance": 1.0192790499886903,
+            "key": "2階トイレ-外部||E_外壁_熱橋部_wall_s->2階トイレ-外部||N_窓_glass_s",
+            "conductance": 0.056063970767356884,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-床下||外皮床_一般部_floor_s->1階トイレ-外部||N_窓_glass_s",
-            "conductance": 0.38706799366659134,
+            "key": "2階トイレ-外部||N_外壁_一般部_wall_s->2階トイレ-外部||N_外壁_熱橋部_wall_s",
+            "conductance": 0.5066146518879415,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-床下||外皮床_熱橋部_floor_s->1階トイレ-ホール||間仕切壁_wall_s",
-            "conductance": 0.300966523410993,
+            "key": "2階トイレ-外部||N_外壁_一般部_wall_s->2階トイレ-2階ホール||間仕切壁_wall_s",
+            "conductance": 5.452392326431181,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-床下||外皮床_熱橋部_floor_s->1階トイレ-片流れ(3)||外皮天井_floor_s",
-            "conductance": 0.24370947749377972,
+            "key": "2階トイレ-外部||N_外壁_一般部_wall_s->2階トイレ-切妻||外皮天井_floor_s",
+            "conductance": 1.3818276735688182,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-床下||外皮床_熱橋部_floor_s->1階トイレ-ホール||室内建具_wall_s",
-            "conductance": 0.20876799819045466,
+            "key": "2階トイレ-外部||N_外壁_一般部_wall_s->2階トイレ-片流れ(3)||0_外壁_一般部_wall_s",
+            "conductance": 0.17272845919610227,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-床下||外皮床_熱橋部_floor_s->1階トイレ-外部||N_窓_glass_s",
-            "conductance": 0.07927898665460303,
+            "key": "2階トイレ-外部||N_外壁_一般部_wall_s->2階トイレ-片流れ(3)||0_外壁_熱橋部_wall_s",
+            "conductance": 0.035378118148599265,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-ホール||間仕切壁_wall_s->1階トイレ-片流れ(3)||外皮天井_floor_s",
-            "conductance": 1.7703913141823113,
+            "key": "2階トイレ-外部||N_外壁_一般部_wall_s->2階トイレ-階間(L4)||床_floor_s",
+            "conductance": 1.3818276735688182,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-ホール||間仕切壁_wall_s->1階トイレ-ホール||室内建具_wall_s",
-            "conductance": 1.5165641257634017,
+            "key": "2階トイレ-外部||N_外壁_一般部_wall_s->2階トイレ-外部||N_窓_glass_s",
+            "conductance": 0.44951020706455536,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-ホール||間仕切壁_wall_s->1階トイレ-外部||N_窓_glass_s",
-            "conductance": 0.5759104275050894,
+            "key": "2階トイレ-外部||N_外壁_熱橋部_wall_s->2階トイレ-2階ホール||間仕切壁_wall_s",
+            "conductance": 1.116755054811206,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-片流れ(3)||外皮天井_floor_s->1階トイレ-ホール||室内建具_wall_s",
-            "conductance": 1.228047048179145,
+            "key": "2階トイレ-外部||N_外壁_熱橋部_wall_s->2階トイレ-切妻||外皮天井_floor_s",
+            "conductance": 0.2830249451887941,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-片流れ(3)||外皮天井_floor_s->1階トイレ-外部||N_窓_glass_s",
-            "conductance": 0.4663469803211943,
+            "key": "2階トイレ-外部||N_外壁_熱橋部_wall_s->2階トイレ-片流れ(3)||0_外壁_一般部_wall_s",
+            "conductance": 0.035378118148599265,
             "subtype": "radiation"
         },
         {
-            "key": "1階トイレ-ホール||室内建具_wall_s->1階トイレ-外部||N_窓_glass_s",
-            "conductance": 0.39948518434743274,
+            "key": "2階トイレ-外部||N_外壁_熱橋部_wall_s->2階トイレ-片流れ(3)||0_外壁_熱橋部_wall_s",
+            "conductance": 0.007246120584652863,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||N_外壁_一般部_wall_s->浴室-外部||N_外壁_熱橋部_wall_s",
-            "conductance": 0.4449447006802721,
+            "key": "2階トイレ-外部||N_外壁_熱橋部_wall_s->2階トイレ-階間(L4)||床_floor_s",
+            "conductance": 0.2830249451887941,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||N_外壁_一般部_wall_s->浴室-外部||W_外壁_一般部_wall_s",
-            "conductance": 1.885559557823129,
+            "key": "2階トイレ-外部||N_外壁_熱橋部_wall_s->2階トイレ-外部||N_窓_glass_s",
+            "conductance": 0.0920683556638246,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||N_外壁_一般部_wall_s->浴室-外部||W_外壁_熱橋部_wall_s",
-            "conductance": 0.3861989455782313,
+            "key": "2階トイレ-2階ホール||間仕切壁_wall_s->2階トイレ-切妻||外皮天井_floor_s",
+            "conductance": 3.0460292326431175,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||N_外壁_一般部_wall_s->浴室-床下||外皮床_一般部_floor_s",
-            "conductance": 1.7580851088435374,
+            "key": "2階トイレ-2階ホール||間仕切壁_wall_s->2階トイレ-片流れ(3)||0_外壁_一般部_wall_s",
+            "conductance": 0.3807536540803897,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||N_外壁_一般部_wall_s->浴室-床下||外皮床_熱橋部_floor_s",
-            "conductance": 0.36008972108843545,
+            "key": "2階トイレ-2階ホール||間仕切壁_wall_s->2階トイレ-片流れ(3)||0_外壁_熱橋部_wall_s",
+            "conductance": 0.07798568818514007,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||N_外壁_一般部_wall_s->浴室-洗面所||間仕切壁_wall_s",
-            "conductance": 2.617321768707483,
+            "key": "2階トイレ-2階ホール||間仕切壁_wall_s->2階トイレ-階間(L4)||床_floor_s",
+            "conductance": 3.0460292326431175,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||N_外壁_一般部_wall_s->浴室-ホール||間仕切壁_wall_s",
-            "conductance": 2.617321768707483,
+            "key": "2階トイレ-2階ホール||間仕切壁_wall_s->2階トイレ-外部||N_窓_glass_s",
+            "conductance": 0.9908769792935446,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||N_外壁_一般部_wall_s->浴室-片流れ(3)||外皮天井_floor_s",
-            "conductance": 2.1181748299319727,
+            "key": "2階トイレ-切妻||外皮天井_floor_s->2階トイレ-片流れ(3)||0_外壁_一般部_wall_s",
+            "conductance": 0.0964963459196102,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||N_外壁_一般部_wall_s->浴室-洗面所||室内建具_wall_s",
-            "conductance": 0.9099832653061225,
+            "key": "2階トイレ-切妻||外皮天井_floor_s->2階トイレ-片流れ(3)||0_外壁_熱橋部_wall_s",
+            "conductance": 0.019764311814859922,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||N_外壁_一般部_wall_s->浴室-外部||W_窓_glass_s",
-            "conductance": 0.34556326530612247,
+            "key": "2階トイレ-切妻||外皮天井_floor_s->2階トイレ-階間(L4)||床_floor_s",
+            "conductance": 0.7719707673568816,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||N_外壁_熱橋部_wall_s->浴室-外部||W_外壁_一般部_wall_s",
-            "conductance": 0.38619894557823126,
+            "key": "2階トイレ-切妻||外皮天井_floor_s->2階トイレ-外部||N_窓_glass_s",
+            "conductance": 0.2511230207064555,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||N_外壁_熱橋部_wall_s->浴室-外部||W_外壁_熱橋部_wall_s",
-            "conductance": 0.07910098885337268,
+            "key": "2階トイレ-片流れ(3)||0_外壁_一般部_wall_s->2階トイレ-片流れ(3)||0_外壁_熱橋部_wall_s",
+            "conductance": 0.0024705389768574903,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||N_外壁_熱橋部_wall_s->浴室-床下||外皮床_一般部_floor_s",
-            "conductance": 0.36008972108843545,
+            "key": "2階トイレ-片流れ(3)||0_外壁_一般部_wall_s->2階トイレ-階間(L4)||床_floor_s",
+            "conductance": 0.0964963459196102,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||N_外壁_熱橋部_wall_s->浴室-床下||外皮床_熱橋部_floor_s",
-            "conductance": 0.07375331636751087,
+            "key": "2階トイレ-片流れ(3)||0_外壁_一般部_wall_s->2階トイレ-外部||N_窓_glass_s",
+            "conductance": 0.031390377588306935,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||N_外壁_熱橋部_wall_s->浴室-洗面所||間仕切壁_wall_s",
-            "conductance": 0.5360779526268339,
+            "key": "2階トイレ-片流れ(3)||0_外壁_熱橋部_wall_s->2階トイレ-階間(L4)||床_floor_s",
+            "conductance": 0.019764311814859922,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||N_外壁_熱橋部_wall_s->浴室-ホール||間仕切壁_wall_s",
-            "conductance": 0.5360779526268339,
+            "key": "2階トイレ-片流れ(3)||0_外壁_熱橋部_wall_s->2階トイレ-外部||N_窓_glass_s",
+            "conductance": 0.0064293544457978075,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||N_外壁_熱橋部_wall_s->浴室-片流れ(3)||外皮天井_floor_s",
-            "conductance": 0.43384303745594627,
+            "key": "2階トイレ-階間(L4)||床_floor_s->2階トイレ-外部||N_窓_glass_s",
+            "conductance": 0.2511230207064555,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||N_外壁_熱橋部_wall_s->浴室-洗面所||室内建具_wall_s",
-            "conductance": 0.18638211458077208,
+            "key": "洗面所-外部||N_外壁_一般部_wall_s->洗面所-外部||N_外壁_熱橋部_wall_s",
+            "conductance": 0.08099396376970226,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||N_外壁_熱橋部_wall_s->浴室-外部||W_窓_glass_s",
-            "conductance": 0.0707780181952299,
+            "key": "洗面所-外部||N_外壁_一般部_wall_s->洗面所-床下||外皮床_一般部_floor_s",
+            "conductance": 0.8668278794877408,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||W_外壁_一般部_wall_s->浴室-外部||W_外壁_熱橋部_wall_s",
-            "conductance": 0.33520935374149663,
+            "key": "洗面所-外部||N_外壁_一般部_wall_s->洗面所-床下||外皮床_熱橋部_floor_s",
+            "conductance": 0.1775430596541156,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||W_外壁_一般部_wall_s->浴室-床下||外皮床_一般部_floor_s",
-            "conductance": 1.5259662925170068,
+            "key": "洗面所-外部||N_外壁_一般部_wall_s->洗面所-1階トイレ||間仕切壁_wall_s",
+            "conductance": 1.290476477670753,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||W_外壁_一般部_wall_s->浴室-床下||外皮床_熱橋部_floor_s",
-            "conductance": 0.31254731292517013,
+            "key": "洗面所-外部||N_外壁_一般部_wall_s->洗面所-ホール||間仕切壁_wall_s",
+            "conductance": 1.290476477670753,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||W_外壁_一般部_wall_s->浴室-洗面所||間仕切壁_wall_s",
-            "conductance": 2.2717585034013603,
+            "key": "洗面所-外部||N_外壁_一般部_wall_s->洗面所-片流れ(3)||外皮天井_floor_s",
+            "conductance": 1.0443709391418563,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||W_外壁_一般部_wall_s->浴室-ホール||間仕切壁_wall_s",
-            "conductance": 2.2717585034013603,
+            "key": "洗面所-外部||N_外壁_一般部_wall_s->洗面所-ホール||室内建具_wall_s",
+            "conductance": 0.44866932793345005,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||W_外壁_一般部_wall_s->浴室-片流れ(3)||外皮天井_floor_s",
-            "conductance": 1.838513605442177,
+            "key": "洗面所-外部||N_外壁_一般部_wall_s->洗面所-外部||N_窓_glass_s",
+            "conductance": 0.17038075744308231,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||W_外壁_一般部_wall_s->浴室-洗面所||室内建具_wall_s",
-            "conductance": 0.7898387755102041,
+            "key": "洗面所-外部||N_外壁_熱橋部_wall_s->洗面所-床下||外皮床_一般部_floor_s",
+            "conductance": 0.17754305965411557,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||W_外壁_一般部_wall_s->浴室-外部||W_窓_glass_s",
-            "conductance": 0.2999387755102041,
+            "key": "洗面所-外部||N_外壁_熱橋部_wall_s->洗面所-床下||外皮床_熱橋部_floor_s",
+            "conductance": 0.03636424113397548,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||W_外壁_熱橋部_wall_s->浴室-床下||外皮床_一般部_floor_s",
-            "conductance": 0.31254731292517013,
+            "key": "洗面所-外部||N_外壁_熱橋部_wall_s->洗面所-1階トイレ||間仕切壁_wall_s",
+            "conductance": 0.2643144592819614,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||W_外壁_熱橋部_wall_s->浴室-床下||外皮床_熱橋部_floor_s",
-            "conductance": 0.06401571469551678,
+            "key": "洗面所-外部||N_外壁_熱橋部_wall_s->洗面所-ホール||間仕切壁_wall_s",
+            "conductance": 0.2643144592819614,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||W_外壁_熱橋部_wall_s->浴室-洗面所||間仕切壁_wall_s",
-            "conductance": 0.465299934431604,
+            "key": "洗面所-外部||N_外壁_熱橋部_wall_s->洗面所-片流れ(3)||外皮天井_floor_s",
+            "conductance": 0.21390730078809103,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||W_外壁_熱橋部_wall_s->浴室-ホール||間仕切壁_wall_s",
-            "conductance": 0.465299934431604,
+            "key": "洗面所-外部||N_外壁_熱橋部_wall_s->洗面所-ホール||室内建具_wall_s",
+            "conductance": 0.09189612740805603,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||W_外壁_熱橋部_wall_s->浴室-片流れ(3)||外皮天井_floor_s",
-            "conductance": 0.3765630276206869,
+            "key": "洗面所-外部||N_外壁_熱橋部_wall_s->洗面所-外部||N_窓_glass_s",
+            "conductance": 0.03489726357267951,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||W_外壁_熱橋部_wall_s->浴室-洗面所||室内建具_wall_s",
-            "conductance": 0.1617742070322105,
+            "key": "洗面所-床下||外皮床_一般部_floor_s->洗面所-床下||外皮床_熱橋部_floor_s",
+            "conductance": 0.3891837930166376,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-外部||W_外壁_熱橋部_wall_s->浴室-外部||W_窓_glass_s",
-            "conductance": 0.0614332431767888,
+            "key": "洗面所-床下||外皮床_一般部_floor_s->洗面所-1階トイレ||間仕切壁_wall_s",
+            "conductance": 2.828792808669002,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-床下||外皮床_一般部_floor_s->浴室-床下||外皮床_熱橋部_floor_s",
-            "conductance": 0.2914173537414967,
+            "key": "洗面所-床下||外皮床_一般部_floor_s->洗面所-ホール||間仕切壁_wall_s",
+            "conductance": 2.828792808669002,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-床下||外皮床_一般部_floor_s->浴室-洗面所||間仕切壁_wall_s",
-            "conductance": 2.1181748299319727,
+            "key": "洗面所-床下||外皮床_一般部_floor_s->洗面所-片流れ(3)||外皮天井_floor_s",
+            "conductance": 2.289316429509632,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-床下||外皮床_一般部_floor_s->浴室-ホール||間仕切壁_wall_s",
-            "conductance": 2.1181748299319727,
+            "key": "洗面所-床下||外皮床_一般部_floor_s->洗面所-ホール||室内建具_wall_s",
+            "conductance": 0.983506937390543,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-床下||外皮床_一般部_floor_s->浴室-片流れ(3)||外皮天井_floor_s",
-            "conductance": 1.7142197278911566,
+            "key": "洗面所-床下||外皮床_一般部_floor_s->洗面所-外部||N_窓_glass_s",
+            "conductance": 0.37348364711033283,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-床下||外皮床_一般部_floor_s->浴室-洗面所||室内建具_wall_s",
-            "conductance": 0.736441224489796,
+            "key": "洗面所-床下||外皮床_熱橋部_floor_s->洗面所-1階トイレ||間仕切壁_wall_s",
+            "conductance": 0.5793912981611209,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-床下||外皮床_一般部_floor_s->浴室-外部||W_窓_glass_s",
-            "conductance": 0.27966122448979597,
+            "key": "洗面所-床下||外皮床_熱橋部_floor_s->洗面所-ホール||間仕切壁_wall_s",
+            "conductance": 0.5793912981611209,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-床下||外皮床_熱橋部_floor_s->浴室-洗面所||間仕切壁_wall_s",
-            "conductance": 0.43384303745594627,
+            "key": "洗面所-床下||外皮床_熱橋部_floor_s->洗面所-片流れ(3)||外皮天井_floor_s",
+            "conductance": 0.4688961361646235,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-床下||外皮床_熱橋部_floor_s->浴室-ホール||間仕切壁_wall_s",
-            "conductance": 0.43384303745594627,
+            "key": "洗面所-床下||外皮床_熱橋部_floor_s->洗面所-ホール||室内建具_wall_s",
+            "conductance": 0.2014411799474606,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-床下||外皮床_熱橋部_floor_s->浴室-片流れ(3)||外皮天井_floor_s",
-            "conductance": 0.3511052454716827,
+            "key": "洗面所-床下||外皮床_熱橋部_floor_s->洗面所-外部||N_窓_glass_s",
+            "conductance": 0.07649665061295974,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-床下||外皮床_熱橋部_floor_s->浴室-洗面所||室内建具_wall_s",
-            "conductance": 0.15083735923284977,
+            "key": "洗面所-1階トイレ||間仕切壁_wall_s->洗面所-ホール||間仕切壁_wall_s",
+            "conductance": 4.211321147110332,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-床下||外皮床_熱橋部_floor_s->浴室-外部||W_窓_glass_s",
-            "conductance": 0.05728000983525942,
+            "key": "洗面所-1階トイレ||間仕切壁_wall_s->洗面所-片流れ(3)||外皮天井_floor_s",
+            "conductance": 3.4081841068301224,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-洗面所||間仕切壁_wall_s->浴室-ホール||間仕切壁_wall_s",
-            "conductance": 3.1533997213343166,
+            "key": "洗面所-1階トイレ||間仕切壁_wall_s->洗面所-ホール||室内建具_wall_s",
+            "conductance": 1.464180604203152,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-洗面所||間仕切壁_wall_s->浴室-片流れ(3)||外皮天井_floor_s",
-            "conductance": 2.5520178673879186,
+            "key": "洗面所-1階トイレ||間仕切壁_wall_s->洗面所-外部||N_窓_glass_s",
+            "conductance": 0.5560179509632224,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-洗面所||間仕切壁_wall_s->浴室-洗面所||室内建具_wall_s",
-            "conductance": 1.0963653798868944,
+            "key": "洗面所-ホール||間仕切壁_wall_s->洗面所-片流れ(3)||外皮天井_floor_s",
+            "conductance": 3.4081841068301224,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-洗面所||間仕切壁_wall_s->浴室-外部||W_窓_glass_s",
-            "conductance": 0.41634128350135235,
+            "key": "洗面所-ホール||間仕切壁_wall_s->洗面所-ホール||室内建具_wall_s",
+            "conductance": 1.464180604203152,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-ホール||間仕切壁_wall_s->浴室-片流れ(3)||外皮天井_floor_s",
-            "conductance": 2.5520178673879186,
+            "key": "洗面所-ホール||間仕切壁_wall_s->洗面所-外部||N_窓_glass_s",
+            "conductance": 0.5560179509632224,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-ホール||間仕切壁_wall_s->浴室-洗面所||室内建具_wall_s",
-            "conductance": 1.0963653798868944,
+            "key": "洗面所-片流れ(3)||外皮天井_floor_s->洗面所-ホール||室内建具_wall_s",
+            "conductance": 1.1849481173380034,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-ホール||間仕切壁_wall_s->浴室-外部||W_窓_glass_s",
-            "conductance": 0.41634128350135235,
+            "key": "洗面所-片流れ(3)||外皮天井_floor_s->洗面所-外部||N_窓_glass_s",
+            "conductance": 0.4499802977232925,
             "subtype": "radiation"
         },
         {
-            "key": "浴室-片流れ(3)||外皮天井_floor_s->浴室-洗面所||室内建具_wall_s",
-            "conductance": 0.8872785837226457,
-            "subtype": "radiation"
-        },
-        {
-            "key": "浴室-片流れ(3)||外皮天井_floor_s->浴室-外部||W_窓_glass_s",
-            "conductance": 0.33694123432505535,
-            "subtype": "radiation"
-        },
-        {
-            "key": "浴室-洗面所||室内建具_wall_s->浴室-外部||W_窓_glass_s",
-            "conductance": 0.14475239734447995,
+            "key": "洗面所-ホール||室内建具_wall_s->洗面所-外部||N_窓_glass_s",
+            "conductance": 0.1933147985989492,
             "subtype": "radiation"
         }
     ]

@@ -467,4 +467,4 @@ input_data['surfaces'] = [
 ]
 
 import vtsimnx as vt
-vt.resolve(input_data, output_path='input_data.json')  
+vt.parse(input_data) 
