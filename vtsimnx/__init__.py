@@ -1,2 +1,3 @@
-from .parse import parse
-__all__ = ["parse"]
+from .builder import build_config
+
+__all__ = ["build_config"]

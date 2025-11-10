@@ -467,4 +467,4 @@ input_data['surfaces'] = [
 ]
 
 import vtsimnx as vt
-vt.parse(input_data) 
+vt.build_config(input_data) 

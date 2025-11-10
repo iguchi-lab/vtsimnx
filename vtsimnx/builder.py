@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List, Tuple, Optional, Iterable
+from typing import Any, Dict, Optional
 from copy import deepcopy
 import json
 
 from .logger import get_logger
 from .config_types import SimConfigType, IndexType, ToleranceType, CalcFlagType
-from .utils import convert_to_json_compatible, CHAIN_DELIMITER
+from .utils import CHAIN_DELIMITER
 from .parsers import _parse_simulation, _parse_nodes, _parse_chain_branches, _parse_surface, _parse_aircon
 from .surfaces import process_surface, process_wall_solar, process_glass_solar, process_radiation
 from .aircon import process_aircon
@@ -16,23 +16,16 @@ from .validate import validate_dict
 logger = get_logger(__name__)
 
 
-
-
-
-
-
-
 # ------------------------------
 # エントリポイント
 # ------------------------------
-def parse(raw_config: Dict[str, Any], output_path: Optional[str] = "parsed_input_data.json") -> Dict[str, Any]:
+def build_config(raw_config: Dict[str, Any], output_path: Optional[str] = "parsed_input_data.json") -> Dict[str, Any]:
     """
-    設定 raw_config を正規化して dict を返す。
+    設定 raw_config を正規化・展開・検証して dict を返す。
     output_path を None にするとファイル出力しない。
     """
     logger.info("設定データの読み込み開始")
     try:
-        # ※ raw_config は外部で再利用される可能性もあるため非破壊の方針
         raw = deepcopy(raw_config)
 
         sim_config =  _parse_simulation(raw)
@@ -42,7 +35,6 @@ def parse(raw_config: Dict[str, Any], output_path: Optional[str] = "parsed_input
         surface_config = _parse_surface(raw)
         aircon_config = _parse_aircon(raw)
 
-        # 計算フラグの自動設定（nodes の calc_p/calc_t/calc_x/calc_c を集計）
         logger.info("計算フラグの自動設定を開始します")
         for flag in ("p", "t", "x", "c"):
             has_flag = any(
@@ -119,5 +111,6 @@ def parse(raw_config: Dict[str, Any], output_path: Optional[str] = "parsed_input
 
     except Exception as e:
         logger.exception("エラーが発生しました: %s", e)
-        # そのまま上げる：上位で適切にハンドリングさせる
         raise
+
+
