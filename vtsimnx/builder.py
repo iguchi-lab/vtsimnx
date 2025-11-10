@@ -5,7 +5,6 @@ from copy import deepcopy
 import json
 
 from .logger import get_logger
-from .config_types import SimConfigType, IndexType, ToleranceType, CalcFlagType
 from .utils import CHAIN_DELIMITER
 from .parsers import _parse_simulation, _parse_nodes, _parse_chain_branches, _parse_surface, _parse_aircon
 from .surfaces import process_surface, process_wall_solar, process_glass_solar, process_radiation
