@@ -153,3 +153,46 @@ def process_radiation(node: str, surfaces: list) -> list:
     return thermal_branches
 
 
+def process_surfaces(surface_config: list, sim_length: int) -> tuple[list, list]:
+    """
+    builder から呼び出す統合処理。
+    - 各面の要素分割ノード/熱ブランチを生成
+    - 日射（壁/床/天井・ガラス）の熱ブランチを追加
+    - 室内放射の熱ブランチを追加
+    戻り値は (add_nodes, add_thermal_branches)。
+    """
+    if not surface_config:
+        return [], []
+
+    nodes: list = []
+    thermal_branches: list = []
+
+    surface_data = surface_config
+
+    # 表面の分解
+    logger.info("表面の解析を開始します。")
+    for s in surface_data:
+        add_nodes, add_tb = process_surface(s)
+        nodes.extend(add_nodes)
+        thermal_branches.extend(add_tb)
+    logger.info("表面の解析が完了しました。")
+
+    # 日射
+    logger.info("日射の解析を開始します。")
+    for s in (x for x in surface_data if "solar" in x):
+        if s["part"] in ["wall", "floor", "ceiling"]:
+            thermal_branches.extend(process_wall_solar(s, sim_length))
+        elif s["part"] == "glass":
+            thermal_branches.extend(process_glass_solar(s, surface_data, sim_length))
+    logger.info("日射の解析が完了しました。")
+
+    # 室内放射
+    logger.info("室内放射の解析を開始します。")
+    for node in {s["key"].split(CHAIN_DELIMITER)[0] for s in surface_data}:
+        surfaces = [s for s in surface_data if s["key"].startswith(node)]
+        thermal_branches.extend(process_radiation(node, surfaces))
+    logger.info("室内放射の解析が完了しました。")
+
+    return nodes, thermal_branches
+
+

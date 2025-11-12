@@ -49,3 +49,21 @@ def process_aircon(aircon: dict) -> tuple[list, list]:
     return nodes, ventilation_branches
 
 
+def process_aircons(aircons: list) -> tuple[list, list]:
+    """複数の空調設定をまとめて処理する統合関数。"""
+    if not aircons:
+        return [], []
+
+    nodes_all: list = []
+    vents_all: list = []
+
+    logger.info("空調の解析を開始します。")
+    for ac in aircons:
+        add_nodes, add_vents = process_aircon(ac)
+        nodes_all.extend(add_nodes)
+        vents_all.extend(add_vents)
+    logger.info("空調の解析が完了しました。")
+
+    return nodes_all, vents_all
+
+

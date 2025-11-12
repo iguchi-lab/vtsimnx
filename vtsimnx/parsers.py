@@ -119,3 +119,17 @@ def _parse_aircon(raw: Dict[str, Any]) -> List[Dict[str, Any]]:
     return out
 
 
+def parse_all(raw: Dict[str, Any]) -> tuple[SimConfigType, List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
+    """
+    各セクションのパースを一括で行い、タプルで返す。
+    戻り値: (sim_config, node_config, ventilation_config, thermal_config, surface_config, aircon_config)
+    """
+    sim_config = _parse_simulation(raw)
+    node_config = _parse_nodes(raw)
+    ventilation_config = _parse_chain_branches(raw, "ventilation_branches")
+    thermal_config = _parse_chain_branches(raw, "thermal_branches")
+    surface_config = _parse_surface(raw)
+    aircon_config = _parse_aircon(raw)
+    return sim_config, node_config, ventilation_config, thermal_config, surface_config, aircon_config
+
+

@@ -4,7 +4,7 @@ import json
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, Set
 
 import numpy as np
 
@@ -52,6 +52,22 @@ class ValidationResult:
 # ------------------------------
 # 共通バリデーション
 # ------------------------------
+def _allowed_keys(typed_dict_cls) -> Set[str]:
+    """TypedDict から許可キー集合を取得する。"""
+    return set(getattr(typed_dict_cls, "__annotations__", {}).keys())
+
+
+def log_and_strip_unknown_fields(data: Dict[str, Any], allowed: Set[str], context: str) -> None:
+    """
+    config_types.py に無いキーがあればログに警告を出し、取り除く。
+    - 目的: タイプミスを早期に発見しつつ、処理は継続する
+    """
+    unknown = [k for k in list(data.keys()) if k not in allowed]
+    for k in unknown:
+        logger.warning("%s に未定義のフィールド '%s' が指定されました。無視しました。", context, k)
+        data.pop(k, None)
+
+
 def validate_required_fields(data: Dict[str, Any], required_fields: List[str], context: str) -> ValidationResult:
     errors: List[str] = []
     for field in required_fields:
@@ -132,9 +148,18 @@ def validate_sim_config(sim_config: Dict[str, Any]) -> Tuple[SimConfigType, Vali
     if not result.is_valid:
         return sim_config, result
 
+    # 未知キーはログに出しつつ削除
+    log_and_strip_unknown_fields(sim_config, _allowed_keys(SimConfigType), "sim_config")
+
     result = validate_required_fields(sim_config["index"], ["start", "end", "timestep", "length"], "indexセクション")
     if not result.is_valid:
         return sim_config, result
+
+    # サブセクションの未知キー除去
+    from .config_types import IndexType, ToleranceType, CalcFlagType  # 局所 import で循環回避の保険
+    log_and_strip_unknown_fields(sim_config["index"], _allowed_keys(IndexType), "indexセクション")
+    log_and_strip_unknown_fields(sim_config["tolerance"], _allowed_keys(ToleranceType), "toleranceセクション")
+    log_and_strip_unknown_fields(sim_config["calc_flag"], _allowed_keys(CalcFlagType), "calc_flagセクション")
 
     try:
         datetime.fromisoformat(str(sim_config["index"]["start"]).replace("Z", "+00:00"))
@@ -190,6 +215,9 @@ def validate_node_config(
         if not result.is_valid:
             errors.extend(result.errors)
             continue
+
+        # 未知キーはログ出力して削除（例: thermal_mass などはここで落とす）
+        log_and_strip_unknown_fields(node, _allowed_keys(NodeType), f"ノード {node.get('key', '?')}")
 
         # ノードタイプの既定値
         node["type"] = node.get("type", NodeTypeEnum.NORMAL)
@@ -275,6 +303,9 @@ def validate_ventilation_config(
             errors.extend(result.errors)
             continue
 
+        # 未知キーは事前に除去（タイプ判定に影響しないものは捨てる）
+        log_and_strip_unknown_fields(branch, _allowed_keys(VentilationBranchType), f"換気ブランチ {branch.get('key', '?')}")
+
         source, target = branch["key"].split(CHAIN_DELIMITER)
         branch["source"], branch["target"] = source, target
 
@@ -352,6 +383,9 @@ def validate_thermal_config(
         if not result.is_valid:
             errors.extend(result.errors)
             continue
+
+        # 未知キーを削除
+        log_and_strip_unknown_fields(branch, _allowed_keys(ThermalBranchType), f"熱ブランチ {branch.get('key', '?')}")
 
         source, target = branch["key"].split(CHAIN_DELIMITER)
         if source == "":

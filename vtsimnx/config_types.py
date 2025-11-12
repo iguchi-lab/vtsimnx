@@ -56,6 +56,7 @@ class NodeType(TypedDict):
     type: NodeTypeEnum
     subtype: Optional[NodeSubtypeEnum]
     ref_node: Optional[str]
+    comment: Optional[str]
     v: Optional[float]
     beta: Optional[float]
     calc_p: Optional[bool]
@@ -72,6 +73,8 @@ class NodeType(TypedDict):
 class VentilationBranchType(TypedDict):
     key: str
     type: VentilationBranchTypeEnum
+    subtype: Optional[str]
+    comment: Optional[str]
     source: str
     target: str
     enable: List[bool]
@@ -94,6 +97,8 @@ class VentilationBranchType(TypedDict):
 class ThermalBranchType(TypedDict):
     key: str
     type: ThermalBranchTypeEnum
+    subtype: Optional[str]
+    comment: Optional[str]
     source: str
     target: str
     enable: List[bool]
