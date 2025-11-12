@@ -1,4 +1,4 @@
-import vtsimnx.validate as validate
+import vtsim_config.validate as validate
 
 
 def test_validate_dict_minimal(minimal_input_config):

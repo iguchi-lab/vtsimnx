@@ -106,3 +106,5 @@ class ThermalBranchType(TypedDict):
     u_value: Optional[float]
     area: Optional[float]
     heat_generation: Optional[np.ndarray]
+
+

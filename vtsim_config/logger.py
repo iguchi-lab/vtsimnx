@@ -4,8 +4,8 @@ from pathlib import Path
 
 
 # 単一実行につき1つのログファイルに集約するため、
-# 共通親ロガー（"vtsimnx"）へ一度だけ FileHandler を設定する。
-APP_LOGGER_NAME = "vtsimnx"
+# 共通親ロガー（"vtsim_config"）へ一度だけ FileHandler を設定する。
+APP_LOGGER_NAME = "vtsim_config"
 
 
 def _ensure_parent_logger_initialized() -> logging.Logger:
@@ -33,3 +33,5 @@ def get_logger(name: str = __name__) -> logging.Logger:
     # 親ロガーへハンドラを一度だけ設定し、子ロガーを返す
     _ensure_parent_logger_initialized()
     return logging.getLogger(f"{APP_LOGGER_NAME}.{name}")
+
+

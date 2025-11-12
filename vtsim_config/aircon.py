@@ -67,3 +67,4 @@ def process_aircons(aircons: list) -> tuple[list, list]:
     return nodes_all, vents_all
 
 
+

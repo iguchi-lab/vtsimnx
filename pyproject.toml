@@ -1,5 +1,5 @@
 [project]
-name = "vtsimnx"
+name = "vtsim_config"
 version = "0.1.0"
 description = "Network-based ventilation and thermal simulation tool"
 authors = [
@@ -19,3 +19,7 @@ build-backend = "setuptools.build_meta"
 dev = [
   "pytest>=7",
 ]
+
+# パッケージ探索の明示設定（vtsim_config と vtsimnx を含める）
+[tool.setuptools.packages.find]
+include = ["vtsim_config*"]

@@ -561,3 +561,4 @@ def validate_dict(config: Dict[str, Any], *, continue_on_error: bool = True) -> 
     }
     return convert_to_json_compatible(output_json)
 
+

@@ -466,5 +466,5 @@ input_data['surfaces'] = [
     {'key': '2階トイレ->外部||N_窓',                 **surface['E_窓'],           'area':  0.54},
 ]
 
-import vtsimnx as vt
+import vtsim_config as vt
 vt.build_config(input_data) 

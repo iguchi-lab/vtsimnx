@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 import pytest
-import vtsimnx.utils as utils
+import vtsim_config.utils as utils
 
 
 # _expand_chain --------------------------------------------------------------
