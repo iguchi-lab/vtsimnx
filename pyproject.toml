@@ -6,7 +6,16 @@ authors = [
   { name="Masato Iguchi", email="iguchi.masato@gmail.com" }
 ]
 requires-python = ">=3.8"
+dependencies = [
+  "numpy>=1.24,<3",
+  "pandas>=2.0,<3",
+]
 
 [build-system]
 requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7",
+]
