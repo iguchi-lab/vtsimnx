@@ -6,6 +6,7 @@ authors = [
   { name="Masato Iguchi", email="iguchi.masato@gmail.com" }
 ]
 requires-python = ">=3.8"
+readme = "README.md"
 dependencies = [
   "numpy>=1.24,<3",
   "pandas>=2.0,<3",
@@ -18,6 +19,9 @@ build-backend = "setuptools.build_meta"
 [project.optional-dependencies]
 dev = [
   "pytest>=7",
+  "black>=24",
+  "ruff>=0.5",
+  "mypy>=1.10",
 ]
 astro = [
   "astropy>=5",
@@ -26,3 +30,11 @@ astro = [
 # パッケージ探索の明示設定（vtsim_config と vtsimnx を含める）
 [tool.setuptools.packages.find]
 include = ["vtsimnx*", "vtsim_config*"]
+
+[tool.pytest.ini_options]
+testpaths = ["vtsimnx/tests"]
+addopts = "-q"
+markers = [
+  "slow: long-running tests",
+  "astro: requires astropy",
+]
