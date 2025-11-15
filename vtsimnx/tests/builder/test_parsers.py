@@ -1,4 +1,4 @@
-import vtsim_config.parsers as parsers
+import vtsimnx.builder.parsers as parsers
 
 
 def test_parse_nodes_compound_and_comment():

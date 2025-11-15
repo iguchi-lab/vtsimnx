@@ -1,5 +1,5 @@
 import json
-import vtsim_config as vt
+import vtsimnx as vt
 
 
 def test_build_config_minimal(tmp_path, minimal_input_config):
