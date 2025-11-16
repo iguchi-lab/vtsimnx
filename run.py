@@ -1,5 +1,4 @@
 import argparse
-import json
 import vtsimnx as vt
 
 materials = vt.materials
@@ -375,8 +374,6 @@ def main(hasp_path: str, lat: float, lon: float) -> None:
         raise ValueError("VTSIMNX_API_URL is not set")
     output_json = vt.run_calc(base_url, config_json)
 
-    with open("calc_result.json", "w") as f:
-        json.dump(output_json, f, indent=4, ensure_ascii=False)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
