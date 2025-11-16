@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 import json
 import os
+import io
 
 from .logger import get_logger
 from .config_types import SimConfigType
@@ -130,6 +131,18 @@ def parse_all(raw: Dict[str, Any]) -> tuple[SimConfigType, List[Dict[str, Any]],
     if isinstance(raw, (bytes, bytearray)):
         logger.info("raw が bytes のため UTF-8 デコードして JSON パースを試みます")
         raw = raw.decode("utf-8")
+    # file-like オブジェクト（.read を持つ）の場合は読み込んで JSON を試みる
+    if hasattr(raw, "read") and callable(getattr(raw, "read")):
+        logger.info("raw が file-like のため read() して JSON パースを試みます")
+        contents = raw.read()
+        if isinstance(contents, (bytes, bytearray)):
+            contents = contents.decode("utf-8")
+        raw = json.loads(contents)
+    # PathLike（パスオブジェクト）の場合はファイルとして読み込む
+    if isinstance(raw, os.PathLike):
+        logger.info("raw が PathLike のためファイルから JSON を読み込みます")
+        with open(os.fspath(raw), "r", encoding="utf-8") as f:
+            raw = json.load(f)
     if isinstance(raw, str):
         logger.info("raw が文字列のため JSON パース（失敗時はファイル読み込み）を試みます")
         try:
@@ -141,7 +154,11 @@ def parse_all(raw: Dict[str, Any]) -> tuple[SimConfigType, List[Dict[str, Any]],
             else:
                 raise TypeError("raw は dict、JSON文字列、または既存のJSONファイルパスである必要があります。")
     if not isinstance(raw, dict):
-        raise TypeError("raw は dict である必要があります。")
+        type_name = type(raw).__name__
+        preview = repr(raw)
+        if len(preview) > 200:
+            preview = preview[:200] + "..."
+        raise TypeError(f"raw は dict である必要があります。受領タイプ: {type_name}; 値の先頭: {preview}")
 
     sim_config = _parse_simulation(raw)
     node_config = _parse_nodes(raw)
