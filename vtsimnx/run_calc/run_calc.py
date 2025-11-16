@@ -2,10 +2,7 @@ from typing import Dict, Any
 import requests
 import os
 
-def run_calc(config_json: Dict[str, Any]) -> Dict[str, Any]:
-    base_url = os.getenv("VTSIMNX_API_URL")
-    if not base_url:
-        raise ValueError("VTSIMNX_API_URL is not set")
+def run_calc(base_url: str, config_json: Dict[str, Any]) -> Dict[str, Any]:
     url = base_url.rstrip("/") + "/run"
     response = requests.post(url, json={"config": config_json})
     return response.json()
