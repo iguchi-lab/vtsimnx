@@ -15,6 +15,8 @@ from .utils.utils import (
 # 例: import vtsimnx as vt; vt.materials で参照可能にする
 from .utils import materials as materials
 
+from .run_calc import run_calc
+
 __all__ = [
     # builder
     "build_config", "parse",
@@ -25,4 +27,6 @@ __all__ = [
     "read_json", "read_csv", "index", "read_hasp",
     # submodules (compat)
     "materials",
+    # run_calc
+    "run_calc",
 ]

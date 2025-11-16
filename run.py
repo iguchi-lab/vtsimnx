@@ -1,4 +1,5 @@
 import argparse
+import json
 import vtsimnx as vt
 
 materials = vt.materials
@@ -366,8 +367,11 @@ def main(hasp_path: str, lat: float, lon: float) -> None:
         {'key': '2階トイレ->外部||N_窓',                 **surface['E_窓'],           'area':  0.54},
     ]
 
-    vt.build_config(input_data) 
-
+    config_json = vt.build_config(input_data) 
+    output_json = vt.run_calc(config_json)
+    #print(output_json)
+    with open("calc_result.json", "w") as f:
+        json.dump(output_json, f, indent=4, ensure_ascii=False)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
