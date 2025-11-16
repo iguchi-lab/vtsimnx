@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List
+import json
+import os
 
 from .logger import get_logger
 from .config_types import SimConfigType
@@ -124,6 +126,23 @@ def parse_all(raw: Dict[str, Any]) -> tuple[SimConfigType, List[Dict[str, Any]],
     各セクションのパースを一括で行い、タプルで返す。
     戻り値: (sim_config, node_config, ventilation_config, thermal_config, surface_config, aircon_config)
     """
+    # 入力が文字列（JSON文字列またはファイルパス）の場合に辞書へ変換
+    if isinstance(raw, (bytes, bytearray)):
+        logger.info("raw が bytes のため UTF-8 デコードして JSON パースを試みます")
+        raw = raw.decode("utf-8")
+    if isinstance(raw, str):
+        logger.info("raw が文字列のため JSON パース（失敗時はファイル読み込み）を試みます")
+        try:
+            raw = json.loads(raw)
+        except json.JSONDecodeError:
+            if os.path.exists(raw):
+                with open(raw, "r", encoding="utf-8") as f:
+                    raw = json.load(f)
+            else:
+                raise TypeError("raw は dict、JSON文字列、または既存のJSONファイルパスである必要があります。")
+    if not isinstance(raw, dict):
+        raise TypeError("raw は dict である必要があります。")
+
     sim_config = _parse_simulation(raw)
     node_config = _parse_nodes(raw)
     ventilation_config = _parse_chain_branches(raw, "ventilation_branches")

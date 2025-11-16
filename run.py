@@ -369,6 +369,7 @@ def main(hasp_path: str, lat: float, lon: float) -> None:
 
     config_json = vt.build_config(input_data) 
 
+    import os
     base_url = os.getenv("VTSIMNX_API_URL")
     if not base_url:
         raise ValueError("VTSIMNX_API_URL is not set")
