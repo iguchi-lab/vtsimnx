@@ -24,6 +24,22 @@ logger = get_logger(__name__)
 
 
 # ------------------------------
+# 定数定義（再生成を避ける）
+# ------------------------------
+VENTILATION_BRANCH_TYPES: Dict[str, Dict[str, List[str]]] = {
+    VentilationBranchTypeEnum.SIMPLE_OPENING: {"required": ["alpha", "area"]},
+    VentilationBranchTypeEnum.GAP: {"required": ["a", "n"]},
+    VentilationBranchTypeEnum.FAN: {"required": ["p_max", "q_max", "p1", "q1"]},
+    VentilationBranchTypeEnum.FIXED_FLOW: {"required": ["vol"]},
+}
+
+THERMAL_BRANCH_TYPES: Dict[str, Dict[str, List[str]]] = {
+    ThermalBranchTypeEnum.CONDUCTANCE: {"required": ["conductance"], "optional": ["u_value", "area"]},
+    ThermalBranchTypeEnum.HEAT_GENERATION: {"required": ["heat_generation"]},
+}
+
+
+# ------------------------------
 # 例外と結果型
 # ------------------------------
 class ValidationError(Exception):
@@ -80,6 +96,14 @@ def validate_node_chain(key: str, source: str, target: str, context: str) -> Val
     if source == target:
         return ValidationResult(False, [f"{context} {key} の'source'ノードと'target'ノードが同じです"], [])
     return ValidationResult(True, [], [])
+
+
+def parse_chain(chain: str) -> Tuple[str, str]:
+    """'A->B' のような CHAIN を (A, B) に分解する。形式不正時は ("", "")."""
+    parts = str(chain).split(CHAIN_DELIMITER)
+    if len(parts) != 2:
+        return "", ""
+    return parts[0], parts[1]
 
 
 def validate_node_exists(node_key: str, node_config: List[NodeType], context: str) -> ValidationResult:
@@ -290,13 +314,6 @@ def validate_ventilation_config(
     errors: List[str] = []
     warnings: List[str] = []
 
-    branch_types = {
-        VentilationBranchTypeEnum.SIMPLE_OPENING: {"required": ["alpha", "area"]},
-        VentilationBranchTypeEnum.GAP: {"required": ["a", "n"]},
-        VentilationBranchTypeEnum.FAN: {"required": ["p_max", "q_max", "p1", "q1"]},
-        VentilationBranchTypeEnum.FIXED_FLOW: {"required": ["vol"]},
-    }
-
     for branch in ventilation_config:
         result = validate_required_fields(branch, ["key"], "換気ブランチ")
         if not result.is_valid:
@@ -306,7 +323,10 @@ def validate_ventilation_config(
         # 未知キーは事前に除去（タイプ判定に影響しないものは捨てる）
         log_and_strip_unknown_fields(branch, _allowed_keys(VentilationBranchType), f"換気ブランチ {branch.get('key', '?')}")
 
-        source, target = branch["key"].split(CHAIN_DELIMITER)
+        source, target = parse_chain(branch["key"])
+        if source == "" and target == "":
+            errors.append(f"換気ブランチ {branch.get('key', '?')} の'key'形式が不正です")
+            continue
         branch["source"], branch["target"] = source, target
 
         result = validate_node_chain(branch["key"], source, target, "換気ブランチ")
@@ -328,12 +348,12 @@ def validate_ventilation_config(
         branch["enable"] = branch.get("enable", True)
 
         # タイプ判定と必須確認
-        result = validate_branch_type(branch, branch_types, "換気ブランチ")
+        result = validate_branch_type(branch, VENTILATION_BRANCH_TYPES, "換気ブランチ")
         if not result.is_valid:
             errors.extend(result.errors)
             continue
 
-        result = validate_branch_parameters(branch, branch_types, "換気ブランチ")
+        result = validate_branch_parameters(branch, VENTILATION_BRANCH_TYPES, "換気ブランチ")
         if not result.is_valid:
             errors.extend(result.errors)
             continue
@@ -373,11 +393,6 @@ def validate_thermal_config(
     errors: List[str] = []
     warnings: List[str] = []
 
-    branch_types = {
-        ThermalBranchTypeEnum.CONDUCTANCE: {"required": ["conductance"], "optional": ["u_value", "area"]},
-        ThermalBranchTypeEnum.HEAT_GENERATION: {"required": ["heat_generation"]},
-    }
-
     for branch in thermal_config:
         result = validate_required_fields(branch, ["key"], "熱ブランチ")
         if not result.is_valid:
@@ -387,7 +402,7 @@ def validate_thermal_config(
         # 未知キーを削除
         log_and_strip_unknown_fields(branch, _allowed_keys(ThermalBranchType), f"熱ブランチ {branch.get('key', '?')}")
 
-        source, target = branch["key"].split(CHAIN_DELIMITER)
+        source, target = parse_chain(branch["key"])
         if source == "":
             source = "void"
         branch["source"], branch["target"] = source, target
@@ -426,12 +441,12 @@ def validate_thermal_config(
                 )
                 continue
 
-        result = validate_branch_type(branch, branch_types, "熱ブランチ")
+        result = validate_branch_type(branch, THERMAL_BRANCH_TYPES, "熱ブランチ")
         if not result.is_valid:
             errors.extend(result.errors)
             continue
 
-        result = validate_branch_parameters(branch, branch_types, "熱ブランチ")
+        result = validate_branch_parameters(branch, THERMAL_BRANCH_TYPES, "熱ブランチ")
         if not result.is_valid:
             errors.extend(result.errors)
             continue
@@ -443,6 +458,33 @@ def validate_thermal_config(
 # ------------------------------
 # 重複チェックとリネーム処理
 # ------------------------------
+def _rename_duplicate_keys_in_place(
+    branches: List[Dict[str, Any]],
+    warning_prefix: str,
+) -> List[str]:
+    """ブランチ配列内の 'key' 重複を (01), (02) ... でリネームする（source/target は保持）。"""
+    warnings: List[str] = []
+    key_count: Dict[str, int] = {}
+    for branch in branches:
+        if "key" in branch:
+            original_key = str(branch["key"])
+            key_count[original_key] = key_count.get(original_key, 0) + 1
+
+    key_index: Dict[str, int] = {}
+    for branch in branches:
+        if "key" in branch:
+            original_key = str(branch["key"])
+            if key_count.get(original_key, 0) > 1:
+                if original_key not in key_index:
+                    key_index[original_key] = 1
+                else:
+                    key_index[original_key] += 1
+                new_key = f"{original_key}({key_index[original_key]:02d})"
+                branch["key"] = new_key
+                warnings.append(f"{warning_prefix}の'key' '{original_key}' が重複していたため、'{new_key}' に変更しました。")
+    return warnings
+
+
 def _check_and_rename_duplicate_keys(
     node_config: List[Dict[str, Any]],
     ventilation_config: List[Dict[str, Any]],
@@ -467,52 +509,10 @@ def _check_and_rename_duplicate_keys(
                 seen_keys.add(node_key)
 
     # 換気ブランチのkey重複をチェックし、重複があれば(01)、(02)を付けてリネーム
-    # まず重複を検出
-    key_count: Dict[str, int] = {}
-    for branch in ventilation_config:
-        if "key" in branch:
-            original_key = str(branch["key"])
-            key_count[original_key] = key_count.get(original_key, 0) + 1
-    
-    # 重複があるキーに対してリネーム
-    key_index: Dict[str, int] = {}
-    for branch in ventilation_config:
-        if "key" in branch:
-            original_key = str(branch["key"])
-            # 重複がある場合のみリネーム
-            if key_count[original_key] > 1:
-                if original_key not in key_index:
-                    key_index[original_key] = 1
-                else:
-                    key_index[original_key] += 1
-                
-                new_key = f"{original_key}({key_index[original_key]:02d})"
-                branch["key"] = new_key
-                warnings.append(f"換気ブランチの'key' '{original_key}' が重複していたため、'{new_key}' に変更しました。")
+    warnings.extend(_rename_duplicate_keys_in_place(ventilation_config, "換気ブランチ"))
 
     # 熱ブランチのkey重複をチェックし、重複があれば(01)、(02)を付けてリネーム
-    # まず重複を検出
-    key_count.clear()
-    for branch in thermal_config:
-        if "key" in branch:
-            original_key = str(branch["key"])
-            key_count[original_key] = key_count.get(original_key, 0) + 1
-    
-    # 重複があるキーに対してリネーム
-    key_index.clear()
-    for branch in thermal_config:
-        if "key" in branch:
-            original_key = str(branch["key"])
-            # 重複がある場合のみリネーム
-            if key_count[original_key] > 1:
-                if original_key not in key_index:
-                    key_index[original_key] = 1
-                else:
-                    key_index[original_key] += 1
-                
-                new_key = f"{original_key}({key_index[original_key]:02d})"
-                branch["key"] = new_key
-                warnings.append(f"熱ブランチの'key' '{original_key}' が重複していたため、'{new_key}' に変更しました。")
+    warnings.extend(_rename_duplicate_keys_in_place(thermal_config, "熱ブランチ"))
 
     return errors, warnings
 
@@ -520,95 +520,14 @@ def _check_and_rename_duplicate_keys(
 # ------------------------------
 # エントリポイント
 # ------------------------------
-def validate(config_path: str, *, continue_on_error: bool = True) -> Dict[str, Any]:
-    """
-    指定した JSON 設定のバリデーションを行い、正規化後の JSON を返す。
-    成功時は temp ディレクトリに JSON を保存する。
-    """
-    logger.info("validationを開始します。")
-
-    # 設定ファイルの基本検証
-    raw_config = validate_config_file(config_path)
-
-    sim_config = raw_config["simulation"]
-    node_config = raw_config["nodes"]
-    ventilation_config = raw_config["ventilation_branches"]
-    thermal_config = raw_config["thermal_branches"]
-
-    # セクション別バリデーション（集約モード対応）
-    all_errors: List[str] = []
-
-    sim_config, sim_result = validate_sim_config(sim_config)
-    if not sim_result.is_valid:
-        all_errors.extend(sim_result.errors)
-        if not continue_on_error:
-            raise ValidationError("\n".join(all_errors))
-
-    node_config, node_result = validate_node_config(sim_config, node_config, ventilation_config, thermal_config)
-    if not node_result.is_valid:
-        all_errors.extend(node_result.errors)
-        if not continue_on_error:
-            raise ValidationError("\n".join(all_errors))
-
-    ventilation_config, vent_result = validate_ventilation_config(sim_config, node_config, ventilation_config)
-    if not vent_result.is_valid:
-        all_errors.extend(vent_result.errors)
-        if not continue_on_error:
-            raise ValidationError("\n".join(all_errors))
-
-    thermal_config, thermal_result = validate_thermal_config(sim_config, node_config, thermal_config)
-    if not thermal_result.is_valid:
-        all_errors.extend(thermal_result.errors)
-        if not continue_on_error:
-            raise ValidationError("\n".join(all_errors))
-
-    # すべてのバリデーションが完了した後、重複チェックとリネームを実行
-    duplicate_errors, duplicate_warnings = _check_and_rename_duplicate_keys(
-        node_config, ventilation_config, thermal_config
-    )
-    all_errors.extend(duplicate_errors)
-    for warning in duplicate_warnings:
-        logger.warning(warning)
-
-    if all_errors:
-        raise ValidationError("\n".join(all_errors))
-
-    # 出力組み立て
-    output_json: Dict[str, Any] = {
-        "simulation": sim_config,
-        "nodes": node_config,
-        "ventilation_branches": ventilation_config,
-        "thermal_branches": thermal_config,
-    }
-    output_json = convert_to_json_compatible(output_json)
-
-    # temp へ保存
-    input_stem = Path(config_path).stem.replace("_02", "")
-    output_dir = Path(__file__).resolve().parent.parent / "temp"
-    output_dir.mkdir(parents=True, exist_ok=True)
-    output_path = output_dir / f"{input_stem}.json"
-    with output_path.open("w", encoding="utf-8") as f:
-        json.dump(output_json, f, indent=4, ensure_ascii=False)
-
-    logger.info("validationが正常に終了しました。")
-    return output_json
-
-
-def validate_dict(config: Dict[str, Any], *, continue_on_error: bool = True) -> Dict[str, Any]:
-    """
-    既にロード済みの設定 dict を検証・正規化し、JSON 互換化した dict を返す。
-    ファイル I/O は行わない。
-    """
-    # 必須セクション確認
-    for section in ["simulation", "nodes", "ventilation_branches", "thermal_branches"]:
-        if section not in config:
-            raise ConfigFileError(f"設定データに'{section}'セクションがありません")
-
+def _validate_sections(config: Dict[str, Any], *, continue_on_error: bool = True) -> Dict[str, Any]:
+    """ファイル I/O を伴わない共通バリデーション処理。正規化済み JSON 互換 dict を返す。"""
     sim_config = config["simulation"]
     node_config = config["nodes"]
     ventilation_config = config["ventilation_branches"]
     thermal_config = config["thermal_branches"]
 
+    # セクション別バリデーション（集約モード対応）
     all_errors: List[str] = []
 
     sim_config, sim_result = validate_sim_config(sim_config)
@@ -653,5 +572,41 @@ def validate_dict(config: Dict[str, Any], *, continue_on_error: bool = True) -> 
         "thermal_branches": thermal_config,
     }
     return convert_to_json_compatible(output_json)
+
+
+def validate(config_path: str, *, continue_on_error: bool = True) -> Dict[str, Any]:
+    """
+    指定した JSON 設定のバリデーションを行い、正規化後の JSON を返す。
+    成功時は temp ディレクトリに JSON を保存する。
+    """
+    logger.info("validationを開始します。")
+
+    # 設定ファイルの基本検証
+    raw_config = validate_config_file(config_path)
+
+    output_json = _validate_sections(raw_config, continue_on_error=continue_on_error)
+
+    # temp へ保存
+    input_stem = Path(config_path).stem.replace("_02", "")
+    output_dir = Path(__file__).resolve().parent.parent / "temp"
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / f"{input_stem}.json"
+    with output_path.open("w", encoding="utf-8") as f:
+        json.dump(output_json, f, indent=4, ensure_ascii=False)
+
+    logger.info("validationが正常に終了しました。")
+    return output_json
+
+
+def validate_dict(config: Dict[str, Any], *, continue_on_error: bool = True) -> Dict[str, Any]:
+    """
+    既にロード済みの設定 dict を検証・正規化し、JSON 互換化した dict を返す。
+    ファイル I/O は行わない。
+    """
+    # 必須セクション確認
+    for section in ["simulation", "nodes", "ventilation_branches", "thermal_branches"]:
+        if section not in config:
+            raise ConfigFileError(f"設定データに'{section}'セクションがありません")
+    return _validate_sections(config, continue_on_error=continue_on_error)
 
 
