@@ -74,7 +74,7 @@ def process_surface(surface: dict) -> tuple[list, list]:
     for i, node in enumerate(node_names):
         logger.info(f"　ノード【{node}】 を追加します。")
         nodes.append(
-            {"key": node, "calc_t": True, "thermal_mass": thermal_mass[i], "subtype": node_types[i]}
+            {"key": node, "calc_t": True, "thermal_mass": thermal_mass[i], "type": "layer", "subtype": node_types[i]}
         )
 
     for i, branch in enumerate(thermal_branch_names):

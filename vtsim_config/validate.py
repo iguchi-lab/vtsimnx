@@ -441,6 +441,93 @@ def validate_thermal_config(
 
 
 # ------------------------------
+# 重複チェックとリネーム処理
+# ------------------------------
+def _check_and_rename_duplicate_keys(
+    node_config: List[Dict[str, Any]],
+    ventilation_config: List[Dict[str, Any]],
+    thermal_config: List[Dict[str, Any]],
+) -> Tuple[List[str], List[str]]:
+    """
+    ノードのkey重複をチェック（エラーを返す）し、
+    ブランチのkey重複をリネームする。
+    戻り値: (errors, warnings)
+    """
+    errors: List[str] = []
+    warnings: List[str] = []
+
+    # ノードのkey重複チェック
+    seen_keys: Set[str] = set()
+    for node in node_config:
+        if "key" in node:
+            node_key = str(node["key"])
+            if node_key in seen_keys:
+                errors.append(f"ノードの'key' '{node_key}' が重複しています")
+            else:
+                seen_keys.add(node_key)
+
+    # 換気ブランチのkey重複をチェックし、重複があれば(01)、(02)を付けてリネーム
+    # まず重複を検出
+    key_count: Dict[str, int] = {}
+    for branch in ventilation_config:
+        if "key" in branch:
+            original_key = str(branch["key"])
+            key_count[original_key] = key_count.get(original_key, 0) + 1
+    
+    # 重複があるキーに対してリネーム
+    key_index: Dict[str, int] = {}
+    for branch in ventilation_config:
+        if "key" in branch:
+            original_key = str(branch["key"])
+            # 重複がある場合のみリネーム
+            if key_count[original_key] > 1:
+                if original_key not in key_index:
+                    key_index[original_key] = 1
+                else:
+                    key_index[original_key] += 1
+                
+                new_key = f"{original_key}({key_index[original_key]:02d})"
+                branch["key"] = new_key
+                # sourceとtargetも更新
+                source, target = new_key.split(CHAIN_DELIMITER)
+                branch["source"], branch["target"] = source, target
+                warnings.append(f"換気ブランチの'key' '{original_key}' が重複していたため、'{new_key}' に変更しました。")
+
+    # 熱ブランチのkey重複をチェックし、重複があれば(01)、(02)を付けてリネーム
+    # まず重複を検出
+    key_count.clear()
+    for branch in thermal_config:
+        if "key" in branch:
+            original_key = str(branch["key"])
+            key_count[original_key] = key_count.get(original_key, 0) + 1
+    
+    # 重複があるキーに対してリネーム
+    key_index.clear()
+    for branch in thermal_config:
+        if "key" in branch:
+            original_key = str(branch["key"])
+            # 重複がある場合のみリネーム
+            if key_count[original_key] > 1:
+                if original_key not in key_index:
+                    key_index[original_key] = 1
+                else:
+                    key_index[original_key] += 1
+                
+                new_key = f"{original_key}({key_index[original_key]:02d})"
+                branch["key"] = new_key
+                # sourceとtargetも更新
+                parts = new_key.split(CHAIN_DELIMITER)
+                if len(parts) == 2:
+                    source, target = parts
+                    if source == "":
+                        source = "void"
+                    branch["source"], branch["target"] = source, target
+                warnings.append(f"熱ブランチの'key' '{original_key}' が重複していたため、'{new_key}' に変更しました。")
+
+    return errors, warnings
+
+
+# ------------------------------
 # エントリポイント
 # ------------------------------
 def validate(config_path: str, *, continue_on_error: bool = True) -> Dict[str, Any]:
@@ -484,6 +571,14 @@ def validate(config_path: str, *, continue_on_error: bool = True) -> Dict[str, A
         all_errors.extend(thermal_result.errors)
         if not continue_on_error:
             raise ValidationError("\n".join(all_errors))
+
+    # すべてのバリデーションが完了した後、重複チェックとリネームを実行
+    duplicate_errors, duplicate_warnings = _check_and_rename_duplicate_keys(
+        node_config, ventilation_config, thermal_config
+    )
+    all_errors.extend(duplicate_errors)
+    for warning in duplicate_warnings:
+        logger.warning(warning)
 
     if all_errors:
         raise ValidationError("\n".join(all_errors))
@@ -549,6 +644,14 @@ def validate_dict(config: Dict[str, Any], *, continue_on_error: bool = True) -> 
         all_errors.extend(thermal_result.errors)
         if not continue_on_error:
             raise ValidationError("\n".join(all_errors))
+
+    # すべてのバリデーションが完了した後、重複チェックとリネームを実行
+    duplicate_errors, duplicate_warnings = _check_and_rename_duplicate_keys(
+        node_config, ventilation_config, thermal_config
+    )
+    all_errors.extend(duplicate_errors)
+    for warning in duplicate_warnings:
+        logger.warning(warning)
 
     if all_errors:
         raise ValidationError("\n".join(all_errors))
