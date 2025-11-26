@@ -1,0 +1,62 @@
+type of nodes and branches
+
+nodes
+	key:			ノード名
+	type:			ノードタイプ（normal, layer, capacity, aircon）
+	subtype：		サブノードタイプ（"surface", "internal"）
+	ref_node:		参照ノード
+	comment:		コメント
+	calc_p:			圧力計算フラグ
+	calc_t:			温度計算フラグ
+	calc_x:			湿度計算フラグ
+	calc_c:			濃度計算フラグ
+	p:			圧力[Pa]、定数もしくはリストで設定
+	t:			温度[℃]、定数もしくはリストで設定
+	x:			絶対湿度[kg/kg']、定数もしくはリストで設定
+	c:			濃度[-]、定数もしくはリストで設定
+	pre_temp:		エアコンの設定温度[℃]
+	v:			気積[m3]
+	beta:			沈着係数[1/s]
+
+ventilation branch
+	key:			ブランチ名					  	※ブランチ名が重複する場合はナンバリング
+	source:			ソースノード
+	target:			ターゲットノード
+	type:			ブランチタイプ（simple_opening, gap, fan, fixed_flow） ※発湿源、発塵源を入れる
+	subtype:		ブランチサブタイプ（""）
+	h_from:			出発点のブランチの高さ
+	h_to:			到達点のブランチの高さ
+	enable:			有効、定数もしくはリストで設定
+	comment:		コメント
+	
+	alpha:			有効開口率[-]
+	area:			面積[m2]
+	
+	a:			開口率[-]
+	n:			隙間係数[-]
+
+	p_max:			最大静圧[Pa]
+	q_max:			最大風量[m3/h]
+	p1:			ある点の静圧[Pa]
+	q1:			ある点の風量[m3/h]	
+
+	vol:			風量[m3/h]
+
+	eta:			除塵効率[-]	
+	humitidy_generation:	発湿源 [g/s]、定数もしくはリストで設定
+	dust_generation:	発塵源 [g/s]、定数もしくはリストで設定
+
+thermal branch
+	key:			ブランチ名						※ブランチ名が重複する場合はナンバリング
+	source:			ソースノード
+	target:			ターゲットノード
+	type:			ブランチタイプ（conductance、heat_generation）
+	subtype:		ブランチサブタイプ（"convection", "conduction", "radiation", "solar_gain"）
+	enable:			有効、定数もしくはリストで設定
+	comment:		コメント
+
+	conductance:		コンダクタンス[W/K]
+	u_value:		U値[W/(m2・K)]
+	area			面積[m2]
+
+	heat_generation:	発熱源[W]、定数もしくはリストで設定

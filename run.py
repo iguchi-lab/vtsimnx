@@ -112,27 +112,11 @@ def main(hasp_path: str, lat: float, lon: float) -> None:
         'W_窓':          {'part': 'glass', 'u_value': 4.65, 'eta': 0.90, 'solar': solar['日射熱取得量（西面ガラス）'], 'noctural': 10},
     }
 
-    input_data = {'simulation':           {},
+    input_data = {'simulation':         {},
                 'nodes':                [],
                 'ventilation_branches': [],
                 'surfaces':             []}
 
-<<<<<<< HEAD
-    #{'key': 'ホール->地盤'},
-    {'key': 'ホール->外部||N_外壁_一般部',       **surface['N_外壁_一般部'], 'area':  (3.97 + 3.28 - 0.54) * 0.83},
-    {'key': 'ホール->外部||N_外壁_熱橋部',       **surface['N_外壁_熱橋部'], 'area':  (3.97 + 3.28 - 0.54) * 0.17},
-    {'key': 'ホール->外部||W_外壁_一般部',       **surface['W_外壁_一般部'], 'area':  (5.3 - 1.89) * 0.83},
-    {'key': 'ホール->外部||W_外壁_熱橋部',       **surface['W_外壁_熱橋部'], 'area':  (5.3 - 1.89) * 0.17},
-    {'key': 'ホール->床下||外皮床_一般部',       **surface['外皮床_一般部'], 'area':  (0.7 + 0.93 + 10.77) * 0.83},
-    {'key': 'ホール->床下||外皮床_熱橋部',       **surface['外皮床_一般部'], 'area':  (0.7 + 0.93 + 10.77) * 0.17},
-    #{'key': 'ホール->和室||間仕切壁',            **surface['間仕切壁'],      'area':  5.46},
-    {'key': 'ホール->LD||間仕切壁',              **surface['間仕切壁'],      'area':  8.74},
-    {'key': 'ホール->2階ホール||天井',           **surface['天井'],          'area':  2.9},
-    {'key': 'ホール->片流れ(3)||外皮天井',       **surface['外皮天井'],      'area':  0.68},
-    {'key': 'ホール->階間(L4)||天井',            **surface['天井'],          'area':  2.48 + 7.87},
-    {'key': 'ホール->外部||N_窓',                **surface['N_窓'],          'area':  0.54},
-    {'key': 'ホール->外部||W_窓',                **surface['W_窓'],          'area':  1.89},
-=======
     input_data['simulation'] = {
         'index': {
             'start': '2025-01-01 01:00:00', 'end':   '2025-01-01 10:00:00',
@@ -142,7 +126,6 @@ def main(hasp_path: str, lat: float, lon: float) -> None:
             'ventilation': 1e-6, 'thermal': 1e-6, 'convergence': 1e-6
         }
     }
->>>>>>> ec31939e49d6194617e231c9f616cade4a7ca3c0
 
     input_data['nodes'] = [
         {'key': '外部',         't': df_i['外気温']},
@@ -274,7 +257,7 @@ def main(hasp_path: str, lat: float, lon: float) -> None:
         {'key': 'ホール->外部||W_外壁_熱橋部',       **surface['W_外壁_熱橋部'], 'area':  (5.3 - 1.89) * 0.17},
         {'key': 'ホール->床下||外皮床_一般部',       **surface['外皮床_一般部'], 'area':  (0.7 + 0.93 + 10.77) * 0.83},
         {'key': 'ホール->床下||外皮床_熱橋部',       **surface['外皮床_一般部'], 'area':  (0.7 + 0.93 + 10.77) * 0.17},
-        {'key': 'ホール->和室||間仕切壁',            **surface['間仕切壁'],      'area':  5.46},
+        #{'key': 'ホール->和室||間仕切壁',            **surface['間仕切壁'],      'area':  5.46},
         {'key': 'ホール->LD||間仕切壁',              **surface['間仕切壁'],      'area':  8.74},
         {'key': 'ホール->2階ホール||天井',           **surface['天井'],          'area':  2.9},
         {'key': 'ホール->片流れ(3)||外皮天井',       **surface['外皮天井'],      'area':  0.68},
@@ -387,9 +370,11 @@ def main(hasp_path: str, lat: float, lon: float) -> None:
 
     import os
     base_url = os.getenv("VTSIMNX_API_URL")
-    if not base_url:
-        raise ValueError("VTSIMNX_API_URL is not set")
-    output_json = vt.run_calc(base_url, config_json)
+    if base_url:
+        output_json = vt.run_calc(base_url, config_json)
+    else:
+        print("VTSIMNX_API_URLが設定されていないため、run_calcをスキップします。")
+        print("APIサーバーを使用する場合は、環境変数VTSIMNX_API_URLを設定してください。")
 
 
 if __name__ == "__main__":
