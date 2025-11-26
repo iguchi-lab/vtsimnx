@@ -488,9 +488,6 @@ def _check_and_rename_duplicate_keys(
                 
                 new_key = f"{original_key}({key_index[original_key]:02d})"
                 branch["key"] = new_key
-                # sourceとtargetも更新
-                source, target = new_key.split(CHAIN_DELIMITER)
-                branch["source"], branch["target"] = source, target
                 warnings.append(f"換気ブランチの'key' '{original_key}' が重複していたため、'{new_key}' に変更しました。")
 
     # 熱ブランチのkey重複をチェックし、重複があれば(01)、(02)を付けてリネーム
@@ -515,13 +512,6 @@ def _check_and_rename_duplicate_keys(
                 
                 new_key = f"{original_key}({key_index[original_key]:02d})"
                 branch["key"] = new_key
-                # sourceとtargetも更新
-                parts = new_key.split(CHAIN_DELIMITER)
-                if len(parts) == 2:
-                    source, target = parts
-                    if source == "":
-                        source = "void"
-                    branch["source"], branch["target"] = source, target
                 warnings.append(f"熱ブランチの'key' '{original_key}' が重複していたため、'{new_key}' に変更しました。")
 
     return errors, warnings
