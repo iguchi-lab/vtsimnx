@@ -22,7 +22,7 @@ def _ensure_parent_logger_initialized() -> logging.Logger:
     parent.setLevel(logging.DEBUG)
     parent.propagate = False
 
-    fh = logging.FileHandler(log_path, encoding="utf-8-sig")
+    fh = logging.FileHandler(log_path, encoding="utf-8-sig", delay=True)
     fh.setLevel(logging.DEBUG)
     fh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
     parent.addHandler(fh)
