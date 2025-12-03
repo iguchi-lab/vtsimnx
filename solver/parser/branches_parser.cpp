@@ -1,0 +1,237 @@
+#include "branches_parser.h"
+#include "parser_utils.h"
+#include <set>
+#include <stdexcept>
+
+using nlohmann::json;
+
+namespace { }
+
+std::vector<EdgeProperties> parseVentilationBranches(const json& config, std::ostream& logs, long timestep) {
+    std::vector<EdgeProperties> branches;
+
+    if (!config.contains("ventilation_branches") || !config["ventilation_branches"].is_array()) {
+        logs << "--[WARN] ventilation_branches 配列が見つかりません。\n";
+        return branches;
+    }
+
+    const int verbosity = parser_utils::readVerbosity(config);
+    const size_t total = config["ventilation_branches"].size();
+    size_t index = 0;
+    std::set<std::string> seenKeys;  // 既に見たブランチ名を記録
+
+    for (const auto& branchJson : config["ventilation_branches"]) {
+        ++index;
+        EdgeProperties branch{};
+
+        if (branchJson.contains("key") && !branchJson["key"].is_string())
+            throw std::runtime_error("ventilation_branches[" + std::to_string(index-1) + "].key must be string");
+        if (branchJson.contains("type") && !branchJson["type"].is_string())
+            throw std::runtime_error("ventilation_branches[" + std::to_string(index-1) + "].type must be string");
+        if (branchJson.contains("key"))   branch.key   = branchJson["key"].get<std::string>();
+        if (branchJson.contains("type"))  branch.type  = branchJson["type"].get<std::string>();
+
+        // 重複チェック: 同じブランチ名が既に存在する場合はエラー
+        if (!branch.key.empty()) {
+            if (seenKeys.find(branch.key) != seenKeys.end()) {
+                throw std::runtime_error("ventilation_branches: 重複するブランチ名が検出されました: \"" + branch.key + "\"");
+            }
+            seenKeys.insert(branch.key);
+        }
+
+        // unique_idはkeyと同じ値に設定
+        branch.unique_id = branch.key;
+
+        // 詳細
+        if (branchJson.contains("subtype") && !branchJson["subtype"].is_string())
+            throw std::runtime_error("ventilation_branches[" + std::to_string(index-1) + "].subtype must be string");
+        if (branchJson.contains("comment") && !branchJson["comment"].is_string())
+            throw std::runtime_error("ventilation_branches[" + std::to_string(index-1) + "].comment must be string");
+        if (branchJson.contains("source") && !branchJson["source"].is_string())
+            throw std::runtime_error("ventilation_branches[" + std::to_string(index-1) + "].source must be string");
+        if (branchJson.contains("target") && !branchJson["target"].is_string())
+            throw std::runtime_error("ventilation_branches[" + std::to_string(index-1) + "].target must be string");
+        auto mustNumber = [&](const char* key) {
+            if (branchJson.contains(key) && !branchJson[key].is_number()) {
+                throw std::runtime_error(std::string("ventilation_branches[") + std::to_string(index-1) + "]." + key + " must be number");
+            }
+        };
+        mustNumber("alpha"); mustNumber("area"); mustNumber("a"); mustNumber("n"); mustNumber("eta");
+        mustNumber("p_max"); mustNumber("p1"); mustNumber("q_max"); mustNumber("q1"); mustNumber("h_from"); mustNumber("h_to");
+        if (branchJson.contains("subtype")) branch.subtype = branchJson["subtype"].get<std::string>();
+        if (branchJson.contains("comment")) branch.comment = branchJson["comment"].get<std::string>();
+        if (branchJson.contains("source"))  branch.source  = branchJson["source"].get<std::string>();
+        if (branchJson.contains("target"))  branch.target  = branchJson["target"].get<std::string>();
+        if (branchJson.contains("alpha"))   branch.alpha   = branchJson["alpha"].get<double>();
+        if (branchJson.contains("area"))    branch.area    = branchJson["area"].get<double>();
+        if (branchJson.contains("a"))       branch.a       = branchJson["a"].get<double>();
+        if (branchJson.contains("n"))       branch.n       = branchJson["n"].get<double>();
+        if (branchJson.contains("eta"))     branch.eta     = branchJson["eta"].get<double>();
+        if (branchJson.contains("p_max"))   branch.p_max   = branchJson["p_max"].get<double>();
+        if (branchJson.contains("p1"))      branch.p1      = branchJson["p1"].get<double>();
+        if (branchJson.contains("q_max"))   branch.q_max   = branchJson["q_max"].get<double>();
+        if (branchJson.contains("q1"))      branch.q1      = branchJson["q1"].get<double>();
+        if (branchJson.contains("h_from"))  branch.h_from  = branchJson["h_from"].get<double>();
+        if (branchJson.contains("h_to"))    branch.h_to    = branchJson["h_to"].get<double>();
+
+        // 時系列（配列/単一両対応）
+        if (branchJson.contains("vol")) {
+            const auto& vj = branchJson["vol"];
+            if (vj.is_array()) {
+                branch.vol.clear();
+                for (const auto& v : vj) {
+                    if (!v.is_number()) {
+                        throw std::runtime_error("ventilation_branches[" + std::to_string(index-1) + "].vol must be array<number>");
+                    }
+                    branch.vol.push_back(v.get<double>());
+                }
+                branch.current_vol = parser_utils::valueOrLast<double>(branch.vol, static_cast<size_t>(timestep), 0.0);
+            } else if (vj.is_number()) {
+                branch.current_vol = vj.get<double>();
+            } else {
+                throw std::runtime_error("ventilation_branches[" + std::to_string(index-1) + "].vol must be number or array<number>");
+            }
+        }
+        if (branchJson.contains("enable")) {
+            const auto& ej = branchJson["enable"];
+            if (ej.is_array()) {
+                for (const auto& v : ej) {
+                    if (!v.is_boolean()) {
+                        throw std::runtime_error("ventilation_branches[" + std::to_string(index-1) + "].enable must be array<boolean>");
+                    }
+                }
+                branch.enabled = ej.get<std::vector<bool>>();
+                if (!branch.enabled.empty()) {
+                    branch.current_enabled = static_cast<size_t>(timestep) < branch.enabled.size()
+                        ? branch.enabled[static_cast<size_t>(timestep)]
+                        : branch.enabled.back();
+                }
+            } else if (ej.is_boolean()) {
+                branch.current_enabled = ej.get<bool>();
+            } else {
+                throw std::runtime_error("ventilation_branches[" + std::to_string(index-1) + "].enable must be boolean or array<boolean>");
+            }
+        }
+
+        branches.push_back(std::move(branch));
+
+        if (verbosity >= 2) {
+            logs << "---換気ブランチ: " << branches.back().key << " (タイプ: " << branches.back().type << ") ("
+                 << index << "/" << total << ")\n";
+        }
+    }
+
+    logs << "--全ての換気ブランチを読み込みました: " << branches.size() << "個\n";
+    return branches;
+}
+
+std::vector<EdgeProperties> parseThermalBranches(const json& config, std::ostream& logs, long timestep) {
+    std::vector<EdgeProperties> branches;
+
+    if (!config.contains("thermal_branches") || !config["thermal_branches"].is_array()) {
+        logs << "--[WARN] thermal_branches 配列が見つかりません。\n";
+        return branches;
+    }
+
+    const int verbosity = parser_utils::readVerbosity(config);
+    const size_t total = config["thermal_branches"].size();
+    size_t index = 0;
+    std::set<std::string> seenKeys;  // 既に見たブランチ名を記録
+
+    for (const auto& branchJson : config["thermal_branches"]) {
+        ++index;
+        EdgeProperties branch{};
+
+        if (branchJson.contains("key") && !branchJson["key"].is_string())
+            throw std::runtime_error("thermal_branches[" + std::to_string(index-1) + "].key must be string");
+        if (branchJson.contains("type") && !branchJson["type"].is_string())
+            throw std::runtime_error("thermal_branches[" + std::to_string(index-1) + "].type must be string");
+        if (branchJson.contains("key"))   branch.key   = branchJson["key"].get<std::string>();
+        if (branchJson.contains("type"))  branch.type  = branchJson["type"].get<std::string>();
+
+        // 重複チェック: 同じブランチ名が既に存在する場合はエラー
+        if (!branch.key.empty()) {
+            if (seenKeys.find(branch.key) != seenKeys.end()) {
+                throw std::runtime_error("thermal_branches: 重複するブランチ名が検出されました: \"" + branch.key + "\"");
+            }
+            seenKeys.insert(branch.key);
+        }
+
+        // unique_idはkeyと同じ値に設定
+        branch.unique_id = branch.key;
+
+        // 詳細
+        if (branchJson.contains("subtype") && !branchJson["subtype"].is_string())
+            throw std::runtime_error("thermal_branches[" + std::to_string(index-1) + "].subtype must be string");
+        if (branchJson.contains("comment") && !branchJson["comment"].is_string())
+            throw std::runtime_error("thermal_branches[" + std::to_string(index-1) + "].comment must be string");
+        if (branchJson.contains("source") && !branchJson["source"].is_string())
+            throw std::runtime_error("thermal_branches[" + std::to_string(index-1) + "].source must be string");
+        if (branchJson.contains("target") && !branchJson["target"].is_string())
+            throw std::runtime_error("thermal_branches[" + std::to_string(index-1) + "].target must be string");
+        auto mustNumberT = [&](const char* key) {
+            if (branchJson.contains(key) && !branchJson[key].is_number()) {
+                throw std::runtime_error(std::string("thermal_branches[") + std::to_string(index-1) + "]." + key + " must be number");
+            }
+        };
+        mustNumberT("conductance"); mustNumberT("area");
+        if (branchJson.contains("subtype"))      branch.subtype      = branchJson["subtype"].get<std::string>();
+        if (branchJson.contains("comment"))      branch.comment      = branchJson["comment"].get<std::string>();
+        if (branchJson.contains("source"))       branch.source       = branchJson["source"].get<std::string>();
+        if (branchJson.contains("target"))       branch.target       = branchJson["target"].get<std::string>();
+        if (branchJson.contains("conductance"))  branch.conductance  = branchJson["conductance"].get<double>();
+        if (branchJson.contains("area"))         branch.area         = branchJson["area"].get<double>();
+
+        // 時系列（配列/単一両対応）
+        if (branchJson.contains("heat_generation")) {
+            const auto& hg = branchJson["heat_generation"];
+            if (hg.is_array()) {
+                branch.heat_generation.clear();
+                for (const auto& v : hg) {
+                    if (!v.is_number()) {
+                        throw std::runtime_error("thermal_branches[" + std::to_string(index-1) + "].heat_generation must be array<number>");
+                    }
+                    branch.heat_generation.push_back(v.get<double>());
+                }
+                branch.current_heat_generation =
+                    parser_utils::valueOrLast<double>(branch.heat_generation, static_cast<size_t>(timestep), 0.0);
+            } else if (hg.is_number()) {
+                branch.current_heat_generation = hg.get<double>();
+            } else {
+                throw std::runtime_error("thermal_branches[" + std::to_string(index-1) + "].heat_generation must be number or array<number>");
+            }
+        }
+        if (branchJson.contains("enable")) {
+            const auto& ej = branchJson["enable"];
+            if (ej.is_array()) {
+                for (const auto& v : ej) {
+                    if (!v.is_boolean()) {
+                        throw std::runtime_error("thermal_branches[" + std::to_string(index-1) + "].enable must be array<boolean>");
+                    }
+                }
+                branch.enabled = ej.get<std::vector<bool>>();
+                if (!branch.enabled.empty()) {
+                    branch.current_enabled = static_cast<size_t>(timestep) < branch.enabled.size()
+                        ? branch.enabled[static_cast<size_t>(timestep)]
+                        : branch.enabled.back();
+                }
+            } else if (ej.is_boolean()) {
+                branch.current_enabled = ej.get<bool>();
+            } else {
+                throw std::runtime_error("thermal_branches[" + std::to_string(index-1) + "].enable must be boolean or array<boolean>");
+            }
+        }
+
+        branches.push_back(std::move(branch));
+
+        if (verbosity >= 2) {
+            logs << "---熱ブランチ: " << branches.back().key << " (タイプ: " << branches.back().type << ") ("
+                 << index << "/" << total << ")\n";
+        }
+    }
+
+    logs << "--全ての熱ブランチを読み込みました: " << branches.size() << "個\n";
+    return branches;
+}
+
+
