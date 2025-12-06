@@ -56,6 +56,9 @@ class NodeType(TypedDict):
     type: NodeTypeEnum
     subtype: Optional[NodeSubtypeEnum]
     ref_node: Optional[str]
+    in_node: Optional[str]
+    set_node: Optional[str]
+    outside_node: Optional[str]
     comment: Optional[str]
     v: Optional[float]
     beta: Optional[float]
@@ -68,6 +71,9 @@ class NodeType(TypedDict):
     x: Optional[np.ndarray]
     c: Optional[np.ndarray]
     pre_temp: Optional[float]
+    model: Optional[str]
+    mode: Optional[str]
+    ac_spec: Optional[dict]
 
 
 class VentilationBranchType(TypedDict):
