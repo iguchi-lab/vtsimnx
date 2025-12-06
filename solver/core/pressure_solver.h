@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/network_structures.h"
+#include "../vtsim_solver.h"
 #include <ceres/ceres.h>
 #include <functional>
 #include <fstream>
@@ -51,6 +51,14 @@ private:
     void setInitialPressures(std::vector<double>& pressures, 
                            const std::vector<std::string>& nodeNames);
     bool initializeSolverSetup(SolverSetup& setup);
+    
+    // 圧力計算のヘルパー関数
+    double calculateTotalPressure(double pressure, double temperature, double height) const;
+    double calculatePressureDifference(
+        const VertexProperties& sourceNode,
+        const VertexProperties& targetNode,
+        const EdgeProperties& edgeData,
+        const PressureMap& pressureMap) const;
     void addFlowBalanceConstraints(const SolverSetup& setup, ceres::Problem& problem);
     void runPrimarySolvers(const SimulationConstants& constants,
                            ceres::Problem& problem,

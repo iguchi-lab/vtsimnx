@@ -59,8 +59,30 @@ SimulationConstants parseSimulationConstants(const nlohmann::json& config,
     }
     outConstants.convergenceTolerance = tol["convergence"];
     logs << "-収束許容誤差: " << outConstants.convergenceTolerance << "\n";
+    bool customMaxInner = false;
     outConstants.maxInnerIteration = 100;
-    logs << "-最大内部反復回数（デフォルト値）: " << outConstants.maxInnerIteration << "\n";
+    if (sim.contains("iteration")) {
+        if (!sim["iteration"].is_object()) {
+            throw std::runtime_error("Missing or invalid 'simulation.iteration' object");
+        }
+        const auto& iteration = sim["iteration"];
+        if (iteration.contains("max_inner")) {
+            if (!iteration["max_inner"].is_number()) {
+                throw std::runtime_error("Missing or invalid 'simulation.iteration.max_inner' (number required)");
+            }
+            outConstants.maxInnerIteration = iteration["max_inner"];
+            customMaxInner = true;
+        }
+    } else if (sim.contains("max_inner_iteration")) {
+        if (!sim["max_inner_iteration"].is_number()) {
+            throw std::runtime_error("Missing or invalid 'simulation.max_inner_iteration' (number required)");
+        }
+        outConstants.maxInnerIteration = sim["max_inner_iteration"];
+        customMaxInner = true;
+    }
+    logs << "-最大内部反復回数"
+         << (customMaxInner ? "（設定値）: " : "（デフォルト値）: ")
+         << outConstants.maxInnerIteration << "\n";
 
     // 計算フラグ
     if (!sim.contains("calc_flag") || !sim["calc_flag"].is_object()) {

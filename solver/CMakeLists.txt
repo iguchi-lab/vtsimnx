@@ -29,6 +29,7 @@ set(CORE_SOURCES
     core/pressure_solver_ceres.cpp
     core/pressure_solver_fallback.cpp
     core/thermal_solver.cpp
+    core/thermal_solver_ceres.cpp
 )
 
 set(AIRCON_SOURCES

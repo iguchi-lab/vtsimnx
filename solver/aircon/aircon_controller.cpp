@@ -1,6 +1,7 @@
 #include "aircon/aircon_controller.h"
 #include "network/thermal_network.h"
 #include "network/ventilation_network.h"
+#include "../archenv/include/archenv.h"
 
 #ifdef AC_MODEL_AVAILABLE
 #include "acmodel/acmodel.h"
@@ -133,7 +134,7 @@ double AirconController::calculateHeatCapacity(const std::string& inNode, const 
     if (inTempIt == temperatureMap.end() || airconTempIt == temperatureMap.end() || flowIt == flowRates.end()) return 0.0;
     const double tempDiff = std::abs(inTempIt->second - airconTempIt->second);
     const double massFlowRate = std::abs(flowIt->second);
-    return PhysicalConstants::DENSITY_DRY_AIR * PhysicalConstants::SPECIFIC_HEAT_AIR * massFlowRate * tempDiff;
+    return archenv::DENSITY_DRY_AIR * archenv::SPECIFIC_HEAT_AIR * massFlowRate * tempDiff;
 }
 
 bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,

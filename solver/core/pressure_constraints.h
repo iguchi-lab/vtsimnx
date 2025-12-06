@@ -1,6 +1,6 @@
 #pragma once
 
-#include "core/network_structures.h"
+#include "../vtsim_solver.h"
 #include "core/flow_calculation.h"
 #include <map>
 #include <ostream>
@@ -57,8 +57,8 @@ public:
             T rho_source = T(calculateDensity(sourceNode.current_t));
             T rho_target = T(calculateDensity(targetNode.current_t));
 
-            T source_total_pressure = sourcePressure - rho_source * T(PhysicalConstants::GRAVITY) * T(edgeData.h_from);
-            T target_total_pressure = targetPressure - rho_target * T(PhysicalConstants::GRAVITY) * T(edgeData.h_to);
+            T source_total_pressure = sourcePressure - rho_source * T(archenv::GRAVITY) * T(edgeData.h_from);
+            T target_total_pressure = targetPressure - rho_target * T(archenv::GRAVITY) * T(edgeData.h_to);
             T dp = source_total_pressure - target_total_pressure;
 
             T flow = FlowCalculation::calculateUnifiedFlow(dp, edgeData);
@@ -124,8 +124,8 @@ public:
             T rhoS = T(calculateDensity(sNode.current_t));
             T rhoT = T(calculateDensity(tNode.current_t));
 
-            T sTotal = pS - rhoS * T(PhysicalConstants::GRAVITY) * T(ep.h_from);
-            T tTotal = pT - rhoT * T(PhysicalConstants::GRAVITY) * T(ep.h_to);
+            T sTotal = pS - rhoS * T(archenv::GRAVITY) * T(ep.h_from);
+            T tTotal = pT - rhoT * T(archenv::GRAVITY) * T(ep.h_to);
             T dp = sTotal - tTotal;
 
             T q = FlowCalculation::calculateUnifiedFlow(dp, ep);

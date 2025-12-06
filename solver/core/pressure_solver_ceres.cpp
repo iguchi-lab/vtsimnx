@@ -6,6 +6,10 @@
 #include <iomanip>
 #include <sstream>
 
+// =============================================================================
+// Ceresソルバー実行ユーティリティ
+// =============================================================================
+
 bool PressureSolver::runSolverTrial(const std::string& startLog,
                                     const std::string& successLog,
                                     ceres::Problem& problem,
@@ -26,14 +30,18 @@ bool PressureSolver::runSolverTrial(const std::string& startLog,
     return converged;
 }
 
+// =============================================================================
+// プライマリソルバー（初回圧力計算）
+// =============================================================================
+
 void PressureSolver::runPrimarySolvers(const SimulationConstants& constants,
                                        ceres::Problem& problem,
                                        ceres::Solver::Summary& summary) {
     bool converged = false;
 
     converged = runSolverTrial(
-        "　　①標準設定でソルバーを実行します...",
-        "　　標準設定で収束しました",
+        "----①標準設定でソルバーを実行します...",
+        "----標準設定で収束しました",
         problem,
         summary,
         constants.ventilationTolerance,
@@ -48,8 +56,8 @@ void PressureSolver::runPrimarySolvers(const SimulationConstants& constants,
 
     if (!converged) {
         converged = runSolverTrial(
-            "　　②堅牢設定でソルバーを再実行します...",
-            "　　堅牢設定で収束しました",
+            "----②堅牢設定でソルバーを再実行します...",
+            "----堅牢設定で収束しました",
             problem,
             summary,
             constants.ventilationTolerance,
@@ -70,8 +78,8 @@ void PressureSolver::runPrimarySolvers(const SimulationConstants& constants,
 
     if (!converged) {
         converged = runSolverTrial(
-            "　　③DENSE_SCHUR設定でソルバーを再実行します...",
-            "　　DENSE_SCHUR設定で収束しました",
+            "----③DENSE_SCHUR設定でソルバーを再実行します...",
+            "----DENSE_SCHUR設定で収束しました",
             problem,
             summary,
             constants.ventilationTolerance,
@@ -92,8 +100,8 @@ void PressureSolver::runPrimarySolvers(const SimulationConstants& constants,
 
     if (!converged) {
         converged = runSolverTrial(
-            "　　④SPARSE_NORMAL_CHOLESKY設定でソルバーを再実行します...",
-            "　　SPARSE_NORMAL_CHOLESKY設定で収束しました",
+            "----④SPARSE_NORMAL_CHOLESKY設定でソルバーを再実行します...",
+            "----SPARSE_NORMAL_CHOLESKY設定で収束しました",
             problem,
             summary,
             constants.ventilationTolerance,
@@ -114,7 +122,7 @@ void PressureSolver::runPrimarySolvers(const SimulationConstants& constants,
     }
 
     if (!converged) {
-        writeLog(logFile_, "　　⑤段階的緩和法でソルバーを再実行します...");
+        writeLog(logFile_, "----⑤段階的緩和法でソルバーを再実行します...");
 
         ceres::Solver::Options options1;
         options1.trust_region_strategy_type = ceres::DOGLEG;
@@ -127,7 +135,7 @@ void PressureSolver::runPrimarySolvers(const SimulationConstants& constants,
         options1.minimizer_progress_to_stdout = false;
 
         ceres::Solve(options1, &problem, &summary);
-        writeLog(logFile_, "　　　段階1完了: 残差 " + std::to_string(summary.final_cost));
+        writeLog(logFile_, "-----段階1完了: 残差 " + std::to_string(summary.final_cost));
 
         ceres::Solver::Options options2;
         options2.trust_region_strategy_type = ceres::DOGLEG;
@@ -145,14 +153,14 @@ void PressureSolver::runPrimarySolvers(const SimulationConstants& constants,
                     (summary.final_cost <= constants.ventilationTolerance);
 
         if (converged) {
-            writeLog(logFile_, "　　段階的緩和法で収束しました");
+            writeLog(logFile_, "----段階的緩和法で収束しました");
         }
     }
 
     if (!converged) {
         converged = runSolverTrial(
-            "　　⑥Line Search方式でソルバーを再実行します...",
-            "　　Line Search方式で収束しました",
+            "----⑥Line Search方式でソルバーを再実行します...",
+            "----Line Search方式で収束しました",
             problem,
             summary,
             constants.ventilationTolerance,
@@ -172,12 +180,12 @@ void PressureSolver::runPrimarySolvers(const SimulationConstants& constants,
     if (!converged) {
         double tolerance_factor = std::max(1.0, summary.final_cost / constants.ventilationTolerance * 0.1);
         double adjustedTolerance = constants.ventilationTolerance * tolerance_factor;
-        writeLog(logFile_, "　　⑦超精密設定で最終試行します...");
-        writeLog(logFile_, "　　　調整済み許容誤差: " + std::to_string(adjustedTolerance));
+        writeLog(logFile_, "----⑦超精密設定で最終試行します...");
+        writeLog(logFile_, "-----調整済み許容誤差: " + std::to_string(adjustedTolerance));
 
         converged = runSolverTrial(
             "",
-            "　　超精密設定で収束しました",
+            "----超精密設定で収束しました",
             problem,
             summary,
             constants.ventilationTolerance,
@@ -198,12 +206,16 @@ void PressureSolver::runPrimarySolvers(const SimulationConstants& constants,
             });
 
         if (!converged) {
-            writeLog(logFile_, "　　全てのソルバー手法で収束に失敗しました");
-            writeLog(logFile_, "　　最終残差: " + std::to_string(summary.final_cost) +
+            writeLog(logFile_, "----全てのソルバー手法で収束に失敗しました");
+            writeLog(logFile_, "----最終残差: " + std::to_string(summary.final_cost) +
                                " (目標: " + std::to_string(constants.ventilationTolerance) + ")");
         }
     }
 }
+
+// =============================================================================
+// Stage A: スーパーノード代表圧フェーズ
+// =============================================================================
 
 PressureSolver::StageAMapping PressureSolver::buildStageAMapping(
     const Graph& graph,
@@ -362,6 +374,10 @@ void PressureSolver::setupStageAProblem(
         }
     }
 }
+
+// =============================================================================
+// Stage B: フルノード再解フェーズ
+// =============================================================================
 
 PressureSolver::StageBSetup PressureSolver::buildStageBSetup(
     const Graph& graph,

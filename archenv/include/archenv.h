@@ -29,11 +29,26 @@ constexpr double DENSITY_DRY_AIR = 1.2;
 // ケルビンオフセット
 constexpr double KELVIN_OFFSET = 273.15;
 
+// 重力加速度 [m/s²]
+constexpr double GRAVITY = 9.80665;
+
+// 許容誤差（数値計算用）
+constexpr double TOLERANCE_SMALL = 1e-10;
+constexpr double TOLERANCE_MEDIUM = 1e-6;
+
+// 最小流量 [kg/s]
+constexpr double FLOW_RATE_MIN = 1e-10;
+
 // 熱交換器面積定数
 constexpr double A_F_HEX_SMALL = 0.2;
 constexpr double A_E_HEX_SMALL = 6.2;
 constexpr double A_F_HEX_LARGE = 0.3;
 constexpr double A_E_HEX_LARGE = 10.6;
+
+// PMV計算用定数
+constexpr double PMV_OMEGA_DEFAULT = 0.5;
+constexpr double PMV_TOLERANCE = 1e-6;
+constexpr int PMV_MAX_ITERATIONS = 100;
 
 // ====================================================================
 // ヘルパー関数
@@ -80,6 +95,13 @@ double total_enthalpy_from_x(double temp_c, double x);
 // ====================================================================
 // PMV/PPD計算関数
 // ====================================================================
+
+// PMV計算用内部関数（実装の詳細）
+namespace internal {
+    double calc_R(double f_cl, double t_cl, double t_r);
+    double calc_C(double f_cl, double h_c, double t_cl, double t_a);
+    double calc_RC(double f_cl, double h_c, double t_cl, double t_a, double t_r);
+}
 
 double calc_PMV(double met, double w, double clo, double t_a, double h_a, double t_r, double v_a);
 double pmv_to_ppd(double pmv);

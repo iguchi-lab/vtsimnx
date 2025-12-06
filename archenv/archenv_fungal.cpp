@@ -1,4 +1,4 @@
-#include "archenv_fungal.h"
+#include "include/archenv.h"
 #include <cmath>
 
 namespace archenv {

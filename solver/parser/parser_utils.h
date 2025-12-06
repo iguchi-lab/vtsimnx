@@ -2,6 +2,8 @@
 
 #include <string>
 #include <vector>
+#include <stdexcept>
+#include <type_traits>
 #include <nlohmann/json.hpp>
 
 namespace parser_utils {
@@ -31,6 +33,36 @@ namespace parser_utils {
     // 真偽値を "true"/"false" に変換
     inline std::string boolToString(bool v) {
         return v ? "true" : "false";
+    }
+
+    template <typename T>
+    inline T readScalarOrSeries(const nlohmann::json& value,
+                                std::vector<T>& storage,
+                                size_t timestep,
+                                const T& fallback,
+                                const std::string& fieldPath) {
+        static_assert(std::is_arithmetic_v<T>, "readScalarOrSeries requires arithmetic types");
+
+        auto makeError = [&](const std::string& suffix) {
+            throw std::runtime_error(fieldPath + suffix);
+        };
+
+        if (value.is_array()) {
+            storage.clear();
+            for (size_t idx = 0; idx < value.size(); ++idx) {
+                const auto& element = value[idx];
+                if (!element.is_number()) {
+                    makeError(" must be array<number>");
+                }
+                storage.push_back(element.get<T>());
+            }
+            return valueOrLast(storage, timestep, fallback);
+        }
+
+        if (!value.is_number()) {
+            makeError(" must be number or array<number>");
+        }
+        return value.get<T>();
     }
 
 } // namespace parser_utils

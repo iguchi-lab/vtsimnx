@@ -1,60 +1,16 @@
 #include "core/thermal_solver.h"
+#include "core/heat_calculation.h"
+#include "core/thermal_solver_ceres.h"
 #include "network/thermal_network.h"
 #include "utils/utils.h"
-#include "core/physical_constants.h"
+#include "../archenv/include/archenv.h"
 #include <cmath>
 #include <sstream>
 #include <iomanip>
 #include <unordered_map>
 
-// 物理定数は core/physical_constants.h から使用
-
 // =============================================================================
-// HeatCalculation名前空間 - 熱計算の共通テンプレート関数群
-// =============================================================================
-
-namespace HeatCalculation {
-
-template <typename T>
-T calcAdvectionHeat(const T& sourceTemp, const T& targetTemp, const EdgeProperties& edgeData) {
-    double flowRate = edgeData.flow_rate; // m3/s
-    if (std::abs(flowRate) < PhysicalConstants::FLOW_RATE_MIN) return T(0.0);
-    
-    double mDotCp = PhysicalConstants::RHO_AIR * PhysicalConstants::C_AIR * std::abs(flowRate);
-    // 流出側の温度を使用：正の流れなら source→target なので sourceTemp
-    T outTemp = (flowRate > 0.0) ? sourceTemp : targetTemp;
-    T direction = T(flowRate > 0.0 ? 1.0 : -1.0);
-    
-    return direction * T(mDotCp) * outTemp;
-}
-
-template <typename T>
-T calcConductionHeat(const T& sourceTemp, const T& targetTemp, const EdgeProperties& edgeData) {
-    return T(edgeData.conductance) * (sourceTemp - targetTemp);
-}
-
-template <typename T>
-T calcGenerationHeat(const EdgeProperties& edgeData) {
-    return T(edgeData.current_heat_generation);
-}
-
-template <typename T>
-T calculateUnifiedHeat(const T& sourceTemp, const T& targetTemp, const EdgeProperties& edgeData) {
-    if (edgeData.type == "advection") {
-        return calcAdvectionHeat(sourceTemp, targetTemp, edgeData);
-    } else if (edgeData.type == "conductance") {
-        return calcConductionHeat(sourceTemp, targetTemp, edgeData);
-    } else if (edgeData.type == "heat_generation") {
-        return calcGenerationHeat<T>(edgeData);
-    } else {
-        return T(0.0);
-    }
-}
-
-} // namespace HeatCalculation
-
-// =============================================================================
-// HeatBalanceConstraintクラス - Ceres自動微分用の制約条件
+// HeatBalanceConstraint - Ceres自動微分用の熱バランス制約
 // =============================================================================
 
 template <typename T>
@@ -65,6 +21,15 @@ T HeatBalanceConstraint::getNodeTemperature(Vertex v, T const* const* parameters
     } else {
         return T(graph_[v].current_t);
     }
+}
+
+const std::vector<Edge>& HeatBalanceConstraint::getIncidentEdges(Vertex v) const {
+    static const std::vector<Edge> kEmpty;
+    auto it = incidentEdges_.find(v);
+    if (it != incidentEdges_.end()) {
+        return it->second;
+    }
+    return kEmpty;
 }
 
 template <typename T>
@@ -81,8 +46,8 @@ bool HeatBalanceConstraint::operator()(T const* const* parameters, T* residual) 
     T heatOut = T(0.0);
 
     // 統一された関数を使用してエッジごとの熱流量を計算
-    auto edge_range = boost::edges(graph_);
-    for (auto edge : boost::make_iterator_range(edge_range)) {
+    const auto& nodeEdges = getIncidentEdges(nodeVertex);
+    for (auto edge : nodeEdges) {
         Vertex sourceVertex = boost::source(edge, graph_);
         Vertex targetVertex = boost::target(edge, graph_);
         const auto& edgeData = graph_[edge];
@@ -121,8 +86,8 @@ bool HeatBalanceConstraint::operator()(T const* const* parameters, T* residual) 
             T setNodeHeatIn = T(0.0);
             T setNodeHeatOut = T(0.0);
             
-            auto edge_range_local = boost::edges(graph_);
-            for (auto edge_local : boost::make_iterator_range(edge_range_local)) {
+            const auto& setNodeEdges = getIncidentEdges(setNodeVertex);
+            for (auto edge_local : setNodeEdges) {
                 Vertex sv = boost::source(edge_local, graph_);
                 Vertex dv = boost::target(edge_local, graph_);
                 const auto& eprop = graph_[edge_local];
@@ -153,14 +118,14 @@ bool HeatBalanceConstraint::operator()(T const* const* parameters, T* residual) 
     }
     
     // このノードがset_nodeでエアコンがオンの場合、バランスをゼロにする
-    auto vertex_range_ac = boost::vertices(graph_);
-    for (auto vertex_ac : boost::make_iterator_range(vertex_range_ac)) {
-        const auto& nodeData_ac = graph_[vertex_ac];
-        if (nodeData_ac.type == "aircon" && nodeData_ac.on && 
-            nodeData_ac.set_node == nodeName_) {
-            // このノードはエアコンによって温度が制御されるため、バランスは0
-            residual[0] = T(0.0);
-            return true;
+    auto airconIt = airconBySetNode_.find(nodeName_);
+    if (airconIt != airconBySetNode_.end()) {
+        for (auto vertex_ac : airconIt->second) {
+            const auto& nodeData_ac = graph_[vertex_ac];
+            if (nodeData_ac.type == "aircon" && nodeData_ac.on && nodeData_ac.set_node == nodeName_) {
+                residual[0] = T(0.0);
+                return true;
+            }
         }
     }
     residual[0] = heatIn - heatOut;
@@ -174,6 +139,10 @@ bool HeatBalanceConstraint::operator()(T const* const* parameters, T* residual) 
 ThermalSolver::ThermalSolver(ThermalNetwork& network, std::ostream& logFile)
     : network_(network), logFile_(logFile) {}
 
+// =============================================================================
+// 初期化関数
+// =============================================================================
+
 void ThermalSolver::setInitialTemperatures(std::vector<double>& temperatures, const std::vector<std::string>& nodeNames) {
     for (size_t i = 0; i < nodeNames.size(); ++i) {
         temperatures[i] = network_.getNode(nodeNames[i]).current_t;
@@ -181,7 +150,7 @@ void ThermalSolver::setInitialTemperatures(std::vector<double>& temperatures, co
     
     // サイズチェック
     if (temperatures.size() != nodeNames.size()) {
-        writeLog(logFile_, "  警告: 温度配列とノード名配列のサイズが一致しません");
+        writeLog(logFile_, "--警告: 温度配列とノード名配列のサイズが一致しません");
     }
 }
 
@@ -201,6 +170,10 @@ TemperatureMap ThermalSolver::extractTemperatures(const std::vector<double>& tem
     }
     return tempMap;
 }
+
+// =============================================================================
+// 熱流量・バランス計算
+// =============================================================================
 
 HeatRateMap ThermalSolver::calculateHeatRates(const TemperatureMap& tempMap) {
     HeatRateMap heatRates;
@@ -222,7 +195,7 @@ HeatRateMap ThermalSolver::calculateHeatRates(const TemperatureMap& tempMap) {
         auto targetTempIt = tempMap.find(targetName);
         
         if (sourceTempIt == tempMap.end() || targetTempIt == tempMap.end()) {
-            writeLog(logFile_, "  警告: ノード温度が見つかりません - " + sourceName + " → " + targetName);
+            writeLog(logFile_, "--警告: ノード温度が見つかりません - " + sourceName + " → " + targetName);
             continue;
         }
         
@@ -236,11 +209,11 @@ HeatRateMap ThermalSolver::calculateHeatRates(const TemperatureMap& tempMap) {
         
         // 異常値チェック
         if (!std::isfinite(heatRate)) {
-            writeLog(logFile_, "  警告: 無限大または非数の熱流量値が検出されました - " + sourceName + " → " + targetName);
+            writeLog(logFile_, "--警告: 無限大または非数の熱流量値が検出されました - " + sourceName + " → " + targetName);
             heatRate = 0.0;
         }
         
-        heatRates[edgeKey] = heatRate;
+        heatRates[edgeKey] += heatRate;  // 同一ノードペア間の流量を合計
     }
     
     return heatRates;
@@ -285,10 +258,33 @@ HeatBalanceMap ThermalSolver::verifyBalance(const HeatRateMap& heatRates) {
     return balance;
 }
 
+// =============================================================================
+// メイン温度計算
+// =============================================================================
+
 std::tuple<TemperatureMap, HeatRateMap, HeatBalanceMap> ThermalSolver::solveTemperatures(
     const SimulationConstants& constants) {
     
     const auto& graph = network_.getGraph();
+    std::unordered_map<Vertex, std::vector<Edge>> incidentEdges;
+    incidentEdges.reserve(boost::num_vertices(graph));
+    auto incident_edge_range = boost::edges(graph);
+    for (auto edge : boost::make_iterator_range(incident_edge_range)) {
+        Vertex sv = boost::source(edge, graph);
+        Vertex tv = boost::target(edge, graph);
+        incidentEdges[sv].push_back(edge);
+        incidentEdges[tv].push_back(edge);
+    }
+
+    std::unordered_map<std::string, std::vector<Vertex>> airconBySetNode;
+    auto vertex_range_aircon = boost::vertices(graph);
+    for (auto vertex : boost::make_iterator_range(vertex_range_aircon)) {
+        const auto& properties = graph[vertex];
+        if (properties.type == "aircon" && !properties.set_node.empty()) {
+            airconBySetNode[properties.set_node].push_back(vertex);
+        }
+    }
+
     std::vector<std::string> nodeNames;
     std::map<Vertex, size_t> vertexToParameterIndex;
     size_t parameterIndex = 0;
@@ -303,7 +299,7 @@ std::tuple<TemperatureMap, HeatRateMap, HeatBalanceMap> ThermalSolver::solveTemp
     }
 
     if (nodeNames.empty()) {
-        writeLog(logFile_, "  警告: 温度計算対象のノードがありません");
+        writeLog(logFile_, "--警告: 温度計算対象のノードがありません");
         return {TemperatureMap{}, HeatRateMap{}, HeatBalanceMap{}};
     }
 
@@ -317,6 +313,8 @@ std::tuple<TemperatureMap, HeatRateMap, HeatBalanceMap> ThermalSolver::solveTemp
             network_.getGraph(),
             network_.getKeyToVertex(),
             vertexToParameterIndex,
+            incidentEdges,
+            airconBySetNode,
             logFile_
         );
         auto costFunction = new ceres::DynamicAutoDiffCostFunction<HeatBalanceConstraint>(constraint);
@@ -325,219 +323,9 @@ std::tuple<TemperatureMap, HeatRateMap, HeatBalanceMap> ThermalSolver::solveTemp
         problem.AddResidualBlock(costFunction, nullptr, temperatures.data());
     }
 
-    // 複数のソルバー設定を順次試行
     ceres::Solver::Summary summary;
-    bool converged = false;
+    ThermalSolverCeres::runThermalSolvers(constants, problem, summary, logFile_);
 
-    // 1st try: 標準設定（従来）
-    {
-        writeLog(logFile_, "--------①標準設定でソルバーを実行します...");
-        ceres::Solver::Options options;
-        options.linear_solver_type = ceres::DENSE_QR;
-        options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
-        options.max_num_iterations = constants.maxInnerIteration;
-        options.function_tolerance = constants.thermalTolerance;
-        options.parameter_tolerance = constants.thermalTolerance;
-        options.minimizer_progress_to_stdout = false;
-
-        ceres::Solve(options, &problem, &summary);
-        converged = (summary.termination_type == ceres::CONVERGENCE) && 
-                   (summary.final_cost <= constants.thermalTolerance);
-
-        if (converged) {
-            writeLog(logFile_, "--------標準設定で収束しました");
-        }
-    }
-
-    // 2nd try: 堅牢設定（収束しなかった場合）
-    if (!converged) {
-        writeLog(logFile_, "---堅牢設定でソルバーを再実行します...");
-        ceres::Solver::Options options;
-        options.trust_region_strategy_type = ceres::DOGLEG;
-        options.linear_solver_type = ceres::DENSE_QR;
-        options.max_num_iterations = std::max(500, static_cast<int>(constants.maxInnerIteration * 2));
-
-        // より厳しい収束判定
-        options.function_tolerance = constants.thermalTolerance * 0.01;
-        options.parameter_tolerance = constants.thermalTolerance * 0.01;
-        options.gradient_tolerance = constants.thermalTolerance * 0.1;
-
-        // 数値安定性向上
-        options.jacobi_scaling = true;
-        options.use_inner_iterations = true;
-        options.max_trust_region_radius = 1e4;
-        options.initial_trust_region_radius = 1e2;
-        options.minimizer_progress_to_stdout = false;
-
-        ceres::Solve(options, &problem, &summary);
-        converged = (summary.termination_type == ceres::CONVERGENCE) && 
-                   (summary.final_cost <= constants.thermalTolerance);
-
-        if (converged) {
-            writeLog(logFile_, "---堅牢設定で収束しました");
-        }
-    }
-
-    // 3rd try: DENSE_SCHUR ソルバー（条件数改善）
-    if (!converged) {
-        writeLog(logFile_, "---DENSE_SCHUR設定でソルバーを再実行します...");
-        ceres::Solver::Options options;
-        options.trust_region_strategy_type = ceres::DOGLEG;
-        options.linear_solver_type = ceres::DENSE_SCHUR;  // より堅牢な線形ソルバー
-        options.max_num_iterations = 500;
-
-        options.function_tolerance = constants.thermalTolerance * 0.01;
-        options.parameter_tolerance = constants.thermalTolerance * 0.01;
-        options.gradient_tolerance = constants.thermalTolerance * 0.1;
-
-        // 数値安定性向上
-        options.jacobi_scaling = true;
-        options.use_inner_iterations = true;
-        options.max_trust_region_radius = 1e4;
-        options.initial_trust_region_radius = 1e2;
-        options.minimizer_progress_to_stdout = false;
-
-        ceres::Solve(options, &problem, &summary);
-        converged = (summary.termination_type == ceres::CONVERGENCE) && 
-                   (summary.final_cost <= constants.thermalTolerance);
-
-        if (converged) {
-            writeLog(logFile_, "---DENSE_SCHUR設定で収束しました");
-        }
-    }
-
-    // 4th try: SPARSE_NORMAL_CHOLESKY ソルバー（大規模問題用）
-    if (!converged) {
-        writeLog(logFile_, "---SPARSE_NORMAL_CHOLESKY設定でソルバーを再実行します...");
-        ceres::Solver::Options options;
-        options.trust_region_strategy_type = ceres::DOGLEG;
-        options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;  // スパース行列用
-        options.max_num_iterations = 1000;
-
-        options.function_tolerance = constants.thermalTolerance * 0.001;
-        options.parameter_tolerance = constants.thermalTolerance * 0.001;
-        options.gradient_tolerance = constants.thermalTolerance * 0.01;
-
-        // 最大限の安定性設定
-        options.jacobi_scaling = true;
-        options.use_inner_iterations = true;
-        options.inner_iteration_tolerance = 1e-8;
-        options.max_trust_region_radius = 1e3;
-        options.initial_trust_region_radius = 1e1;
-        options.minimizer_progress_to_stdout = false;
-
-        ceres::Solve(options, &problem, &summary);
-        converged = (summary.termination_type == ceres::CONVERGENCE) && 
-                   (summary.final_cost <= constants.thermalTolerance);
-
-        if (converged) {
-            writeLog(logFile_, "---SPARSE_NORMAL_CHOLESKY設定で収束しました");
-        }
-    }
-
-    // 5th try: 段階的緩和法（初期値改善）
-    if (!converged) {
-        writeLog(logFile_, "---段階的緩和法でソルバーを再実行します...");
-
-        // 段階1: 緩い許容誤差で初期解を求める
-        ceres::Solver::Options options1;
-        options1.trust_region_strategy_type = ceres::DOGLEG;
-        options1.linear_solver_type = ceres::DENSE_QR;
-        options1.max_num_iterations = 200;
-        options1.function_tolerance = constants.thermalTolerance * 10;   // 10倍緩い
-        options1.parameter_tolerance = constants.thermalTolerance * 10;
-        options1.gradient_tolerance = constants.thermalTolerance;
-        options1.jacobi_scaling = true;
-        options1.minimizer_progress_to_stdout = false;
-
-        ceres::Solve(options1, &problem, &summary);
-        writeLog(logFile_, "----段階1完了: 残差 " + std::to_string(summary.final_cost));
-
-        // 段階2: より厳しい許容誤差で最終解を求める
-        ceres::Solver::Options options2;
-        options2.trust_region_strategy_type = ceres::DOGLEG;
-        options2.linear_solver_type = ceres::DENSE_QR;
-        options2.max_num_iterations = 1000;
-        options2.function_tolerance = constants.thermalTolerance * 0.01;
-        options2.parameter_tolerance = constants.thermalTolerance * 0.01;
-        options2.gradient_tolerance = constants.thermalTolerance * 0.1;
-        options2.jacobi_scaling = true;
-        options2.use_inner_iterations = true;
-        options2.minimizer_progress_to_stdout = false;
-
-        ceres::Solve(options2, &problem, &summary);
-        converged = (summary.termination_type == ceres::CONVERGENCE) && 
-                   (summary.final_cost <= constants.thermalTolerance);
-
-        if (converged) {
-            writeLog(logFile_, "---段階的緩和法で収束しました");
-        }
-    }
-
-    // 6th try: Line Search ベース（Trust Region以外のアプローチ）
-    if (!converged) {
-        writeLog(logFile_, "---Line Search方式でソルバーを再実行します...");
-        ceres::Solver::Options options;
-        options.minimizer_type = ceres::LINE_SEARCH;  // Trust Regionではなく Line Search
-        options.line_search_direction_type = ceres::LBFGS;  // L-BFGS
-        options.line_search_type = ceres::WOLFE;
-        options.max_num_iterations = 1000;
-
-        // より緩い許容誤差から開始
-        options.function_tolerance = constants.thermalTolerance;
-        options.parameter_tolerance = constants.thermalTolerance;
-        options.gradient_tolerance = constants.thermalTolerance * 10;
-
-        options.jacobi_scaling = true;
-        options.minimizer_progress_to_stdout = false;
-
-        ceres::Solve(options, &problem, &summary);
-        converged = (summary.termination_type == ceres::CONVERGENCE) && 
-                   (summary.final_cost <= constants.thermalTolerance);
-
-        if (converged) {
-            writeLog(logFile_, "---Line Search方式で収束しました");
-        }
-    }
-
-    // 7th try: 超精密設定（最後の手段）
-    if (!converged) {
-        writeLog(logFile_, "---超精密設定で最終試行します...");
-        ceres::Solver::Options options;
-        options.trust_region_strategy_type = ceres::DOGLEG;
-        options.linear_solver_type = ceres::DENSE_QR;
-        options.max_num_iterations = 5000;  // 大幅増加
-
-        // 段階的な許容誤差緩和
-        double tolerance_factor = std::max(1.0, summary.final_cost / constants.thermalTolerance * 0.1);
-        options.function_tolerance = constants.thermalTolerance * tolerance_factor;
-        options.parameter_tolerance = constants.thermalTolerance * tolerance_factor;
-        options.gradient_tolerance = constants.thermalTolerance * tolerance_factor * 10;
-
-        // 最大限の数値安定性
-        options.jacobi_scaling = true;
-        options.use_inner_iterations = true;
-        options.inner_iteration_tolerance = 1e-12;
-        options.max_trust_region_radius = 1e2;
-        options.initial_trust_region_radius = 1e0;
-        options.min_trust_region_radius = 1e-8;
-        options.minimizer_progress_to_stdout = false;
-
-        writeLog(logFile_, "----調整済み許容誤差: " + std::to_string(options.function_tolerance));
-
-        ceres::Solve(options, &problem, &summary);
-        converged = (summary.termination_type == ceres::CONVERGENCE) && 
-                   (summary.final_cost <= constants.thermalTolerance);
-
-        if (converged) {
-            writeLog(logFile_, "---超精密設定で収束しました");
-        } else {
-            writeLog(logFile_, "---全ての先進的ソルバー手法で収束に失敗しました");
-            writeLog(logFile_, "---最終残差: " + std::to_string(summary.final_cost) + 
-                             " (目標: " + std::to_string(constants.thermalTolerance) + ")");
-        }
-    }
-    
     // 実際の残差をチェックして真の収束判定を行う
     bool reallyConverged = (summary.termination_type == ceres::CONVERGENCE) && 
                           (summary.final_cost <= constants.thermalTolerance);
@@ -569,60 +357,64 @@ std::tuple<TemperatureMap, HeatRateMap, HeatBalanceMap> ThermalSolver::solveTemp
             default:
                 terminationType = "UNKNOWN (" + std::to_string(static_cast<int>(summary.termination_type)) + ")";
         }
-        writeLog(logFile_, "    終了理由: " + terminationType);
+        writeLog(logFile_, "----終了理由: " + terminationType);
         
         // 数値的問題の診断
         std::ostringstream oss;
         oss << std::scientific << std::setprecision(6) << summary.final_cost;
-        writeLog(logFile_, "    最終残差: " + oss.str());
-        writeLog(logFile_, "    実行反復数: " + std::to_string(summary.iterations.size()));
-        writeLog(logFile_, "    設定最大反復数: " + std::to_string(constants.maxInnerIteration));
-        writeLog(logFile_, "    許容誤差: " + std::to_string(constants.thermalTolerance));
-        writeLog(logFile_, "    残差/許容誤差比: " + std::to_string(summary.final_cost / constants.thermalTolerance));
+        writeLog(logFile_, "----最終残差: " + oss.str());
+        writeLog(logFile_, "----実行反復数: " + std::to_string(summary.iterations.size()));
+        writeLog(logFile_, "----設定最大反復数: " + std::to_string(constants.maxInnerIteration));
+        writeLog(logFile_, "----許容誤差: " + std::to_string(constants.thermalTolerance));
+        writeLog(logFile_, "----残差/許容誤差比: " + std::to_string(summary.final_cost / constants.thermalTolerance));
         
         // 利用可能な追加情報
         if (summary.iterations.size() > 0) {
-            writeLog(logFile_, "    ソルバー情報: 線形ソルバー=" + std::to_string(static_cast<int>(summary.linear_solver_type_used)));
-            writeLog(logFile_, "    最終コスト値: " + std::to_string(summary.final_cost));
+            writeLog(logFile_, "----ソルバー情報: 線形ソルバー=" + std::to_string(static_cast<int>(summary.linear_solver_type_used)));
+            writeLog(logFile_, "----最終コスト値: " + std::to_string(summary.final_cost));
         }
         
         // 計算途中の温度状態出力（最初の5個のみ）
-        writeLog(logFile_, "    現在の温度値 (最初の5個):");
+        writeLog(logFile_, "----現在の温度値 (最初の5個):");
         for (size_t i = 0; i < std::min(static_cast<size_t>(5), temperatures.size()); ++i) {
-            writeLog(logFile_, "      " + nodeNames[i] + ": " + std::to_string(temperatures[i]) + " ℃");
+            writeLog(logFile_, "------" + nodeNames[i] + ": " + std::to_string(temperatures[i]) + " ℃");
         }
         if (temperatures.size() > 5) {
-            writeLog(logFile_, "      ... (残り " + std::to_string(temperatures.size() - 5) + " 個のノード)");
+            writeLog(logFile_, "------... (残り " + std::to_string(temperatures.size() - 5) + " 個のノード)");
         }
         
         // 収束性改善の提案
-        writeLog(logFile_, "    収束改善の提案:");
+        writeLog(logFile_, "----収束改善の提案:");
         if (summary.final_cost > constants.thermalTolerance * 1000) {
-            writeLog(logFile_, "      - 熱計算許容誤差を緩める (1e-4 〜 1e-3 程度に設定)");
+            writeLog(logFile_, "------熱計算許容誤差を緩める (1e-4 〜 1e-3 程度に設定)");
         }
         if (summary.iterations.size() >= constants.maxInnerIteration) {
-            writeLog(logFile_, "      - 最大反復回数を増やす (200〜500回程度に設定)");
+            writeLog(logFile_, "------最大反復回数を増やす (200〜500回程度に設定)");
         }
-        writeLog(logFile_, "    詳細レポート: " + summary.BriefReport());
+        writeLog(logFile_, "----詳細レポート: " + summary.BriefReport());
         
         // 自動的にシステム診断情報を出力
         outputThermalSystemDiagnostics();
     }
 
     // 計算結果の出力
-    //writeLog(logFile_, "    温度値: " + pure_to_string(temperatures));
+    //writeLog(logFile_, "--温度値: " + pure_to_string(temperatures));
     TemperatureMap tempMap = extractTemperatures(temperatures, nodeNames);
-    //writeLog(logFile_, "    温度マップ: " + map_to_string(tempMap));
+    //writeLog(logFile_, "--温度マップ: " + map_to_string(tempMap));
     HeatRateMap heatRates = calculateHeatRates(tempMap);
-    //writeLog(logFile_, "    熱流量マップ: " + map_to_string(heatRates));
+    //writeLog(logFile_, "--熱流量マップ: " + map_to_string(heatRates));
     HeatBalanceMap balance = verifyBalance(heatRates);
-    //writeLog(logFile_, "    バランス検証: " + map_to_string(balance));
+    //writeLog(logFile_, "--バランス検証: " + map_to_string(balance));
 
     return {tempMap, heatRates, balance};
 }
 
+// =============================================================================
+// 診断情報出力
+// =============================================================================
+
 void ThermalSolver::outputThermalSystemDiagnostics() {
-    writeLog(logFile_, "  熱システム診断情報:");
+    writeLog(logFile_, "--熱システム診断情報:");
     
     const auto& graph = network_.getGraph();
     
@@ -647,11 +439,11 @@ void ThermalSolver::outputThermalSystemDiagnostics() {
         }
     }
     
-    writeLog(logFile_, "    ノード数: " + std::to_string(totalNodes));
+    writeLog(logFile_, "----ノード数: " + std::to_string(totalNodes));
     
     // ブランチ数統計
     size_t totalBranches = boost::num_edges(graph);
-    writeLog(logFile_, "    ブランチ数: " + std::to_string(totalBranches));
+    writeLog(logFile_, "----ブランチ数: " + std::to_string(totalBranches));
     
     // 熱特性値の統計（熱伝導係数や熱容量など）
     std::vector<double> thermalConductivities;
@@ -670,32 +462,32 @@ void ThermalSolver::outputThermalSystemDiagnostics() {
     
     if (!thermalConductivities.empty()) {
         auto minMax = std::minmax_element(thermalConductivities.begin(), thermalConductivities.end());
-        writeLog(logFile_, "    熱特性値の統計:");
-        writeLog(logFile_, "      最小: " + std::to_string(*minMax.first) + " W/K");
-        writeLog(logFile_, "      最大: " + std::to_string(*minMax.second) + " W/K");
+        writeLog(logFile_, "----熱特性値の統計:");
+        writeLog(logFile_, "------最小: " + std::to_string(*minMax.first) + " W/K");
+        writeLog(logFile_, "------最大: " + std::to_string(*minMax.second) + " W/K");
         if (*minMax.first > 0) {
-            writeLog(logFile_, "      比率: " + std::to_string(*minMax.second / *minMax.first));
+            writeLog(logFile_, "------比率: " + std::to_string(*minMax.second / *minMax.first));
         }
     }
     
-    writeLog(logFile_, "    固定温度ノード数: " + std::to_string(fixedTempNodes));
-    writeLog(logFile_, "    計算ノード数: " + std::to_string(thermalCalcNodes));
+    writeLog(logFile_, "----固定温度ノード数: " + std::to_string(fixedTempNodes));
+    writeLog(logFile_, "----計算ノード数: " + std::to_string(thermalCalcNodes));
     
     // 固定温度の範囲
     if (!fixedTemps.empty()) {
         auto minMax = std::minmax_element(fixedTemps.begin(), fixedTemps.end());
-        writeLog(logFile_, "    固定温度の範囲:");
-        writeLog(logFile_, "      最小: " + std::to_string(*minMax.first) + " ℃");
-        writeLog(logFile_, "      最大: " + std::to_string(*minMax.second) + " ℃");
-        writeLog(logFile_, "      範囲: " + std::to_string(*minMax.second - *minMax.first) + " ℃");
+        writeLog(logFile_, "----固定温度の範囲:");
+        writeLog(logFile_, "------最小: " + std::to_string(*minMax.first) + " ℃");
+        writeLog(logFile_, "------最大: " + std::to_string(*minMax.second) + " ℃");
+        writeLog(logFile_, "------範囲: " + std::to_string(*minMax.second - *minMax.first) + " ℃");
     }
     
     // 計算温度の範囲（現在値）
     if (!calcTemps.empty()) {
         auto minMax = std::minmax_element(calcTemps.begin(), calcTemps.end());
-        writeLog(logFile_, "    計算温度の現在範囲:");
-        writeLog(logFile_, "      最小: " + std::to_string(*minMax.first) + " ℃");
-        writeLog(logFile_, "      最大: " + std::to_string(*minMax.second) + " ℃");
-        writeLog(logFile_, "      範囲: " + std::to_string(*minMax.second - *minMax.first) + " ℃");
+        writeLog(logFile_, "----計算温度の現在範囲:");
+        writeLog(logFile_, "------最小: " + std::to_string(*minMax.first) + " ℃");
+        writeLog(logFile_, "------最大: " + std::to_string(*minMax.second) + " ℃");
+        writeLog(logFile_, "------範囲: " + std::to_string(*minMax.second - *minMax.first) + " ℃");
     }
 }

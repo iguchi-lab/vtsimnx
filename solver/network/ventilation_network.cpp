@@ -25,9 +25,24 @@ Vertex VentilationNetwork::addNode(const VertexProperties& node) {
 void VentilationNetwork::addEdge(const EdgeProperties& edge) {
     auto sourceIt = keyToVertex.find(edge.source);
     auto targetIt = keyToVertex.find(edge.target);
-    if (sourceIt != keyToVertex.end() && targetIt != keyToVertex.end()) {
-        boost::add_edge(sourceIt->second, targetIt->second, edge, graph);
+    if (sourceIt == keyToVertex.end() || targetIt == keyToVertex.end()) {
+        std::vector<std::string> missingNodes;
+        if (sourceIt == keyToVertex.end()) {
+            missingNodes.push_back(edge.source);
+        }
+        if (targetIt == keyToVertex.end()) {
+            missingNodes.push_back(edge.target);
+        }
+        std::string message = "換気ブランチ '" + edge.key + "' に必要なノードが見つかりません: ";
+        for (size_t i = 0; i < missingNodes.size(); ++i) {
+            message += missingNodes[i];
+            if (i + 1 < missingNodes.size()) {
+                message += ", ";
+            }
+        }
+        throw std::runtime_error(message);
     }
+    boost::add_edge(sourceIt->second, targetIt->second, edge, graph);
 }
 
 // ノード数を取得
@@ -115,8 +130,7 @@ VentilationNetwork::calculatePressure(const SimulationConstants& constants, std:
 }
 
 // 流量マップからグラフを一括更新
-void VentilationNetwork::updateFlowRatesInGraph(const FlowRateMap& /*flowRates*/) {
-    // 個別ブランチごとに (P - ρgh) を用いた流量を再計算して格納
+void VentilationNetwork::updateFlowRatesInGraph(const FlowRateMap& flowRates) {
     auto edge_range = boost::edges(graph);
     for (auto edge : boost::make_iterator_range(edge_range)) {
         Vertex sourceVertex = boost::source(edge, graph);
@@ -125,15 +139,36 @@ void VentilationNetwork::updateFlowRatesInGraph(const FlowRateMap& /*flowRates*/
         const auto& targetNode = graph[targetVertex];
         const auto& edgeData   = graph[edge];
 
-        double rho_source = calculateDensity(sourceNode.current_t);
-        double rho_target = calculateDensity(targetNode.current_t);
+        std::pair<std::string, std::string> forwardKey{sourceNode.key, targetNode.key};
+        auto flowIt = flowRates.find(forwardKey);
+        double flow = 0.0;
+        bool flowResolved = false;
 
-        double source_total_pressure = sourceNode.current_p - rho_source * 9.81 * edgeData.h_from;
-        double target_total_pressure = targetNode.current_p - rho_target * 9.81 * edgeData.h_to;
-        double dp = source_total_pressure - target_total_pressure;
+        if (flowIt != flowRates.end()) {
+            flow = flowIt->second;
+            flowResolved = true;
+        } else {
+            std::pair<std::string, std::string> reverseKey{targetNode.key, sourceNode.key};
+            auto reverseIt = flowRates.find(reverseKey);
+            if (reverseIt != flowRates.end()) {
+                flow = -reverseIt->second;
+                flowResolved = true;
+            }
+        }
 
-        double flow = FlowCalculation::calculateUnifiedFlow(dp, edgeData);
-        graph[edge].flow_rate = std::isfinite(flow) ? flow : 0.0;
+        if (!flowResolved) {
+            double rho_source = calculateDensity(sourceNode.current_t);
+            double rho_target = calculateDensity(targetNode.current_t);
+
+            double source_total_pressure = sourceNode.current_p - rho_source * 9.81 * edgeData.h_from;
+            double target_total_pressure = targetNode.current_p - rho_target * 9.81 * edgeData.h_to;
+            double dp = source_total_pressure - target_total_pressure;
+
+            double recomputed = FlowCalculation::calculateUnifiedFlow(dp, edgeData);
+            flow = std::isfinite(recomputed) ? recomputed : 0.0;
+        }
+
+        graph[edge].flow_rate = flow;
     }
 }
 

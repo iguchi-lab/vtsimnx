@@ -1,15 +1,18 @@
 #pragma once
 
-#include "core/network_structures.h"
+#include "../vtsim_solver.h"
 #include <ceres/ceres.h>
 #include <fstream>
 #include <memory>
 #include <unordered_map>
+#include <vector>
 
-// Forward declaration
+// 前方宣言
 class ThermalNetwork;
 
-// Heat balance constraint cost function
+// =============================================================================
+// HeatBalanceConstraint - 熱バランス制約（Ceres用コスト関数）
+// =============================================================================
 class HeatBalanceConstraint {
 public:
     HeatBalanceConstraint(
@@ -17,11 +20,15 @@ public:
         const Graph& graph,
         const std::unordered_map<std::string, Vertex>& nodeKeyToVertex,
         const std::map<Vertex, size_t>& vertexToParameterIndex,
+        const std::unordered_map<Vertex, std::vector<Edge>>& incidentEdges,
+        const std::unordered_map<std::string, std::vector<Vertex>>& airconBySetNode,
         std::ostream& logFile
     ) : nodeName_(nodeName),
         graph_(graph),
         nodeKeyToVertex_(nodeKeyToVertex),
         vertexToParameterIndex_(vertexToParameterIndex),
+        incidentEdges_(incidentEdges),
+        airconBySetNode_(airconBySetNode),
         logFile_(logFile) {}
 
     template <typename T>
@@ -32,14 +39,19 @@ private:
     const Graph& graph_;
     const std::unordered_map<std::string, Vertex>& nodeKeyToVertex_;
     const std::map<Vertex, size_t>& vertexToParameterIndex_;
+    const std::unordered_map<Vertex, std::vector<Edge>>& incidentEdges_;
+    const std::unordered_map<std::string, std::vector<Vertex>>& airconBySetNode_;
     std::ostream& logFile_;
 
     template <typename T>
     T getNodeTemperature(Vertex v, T const* const* parameters) const;
+
+    const std::vector<Edge>& getIncidentEdges(Vertex v) const;
 };
 
-
-// Thermal solver class
+// =============================================================================
+// ThermalSolver - 温度・熱流量計算のメインソルバー
+// =============================================================================
 class ThermalSolver {
 public:
     ThermalSolver(ThermalNetwork& network, std::ostream& logFile);

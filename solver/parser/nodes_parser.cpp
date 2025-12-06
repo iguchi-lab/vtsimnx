@@ -1,6 +1,7 @@
 #include "nodes_parser.h"
 #include "parser_utils.h"
 #include <stdexcept>
+#include <string>
 
 using nlohmann::json;
 
@@ -20,6 +21,7 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
     for (const auto& nodeJson : config["nodes"]) {
         ++index;
         VertexProperties node{};
+        const std::string nodePrefix = "nodes[" + std::to_string(index-1) + "]";
 
         // 必須/基本フィールド
         if (nodeJson.contains("key") && !nodeJson["key"].is_string())
@@ -54,96 +56,40 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
         if (nodeJson.contains("model")) node.model = nodeJson["model"].get<std::string>();
 
         // 計算フラグ
-        if (nodeJson.contains("calc_p")) node.calc_p = nodeJson["calc_p"].get<bool>();
-        if (nodeJson.contains("calc_t")) node.calc_t = nodeJson["calc_t"].get<bool>();
-        if (nodeJson.contains("calc_x")) node.calc_x = nodeJson["calc_x"].get<bool>();
-        if (nodeJson.contains("calc_c")) node.calc_c = nodeJson["calc_c"].get<bool>();
+        auto requireBoolean = [&](const char* key) {
+            if (!nodeJson[key].is_boolean()) {
+                throw std::runtime_error(nodePrefix + "." + key + " must be boolean");
+            }
+            return nodeJson[key].get<bool>();
+        };
+        if (nodeJson.contains("calc_p")) node.calc_p = requireBoolean("calc_p");
+        if (nodeJson.contains("calc_t")) node.calc_t = requireBoolean("calc_t");
+        if (nodeJson.contains("calc_x")) node.calc_x = requireBoolean("calc_x");
+        if (nodeJson.contains("calc_c")) node.calc_c = requireBoolean("calc_c");
 
         // 時系列ベクトル（配列/単一値の両対応）
+        auto readSeries = [&](const char* field, std::vector<double>& storage, double fallback) -> double {
+            return parser_utils::readScalarOrSeries<double>(
+                nodeJson[field],
+                storage,
+                static_cast<size_t>(timestep),
+                fallback,
+                nodePrefix + "." + field);
+        };
         if (nodeJson.contains("p")) {
-            const auto& pj = nodeJson["p"];
-            if (pj.is_array()) {
-                node.p.clear();
-                for (const auto& v : pj) {
-                    if (!v.is_number()) {
-                        throw std::runtime_error("nodes[" + std::to_string(index-1) + "].p must be array<number>");
-                    }
-                    node.p.push_back(v.get<double>());
-                }
-                node.current_p = parser_utils::valueOrLast<double>(node.p, static_cast<size_t>(timestep), 0.0);
-            } else if (pj.is_number()) {
-                node.current_p = pj.get<double>();
-            } else {
-                throw std::runtime_error("nodes[" + std::to_string(index-1) + "].p must be number or array<number>");
-            }
+            node.current_p = readSeries("p", node.p, 0.0);
         }
         if (nodeJson.contains("t")) {
-            const auto& tj = nodeJson["t"];
-            if (tj.is_array()) {
-                node.t.clear();
-                for (const auto& v : tj) {
-                    if (!v.is_number()) {
-                        throw std::runtime_error("nodes[" + std::to_string(index-1) + "].t must be array<number>");
-                    }
-                    node.t.push_back(v.get<double>());
-                }
-                node.current_t = parser_utils::valueOrLast<double>(node.t, static_cast<size_t>(timestep), 0.0);
-            } else if (tj.is_number()) {
-                node.current_t = tj.get<double>();
-            } else {
-                throw std::runtime_error("nodes[" + std::to_string(index-1) + "].t must be number or array<number>");
-            }
+            node.current_t = readSeries("t", node.t, 0.0);
         }
         if (nodeJson.contains("x")) {
-            const auto& xj = nodeJson["x"];
-            if (xj.is_array()) {
-                node.x.clear();
-                for (const auto& v : xj) {
-                    if (!v.is_number()) {
-                        throw std::runtime_error("nodes[" + std::to_string(index-1) + "].x must be array<number>");
-                    }
-                    node.x.push_back(v.get<double>());
-                }
-                node.current_x = parser_utils::valueOrLast<double>(node.x, static_cast<size_t>(timestep), 0.0);
-            } else if (xj.is_number()) {
-                node.current_x = xj.get<double>();
-            } else {
-                throw std::runtime_error("nodes[" + std::to_string(index-1) + "].x must be number or array<number>");
-            }
+            node.current_x = readSeries("x", node.x, 0.0);
         }
         if (nodeJson.contains("c")) {
-            const auto& cj = nodeJson["c"];
-            if (cj.is_array()) {
-                node.c.clear();
-                for (const auto& v : cj) {
-                    if (!v.is_number()) {
-                        throw std::runtime_error("nodes[" + std::to_string(index-1) + "].c must be array<number>");
-                    }
-                    node.c.push_back(v.get<double>());
-                }
-                node.current_c = parser_utils::valueOrLast<double>(node.c, static_cast<size_t>(timestep), 0.0);
-            } else if (cj.is_number()) {
-                node.current_c = cj.get<double>();
-            } else {
-                throw std::runtime_error("nodes[" + std::to_string(index-1) + "].c must be number or array<number>");
-            }
+            node.current_c = readSeries("c", node.c, 0.0);
         }
         if (nodeJson.contains("pre_temp")) {
-            const auto& pr = nodeJson["pre_temp"];
-            if (pr.is_array()) {
-                node.pre_temp.clear();
-                for (const auto& v : pr) {
-                    if (!v.is_number()) {
-                        throw std::runtime_error("nodes[" + std::to_string(index-1) + "].pre_temp must be array<number>");
-                    }
-                    node.pre_temp.push_back(v.get<double>());
-                }
-                node.current_pre_temp = parser_utils::valueOrLast<double>(node.pre_temp, static_cast<size_t>(timestep), node.current_pre_temp);
-            } else if (pr.is_number()) {
-                node.current_pre_temp = pr.get<double>();
-            } else {
-                throw std::runtime_error("nodes[" + std::to_string(index-1) + "].pre_temp must be number or array<number>");
-            }
+            node.current_pre_temp = readSeries("pre_temp", node.pre_temp, node.current_pre_temp);
         }
 
         // モード（配列/単一値の両対応）

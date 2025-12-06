@@ -183,6 +183,9 @@ static bool runSimulationLoop(const InputData& inputData,
         logFile << "--初期化完了: ネットワークトポロジー構築済み\n";
         logFile.flush();
         
+        // 前のタイムステップの温度を保存（熱容量ノード用）
+        TemperatureMap previousTimestepTemperatures;
+        
         // タイムステップループ: 各ステップでプロパティのみ更新
         for (long timestepIndex = 0; timestepIndex < simConstants.length; timestepIndex++) {  //タイムステップループ
             logFile << "-タイムステップ " << timestepIndex + 1<< " を実行中...\n";
@@ -203,10 +206,41 @@ static bool runSimulationLoop(const InputData& inputData,
             ventNetwork.updatePropertiesForTimestep(allNodes, allVentilationBranches, timestepIndex);
             thermalNetwork.updatePropertiesForTimestep(allNodes, allThermalBranches, allVentilationBranches, timestepIndex);
 
+            // 熱容量ノードの温度を親ノードの前タイムステップ温度に設定
+            if (timestepIndex > 0 && !previousTimestepTemperatures.empty()) {
+                auto& thermalGraph = thermalNetwork.getGraph();
+                auto vertex_range = boost::vertices(thermalGraph);
+                int capacityNodeCount = 0;
+                for (auto vertex : boost::make_iterator_range(vertex_range)) {
+                    auto& nodeData = thermalGraph[vertex];
+                    // type="capacity"かつref_nodeが設定されている熱容量ノードの場合
+                    if (nodeData.type == "capacity" && !nodeData.ref_node.empty()) {
+                        auto prevTempIt = previousTimestepTemperatures.find(nodeData.ref_node);
+                        if (prevTempIt != previousTimestepTemperatures.end()) {
+                            nodeData.current_t = prevTempIt->second;
+                            capacityNodeCount++;
+                            if (simConstants.logVerbosity >= 2) {
+                                logFile << "---熱容量ノード " << nodeData.key 
+                                       << " の初期温度を親ノード " << nodeData.ref_node 
+                                       << " の前温度 " << prevTempIt->second << "℃ に設定\n";
+                            }
+                        }
+                    }
+                }
+                if (capacityNodeCount > 0 && simConstants.logVerbosity >= 1) {
+                    logFile << "--熱容量ノード温度を更新しました: " << capacityNodeCount << "個\n";
+                }
+            }
+
             // シミュレーション実行
             SimulationResults results;
             if (simConstants.pressureCalc || simConstants.temperatureCalc) {
                 runSimulation(ventNetwork, thermalNetwork, airconController, simConstants, results, logFile);
+            }
+            
+            // 次のタイムステップのために、現在のタイムステップの温度を保存
+            if (simConstants.temperatureCalc && !results.timestepHistory.empty()) {
+                previousTimestepTemperatures = results.timestepHistory.back().temperatureMap;
             }
             
             // タイムステップごとに結果をJSON Lines形式でファイルに書き込む

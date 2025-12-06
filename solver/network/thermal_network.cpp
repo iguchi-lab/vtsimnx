@@ -6,6 +6,7 @@
 #include <set>
 #include <stdexcept>
 #include <fstream>
+#include <unordered_map>
 
 #include <boost/graph/adjacency_list.hpp>
 
@@ -114,23 +115,26 @@ void ThermalNetwork::buildFromData(const std::vector<VertexProperties>& allNodes
 void ThermalNetwork::syncFlowRatesFromVentilationNetwork(const VentilationNetwork& ventNetwork) {
     const auto& ventGraph = ventNetwork.getGraph();
 
-    // 換気回路網の全エッジを取得
+    // 熱回路網側で移流エッジのマップを構築
+    std::unordered_map<std::string, Edge> advectionEdgeByKey;
+    advectionEdgeByKey.reserve(boost::num_edges(graph));
+    auto thermal_edge_range = boost::edges(graph);
+    for (auto thermal_edge : boost::make_iterator_range(thermal_edge_range)) {
+        const auto& thermalEdgeProps = graph[thermal_edge];
+        if (thermalEdgeProps.type == "advection" &&
+            thermalEdgeProps.key.rfind("advection_", 0) == 0) {
+            advectionEdgeByKey.emplace(thermalEdgeProps.key, thermal_edge);
+        }
+    }
+
+    // 換気エッジを走査し、対応する移流エッジに風量をコピー
     auto vent_edge_range = boost::edges(ventGraph);
     for (auto vent_edge : boost::make_iterator_range(vent_edge_range)) {
         const auto& ventEdge = ventGraph[vent_edge];
-
-        // 対応する移流エッジを検索（キー: "advection_" + 換気エッジのkey）
         std::string advectionKey = "advection_" + ventEdge.key;
-
-        // 熱回路網の全エッジから対応する移流エッジを検索
-        auto thermal_edge_range = boost::edges(graph);
-        for (auto thermal_edge : boost::make_iterator_range(thermal_edge_range)) {
-            auto& thermalEdgeProps = graph[thermal_edge];
-            if (thermalEdgeProps.key == advectionKey && thermalEdgeProps.type == "advection") {
-                thermalEdgeProps.flow_rate = ventEdge.flow_rate;
-                break;
-            }
-        }
+        auto it = advectionEdgeByKey.find(advectionKey);
+        if (it == advectionEdgeByKey.end()) continue;
+        graph[it->second].flow_rate = ventEdge.flow_rate;
     }
 }
 
@@ -200,7 +204,7 @@ std::map<std::string, double> ThermalNetwork::collectHeatRates() const {
 // タイムステップに応じてノードとエッジの時変プロパティを更新
 void ThermalNetwork::updatePropertiesForTimestep(const std::vector<VertexProperties>& allNodes,
                                                   const std::vector<EdgeProperties>& thermalBranches,
-                                                  const std::vector<EdgeProperties>& ventilationBranches,
+                                                 const std::vector<EdgeProperties>& ventilationBranches,
                                                   long timestep) {
     // ノードのプロパティを更新（keyでマッチング）
     for (const auto& node : allNodes) {
@@ -212,33 +216,34 @@ void ThermalNetwork::updatePropertiesForTimestep(const std::vector<VertexPropert
         }
     }
     
+    // 熱ブランチ/換気ブランチを高速参照するマップを構築
+    std::unordered_map<std::string, const EdgeProperties*> thermalBranchById;
+    thermalBranchById.reserve(thermalBranches.size());
+    for (const auto& branch : thermalBranches) {
+        thermalBranchById.emplace(branch.unique_id, &branch);
+    }
+    (void)ventilationBranches; // 現状、移流エッジでは換気ブランチの時系列更新は不要
+
     // エッジのプロパティを更新（unique_idでマッチング）
     auto edge_range = boost::edges(graph);
     for (auto edge : boost::make_iterator_range(edge_range)) {
         EdgeProperties& graphEdge = graph[edge];
-        
-        // 移流エッジ（"advection_"で始まる）の場合は換気ブランチから更新
-        if (graphEdge.type == "advection" && graphEdge.key.find("advection_") == 0) {
-            std::string ventKey = graphEdge.key.substr(10); // "advection_"を除去
-            for (const auto& ventBranch : ventilationBranches) {
-                if (ventBranch.key == ventKey) {
-                    // 移流エッジ自体には時系列データがないので、換気ブランチのデータを参照
-                    // ただし、移流エッジのflow_rateは換気回路網から同期されるため、ここでは更新しない
-                    break;
-                }
-            }
-        } else {
-            // 通常の熱ブランチの場合
-            for (const auto& branch : thermalBranches) {
-                if (branch.unique_id == graphEdge.unique_id) {
-                    // 時系列データから現在のタイムステップの値を更新
-                    graphEdge.updateForTimestep(static_cast<int>(timestep));
-                    // 時系列データ自体も更新（次回の更新に備える）
-                    graphEdge.heat_generation = branch.heat_generation;
-                    graphEdge.enabled = branch.enabled;
-                    break;
-                }
-            }
+
+        if (graphEdge.type == "advection" && graphEdge.key.rfind("advection_", 0) == 0) {
+            // 移流エッジは換気ブランチに紐付く。現時点で更新する時変プロパティはないため処理なし。
+            continue;
         }
+
+        auto thermalIt = thermalBranchById.find(graphEdge.unique_id);
+        if (thermalIt == thermalBranchById.end()) {
+            continue;
+        }
+
+        const EdgeProperties* srcBranch = thermalIt->second;
+        // 時系列データから現在のタイムステップの値を更新
+        graphEdge.updateForTimestep(static_cast<int>(timestep));
+        // 時系列データも更新（次回の更新に備える）
+        graphEdge.heat_generation = srcBranch->heat_generation;
+        graphEdge.enabled = srcBranch->enabled;
     }
 } 

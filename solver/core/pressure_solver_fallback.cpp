@@ -1,13 +1,17 @@
 #include "core/pressure_solver.h"
 #include "network/ventilation_network.h"
 #include "utils/utils.h"
-#include "core/physical_constants.h"
+#include "../archenv/include/archenv.h"
 
 #include <algorithm>
 #include <iomanip>
 #include <limits>
 #include <sstream>
 #include <unordered_set>
+
+// =============================================================================
+// Fallbackループ用ユーティリティ関数
+// =============================================================================
 
 void PressureSolver::restoreFixedFlowEdges(
     Graph& graph,
@@ -57,6 +61,10 @@ std::map<std::string, std::string> PressureSolver::captureInterfaceOriginalTypes
     }
     return result;
 }
+
+// =============================================================================
+// Fallbackメインループ
+// =============================================================================
 
 std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
         const SimulationConstants& constants,
@@ -130,16 +138,15 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
         // 現状の圧力差（静水圧補正込み）を推定
         double p_s = currentPressures.count(sn.key) ? currentPressures.at(sn.key) : sn.current_p;
         double p_t = currentPressures.count(tn.key) ? currentPressures.at(tn.key) : tn.current_p;
-        double rho_s = calculateDensity(sn.current_t);
-        double rho_t = calculateDensity(tn.current_t);
-        double p_st = (p_s - rho_s * PhysicalConstants::GRAVITY * ep.h_from)
-                    - (p_t - rho_t * PhysicalConstants::GRAVITY * ep.h_to);
+        double p_s_total = calculateTotalPressure(p_s, sn.current_t, ep.h_from);
+        double p_t_total = calculateTotalPressure(p_t, tn.current_t, ep.h_to);
+        double p_st = p_s_total - p_t_total;
 
         // 統一近似導関数 dQ/dp をタイプごとに評価
-        double dp_abs = std::max(PhysicalConstants::TOLERANCE_SMALL, std::abs(p_st));
+        double dp_abs = std::max(archenv::TOLERANCE_SMALL, std::abs(p_st));
         double G = 0.0;
         if (ep.type == "simple_opening") {
-            double K = ep.alpha * ep.area * std::sqrt(2.0 / PhysicalConstants::RHO_AIR);
+            double K = ep.alpha * ep.area * std::sqrt(2.0 / archenv::DENSITY_DRY_AIR);
             G = 0.5 * K / std::sqrt(dp_abs);
         } else if (ep.type == "gap") {
             double n = (ep.n != 0.0) ? ep.n : 1.0;
@@ -780,7 +787,8 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
 
         bool ceresImproved = fbSummary2.final_cost < lastCostOuter * 0.995;
         bool netImproved   = currNetworkCostOuter < lastNetworkCostOuter * 0.995;
-        if (outer >= minOuter && !ceresImproved && !netImproved) {
+        // Ceresの方が改善している場合は継続、netのみで打ち切り判定
+        if (outer >= minOuter && ceresImproved && !netImproved) {
             double improve_pct_ceres = (lastCostOuter - fbSummary2.final_cost) / std::max(1e-300, lastCostOuter) * 100.0;
             double improve_pct_net   = (lastNetworkCostOuter - currNetworkCostOuter) / std::max(1e-300, lastNetworkCostOuter) * 100.0;
             std::ostringstream osC, osN;
@@ -788,7 +796,20 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
             osN.setf(std::ios::fixed);
             osC << std::setprecision(3) << improve_pct_ceres;
             osN << std::setprecision(3) << improve_pct_net;
-            fallbackLog(0, outerTag + " 改善僅少のため打ち切り (ceres=" + osC.str() +
+            fallbackLog(0, outerTag + " net改善なし打ち切り (ceres=" + osC.str() +
+                              "%, net=" + osN.str() + "%, 閾値=0.5%)");
+            break;
+        }
+        // Ceresも改善していない場合も打ち切り
+        if (outer >= minOuter && !ceresImproved) {
+            double improve_pct_ceres = (lastCostOuter - fbSummary2.final_cost) / std::max(1e-300, lastCostOuter) * 100.0;
+            double improve_pct_net   = (lastNetworkCostOuter - currNetworkCostOuter) / std::max(1e-300, lastNetworkCostOuter) * 100.0;
+            std::ostringstream osC, osN;
+            osC.setf(std::ios::fixed);
+            osN.setf(std::ios::fixed);
+            osC << std::setprecision(3) << improve_pct_ceres;
+            osN << std::setprecision(3) << improve_pct_net;
+            fallbackLog(0, outerTag + " ceres改善なし打ち切り (ceres=" + osC.str() +
                               "%, net=" + osN.str() + "%, 閾値=0.5%)");
             break;
         }

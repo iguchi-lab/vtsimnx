@@ -2,6 +2,7 @@
 #include "parser_utils.h"
 #include <set>
 #include <stdexcept>
+#include <string>
 
 using nlohmann::json;
 
@@ -23,6 +24,7 @@ std::vector<EdgeProperties> parseVentilationBranches(const json& config, std::os
     for (const auto& branchJson : config["ventilation_branches"]) {
         ++index;
         EdgeProperties branch{};
+        const std::string branchPrefix = "ventilation_branches[" + std::to_string(index-1) + "]";
 
         if (branchJson.contains("key") && !branchJson["key"].is_string())
             throw std::runtime_error("ventilation_branches[" + std::to_string(index-1) + "].key must be string");
@@ -76,21 +78,12 @@ std::vector<EdgeProperties> parseVentilationBranches(const json& config, std::os
 
         // 時系列（配列/単一両対応）
         if (branchJson.contains("vol")) {
-            const auto& vj = branchJson["vol"];
-            if (vj.is_array()) {
-                branch.vol.clear();
-                for (const auto& v : vj) {
-                    if (!v.is_number()) {
-                        throw std::runtime_error("ventilation_branches[" + std::to_string(index-1) + "].vol must be array<number>");
-                    }
-                    branch.vol.push_back(v.get<double>());
-                }
-                branch.current_vol = parser_utils::valueOrLast<double>(branch.vol, static_cast<size_t>(timestep), 0.0);
-            } else if (vj.is_number()) {
-                branch.current_vol = vj.get<double>();
-            } else {
-                throw std::runtime_error("ventilation_branches[" + std::to_string(index-1) + "].vol must be number or array<number>");
-            }
+            branch.current_vol = parser_utils::readScalarOrSeries<double>(
+                branchJson["vol"],
+                branch.vol,
+                static_cast<size_t>(timestep),
+                0.0,
+                branchPrefix + ".vol");
         }
         if (branchJson.contains("enable")) {
             const auto& ej = branchJson["enable"];
@@ -141,6 +134,7 @@ std::vector<EdgeProperties> parseThermalBranches(const json& config, std::ostrea
     for (const auto& branchJson : config["thermal_branches"]) {
         ++index;
         EdgeProperties branch{};
+        const std::string branchPrefix = "thermal_branches[" + std::to_string(index-1) + "]";
 
         if (branchJson.contains("key") && !branchJson["key"].is_string())
             throw std::runtime_error("thermal_branches[" + std::to_string(index-1) + "].key must be string");
@@ -184,22 +178,12 @@ std::vector<EdgeProperties> parseThermalBranches(const json& config, std::ostrea
 
         // 時系列（配列/単一両対応）
         if (branchJson.contains("heat_generation")) {
-            const auto& hg = branchJson["heat_generation"];
-            if (hg.is_array()) {
-                branch.heat_generation.clear();
-                for (const auto& v : hg) {
-                    if (!v.is_number()) {
-                        throw std::runtime_error("thermal_branches[" + std::to_string(index-1) + "].heat_generation must be array<number>");
-                    }
-                    branch.heat_generation.push_back(v.get<double>());
-                }
-                branch.current_heat_generation =
-                    parser_utils::valueOrLast<double>(branch.heat_generation, static_cast<size_t>(timestep), 0.0);
-            } else if (hg.is_number()) {
-                branch.current_heat_generation = hg.get<double>();
-            } else {
-                throw std::runtime_error("thermal_branches[" + std::to_string(index-1) + "].heat_generation must be number or array<number>");
-            }
+            branch.current_heat_generation = parser_utils::readScalarOrSeries<double>(
+                branchJson["heat_generation"],
+                branch.heat_generation,
+                static_cast<size_t>(timestep),
+                0.0,
+                branchPrefix + ".heat_generation");
         }
         if (branchJson.contains("enable")) {
             const auto& ej = branchJson["enable"];
