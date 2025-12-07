@@ -17,10 +17,16 @@ logger = get_logger(__name__)
 # ------------------------------
 # エントリポイント
 # ------------------------------
-def build_config(raw_config: Dict[str, Any], output_path: Optional[str] = "parsed_input_data.json") -> Dict[str, Any]:
+def build_config(
+    raw_config: Dict[str, Any],
+    output_path: Optional[str] = "parsed_input_data.json",
+    add_surface_solar: bool = True,
+    add_surface_radiation: bool = True,
+) -> Dict[str, Any]:
     """
     設定 raw_config を正規化・展開・検証して dict を返す。
     output_path を None にするとファイル出力しない。
+    add_surface_solar / add_surface_radiation で表面の日射・室内放射処理を個別に制御できる。
     """
     logger.info("設定データの読み込み開始")
     try:
@@ -32,7 +38,12 @@ def build_config(raw_config: Dict[str, Any], output_path: Optional[str] = "parse
         # 表面の処理
         if surface_config:
             sim_length = int(sim_config["index"]["length"])
-            add_nodes, add_tb = process_surfaces(surface_config, sim_length)
+            add_nodes, add_tb = process_surfaces(
+                surface_config,
+                sim_length,
+                add_solar=add_surface_solar,
+                add_radiation=add_surface_radiation,
+            )
             node_config.extend(add_nodes)
             thermal_config.extend(add_tb)
 

@@ -153,12 +153,17 @@ def process_radiation(node: str, surfaces: list) -> list:
     return thermal_branches
 
 
-def process_surfaces(surface_config: list, sim_length: int) -> tuple[list, list]:
+def process_surfaces(
+    surface_config: list,
+    sim_length: int,
+    add_solar: bool = True,
+    add_radiation: bool = True,
+) -> tuple[list, list]:
     """
     builder から呼び出す統合処理。
     - 各面の要素分割ノード/熱ブランチを生成
-    - 日射（壁/床/天井・ガラス）の熱ブランチを追加
-    - 室内放射の熱ブランチを追加
+    - 日射（壁/床/天井・ガラス）の熱ブランチを追加（add_solar が True の場合）
+    - 室内放射の熱ブランチを追加（add_radiation が True の場合）
     戻り値は (add_nodes, add_thermal_branches)。
     """
     if not surface_config:
@@ -178,20 +183,26 @@ def process_surfaces(surface_config: list, sim_length: int) -> tuple[list, list]
     logger.info("表面の解析が完了しました。")
 
     # 日射
-    logger.info("日射の解析を開始します。")
-    for s in (x for x in surface_data if "solar" in x):
-        if s["part"] in ["wall", "floor", "ceiling"]:
-            thermal_branches.extend(process_wall_solar(s, sim_length))
-        elif s["part"] == "glass":
-            thermal_branches.extend(process_glass_solar(s, surface_data, sim_length))
-    logger.info("日射の解析が完了しました。")
+    if add_solar:
+        logger.info("日射の解析を開始します。")
+        for s in (x for x in surface_data if "solar" in x):
+            if s["part"] in ["wall", "floor", "ceiling"]:
+                thermal_branches.extend(process_wall_solar(s, sim_length))
+            elif s["part"] == "glass":
+                thermal_branches.extend(process_glass_solar(s, surface_data, sim_length))
+        logger.info("日射の解析が完了しました。")
+    else:
+        logger.info("日射の解析をスキップします。")
 
     # 室内放射
-    logger.info("室内放射の解析を開始します。")
-    for node in {s["key"].split(CHAIN_DELIMITER)[0] for s in surface_data}:
-        surfaces = [s for s in surface_data if s["key"].startswith(node)]
-        thermal_branches.extend(process_radiation(node, surfaces))
-    logger.info("室内放射の解析が完了しました。")
+    if add_radiation:
+        logger.info("室内放射の解析を開始します。")
+        for node in {s["key"].split(CHAIN_DELIMITER)[0] for s in surface_data}:
+            surfaces = [s for s in surface_data if s["key"].startswith(node)]
+            thermal_branches.extend(process_radiation(node, surfaces))
+        logger.info("室内放射の解析が完了しました。")
+    else:
+        logger.info("室内放射の解析をスキップします。")
 
     return nodes, thermal_branches
 
