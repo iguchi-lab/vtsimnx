@@ -11,6 +11,7 @@ include_directories(${CMAKE_SOURCE_DIR}/nlohmann)
 include_directories(${CMAKE_SOURCE_DIR}/utils)
 include_directories(${CMAKE_SOURCE_DIR}/../archenv/include)
 include_directories(${CMAKE_SOURCE_DIR}/../archenv)
+include_directories(${CMAKE_SOURCE_DIR}/..)
 
 # ソースファイルの定義
 set(PARSER_SOURCES
@@ -37,14 +38,14 @@ set(AIRCON_SOURCES
 )
 
 set(ACMODEL_SOURCES
-    acmodel/acmodel.cpp
-    acmodel/aircon_constants.cpp
-    acmodel/aircon_spec.cpp
-    acmodel/refrigerant_calculator.cpp
-    acmodel/criepi_model.cpp
-    acmodel/rac_model.cpp
-    acmodel/duct_central_model.cpp
-    acmodel/latent_evaluate_model.cpp
+    ../acmodel/acmodel.cpp
+    ../acmodel/aircon_constants.cpp
+    ../acmodel/aircon_spec.cpp
+    ../acmodel/refrigerant_calculator.cpp
+    ../acmodel/criepi_model.cpp
+    ../acmodel/rac_model.cpp
+    ../acmodel/duct_central_model.cpp
+    ../acmodel/latent_evaluate_model.cpp
 )
 
 set(ARCHENV_SOURCES

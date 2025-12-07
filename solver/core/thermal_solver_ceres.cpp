@@ -5,8 +5,56 @@
 #include <algorithm>
 #include <iomanip>
 #include <sstream>
+#include <cctype>
+#include <thread>
 
 namespace ThermalSolverCeres {
+
+namespace {
+
+std::string sanitizeLogLabel(const std::string& logMessage) {
+    if (logMessage.empty()) return "ソルバー試行";
+    size_t start = logMessage.find_first_not_of("- \t");
+    std::string label = (start == std::string::npos) ? logMessage : logMessage.substr(start);
+    size_t dots = label.find("...");
+    if (dots != std::string::npos) {
+        label = label.substr(0, dots);
+    }
+    while (!label.empty() && std::isspace(static_cast<unsigned char>(label.back()))) {
+        label.pop_back();
+    }
+    if (label.empty()) {
+        return "ソルバー試行";
+    }
+    return label;
+}
+
+std::string formatSeconds(double seconds) {
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(3) << seconds;
+    return oss.str();
+}
+
+int detectThreadCount() {
+    unsigned int threads = std::thread::hardware_concurrency();
+    return threads == 0 ? 1 : static_cast<int>(threads);
+}
+
+void logSolverTiming(const std::string& startLog,
+                     const ceres::Solver::Summary& summary,
+                     std::ostream& logFile) {
+    std::string label = sanitizeLogLabel(startLog);
+    std::ostringstream oss;
+    oss << "--------" << label << " 所要時間: " << formatSeconds(summary.total_time_in_seconds) << "秒"
+        << " (前処理 " << formatSeconds(summary.preprocessor_time_in_seconds) << "秒"
+        << ", 残差評価 " << formatSeconds(summary.residual_evaluation_time_in_seconds) << "秒"
+        << ", ヤコビアン評価 " << formatSeconds(summary.jacobian_evaluation_time_in_seconds) << "秒"
+        << ", 線形ソルバー " << formatSeconds(summary.linear_solver_time_in_seconds) << "秒"
+        << ", 最適化 " << formatSeconds(summary.minimizer_time_in_seconds) << "秒)";
+    writeLog(logFile, oss.str());
+}
+
+} // namespace
 
 bool runThermalSolverTrial(const std::string& startLog,
                            const std::string& successLog,
@@ -21,6 +69,7 @@ bool runThermalSolverTrial(const std::string& startLog,
     ceres::Solver::Options options;
     configureOptions(options);
     ceres::Solve(options, &problem, &summary);
+    logSolverTiming(startLog.empty() ? successLog : startLog, summary, logFile);
     bool converged = (summary.termination_type == ceres::CONVERGENCE) &&
                      (summary.final_cost <= successTolerance);
     if (converged && !successLog.empty()) {
@@ -36,20 +85,41 @@ void runThermalSolvers(const SimulationConstants& constants,
     bool converged = false;
 
     converged = runThermalSolverTrial(
-        "--------①標準設定でソルバーを実行します...",
-        "--------標準設定で収束しました",
+        "--------①標準設定(SPARSE)でソルバーを実行します...",
+        "--------標準設定(SPARSE)で収束しました",
         problem,
         summary,
         constants.thermalTolerance,
         [&](ceres::Solver::Options& options) {
-            options.linear_solver_type = ceres::DENSE_QR;
+            options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
+            options.sparse_linear_algebra_library_type = ceres::SUITE_SPARSE;
             options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
             options.max_num_iterations = constants.maxInnerIteration;
             options.function_tolerance = constants.thermalTolerance;
             options.parameter_tolerance = constants.thermalTolerance;
             options.minimizer_progress_to_stdout = false;
+            int threads = detectThreadCount();
+            options.num_threads = threads;
         },
         logFile);
+
+    if (!converged) {
+        converged = runThermalSolverTrial(
+            "--------①標準設定(DENSE)でソルバーを再実行します...",
+            "--------標準設定(DENSE)で収束しました",
+            problem,
+            summary,
+            constants.thermalTolerance,
+            [&](ceres::Solver::Options& options) {
+                options.linear_solver_type = ceres::DENSE_QR;
+                options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
+                options.max_num_iterations = constants.maxInnerIteration;
+                options.function_tolerance = constants.thermalTolerance;
+                options.parameter_tolerance = constants.thermalTolerance;
+                options.minimizer_progress_to_stdout = false;
+            },
+            logFile);
+    }
 
     if (!converged) {
         converged = runThermalSolverTrial(

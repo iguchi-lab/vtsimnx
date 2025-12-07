@@ -1,12 +1,14 @@
 #include "network/thermal_network.h"
 #include "network/ventilation_network.h"
 #include "core/thermal_solver.h"
+#include "utils/utils.h"
 
 #include <iostream>
 #include <set>
 #include <stdexcept>
 #include <fstream>
 #include <unordered_map>
+#include <sstream>
 
 #include <boost/graph/adjacency_list.hpp>
 
@@ -56,7 +58,7 @@ void ThermalNetwork::buildFromData(const std::vector<VertexProperties>& allNodes
                                    std::ostream& logs) {
 
     if (simConstants.temperatureCalc) {
-        logs << "--熱回路網を作成中...\n";
+        writeLog(logs, "  熱回路網を作成中...");
         const int verbosity = (simConstants.logVerbosity > 0) ? simConstants.logVerbosity : 2;
         // 熱ブランチの両端ノードを収集
         std::set<std::string> allNodeKeys;
@@ -75,11 +77,13 @@ void ThermalNetwork::buildFromData(const std::vector<VertexProperties>& allNodes
             if (allNodeKeys.find(node.key) != allNodeKeys.end()) {
                 addNode(node);
                 if (verbosity >= 2) {
-                    logs << "---熱回路網にノードを追加: " << node.key << " (" << node.type << ") "
-                         << "calc_p:" << (node.calc_p ? "true" : "false") << " "
-                         << "calc_t:" << (node.calc_t ? "true" : "false") << " "
-                         << "calc_x:" << (node.calc_x ? "true" : "false") << " "
-                         << "calc_c:" << (node.calc_c ? "true" : "false") << "\n";
+                    std::ostringstream oss;
+                    oss << "    熱回路網にノードを追加: " << node.key << " (" << node.type << ") "
+                        << "calc_p:" << (node.calc_p ? "true" : "false") << " "
+                        << "calc_t:" << (node.calc_t ? "true" : "false") << " "
+                        << "calc_x:" << (node.calc_x ? "true" : "false") << " "
+                        << "calc_c:" << (node.calc_c ? "true" : "false");
+                    writeLog(logs, oss.str());
                 }
             }
         }
@@ -102,13 +106,19 @@ void ThermalNetwork::buildFromData(const std::vector<VertexProperties>& allNodes
             addEdge(advectionEdge);
         }
         if (!ventilationBranches.empty() && verbosity >= 2) {
-            logs << "---換気ブランチに対応する移流熱ブランチを " << ventilationBranches.size() << " 個作成しました\n";
+            std::ostringstream oss;
+            oss << "    換気ブランチに対応する移流熱ブランチを " << ventilationBranches.size() << " 個作成しました";
+            writeLog(logs, oss.str());
         }
     }
 
-    logs << "--熱回路網を作成しました: "
-         << getNodeCount() << "ノード, "
-         << getEdgeCount() << "ブランチ\n";
+    {
+        std::ostringstream oss;
+        oss << "  熱回路網を作成しました: "
+            << getNodeCount() << "ノード, "
+            << getEdgeCount() << "ブランチ";
+        writeLog(logs, oss.str());
+    }
 }
 
 // 換気回路網から風量を同期

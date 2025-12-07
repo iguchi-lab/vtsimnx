@@ -1,8 +1,10 @@
 #include "branches_parser.h"
 #include "parser_utils.h"
+#include "utils/utils.h"
 #include <set>
 #include <stdexcept>
 #include <string>
+#include <sstream>
 
 using nlohmann::json;
 
@@ -12,7 +14,7 @@ std::vector<EdgeProperties> parseVentilationBranches(const json& config, std::os
     std::vector<EdgeProperties> branches;
 
     if (!config.contains("ventilation_branches") || !config["ventilation_branches"].is_array()) {
-        logs << "--[WARN] ventilation_branches 配列が見つかりません。\n";
+        writeLog(logs, "  [WARN] ventilation_branches 配列が見つかりません。");
         return branches;
     }
 
@@ -109,12 +111,18 @@ std::vector<EdgeProperties> parseVentilationBranches(const json& config, std::os
         branches.push_back(std::move(branch));
 
         if (verbosity >= 2) {
-            logs << "---換気ブランチ: " << branches.back().key << " (タイプ: " << branches.back().type << ") ("
-                 << index << "/" << total << ")\n";
+            std::ostringstream oss;
+            oss << "    換気ブランチ: " << branches.back().key << " (タイプ: " << branches.back().type << ") ("
+                << index << "/" << total << ")";
+            writeLog(logs, oss.str());
         }
     }
 
-    logs << "--全ての換気ブランチを読み込みました: " << branches.size() << "個\n";
+    {
+        std::ostringstream oss;
+        oss << "  全ての換気ブランチを読み込みました: " << branches.size() << "個";
+        writeLog(logs, oss.str());
+    }
     return branches;
 }
 
@@ -122,7 +130,7 @@ std::vector<EdgeProperties> parseThermalBranches(const json& config, std::ostrea
     std::vector<EdgeProperties> branches;
 
     if (!config.contains("thermal_branches") || !config["thermal_branches"].is_array()) {
-        logs << "--[WARN] thermal_branches 配列が見つかりません。\n";
+        writeLog(logs, "  [WARN] thermal_branches 配列が見つかりません。");
         return branches;
     }
 
@@ -209,12 +217,18 @@ std::vector<EdgeProperties> parseThermalBranches(const json& config, std::ostrea
         branches.push_back(std::move(branch));
 
         if (verbosity >= 2) {
-            logs << "---熱ブランチ: " << branches.back().key << " (タイプ: " << branches.back().type << ") ("
-                 << index << "/" << total << ")\n";
+            std::ostringstream oss;
+            oss << "    熱ブランチ: " << branches.back().key << " (タイプ: " << branches.back().type << ") ("
+                << index << "/" << total << ")";
+            writeLog(logs, oss.str());
         }
     }
 
-    logs << "--全ての熱ブランチを読み込みました: " << branches.size() << "個\n";
+    {
+        std::ostringstream oss;
+        oss << "  全ての熱ブランチを読み込みました: " << branches.size() << "個";
+        writeLog(logs, oss.str());
+    }
     return branches;
 }
 

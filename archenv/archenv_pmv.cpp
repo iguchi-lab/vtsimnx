@@ -44,20 +44,32 @@ double calc_PMV(double met, double w, double clo, double t_a, double h_a, double
     // 着衣表面温度の反復計算
     double t_cl = t_a;          // 初期値
     double omega = PMV_OMEGA_DEFAULT;
-    double error = 1e12;
+    bool converged = false;
 
-    int iterations = 0;
-    while (std::abs(error) > PMV_TOLERANCE && iterations < PMV_MAX_ITERATIONS) {
-        // 対流熱伝達率
-        double h_c = std::max(2.38 * std::pow(std::abs(t_cl - t_a), 0.25), 
-                              12.1 * std::sqrt(v_a));
-        
-        // 新しい着衣表面温度
-        double new_t_cl = 35.7 - 0.028 * (M - w) - I_cl * internal::calc_RC(f_cl, h_c, t_cl, t_a, t_r);
-        
-        error = new_t_cl - t_cl;
-        t_cl = t_cl + error * omega;
-        iterations++;
+    for (int iteration = 0; iteration < PMV_MAX_ITERATIONS; ++iteration) {
+        double h_c_iter = std::max(2.38 * std::pow(std::abs(t_cl - t_a), 0.25),
+                                   12.1 * std::sqrt(v_a));
+
+        double new_t_cl = 35.7 - 0.028 * (M - w) - I_cl * internal::calc_RC(f_cl, h_c_iter, t_cl, t_a, t_r);
+        double delta = new_t_cl - t_cl;
+
+        if (std::abs(delta) <= PMV_TOLERANCE) {
+            t_cl = new_t_cl;
+            converged = true;
+            break;
+        }
+
+        if (std::abs(delta) > 5.0) {
+            omega = std::max(omega * 0.5, 0.1);
+        } else if (std::abs(delta) < 1.0) {
+            omega = std::min(omega * 1.1, 1.0);
+        }
+
+        t_cl += delta * omega;
+    }
+
+    if (!converged) {
+        t_cl = std::clamp(t_cl, -50.0, 100.0);
     }
 
     // 最終的な対流熱伝達率

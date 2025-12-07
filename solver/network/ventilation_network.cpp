@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <stdexcept>
 #include <fstream>
+#include <sstream>
 
 #include <boost/graph/adjacency_list.hpp>
 
@@ -67,7 +68,7 @@ void VentilationNetwork::buildFromData(const std::vector<VertexProperties>& allN
                                        std::ostream& logs) {
 
     if (simConstants.pressureCalc) {
-        logs << "--換気回路網を作成中...\n";
+        writeLog(logs, "  換気回路網を作成中...");
         const int verbosity = (simConstants.logVerbosity > 0) ? simConstants.logVerbosity : 2;
         // 換気ブランチ両端のノードを収集
         std::set<std::string> allNodeKeys;
@@ -81,11 +82,13 @@ void VentilationNetwork::buildFromData(const std::vector<VertexProperties>& allN
             if (allNodeKeys.find(node.key) != allNodeKeys.end()) {
                 addNode(node);
                 if (verbosity >= 2) {
-                    logs << "---換気回路網にノードを追加: " << node.key << " (" << node.type << ") "
-                         << "calc_p:" << (node.calc_p ? "true" : "false") << " "
-                         << "calc_t:" << (node.calc_t ? "true" : "false") << " "
-                         << "calc_x:" << (node.calc_x ? "true" : "false") << " "
-                         << "calc_c:" << (node.calc_c ? "true" : "false") << "\n";
+                    std::ostringstream oss;
+                    oss << "    換気回路網にノードを追加: " << node.key << " (" << node.type << ") "
+                        << "calc_p:" << (node.calc_p ? "true" : "false") << " "
+                        << "calc_t:" << (node.calc_t ? "true" : "false") << " "
+                        << "calc_x:" << (node.calc_x ? "true" : "false") << " "
+                        << "calc_c:" << (node.calc_c ? "true" : "false");
+                    writeLog(logs, oss.str());
                 }
             }
         }
@@ -96,9 +99,13 @@ void VentilationNetwork::buildFromData(const std::vector<VertexProperties>& allN
         }
     }
 
-    logs << "--換気回路網を作成しました: "
-         << getNodeCount() << "ノード, "
-         << getEdgeCount() << "ブランチ\n";
+    {
+        std::ostringstream oss;
+        oss << "  換気回路網を作成しました: "
+            << getNodeCount() << "ノード, "
+            << getEdgeCount() << "ブランチ";
+        writeLog(logs, oss.str());
+    }
 }
 
 // ノード圧力更新

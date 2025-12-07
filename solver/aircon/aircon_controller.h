@@ -8,9 +8,9 @@
 #include <memory>
 #include <map>
 #include <stdexcept>
+#include <sstream>
 
-// acmodel への依存は前方宣言で最小化（外部環境が未整備でもビルド可能にする）
-namespace acmodel { class AirconSpec; }
+#include "acmodel/acmodel.h"
 
 // 前方宣言
 class ThermalNetwork;
@@ -41,11 +41,15 @@ struct AirconValidationData {
 class AirconController {
 private:
     // エアコンモデルを保存するマップ (エアコンキー -> acmodelインスタンス)
-#ifdef AC_MODEL_AVAILABLE
     std::unordered_map<std::string, std::unique_ptr<acmodel::AirconSpec>> airconModels;
-#else
-    std::unordered_map<std::string, void*> airconModels;
-#endif
+    int logVerbosity_ = 1;
+
+    struct RuntimeContext {
+        AirconValidationData validData;
+        double heatCapacity = 0.0;
+        double airFlowRate = 0.0;
+        std::string operationMode;
+    };
 
     /**
      * @brief エアコンの基本データをバリデーションして取得する
@@ -55,10 +59,16 @@ private:
                                             const VertexProperties& nodeProps,
                                             const TemperatureMap& temperatureMap) const;
 
+    RuntimeContext prepareRuntimeContext(const std::string& airconKey,
+                                         const VertexProperties& nodeProps,
+                                         const FlowRateMap& flowRates,
+                                         const TemperatureMap& temperatureMap) const;
+
 public:
     // === モデル管理 ===
-    void initializeModels(ThermalNetwork& thermalNetwork, std::ostream& logs);
+    void initializeModels(ThermalNetwork& thermalNetwork, std::ostream& logs, int logVerbosity);
     acmodel::AirconSpec* getModel(const std::string& airconKey) const;
+    ~AirconController();
 
     // === 計算関数 ===
     double calculateHeatCapacity(const std::string& inNode, const std::string& airconNode,
@@ -70,9 +80,12 @@ public:
     AirconControlResult controlAircon(const NodeType& nodeProps, double currentTemp,
                                       double targetTemp, double tolerance, [[maybe_unused]] std::ostream& logs) const {
         AirconControlResult result{false, nodeProps.on, ""};
+        const std::string targetName = nodeProps.set_node.empty() ? nodeProps.key : nodeProps.set_node;
         if (nodeProps.current_mode == "OFF") {
-            result.logMessage = std::string("　エアコンOFF: ") + nodeProps.set_node + " ON/OFF=" + (nodeProps.on ? "ON" : "OFF") +
-                                ", set_node.current_t=" + std::to_string(currentTemp) + "°C, aircon.pre_temp=" + std::to_string(targetTemp) + "°C";
+            std::ostringstream oss;
+            oss << "　" << targetName << " エアコン: モードOFFのため制御対象外"
+                << " (現在 " << currentTemp << "°C, 目標 " << targetTemp << "°C)";
+            result.logMessage = oss.str();
             return result;
         }
         bool shouldBeOn = false;
@@ -88,13 +101,19 @@ public:
         if (shouldBeOn != nodeProps.on) {
             result.stateChanged = true;
             result.on = shouldBeOn;
-            result.logMessage = std::string("　エアコン") + (nodeProps.on ? "ON->OFF" : "OFF->ON") + ": " + nodeProps.set_node +
-                                " ON/OFF=" + (result.on ? "ON" : "OFF") + ", set_node.current_t=" + std::to_string(currentTemp) +
-                                "°C, aircon.pre_temp=" + std::to_string(targetTemp) + "°C";
+            const char* transition = nodeProps.on ? "ON→OFF" : "OFF→ON";
+            const char* action = result.on ? "起動" : "停止";
+            std::ostringstream oss;
+            oss << "　" << targetName << " エアコン " << transition << " (" << action << ")"
+                << " : 現在 " << currentTemp << "°C"
+                << ", 目標 " << targetTemp << "°C";
+            result.logMessage = oss.str();
         } else {
-            result.logMessage = std::string("　エアコン制御") + (shouldBeOn ? "完了" : "不要") + ": " + nodeProps.set_node +
-                                " ON/OFF=" + (nodeProps.on ? "ON" : "OFF") + ", set_node.current_t=" + std::to_string(currentTemp) +
-                                "°C, aircon.pre_temp=" + std::to_string(targetTemp) + "°C";
+            std::ostringstream oss;
+            oss << "　" << targetName << " エアコン: "
+                << (shouldBeOn ? "運転継続" : "停止維持")
+                << " (現在 " << currentTemp << "°C, 目標 " << targetTemp << "°C)";
+            result.logMessage = oss.str();
         }
         return result;
     }

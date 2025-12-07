@@ -8,6 +8,7 @@
 using json = nlohmann::json;
 
 #include "vtsim_solver.h"
+#include "vtsimnx_solver_timing.h"
 #include "parser/sim_constants_parser.h"
 #include "parser/nodes_parser.h"
 #include "parser/branches_parser.h"
@@ -15,6 +16,7 @@ using json = nlohmann::json;
 #include "network/thermal_network.h"
 #include "aircon/aircon_controller.h"
 #include "simulation_runner.h"
+#include "utils/utils.h"
 
 // ヘルパー: ファイル全体を読み込む（失敗時は false, err に理由）
 static bool readFileToString(const char* path, std::string& out, std::string& err) {
@@ -142,59 +144,74 @@ static bool loadInputData(const char* inputPath, InputData& inputData, std::stri
 static bool runSimulationLoop(const InputData& inputData,
                               std::ofstream& logFile,
                               std::ofstream& resultsFile,
-                              std::string& err) {
+                              std::string& err,
+                              TimingList& timings) {
     try {
+        ScopedTimer loopTimer(timings, "runSimulationLoop");
         // 設定ファイルを解析（ログも蓄積）
         SimulationConstants simConstants;
-        simConstants = parseSimulationConstants(inputData.inputJson, logFile);
-        
+        {
+            ScopedTimer timer(timings, "parse_simulation_constants");
+            simConstants = parseSimulationConstants(inputData.inputJson, logFile);
+        }
         // lengthがタイムステップの回数、timestepが1タイムステップの秒数
-        logFile << "タイムステップループ開始: length=" << simConstants.length << ", timestep=" << simConstants.timestep << "秒\n";
-        logFile.flush();
+        writeLog(logFile, "タイムステップループ開始: length=" +
+                              std::to_string(simConstants.length) +
+                              ", timestep=" + std::to_string(simConstants.timestep) + "秒");
         
         // 最適化: ネットワークをループ外で一度だけ作成
         // 最初のタイムステップで全データを読み込んでトポロジーを構築
-        logFile << "--初期化: 全データを読み込み、ネットワークトポロジーを構築中...\n";
-        logFile.flush();
-        
-        // 最初のタイムステップ（timestepIndex=0）で全データを読み込む
-        // 時系列データも含めて一度だけ読み込む
         std::vector<VertexProperties> allNodes;
         std::vector<EdgeProperties>   allVentilationBranches;
         std::vector<EdgeProperties>   allThermalBranches;
-
-        allNodes               = parseNodes(inputData.inputJson, logFile, 0);
-        allVentilationBranches = parseVentilationBranches(inputData.inputJson, logFile, 0);
-        allThermalBranches     = parseThermalBranches(inputData.inputJson, logFile, 0);
-        
-        // ネットワークを一度だけ構築（トポロジーのみ）
         VentilationNetwork ventNetwork;
         ThermalNetwork     thermalNetwork;
+        AirconController   airconController;
 
-        ventNetwork.buildFromData(allNodes, allVentilationBranches, simConstants, logFile);
-        thermalNetwork.buildFromData(allNodes, allThermalBranches, allVentilationBranches, simConstants, logFile);
-        
-        // エアコンコントローラーを一度だけ作成・初期化
-        AirconController airconController;
-        if (simConstants.temperatureCalc) {
-            airconController.initializeModels(thermalNetwork, logFile);
+        {
+            ScopedLogSection initScope(logFile, "初期化: ネットワークトポロジー構築中...");
+            writeLog(logFile, " トポロジ構築中...");
+
+            {
+                ScopedTimer timer(timings, "initial_data_parse");
+                allNodes               = parseNodes(inputData.inputJson, logFile, 0);
+                allVentilationBranches = parseVentilationBranches(inputData.inputJson, logFile, 0);
+                allThermalBranches     = parseThermalBranches(inputData.inputJson, logFile, 0);
+            }
+            
+            {
+                ScopedTimer timer(timings, "build_networks");
+                ventNetwork.buildFromData(allNodes, allVentilationBranches, simConstants, logFile);
+                thermalNetwork.buildFromData(allNodes, allThermalBranches, allVentilationBranches, simConstants, logFile);
+            }
+            
+            if (simConstants.temperatureCalc) {
+                airconController.initializeModels(thermalNetwork, logFile, simConstants.logVerbosity);
+            }
+            
+            writeLog(logFile, "初期化完了: ネットワークトポロジー構築済み");
         }
-        
-        logFile << "--初期化完了: ネットワークトポロジー構築済み\n";
-        logFile.flush();
         
         // 前のタイムステップの温度を保存（熱容量ノード用）
         TemperatureMap previousTimestepTemperatures;
         
         // タイムステップループ: 各ステップでプロパティのみ更新
         for (long timestepIndex = 0; timestepIndex < simConstants.length; timestepIndex++) {  //タイムステップループ
-            logFile << "-タイムステップ " << timestepIndex + 1<< " を実行中...\n";
-            logFile.flush();
-            
+            std::ostringstream stepMeta;
+            stepMeta << "timestep=" << (timestepIndex + 1);
+            ScopedTimer timestepTimer(timings, "timestep", stepMeta.str());
+            setLogTimestepMeta(logFile, static_cast<int>(timestepIndex + 1));
+            ScopedLogSection timestepScope(
+                logFile,
+                "タイムステップ " + std::to_string(timestepIndex + 1) + " を実行中...",
+                true);
+
             // 最適化: タイムステップごとに全データを再読み込みする代わりに、
             // 既に読み込んだ全データから、Graph内のプロパティのみを更新
             // ただし、最初のタイムステップでは既に読み込んでいるので、再度読み込む必要はない
             if (timestepIndex > 0) {
+                writeLog(logFile, " トポロジ構築中...");
+                ScopedTimer timer(timings, "parse_timestep_data", stepMeta.str());
                 // 2回目以降のタイムステップでは、全データを再読み込んで時系列データを更新
                 // （JSONから読み込む必要があるため、パーサー関数を使用）
                 allNodes               = parseNodes(inputData.inputJson, logFile, timestepIndex);
@@ -220,22 +237,27 @@ static bool runSimulationLoop(const InputData& inputData,
                             nodeData.current_t = prevTempIt->second;
                             capacityNodeCount++;
                             if (simConstants.logVerbosity >= 2) {
-                                logFile << "---熱容量ノード " << nodeData.key 
-                                       << " の初期温度を親ノード " << nodeData.ref_node 
-                                       << " の前温度 " << prevTempIt->second << "℃ に設定\n";
+                                writeLog(
+                                    logFile,
+                                    "熱容量ノード " + nodeData.key +
+                                        " の初期温度を親ノード " + nodeData.ref_node +
+                                        " の前温度 " + std::to_string(prevTempIt->second) + "℃ に設定");
                             }
                         }
                     }
                 }
                 if (capacityNodeCount > 0 && simConstants.logVerbosity >= 1) {
-                    logFile << "--熱容量ノード温度を更新しました: " << capacityNodeCount << "個\n";
+                    writeLog(
+                        logFile,
+                        "熱容量ノード温度を更新しました: " + std::to_string(capacityNodeCount) + "個");
                 }
             }
 
             // シミュレーション実行
             SimulationResults results;
             if (simConstants.pressureCalc || simConstants.temperatureCalc) {
-                runSimulation(ventNetwork, thermalNetwork, airconController, simConstants, results, logFile);
+                ScopedTimer timer(timings, "runSimulation", stepMeta.str());
+                runSimulation(ventNetwork, thermalNetwork, airconController, simConstants, results, logFile, timings, stepMeta.str());
             }
             
             // 次のタイムステップのために、現在のタイムステップの温度を保存
@@ -244,21 +266,23 @@ static bool runSimulationLoop(const InputData& inputData,
             }
             
             // タイムステップごとに結果をJSON Lines形式でファイルに書き込む
-            for (const auto& timestepResult : results.timestepHistory) {
-                json timestepJson = timestepResultToJson(timestepResult);
-                resultsFile << timestepJson.dump() << "\n";
-                resultsFile.flush(); // 即座にファイルに書き込む
+            {
+                ScopedTimer timer(timings, "write_timestep_results", stepMeta.str());
+                for (const auto& timestepResult : results.timestepHistory) {
+                    json timestepJson = timestepResultToJson(timestepResult);
+                    resultsFile << timestepJson.dump() << "\n";
+                    resultsFile.flush(); // 即座にファイルに書き込む
+                }
             }
         }
         
-        logFile << "タイムステップループ終了\n";
-        logFile.flush();
+        clearLogTimestepMeta(logFile);
+        writeLog(logFile, "タイムステップループ終了");
         
         return true;
     } catch (const std::exception& e) {
         err = std::string("シミュレーション実行中にエラーが発生しました: ") + e.what();
-        logFile << "[ERROR] " << err << "\n";
-        logFile.flush();
+        writeLog(logFile, "[ERROR] " + err);
         return false;
     }
 }
@@ -268,6 +292,7 @@ static bool writeOutputData(const char* outputPath,
                             const std::string& logPath,
                             const std::string& resultsPath,
                             const std::string& inputContent,
+                            const TimingList& timings,
                             std::string& err) {
     // ログファイルの内容を読み込む
     std::string logContent;
@@ -290,6 +315,19 @@ static bool writeOutputData(const char* outputPath,
     out["input_length"] = inputContent.size();
     out["logs"] = logContent;
     out["results"] = resultsArray;
+    if (!timings.empty()) {
+        json timingArray = json::array();
+        for (const auto& entry : timings) {
+            json t;
+            t["name"] = entry.name;
+            t["duration_ms"] = entry.durationMs;
+            if (!entry.metadata.empty()) {
+                t["meta"] = entry.metadata;
+            }
+            timingArray.push_back(t);
+        }
+        out["timings"] = timingArray;
+    }
 
     if (!writeJsonToFile(outputPath, out, err)) {
         return false;
@@ -304,6 +342,7 @@ static bool writeErrorOutput(const char* outputPath,
                              const std::string& resultsPath,
                              const std::string& inputContent,
                              const std::string& errorMessage,
+                             const TimingList& timings,
                              std::string& err) {
     // ログファイルの内容を読み込む
     std::string logContent;
@@ -319,6 +358,19 @@ static bool writeErrorOutput(const char* outputPath,
         {"input_length", inputContent.size()},
         {"logs", logContent},
     };
+    if (!timings.empty()) {
+        json timingArray = json::array();
+        for (const auto& entry : timings) {
+            json t;
+            t["name"] = entry.name;
+            t["duration_ms"] = entry.durationMs;
+            if (!entry.metadata.empty()) {
+                t["meta"] = entry.metadata;
+            }
+            timingArray.push_back(t);
+        }
+        out["timings"] = timingArray;
+    }
     
     if (!writeJsonToFile(outputPath, out, err)) {
         return false;
@@ -376,20 +428,29 @@ int main(int argc, char* argv[])
     // ファイル入力処理
     InputData inputData;
     std::string err;
-    if (!loadInputData(inputPath, inputData, err)) {
+    TimingList timings;
+    auto loadStart = std::chrono::steady_clock::now();
+    bool loadOk = loadInputData(inputPath, inputData, err);
+    auto loadEnd = std::chrono::steady_clock::now();
+    double loadMs = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(loadEnd - loadStart).count();
+    timings.push_back({"load_input", loadMs, ""});
+    if (!loadOk) {
         std::cerr << err << "\n";
         logFile.close();
         resultsFile.close();
         std::string writeErr;
-        writeErrorOutput(outputPath, logPath, resultsPath, "", err, writeErr);
+        writeErrorOutput(outputPath, logPath, resultsPath, "", err, timings, writeErr);
         return 1;
     }
     
-    logFile << "入力JSONを読み込みました。\n";
-    logFile.flush(); // 即座にファイルに書き込む
+    writeLog(logFile, "入力JSONを読み込みました。");
 
     // シミュレーション実行
-    bool simulationSuccess = runSimulationLoop(inputData, logFile, resultsFile, err);
+    auto simStart = std::chrono::steady_clock::now();
+    bool simulationSuccess = runSimulationLoop(inputData, logFile, resultsFile, err, timings);
+    auto simEnd = std::chrono::steady_clock::now();
+    double simMs = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(simEnd - simStart).count();
+    timings.push_back({"simulation_total", simMs, ""});
     
     // ファイルを閉じる
     resultsFile.close();
@@ -398,14 +459,14 @@ int main(int argc, char* argv[])
     // ファイル出力処理
     if (simulationSuccess) {
         // 成功時: ログと結果を読み込んで出力JSONを構築
-        if (!writeOutputData(outputPath, logPath, resultsPath, inputData.inputContent, err)) {
+        if (!writeOutputData(outputPath, logPath, resultsPath, inputData.inputContent, timings, err)) {
             std::cerr << err << "\n";
             return 1;
         }
     } else {
         // 失敗時: エラー情報を出力JSONに書き込む
         std::string writeErr;
-        if (!writeErrorOutput(outputPath, logPath, resultsPath, inputData.inputContent, err, writeErr)) {
+        if (!writeErrorOutput(outputPath, logPath, resultsPath, inputData.inputContent, err, timings, writeErr)) {
             std::cerr << writeErr << "\n";
             return 1;
         }

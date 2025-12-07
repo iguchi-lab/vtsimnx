@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vtsim_solver.h"
+#include "vtsimnx_solver_timing.h"
 
 #include <tuple>
 #include <ostream>
@@ -22,7 +23,9 @@ performCoupledCalculation(VentilationNetwork& ventNetwork,
                           ThermalNetwork& thermalNetwork,
                           const SimulationConstants& constants,
                           std::ostream& logs,
-                          int& totalIterations);
+                          int& totalIterations,
+                          TimingList& timings,
+                          const std::string& meta);
 
 // シミュレーションのタイムステップループを実行
 void runSimulation(VentilationNetwork& ventNetwork,
@@ -30,6 +33,8 @@ void runSimulation(VentilationNetwork& ventNetwork,
                    AirconController& airconController,
                    const SimulationConstants& constants,
                    SimulationResults& results,
-                   std::ostream& logs);
+                   std::ostream& logs,
+                   TimingList& timings,
+                   const std::string& meta);
 
 

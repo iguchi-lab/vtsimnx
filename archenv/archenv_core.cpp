@@ -97,7 +97,14 @@ double vapor_pressure_wet_bulb(double t_w, double t_d, double pressure) {
 
 double absolute_humidity_from_vapor_pressure(double vapor_pressure) {
     // x = 0.622 * e / (P - e)
-    return 0.622 * vapor_pressure / (STANDARD_ATMOSPHERIC_PRESSURE - vapor_pressure);
+    const double capped_vp = std::clamp(
+        vapor_pressure,
+        0.0,
+        STANDARD_ATMOSPHERIC_PRESSURE - TOLERANCE_MEDIUM);
+    const double denominator = std::max(
+        STANDARD_ATMOSPHERIC_PRESSURE - capped_vp,
+        TOLERANCE_SMALL);
+    return 0.622 * capped_vp / denominator;
 }
 
 double absolute_humidity(double temp_c, double humidity) {

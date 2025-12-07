@@ -73,10 +73,14 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
     auto& nodeNames = setup.nodeNames;
     auto& pressures = setup.pressures;
 
+    ScopedLogSection fallbackScope(logFile_, "圧力計算フォールバック");
     auto fallbackLog = [&](int indent, const std::string& message) {
-        constexpr int baseHyphen = 5;
-        int count = baseHyphen + (indent > 0 ? indent : 0);
-        writeLog(logFile_, std::string(static_cast<size_t>(count), '-') + message);
+        if (indent > 0) {
+            ScopedLogIndent indentGuard(logFile_, indent);
+            writeLog(logFile_, message);
+        } else {
+            writeLog(logFile_, message);
+        }
     };
     auto formatScientific = [](double value) {
         std::ostringstream os;

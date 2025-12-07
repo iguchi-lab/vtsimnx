@@ -1,9 +1,13 @@
 #include "include/archenv.h"
+#include <algorithm>
 #include <cmath>
 
 namespace archenv {
 
-double calc_fungal_index(double h, double t) {
+double calc_fungal_index(double relative_humidity_percent, double t) {
+    // 湿度[%] → 0-1に正規化
+    double h = std::clamp(relative_humidity_percent / 100.0, 0.0, 1.0);
+
     // Python版と同じパラメータ
     const double a = -0.3;
     const double b = 0.685;

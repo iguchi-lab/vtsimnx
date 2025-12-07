@@ -1,7 +1,9 @@
 #include "nodes_parser.h"
 #include "parser_utils.h"
+#include "utils/utils.h"
 #include <stdexcept>
 #include <string>
+#include <sstream>
 
 using nlohmann::json;
 
@@ -11,7 +13,7 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
     std::vector<VertexProperties> nodes;
 
     if (!config.contains("nodes") || !config["nodes"].is_array()) {
-        logs << "--[WARN] nodes 配列が見つかりません。\n";
+        writeLog(logs, "  [WARN] nodes 配列が見つかりません。");
         return nodes;
     }
 
@@ -135,15 +137,21 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
 
         nodes.push_back(std::move(node));
         if (verbosity >= 2) {
-            logs << "---ノード: "
-                 << index << "/" << total << ": "
-                 << nodes.back().key << ", "
-                 << nodes.back().name << ", "
-                 << nodes.back().type << ", "
-                 << nodes.back().subtype << "\n";
+            std::ostringstream oss;
+            oss << "    ノード: "
+                << index << "/" << total << ": "
+                << nodes.back().key << ", "
+                << nodes.back().name << ", "
+                << nodes.back().type << ", "
+                << nodes.back().subtype;
+            writeLog(logs, oss.str());
         }
     }
 
-    logs << "--全てのノードデータを読み込みました: " << nodes.size() << "個\n";
+    {
+        std::ostringstream oss;
+        oss << "  全てのノードデータを読み込みました: " << nodes.size() << "個";
+        writeLog(logs, oss.str());
+    }
     return nodes;
 }

@@ -111,7 +111,7 @@ double calc_PPD(double met, double w, double clo, double t_a, double h_a, double
 // 真菌指数計算関数
 // ====================================================================
 
-double calc_fungal_index(double h, double t);
+double calc_fungal_index(double relative_humidity_percent, double t);
 
 // ====================================================================
 // JIS規格条件
