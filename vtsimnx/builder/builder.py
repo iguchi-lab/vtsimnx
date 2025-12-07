@@ -20,12 +20,16 @@ logger = get_logger(__name__)
 def build_config(
     raw_config: Dict[str, Any],
     output_path: Optional[str] = "parsed_input_data.json",
+    add_surface: bool = True,
+    add_aircon: bool = True,
+    add_capacity: bool = True,
     add_surface_solar: bool = True,
     add_surface_radiation: bool = True,
 ) -> Dict[str, Any]:
     """
     設定 raw_config を正規化・展開・検証して dict を返す。
     output_path を None にするとファイル出力しない。
+    add_surface / add_aircon / add_capacity で各処理の有無を制御できる。
     add_surface_solar / add_surface_radiation で表面の日射・室内放射処理を個別に制御できる。
     """
     logger.info("設定データの読み込み開始")
@@ -36,7 +40,7 @@ def build_config(
         sim_config, node_config, ventilation_config, thermal_config, surface_config, aircon_config = parse_all(raw)
 
         # 表面の処理
-        if surface_config:
+        if surface_config and add_surface:
             sim_length = int(sim_config["index"]["length"])
             add_nodes, add_tb = process_surfaces(
                 surface_config,
@@ -46,17 +50,24 @@ def build_config(
             )
             node_config.extend(add_nodes)
             thermal_config.extend(add_tb)
+        elif surface_config:
+            logger.info("表面の処理をスキップします。")
 
         # 空調の処理
-        if aircon_config:
+        if aircon_config and add_aircon:
             add_nodes, add_ventilation_branches = process_aircons(aircon_config)
             node_config.extend(add_nodes)
             ventilation_config.extend(add_ventilation_branches)
+        elif aircon_config:
+            logger.info("空調の処理をスキップします。")
         
         # 熱容量の処理
-        add_nodes, add_thermal_branches = process_capacities(node_config, sim_config["index"]["timestep"])
-        node_config.extend(add_nodes)
-        thermal_config.extend(add_thermal_branches)
+        if add_capacity:
+            add_nodes, add_thermal_branches = process_capacities(node_config, sim_config["index"]["timestep"])
+            node_config.extend(add_nodes)
+            thermal_config.extend(add_thermal_branches)
+        else:
+            logger.info("熱容量の処理をスキップします。")
 
         # 計算フラグの自動設定
         logger.info("計算フラグの自動設定を開始します")
