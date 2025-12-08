@@ -69,6 +69,8 @@ private:
                         ceres::Solver::Summary& summary,
                         double successTolerance,
                         const std::function<void(ceres::Solver::Options&)>& configureOptions);
+    void logCeresTiming(const std::string& label,
+                        const ceres::Solver::Summary& summary);
     void restoreFixedFlowEdges(Graph& graph,
                                std::vector<std::string>& changedEdgeIds,
                                const std::map<std::string, std::string>& interfaceOriginalTypeById);

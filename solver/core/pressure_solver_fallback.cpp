@@ -360,6 +360,7 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
                 fallbackLog(3, "[A] 調整済み許容誤差=" + std::to_string(customTol));
             }
             ceres::Solve(options, &problemFB, &fbSummary);
+            logCeresTiming(label, fbSummary);
             fbOKA = (fbSummary.termination_type == ceres::CONVERGENCE) &&
                     (fbSummary.final_cost <= constants.ventilationTolerance);
             if (fbOKA) {
@@ -434,6 +435,7 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
             o1.jacobi_scaling = true;
             o1.minimizer_progress_to_stdout = false;
             ceres::Solve(o1, &problemFB, &fbSummary);
+            logCeresTiming("[A-⑤] 段階1", fbSummary);
             {
                 std::ostringstream os;
                 os << std::scientific << std::setprecision(6) << fbSummary.final_cost;
@@ -450,6 +452,7 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
             o2.use_inner_iterations = true;
             o2.minimizer_progress_to_stdout = false;
             ceres::Solve(o2, &problemFB, &fbSummary);
+            logCeresTiming("[A-⑤] 段階2", fbSummary);
             fbOKA = (fbSummary.termination_type == ceres::CONVERGENCE) &&
                     (fbSummary.final_cost <= constants.ventilationTolerance);
             if (fbOKA) {
@@ -490,6 +493,7 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
             o.min_trust_region_radius = 1e-8;
             fallbackLog(3, "[A-⑦] 調整済み許容誤差=" + std::to_string(o.function_tolerance));
             ceres::Solve(o, &problemFB, &fbSummary);
+            logCeresTiming("[A-⑦] 超精密設定", fbSummary);
             fbOKA = (fbSummary.termination_type == ceres::CONVERGENCE) &&
                     (fbSummary.final_cost <= constants.ventilationTolerance);
             if (fbOKA) {

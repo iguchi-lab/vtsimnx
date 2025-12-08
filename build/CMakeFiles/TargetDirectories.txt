@@ -1,3 +1,0 @@
-/home/ubuntu/vtsimnx-api/build/CMakeFiles/vtsimnx_solver.dir
-/home/ubuntu/vtsimnx-api/build/CMakeFiles/edit_cache.dir
-/home/ubuntu/vtsimnx-api/build/CMakeFiles/rebuild_cache.dir

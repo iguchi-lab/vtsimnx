@@ -3,8 +3,49 @@
 #include "utils/utils.h"
 
 #include <algorithm>
+#include <cctype>
 #include <iomanip>
 #include <sstream>
+
+namespace {
+
+std::string sanitizeLogLabel(const std::string& logMessage) {
+    if (logMessage.empty()) return "ソルバー試行";
+    size_t start = logMessage.find_first_not_of("- \t");
+    std::string label = (start == std::string::npos) ? logMessage : logMessage.substr(start);
+    size_t dots = label.find("...");
+    if (dots != std::string::npos) {
+        label = label.substr(0, dots);
+    }
+    while (!label.empty() && std::isspace(static_cast<unsigned char>(label.back()))) {
+        label.pop_back();
+    }
+    if (label.empty()) {
+        return "ソルバー試行";
+    }
+    return label;
+}
+
+std::string formatSeconds(double seconds) {
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(3) << seconds;
+    return oss.str();
+}
+
+} // namespace
+
+void PressureSolver::logCeresTiming(const std::string& label,
+                                    const ceres::Solver::Summary& summary) {
+    std::string sanitized = sanitizeLogLabel(label);
+    std::ostringstream oss;
+    oss << "--------" << sanitized << " 所要時間: " << formatSeconds(summary.total_time_in_seconds) << "秒"
+        << " (前処理 " << formatSeconds(summary.preprocessor_time_in_seconds) << "秒"
+        << ", 残差評価 " << formatSeconds(summary.residual_evaluation_time_in_seconds) << "秒"
+        << ", ヤコビアン評価 " << formatSeconds(summary.jacobian_evaluation_time_in_seconds) << "秒"
+        << ", 線形ソルバー " << formatSeconds(summary.linear_solver_time_in_seconds) << "秒"
+        << ", 最適化 " << formatSeconds(summary.minimizer_time_in_seconds) << "秒)";
+    writeLog(logFile_, oss.str());
+}
 
 // =============================================================================
 // Ceresソルバー実行ユーティリティ
@@ -22,6 +63,7 @@ bool PressureSolver::runSolverTrial(const std::string& startLog,
     ceres::Solver::Options options;
     configureOptions(options);
     ceres::Solve(options, &problem, &summary);
+    logCeresTiming(startLog.empty() ? successLog : startLog, summary);
     bool converged = (summary.termination_type == ceres::CONVERGENCE) &&
                      (summary.final_cost <= successTolerance);
     if (converged && !successLog.empty()) {
@@ -135,6 +177,7 @@ void PressureSolver::runPrimarySolvers(const SimulationConstants& constants,
         options1.minimizer_progress_to_stdout = false;
 
         ceres::Solve(options1, &problem, &summary);
+        logCeresTiming("----⑤段階的緩和法(段階1)", summary);
         writeLog(logFile_, "-----段階1完了: 残差 " + std::to_string(summary.final_cost));
 
         ceres::Solver::Options options2;
@@ -149,6 +192,7 @@ void PressureSolver::runPrimarySolvers(const SimulationConstants& constants,
         options2.minimizer_progress_to_stdout = false;
 
         ceres::Solve(options2, &problem, &summary);
+        logCeresTiming("----⑤段階的緩和法(段階2)", summary);
         converged = (summary.termination_type == ceres::CONVERGENCE) &&
                     (summary.final_cost <= constants.ventilationTolerance);
 
@@ -419,6 +463,7 @@ bool PressureSolver::runStageBTrials(const SimulationConstants& constants,
         ceres::Solver::Options opts;
         configure(opts);
         ceres::Solve(opts, &problemFB2, &fbSummary2);
+        logCeresTiming(startMsg, fbSummary2);
         fbOK2 = (fbSummary2.termination_type == ceres::CONVERGENCE) &&
                 (fbSummary2.final_cost <= constants.ventilationTolerance);
         if (fbOK2 && !successMsg.empty()) {
@@ -500,6 +545,7 @@ bool PressureSolver::runStageBTrials(const SimulationConstants& constants,
         o1.jacobi_scaling = true;
         o1.minimizer_progress_to_stdout = false;
         ceres::Solve(o1, &problemFB2, &fbSummary2);
+        logCeresTiming("[B-⑤] 段階1", fbSummary2);
         {
             std::ostringstream os;
             os << std::scientific << std::setprecision(6) << fbSummary2.final_cost;
@@ -516,6 +562,7 @@ bool PressureSolver::runStageBTrials(const SimulationConstants& constants,
         o2.use_inner_iterations = true;
         o2.minimizer_progress_to_stdout = false;
         ceres::Solve(o2, &problemFB2, &fbSummary2);
+        logCeresTiming("[B-⑤] 段階2", fbSummary2);
         fbOK2 = (fbSummary2.termination_type == ceres::CONVERGENCE) &&
                 (fbSummary2.final_cost <= constants.ventilationTolerance);
         if (fbOK2) {
@@ -559,6 +606,7 @@ bool PressureSolver::runStageBTrials(const SimulationConstants& constants,
         o.minimizer_progress_to_stdout = false;
         fallbackLog(3, "[B-⑦] 調整済み許容誤差=" + std::to_string(o.function_tolerance));
         ceres::Solve(o, &problemFB2, &fbSummary2);
+        logCeresTiming("[B-⑦] 超精密設定", fbSummary2);
         fbOK2 = (fbSummary2.termination_type == ceres::CONVERGENCE) &&
                 (fbSummary2.final_cost <= constants.ventilationTolerance);
         if (fbOK2) {
