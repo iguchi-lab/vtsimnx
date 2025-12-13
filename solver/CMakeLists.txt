@@ -29,8 +29,10 @@ set(CORE_SOURCES
     core/pressure_solver.cpp
     core/pressure_solver_ceres.cpp
     core/pressure_solver_fallback.cpp
+    core/pressure_solver_newton_gs.cpp
     core/thermal_solver.cpp
     core/thermal_solver_ceres.cpp
+    core/thermal_solver_newton_gs.cpp
 )
 
 set(AIRCON_SOURCES
@@ -70,6 +72,9 @@ set(ALL_SOURCES
     ${ARCHENV_SOURCES}
     ${MAIN_SOURCES}
 )
+
+# 実行ファイルの出力先をトップレベルのbuildディレクトリに設定
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/../build)
 
 # 実行ファイルの作成
 add_executable(vtsimnx_solver ${ALL_SOURCES})

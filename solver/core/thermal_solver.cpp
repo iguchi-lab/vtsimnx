@@ -1,6 +1,8 @@
 #include "core/thermal_solver.h"
 #include "core/heat_calculation.h"
 #include "core/thermal_solver_ceres.h"
+#include "core/thermal_solver_newton_gs.h"
+#include "core/thermal_constraints.h"
 #include "network/thermal_network.h"
 #include "utils/utils.h"
 #include "../archenv/include/archenv.h"
@@ -9,128 +11,6 @@
 #include <iomanip>
 #include <unordered_map>
 
-// =============================================================================
-// HeatBalanceConstraint - Ceres自動微分用の熱バランス制約
-// =============================================================================
-
-template <typename T>
-T HeatBalanceConstraint::getNodeTemperature(Vertex v, T const* const* parameters) const {
-    auto it = vertexToParameterIndex_.find(v);
-    if (it != vertexToParameterIndex_.end()) {
-        return parameters[0][it->second];
-    } else {
-        return T(graph_[v].current_t);
-    }
-}
-
-const std::vector<Edge>& HeatBalanceConstraint::getIncidentEdges(Vertex v) const {
-    static const std::vector<Edge> kEmpty;
-    auto it = incidentEdges_.find(v);
-    if (it != incidentEdges_.end()) {
-        return it->second;
-    }
-    return kEmpty;
-}
-
-template <typename T>
-bool HeatBalanceConstraint::operator()(T const* const* parameters, T* residual) const {
-    auto nodeIt = nodeKeyToVertex_.find(nodeName_);
-    if (nodeIt == nodeKeyToVertex_.end()) {
-        residual[0] = T(0.0);
-        return true;
-    }
-    Vertex nodeVertex = nodeIt->second;
-    [[maybe_unused]] T nodeTemp = getNodeTemperature(nodeVertex, parameters);
-
-    T heatIn = T(0.0);
-    T heatOut = T(0.0);
-
-    // 統一された関数を使用してエッジごとの熱流量を計算
-    const auto& nodeEdges = getIncidentEdges(nodeVertex);
-    for (auto edge : nodeEdges) {
-        Vertex sourceVertex = boost::source(edge, graph_);
-        Vertex targetVertex = boost::target(edge, graph_);
-        const auto& edgeData = graph_[edge];
-
-        T sourceTemp = getNodeTemperature(sourceVertex, parameters);
-        T targetTemp = getNodeTemperature(targetVertex, parameters);
-        
-        // 統一された熱計算関数を使用
-        T heatRate = HeatCalculation::calculateUnifiedHeat(sourceTemp, targetTemp, edgeData);
-        
-        // このノードに関連するエッジの場合、流入/流出を計算
-        if (sourceVertex == nodeVertex) {
-            // このノードからの流出
-            if (heatRate > T(0.0))
-                heatOut += heatRate;
-            else
-                heatIn += -heatRate;
-        } else if (targetVertex == nodeVertex) {
-            // このノードへの流入
-            if (heatRate > T(0.0))
-                heatIn += heatRate;
-            else
-                heatOut += -heatRate;
-        }
-    }
-    // エアコンによるバランス調整
-    const auto& currentNodeData = graph_[nodeVertex];
-    
-    // このノードがエアコンノードの場合、set_nodeのバランス不足分を引き受ける
-    if (currentNodeData.type == "aircon" && currentNodeData.on && !currentNodeData.set_node.empty()) {
-        auto setNodeIt = nodeKeyToVertex_.find(currentNodeData.set_node);
-        if (setNodeIt != nodeKeyToVertex_.end()) {
-            Vertex setNodeVertex = setNodeIt->second;
-            
-            // set_nodeの熱バランスを統一された関数で計算
-            T setNodeHeatIn = T(0.0);
-            T setNodeHeatOut = T(0.0);
-            
-            const auto& setNodeEdges = getIncidentEdges(setNodeVertex);
-            for (auto edge_local : setNodeEdges) {
-                Vertex sv = boost::source(edge_local, graph_);
-                Vertex dv = boost::target(edge_local, graph_);
-                const auto& eprop = graph_[edge_local];
-
-                T srcTemp = getNodeTemperature(sv, parameters);
-                T dstTemp = getNodeTemperature(dv, parameters);
-                T heatRate = HeatCalculation::calculateUnifiedHeat(srcTemp, dstTemp, eprop);
-                
-                if (sv == setNodeVertex) {
-                    // set_nodeからの流出
-                    if (heatRate > T(0.0))
-                        setNodeHeatOut += heatRate;
-                    else
-                        setNodeHeatIn += -heatRate;
-                } else if (dv == setNodeVertex) {
-                    // set_nodeへの流入
-                    if (heatRate > T(0.0))
-                        setNodeHeatIn += heatRate;
-                    else
-                        setNodeHeatOut += -heatRate;
-                }
-            }
-            
-            // エアコンがset_nodeのバランス不足分を引き受ける
-            T setNodeBalance = setNodeHeatIn - setNodeHeatOut;
-            heatIn += -setNodeBalance; // 不足分を補う
-        }
-    }
-    
-    // このノードがset_nodeでエアコンがオンの場合、バランスをゼロにする
-    auto airconIt = airconBySetNode_.find(nodeName_);
-    if (airconIt != airconBySetNode_.end()) {
-        for (auto vertex_ac : airconIt->second) {
-            const auto& nodeData_ac = graph_[vertex_ac];
-            if (nodeData_ac.type == "aircon" && nodeData_ac.on && nodeData_ac.set_node == nodeName_) {
-                residual[0] = T(0.0);
-                return true;
-            }
-        }
-    }
-    residual[0] = heatIn - heatOut;
-    return true;
-}
 
 // =============================================================================
 // ThermalSolverクラス - 温度・熱流量計算のメインソルバー  
@@ -144,13 +24,15 @@ ThermalSolver::ThermalSolver(ThermalNetwork& network, std::ostream& logFile)
 // =============================================================================
 
 void ThermalSolver::setInitialTemperatures(std::vector<double>& temperatures, const std::vector<std::string>& nodeNames) {
-    for (size_t i = 0; i < nodeNames.size(); ++i) {
-        temperatures[i] = network_.getNode(nodeNames[i]).current_t;
+    // サイズチェック（初期化前に実行）
+    if (temperatures.size() != nodeNames.size()) {
+        writeLog(logFile_, "--警告: 温度配列とノード名配列のサイズが一致しません (" + 
+                 std::to_string(temperatures.size()) + " vs " + std::to_string(nodeNames.size()) + ")");
+        return;
     }
     
-    // サイズチェック
-    if (temperatures.size() != nodeNames.size()) {
-        writeLog(logFile_, "--警告: 温度配列とノード名配列のサイズが一致しません");
+    for (size_t i = 0; i < nodeNames.size(); ++i) {
+        temperatures[i] = network_.getNode(nodeNames[i]).current_t;
     }
 }
 
@@ -303,23 +185,48 @@ std::tuple<TemperatureMap, HeatRateMap, HeatBalanceMap> ThermalSolver::solveTemp
         return {TemperatureMap{}, HeatRateMap{}, HeatBalanceMap{}};
     }
 
+    // まず Newton-GS+SOR（線形サブ問題をGS+SORで解く）を試行
+    writeLog(logFile_, "--------Newton-GS+SORソルバーを試行します...");
+    try {
+        // 過緩和係数（経験的に安定〜やや加速）: 1.2 をデフォルトで使用
+        constexpr double kSorOmega = 1.2;
+        auto gsResult = ThermalSolverNewtonGS::solveTemperaturesNewtonGS(
+            network_, constants, kSorOmega, logFile_);
+        
+        // 結果を検証
+        double maxBalance = 0.0;
+        for (const auto& [nodeName, balance] : std::get<2>(gsResult)) {
+            maxBalance = std::max(maxBalance, std::abs(balance));
+        }
+
+        if (maxBalance <= constants.thermalTolerance) {
+            return gsResult;
+        } else {
+            writeLog(logFile_, "--------Newton-GS+SORは線形残差で収束したものの、熱バランス最大偏差="
+                               + std::to_string(maxBalance) + " が許容値 " + std::to_string(constants.thermalTolerance) +
+                               " を超過。Ceresにフォールバックします...");
+        }
+    } catch (const std::exception& e) {
+        writeLog(logFile_, "--------Newton-GS+SORでエラー: " + std::string(e.what()) + " Ceresにフォールバックします...");
+    }
+
+    // Ceresソルバーで温度計算を実行
+    writeLog(logFile_, "--------Ceresソルバーで温度計算を実行します...");
     std::vector<double> temperatures(nodeNames.size());
     setInitialTemperatures(temperatures, nodeNames);
 
     ceres::Problem problem;
     for (const std::string& nodeName : nodeNames) {
-        auto constraint = new HeatBalanceConstraint(
+        ceres::CostFunction* costFunction = new HeatBalanceConstraint(
             nodeName,
             network_.getGraph(),
             network_.getKeyToVertex(),
             vertexToParameterIndex,
             incidentEdges,
             airconBySetNode,
+            temperatures.size(),
             logFile_
         );
-        auto costFunction = new ceres::DynamicAutoDiffCostFunction<HeatBalanceConstraint>(constraint);
-        costFunction->AddParameterBlock(temperatures.size());
-        costFunction->SetNumResiduals(1);
         problem.AddResidualBlock(costFunction, nullptr, temperatures.data());
     }
 

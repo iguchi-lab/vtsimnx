@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../vtsim_solver.h"
+#include "core/pressure_solver_newton_gs.h"
 #include <ceres/ceres.h>
 #include <functional>
 #include <fstream>

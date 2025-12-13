@@ -25,7 +25,35 @@ static bool readFileToString(const char* path, std::string& out, std::string& er
         err = std::string("エラー: 入力ファイルを開けません: ") + path;
         return false;
     }
-    out.assign((std::istreambuf_iterator<char>(ifs)), std::istreambuf_iterator<char>());
+    
+    // ファイルサイズを取得
+    ifs.seekg(0, std::ios::end);
+    std::streampos fileSize = ifs.tellg();
+    ifs.seekg(0, std::ios::beg);
+    
+    // ファイルサイズが0の場合はエラー
+    if (fileSize <= 0) {
+        err = std::string("エラー: 入力ファイルが空です: ") + path;
+        return false;
+    }
+    
+    // ファイル全体を読み込む
+    out.resize(static_cast<std::size_t>(fileSize));
+    ifs.read(&out[0], fileSize);
+    
+    // 読み込みが正常に完了したか確認
+    if (ifs.gcount() != fileSize) {
+        err = std::string("エラー: ファイルの読み込みが不完全です。期待サイズ: ") + 
+              std::to_string(fileSize) + ", 実際に読み込んだ: " + std::to_string(ifs.gcount());
+        return false;
+    }
+    
+    // ストリームの状態を確認
+    if (ifs.fail() && !ifs.eof()) {
+        err = std::string("エラー: ファイルの読み込み中にエラーが発生しました: ") + path;
+        return false;
+    }
+    
     return true;
 }
 
@@ -171,6 +199,7 @@ static bool runSimulationLoop(const InputData& inputData,
         {
             ScopedLogSection initScope(logFile, "初期化: ネットワークトポロジー構築中...");
             writeLog(logFile, " トポロジ構築中...");
+            auto topoStart = std::chrono::steady_clock::now();
 
             {
                 ScopedTimer timer(timings, "initial_data_parse");
@@ -188,8 +217,12 @@ static bool runSimulationLoop(const InputData& inputData,
             if (simConstants.temperatureCalc) {
                 airconController.initializeModels(thermalNetwork, logFile, simConstants.logVerbosity);
             }
-            
-            writeLog(logFile, "初期化完了: ネットワークトポロジー構築済み");
+            auto topoEnd = std::chrono::steady_clock::now();
+            double topoSec = std::chrono::duration_cast<std::chrono::duration<double>>(topoEnd - topoStart).count();
+            std::ostringstream oss;
+            oss << "初期化完了: ネットワークトポロジー構築済み (所要時間: "
+                << std::fixed << std::setprecision(3) << topoSec << "秒)";
+            writeLog(logFile, oss.str());
         }
         
         // 前のタイムステップの温度を保存（熱容量ノード用）
@@ -211,48 +244,56 @@ static bool runSimulationLoop(const InputData& inputData,
             // ただし、最初のタイムステップでは既に読み込んでいるので、再度読み込む必要はない
             if (timestepIndex > 0) {
                 writeLog(logFile, " トポロジ構築中...");
+                auto topoStart = std::chrono::steady_clock::now();
+                // トポロジ更新（時系列データ読込 + 熱容量ノード初期化までを計測）
                 ScopedTimer timer(timings, "parse_timestep_data", stepMeta.str());
                 // 2回目以降のタイムステップでは、全データを再読み込んで時系列データを更新
                 // （JSONから読み込む必要があるため、パーサー関数を使用）
                 allNodes               = parseNodes(inputData.inputJson, logFile, timestepIndex);
                 allVentilationBranches = parseVentilationBranches(inputData.inputJson, logFile, timestepIndex);
                 allThermalBranches     = parseThermalBranches(inputData.inputJson, logFile, timestepIndex);
-            }
-            
-            // Graph内のノードとエッジの時変プロパティを更新（トポロジーは変更しない）
-            ventNetwork.updatePropertiesForTimestep(allNodes, allVentilationBranches, timestepIndex);
-            thermalNetwork.updatePropertiesForTimestep(allNodes, allThermalBranches, allVentilationBranches, timestepIndex);
+                
+                // グラフのプロパティ更新
+                ventNetwork.updatePropertiesForTimestep(allNodes, allVentilationBranches, timestepIndex);
+                thermalNetwork.updatePropertiesForTimestep(allNodes, allThermalBranches, allVentilationBranches, timestepIndex);
 
-            // 熱容量ノードの温度を親ノードの前タイムステップ温度に設定
-            if (timestepIndex > 0 && !previousTimestepTemperatures.empty()) {
-                auto& thermalGraph = thermalNetwork.getGraph();
-                auto vertex_range = boost::vertices(thermalGraph);
-                int capacityNodeCount = 0;
-                for (auto vertex : boost::make_iterator_range(vertex_range)) {
-                    auto& nodeData = thermalGraph[vertex];
-                    // type="capacity"かつref_nodeが設定されている熱容量ノードの場合
-                    if (nodeData.type == "capacity" && !nodeData.ref_node.empty()) {
-                        auto prevTempIt = previousTimestepTemperatures.find(nodeData.ref_node);
-                        if (prevTempIt != previousTimestepTemperatures.end()) {
-                            nodeData.current_t = prevTempIt->second;
-                            capacityNodeCount++;
-                            if (simConstants.logVerbosity >= 2) {
-                                writeLog(
-                                    logFile,
-                                    "熱容量ノード " + nodeData.key +
-                                        " の初期温度を親ノード " + nodeData.ref_node +
-                                        " の前温度 " + std::to_string(prevTempIt->second) + "℃ に設定");
+                // 熱容量ノードの温度を親ノードの前タイムステップ温度に設定（計測に含める）
+                if (!previousTimestepTemperatures.empty()) {
+                    auto& thermalGraph = thermalNetwork.getGraph();
+                    auto vertex_range = boost::vertices(thermalGraph);
+                    int capacityNodeCount = 0;
+                    for (auto vertex : boost::make_iterator_range(vertex_range)) {
+                        auto& nodeData = thermalGraph[vertex];
+                        if (nodeData.type == "capacity" && !nodeData.ref_node.empty()) {
+                            auto prevTempIt = previousTimestepTemperatures.find(nodeData.ref_node);
+                            if (prevTempIt != previousTimestepTemperatures.end()) {
+                                nodeData.current_t = prevTempIt->second;
+                                capacityNodeCount++;
+                                if (simConstants.logVerbosity >= 2) {
+                                    writeLog(
+                                        logFile,
+                                        "熱容量ノード " + nodeData.key +
+                                            " の初期温度を親ノード " + nodeData.ref_node +
+                                            " の前温度 " + std::to_string(prevTempIt->second) + "℃ に設定");
+                                }
                             }
                         }
                     }
+                    if (capacityNodeCount > 0 && simConstants.logVerbosity >= 1) {
+                        writeLog(
+                            logFile,
+                            "熱容量ノード温度を更新しました: " + std::to_string(capacityNodeCount) + "個");
+                    }
                 }
-                if (capacityNodeCount > 0 && simConstants.logVerbosity >= 1) {
-                    writeLog(
-                        logFile,
-                        "熱容量ノード温度を更新しました: " + std::to_string(capacityNodeCount) + "個");
-                }
-            }
 
+                // 計測対象に含まれるため、ここでログ出力
+                auto topoEnd = std::chrono::steady_clock::now();
+                double topoSec = std::chrono::duration_cast<std::chrono::duration<double>>(topoEnd - topoStart).count();
+                std::ostringstream oss;
+                oss << " トポロジ更新完了 (所要時間: " << std::fixed << std::setprecision(3) << topoSec << "秒)";
+                writeLog(logFile, oss.str());
+            }
+            
             // シミュレーション実行
             SimulationResults results;
             if (simConstants.pressureCalc || simConstants.temperatureCalc) {

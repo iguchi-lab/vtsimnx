@@ -60,15 +60,17 @@ double PressureSolver::calculatePressureDifference(
 
 void PressureSolver::setInitialPressures(std::vector<double>& pressures, 
                                         const std::vector<std::string>& nodeNames) {
+    // サイズチェック（初期化前に実行）
+    if (pressures.size() != nodeNames.size()) {
+        writeLog(logFile_, "--警告: 圧力配列とノード名配列のサイズが一致しません (" + 
+                 std::to_string(pressures.size()) + " vs " + std::to_string(nodeNames.size()) + ")");
+        return;
+    }
+    
     // 初期圧力を設定（各ノードに少しずつ異なる初期値）
     const double basePressure = 0.0; // Pa
     for (size_t i = 0; i < pressures.size(); ++i) {
         pressures[i] = basePressure + (i * 10.0);
-    }
-    
-    // サイズチェック
-    if (pressures.size() != nodeNames.size()) {
-        writeLog(logFile_, "--警告: 圧力配列とノード名配列のサイズが一致しません");
     }
 }
 
@@ -100,17 +102,14 @@ bool PressureSolver::initializeSolverSetup(SolverSetup& setup) {
 
 void PressureSolver::addFlowBalanceConstraints(const SolverSetup& setup, ceres::Problem& problem) {
     for (const std::string& nodeName : setup.nodeNames) {
-        auto constraint = new FlowBalanceConstraint(
+        ceres::CostFunction* costFunction = new FlowBalanceConstraint(
             nodeName,
             network_.getGraph(),
             network_.getKeyToVertex(),
             setup.vertexToParameterIndex,
+            setup.pressures.size(),
             logFile_
         );
-
-        auto costFunction = new ceres::DynamicAutoDiffCostFunction<FlowBalanceConstraint>(constraint);
-        costFunction->AddParameterBlock(setup.pressures.size());
-        costFunction->SetNumResiduals(1);
 
         problem.AddResidualBlock(costFunction, nullptr, const_cast<double*>(setup.pressures.data()));
     }
@@ -261,6 +260,30 @@ PressureSolver::SolverResult PressureSolver::solvePressures(
     }
     auto& nodeNames = setup.nodeNames;
     auto& pressures = setup.pressures;
+
+    // まず Newton-GS+SOR を試行（圧力版）
+    writeLog(logFile_, "--------Newton-GS+SOR(圧力)ソルバーを試行します...");
+    try {
+        constexpr double kSorOmega = 1.2;
+        auto ngsResult = PressureSolverNewtonGS::solvePressuresNewtonGS(
+            network_, constants, kSorOmega, logFile_);
+
+        // 残差チェック（maxBalanceで判定）
+        double maxBalance = 0.0;
+        for (const auto& [node, bal] : std::get<2>(ngsResult)) {
+            maxBalance = std::max(maxBalance, std::abs(bal));
+        }
+        if (maxBalance <= constants.ventilationTolerance) {
+            network_.setLastPressureConverged(true);
+            return ngsResult;
+        } else {
+            writeLog(logFile_, "--------Newton-GS+SOR(圧力)はバランス超過 (maxBalance="
+                               + std::to_string(maxBalance) + ", tol=" + std::to_string(constants.ventilationTolerance)
+                               + ")。Ceresにフォールバックします...");
+        }
+    } catch (const std::exception& e) {
+        writeLog(logFile_, "--------Newton-GS+SOR(圧力)でエラー: " + std::string(e.what()) + " Ceresにフォールバックします...");
+    }
 
     ceres::Problem problem;
     addFlowBalanceConstraints(setup, problem);

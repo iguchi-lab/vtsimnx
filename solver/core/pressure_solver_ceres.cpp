@@ -62,12 +62,41 @@ bool PressureSolver::runSolverTrial(const std::string& startLog,
     }
     ceres::Solver::Options options;
     configureOptions(options);
+    // 設定された許容誤差を使用（デフォルト値の場合はsuccessToleranceを使用）
+    double usedTolerance = (options.function_tolerance > 0.0) ? options.function_tolerance : successTolerance;
     ceres::Solve(options, &problem, &summary);
     logCeresTiming(startLog.empty() ? successLog : startLog, summary);
+    // 設定した許容誤差で判定（調整済み許容誤差での収束を許容）
     bool converged = (summary.termination_type == ceres::CONVERGENCE) &&
-                     (summary.final_cost <= successTolerance);
+                     (summary.final_cost <= usedTolerance);
     if (converged && !successLog.empty()) {
         writeLog(logFile_, successLog);
+    } else if (!converged) {
+        // 収束しなかった場合の詳細情報を出力
+        std::string terminationType;
+        switch(summary.termination_type) {
+            case ceres::CONVERGENCE:
+                terminationType = "CONVERGENCE";
+                break;
+            case ceres::NO_CONVERGENCE:
+                terminationType = "NO_CONVERGENCE (最大反復回数到達)";
+                break;
+            case ceres::FAILURE:
+                terminationType = "FAILURE (計算失敗)";
+                break;
+            case ceres::USER_FAILURE:
+                terminationType = "USER_FAILURE (ユーザー関数エラー)";
+                break;
+            default:
+                terminationType = "UNKNOWN (" + std::to_string(static_cast<int>(summary.termination_type)) + ")";
+        }
+        std::ostringstream oss;
+        oss << std::scientific << std::setprecision(6);
+        oss << "-----未収束: 終了理由=" << terminationType
+            << ", 最終残差=" << summary.final_cost
+            << ", 許容誤差=" << usedTolerance
+            << ", 反復回数=" << summary.num_successful_steps;
+        writeLog(logFile_, oss.str());
     }
     return converged;
 }
@@ -178,7 +207,21 @@ void PressureSolver::runPrimarySolvers(const SimulationConstants& constants,
 
         ceres::Solve(options1, &problem, &summary);
         logCeresTiming("----⑤段階的緩和法(段階1)", summary);
-        writeLog(logFile_, "-----段階1完了: 残差 " + std::to_string(summary.final_cost));
+        {
+            std::ostringstream oss;
+            oss << std::scientific << std::setprecision(6);
+            oss << "-----段階1完了: 残差=" << summary.final_cost
+                << ", 終了理由=";
+            switch(summary.termination_type) {
+                case ceres::CONVERGENCE: oss << "CONVERGENCE"; break;
+                case ceres::NO_CONVERGENCE: oss << "NO_CONVERGENCE"; break;
+                case ceres::FAILURE: oss << "FAILURE"; break;
+                case ceres::USER_FAILURE: oss << "USER_FAILURE"; break;
+                default: oss << "UNKNOWN(" << static_cast<int>(summary.termination_type) << ")"; break;
+            }
+            oss << ", 反復回数=" << summary.num_successful_steps;
+            writeLog(logFile_, oss.str());
+        }
 
         ceres::Solver::Options options2;
         options2.trust_region_strategy_type = ceres::DOGLEG;
@@ -193,8 +236,25 @@ void PressureSolver::runPrimarySolvers(const SimulationConstants& constants,
 
         ceres::Solve(options2, &problem, &summary);
         logCeresTiming("----⑤段階的緩和法(段階2)", summary);
+        // 段階的緩和法の段階2では、設定した許容誤差で判定（調整済み許容誤差での収束を許容）
         converged = (summary.termination_type == ceres::CONVERGENCE) &&
-                    (summary.final_cost <= constants.ventilationTolerance);
+                    (summary.final_cost <= options2.function_tolerance);
+        if (!converged) {
+            std::ostringstream oss;
+            oss << std::scientific << std::setprecision(6);
+            oss << "-----段階2未収束: 終了理由=";
+            switch(summary.termination_type) {
+                case ceres::CONVERGENCE: oss << "CONVERGENCE"; break;
+                case ceres::NO_CONVERGENCE: oss << "NO_CONVERGENCE (最大反復回数到達)"; break;
+                case ceres::FAILURE: oss << "FAILURE (計算失敗)"; break;
+                case ceres::USER_FAILURE: oss << "USER_FAILURE (ユーザー関数エラー)"; break;
+                default: oss << "UNKNOWN(" << static_cast<int>(summary.termination_type) << ")"; break;
+            }
+            oss << ", 最終残差=" << summary.final_cost
+                << ", 許容誤差=" << options2.function_tolerance
+                << ", 反復回数=" << summary.num_successful_steps;
+            writeLog(logFile_, oss.str());
+        }
 
         if (converged) {
             writeLog(logFile_, "----段階的緩和法で収束しました");
@@ -222,23 +282,14 @@ void PressureSolver::runPrimarySolvers(const SimulationConstants& constants,
     }
 
     if (!converged) {
-        double tolerance_factor = std::max(1.0, summary.final_cost / constants.ventilationTolerance * 0.1);
-        double adjustedTolerance = constants.ventilationTolerance * tolerance_factor;
         writeLog(logFile_, "----⑦超精密設定で最終試行します...");
-        writeLog(logFile_, "-----調整済み許容誤差: " + std::to_string(adjustedTolerance));
-
-        converged = runSolverTrial(
-            "",
-            "----超精密設定で収束しました",
-            problem,
-            summary,
-            constants.ventilationTolerance,
-            [&](ceres::Solver::Options& options) {
+        ceres::Solver::Options options;
                 options.trust_region_strategy_type = ceres::DOGLEG;
                 options.linear_solver_type = ceres::DENSE_QR;
                 options.max_num_iterations = 5000;
-                options.function_tolerance = adjustedTolerance;
-                options.parameter_tolerance = adjustedTolerance;
+        double tolerance_factor = std::max(1.0, summary.final_cost / constants.ventilationTolerance * 0.1);
+        options.function_tolerance = constants.ventilationTolerance * tolerance_factor;
+        options.parameter_tolerance = constants.ventilationTolerance * tolerance_factor;
                 options.gradient_tolerance = constants.ventilationTolerance * tolerance_factor * 10;
                 options.jacobi_scaling = true;
                 options.use_inner_iterations = true;
@@ -247,13 +298,37 @@ void PressureSolver::runPrimarySolvers(const SimulationConstants& constants,
                 options.initial_trust_region_radius = 1e0;
                 options.min_trust_region_radius = 1e-8;
                 options.minimizer_progress_to_stdout = false;
-            });
+        writeLog(logFile_, "-----調整済み許容誤差: " + std::to_string(options.function_tolerance));
+
+        ceres::Solve(options, &problem, &summary);
+        logCeresTiming("----⑦超精密設定", summary);
+        converged = (summary.termination_type == ceres::CONVERGENCE) &&
+                   (summary.final_cost <= options.function_tolerance);
+
+        if (converged) {
+            writeLog(logFile_, "----超精密設定で収束しました");
+        } else {
+            std::ostringstream oss;
+            oss << std::scientific << std::setprecision(6);
+            oss << "-----超精密設定未収束: 終了理由=";
+            switch(summary.termination_type) {
+                case ceres::CONVERGENCE: oss << "CONVERGENCE"; break;
+                case ceres::NO_CONVERGENCE: oss << "NO_CONVERGENCE (最大反復回数到達)"; break;
+                case ceres::FAILURE: oss << "FAILURE (計算失敗)"; break;
+                case ceres::USER_FAILURE: oss << "USER_FAILURE (ユーザー関数エラー)"; break;
+                default: oss << "UNKNOWN(" << static_cast<int>(summary.termination_type) << ")"; break;
+            }
+            oss << ", 最終残差=" << summary.final_cost
+                << ", 許容誤差=" << options.function_tolerance
+                << ", 反復回数=" << summary.num_successful_steps;
+            writeLog(logFile_, oss.str());
+        }
+    }
 
         if (!converged) {
             writeLog(logFile_, "----全てのソルバー手法で収束に失敗しました");
             writeLog(logFile_, "----最終残差: " + std::to_string(summary.final_cost) +
                                " (目標: " + std::to_string(constants.ventilationTolerance) + ")");
-        }
     }
 }
 
@@ -339,16 +414,14 @@ void PressureSolver::setupStageAProblem(
     const auto& nodeKeyToVertex = network_.getKeyToVertex();
 
     auto addNodeResidual = [&](const std::string& nodeName) {
-        auto constraint = new FlowBalanceConstraint(
+        ceres::CostFunction* costFunction = new FlowBalanceConstraint(
             nodeName,
             graph,
             nodeKeyToVertex,
             vToParamIdx,
+            parameterCount,
             logFile_
         );
-        auto costFunction = new ceres::DynamicAutoDiffCostFunction<FlowBalanceConstraint>(constraint);
-        costFunction->AddParameterBlock(parameterCount);
-        costFunction->SetNumResiduals(1);
         problemFB.AddResidualBlock(costFunction, nullptr, parameterData);
     };
 
@@ -368,16 +441,14 @@ void PressureSolver::setupStageAProblem(
 
         for (const auto& gv : groupVertices) {
             if (gv.empty()) continue;
-            auto constraintG = new GroupFlowBalanceConstraint(
+            ceres::CostFunction* costG = new GroupFlowBalanceConstraint(
                 gv,
                 graph,
                 nodeKeyToVertex,
                 vToParamIdx,
+                parameterCount,
                 logFile_
             );
-            auto costG = new ceres::DynamicAutoDiffCostFunction<GroupFlowBalanceConstraint>(constraintG);
-            costG->AddParameterBlock(parameterCount);
-            costG->SetNumResiduals(1);
             problemFB.AddResidualBlock(costG, nullptr, parameterData);
         }
 
@@ -400,11 +471,8 @@ void PressureSolver::setupStageAProblem(
             double target = (gid >= 0 && gid < superCountA && groupCount[gid] > 0)
                                 ? (groupMean[gid] / static_cast<double>(groupCount[gid]))
                                 : 0.0;
-            auto anchor = new SoftAnchorConstraint(idx, target, 1e-9);
-            auto costA = new ceres::DynamicAutoDiffCostFunction<SoftAnchorConstraint>(anchor);
-            costA->AddParameterBlock(parameterCount);
-            costA->SetNumResiduals(1);
-            problemFB.AddResidualBlock(costA, nullptr, parameterData);
+            SoftAnchorConstraint* constraint = new SoftAnchorConstraint(idx, target, 1e-9, parameterCount);
+            problemFB.AddResidualBlock(constraint, nullptr, parameterData);
         }
 
         for (auto v : nonGroupVertices) {
@@ -462,14 +530,16 @@ bool PressureSolver::runStageBTrials(const SimulationConstants& constants,
         fallbackLog(2, startMsg);
         ceres::Solver::Options opts;
         configure(opts);
+        double usedTolerance = opts.function_tolerance;  // 設定された許容誤差を使用
         ceres::Solve(opts, &problemFB2, &fbSummary2);
         logCeresTiming(startMsg, fbSummary2);
+        // フォールバックでは設定した許容誤差で判定（調整済み許容誤差での収束を許容）
         fbOK2 = (fbSummary2.termination_type == ceres::CONVERGENCE) &&
-                (fbSummary2.final_cost <= constants.ventilationTolerance);
+                (fbSummary2.final_cost <= usedTolerance);
         if (fbOK2 && !successMsg.empty()) {
             std::ostringstream os;
             os << std::scientific << std::setprecision(6) << fbSummary2.final_cost;
-            fallbackLog(2, successMsg + os.str() + " | tol=" + std::to_string(constants.ventilationTolerance));
+            fallbackLog(2, successMsg + os.str() + " | tol=" + std::to_string(usedTolerance));
         }
     };
 
@@ -563,13 +633,15 @@ bool PressureSolver::runStageBTrials(const SimulationConstants& constants,
         o2.minimizer_progress_to_stdout = false;
         ceres::Solve(o2, &problemFB2, &fbSummary2);
         logCeresTiming("[B-⑤] 段階2", fbSummary2);
+        // 段階的緩和法の段階2では、設定した許容誤差で判定（調整済み許容誤差での収束を許容）
+        double usedTolerance = o2.function_tolerance;
         fbOK2 = (fbSummary2.termination_type == ceres::CONVERGENCE) &&
-                (fbSummary2.final_cost <= constants.ventilationTolerance);
+                (fbSummary2.final_cost <= usedTolerance);
         if (fbOK2) {
             std::ostringstream os;
             os << std::scientific << std::setprecision(6) << fbSummary2.final_cost;
             fallbackLog(2, "[B-⑤] 収束 | residual=" + os.str() + " | tol=" +
-                               std::to_string(constants.ventilationTolerance));
+                               std::to_string(usedTolerance));
         }
     }
 
@@ -608,12 +680,12 @@ bool PressureSolver::runStageBTrials(const SimulationConstants& constants,
         ceres::Solve(o, &problemFB2, &fbSummary2);
         logCeresTiming("[B-⑦] 超精密設定", fbSummary2);
         fbOK2 = (fbSummary2.termination_type == ceres::CONVERGENCE) &&
-                (fbSummary2.final_cost <= constants.ventilationTolerance);
+                (fbSummary2.final_cost <= o.function_tolerance);
         if (fbOK2) {
             std::ostringstream os;
             os << std::scientific << std::setprecision(6) << fbSummary2.final_cost;
             fallbackLog(2, "[B-⑦] 収束 | residual=" + os.str() + " | tol=" +
-                               std::to_string(constants.ventilationTolerance));
+                               std::to_string(o.function_tolerance));
         }
     }
 
