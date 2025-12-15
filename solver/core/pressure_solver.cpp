@@ -67,10 +67,17 @@ void PressureSolver::setInitialPressures(std::vector<double>& pressures,
         return;
     }
     
-    // 初期圧力を設定（各ノードに少しずつ異なる初期値）
-    const double basePressure = 0.0; // Pa
+    // 初期圧力を設定（トポロジ上の current_p をそのまま使用）
+    // ※人工的な初期勾配（i*10Pa等）は入れない
+    const auto& graph = network_.getGraph();
+    const auto& keyToVertex = network_.getKeyToVertex();
     for (size_t i = 0; i < pressures.size(); ++i) {
-        pressures[i] = basePressure + (i * 10.0);
+        auto it = keyToVertex.find(nodeNames[i]);
+        if (it != keyToVertex.end()) {
+            pressures[i] = graph[it->second].current_p;
+        } else {
+            pressures[i] = 0.0;
+        }
     }
 }
 

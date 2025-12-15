@@ -2,6 +2,7 @@
 #include "core/pressure_solver.h"
 #include "core/flow_calculation.h"
 #include "utils/utils.h"
+#include "network/thermal_network.h"
 
 #include <iostream>
 #include <set>
@@ -9,6 +10,7 @@
 #include <stdexcept>
 #include <fstream>
 #include <sstream>
+#include <algorithm>
 
 #include <boost/graph/adjacency_list.hpp>
 
@@ -128,6 +130,18 @@ void VentilationNetwork::updateNodeTemperatures(const TemperatureMap& tempMap) {
     }
 }
 
+void VentilationNetwork::updateNodeTemperaturesFromThermalNetwork(const ThermalNetwork& thermalNetwork) {
+    const auto& tKeyToV = thermalNetwork.getKeyToVertex();
+    const auto& tGraph = thermalNetwork.getGraph();
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        const std::string& key = graph[v].key;
+        auto it = tKeyToV.find(key);
+        if (it != tKeyToV.end()) {
+            graph[v].current_t = tGraph[it->second].current_t;
+        }
+    }
+}
+
 // 圧力計算
 std::tuple<PressureMap, std::map<std::pair<std::string, std::string>, double>, FlowBalanceMap>
 VentilationNetwork::calculatePressure(const SimulationConstants& constants, std::ostream& logs) {
@@ -179,27 +193,86 @@ void VentilationNetwork::updateFlowRatesInGraph(const FlowRateMap& flowRates) {
     }
 }
 
-// 風量データを収集（個別ブランチの風量データを返す）
-std::map<std::string, double> VentilationNetwork::collectFlowRates() const {
-    std::map<std::string, double> flowRates;
-
-    auto edge_range = boost::edges(graph);
-    for (auto edge : boost::make_iterator_range(edge_range)) {
-        const auto& edgeData = graph[edge];
-
-        // 出力用キーから末尾の"_000"を除去（存在する場合のみ）
-        std::string key = edgeData.unique_id;
-        const std::string suffix = "_000";
-        if (key.size() > suffix.size() &&
-            key.rfind(suffix) == key.size() - suffix.size()) {
-            key.erase(key.size() - suffix.size());
+const std::vector<std::string>& VentilationNetwork::getPressureKeys() const {
+    if (!pressureCacheInitialized) {
+        // PressureMap は std::map でキーが昇順になるため、同じ順序（key昇順）で固定する。
+        // ただし出力対象は calc_p=true のノードに限定する（従来の圧力mapと合わせる）。
+        std::vector<std::pair<std::string, Vertex>> items;
+        items.reserve(boost::num_vertices(graph));
+        for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+            const auto& nd = graph[v];
+            if (nd.calc_p) {
+                items.emplace_back(nd.key, v);
+            }
         }
+        std::sort(items.begin(), items.end(),
+                  [](const auto& a, const auto& b) { return a.first < b.first; });
 
-        // ソルバー確定後に保存された枝流量をそのまま使用
-        flowRates[key] = edgeData.flow_rate;
+        pressureVerticesOrdered.clear();
+        pressureKeysOrdered.clear();
+        pressureVerticesOrdered.reserve(items.size());
+        pressureKeysOrdered.reserve(items.size());
+        for (const auto& kv : items) {
+            pressureKeysOrdered.push_back(kv.first);
+            pressureVerticesOrdered.push_back(kv.second);
+        }
+        pressureCacheInitialized = true;
     }
+    return pressureKeysOrdered;
+}
 
-    return flowRates;
+std::vector<double> VentilationNetwork::collectPressureValues() const {
+    const auto& keys = getPressureKeys();
+    (void)keys;
+    std::vector<double> values;
+    values.resize(pressureVerticesOrdered.size());
+    for (size_t i = 0; i < pressureVerticesOrdered.size(); ++i) {
+        values[i] = graph[pressureVerticesOrdered[i]].current_p;
+    }
+    return values;
+}
+
+const std::vector<std::string>& VentilationNetwork::getFlowRateKeys() const {
+    if (!flowRateCacheInitialized) {
+        std::vector<std::pair<std::string, Edge>> items;
+        items.reserve(boost::num_edges(graph));
+        for (auto edge : boost::make_iterator_range(boost::edges(graph))) {
+            const auto& edgeData = graph[edge];
+
+            // 出力用キーから末尾の"_000"を除去（存在する場合のみ）
+            std::string key = edgeData.unique_id;
+            const std::string suffix = "_000";
+            if (key.size() > suffix.size() &&
+                key.rfind(suffix) == key.size() - suffix.size()) {
+                key.erase(key.size() - suffix.size());
+            }
+            items.emplace_back(std::move(key), edge);
+        }
+        std::sort(items.begin(), items.end(),
+                  [](const auto& a, const auto& b) { return a.first < b.first; });
+
+        flowRateEdgesOrdered.clear();
+        flowRateKeysOrdered.clear();
+        flowRateEdgesOrdered.reserve(items.size());
+        flowRateKeysOrdered.reserve(items.size());
+        for (const auto& kv : items) {
+            flowRateKeysOrdered.push_back(kv.first);
+            flowRateEdgesOrdered.push_back(kv.second);
+        }
+        flowRateCacheInitialized = true;
+    }
+    return flowRateKeysOrdered;
+}
+
+std::vector<double> VentilationNetwork::collectFlowRateValues() const {
+    const auto& keys = getFlowRateKeys();
+    (void)keys;
+    std::vector<double> values;
+    values.resize(flowRateEdgesOrdered.size());
+    for (size_t i = 0; i < flowRateEdgesOrdered.size(); ++i) {
+        values[i] = graph[flowRateEdgesOrdered[i]].flow_rate;
+    }
+    return values;
 }
 
 // 圧力と風量を同時に更新
@@ -215,38 +288,14 @@ void VentilationNetwork::updateCalculationResults(const PressureMap& pressureMap
 void VentilationNetwork::updatePropertiesForTimestep(const std::vector<VertexProperties>& allNodes,
                                                      const std::vector<EdgeProperties>& ventilationBranches,
                                                      long timestep) {
-    // ノードのプロパティを更新（keyでマッチング）
-    for (const auto& node : allNodes) {
-        auto it = keyToVertex.find(node.key);
-        if (it != keyToVertex.end()) {
-            VertexProperties& graphNode = graph[it->second];
-            // 時系列データから現在のタイムステップの値を更新
-            graphNode.updateForTimestep(static_cast<int>(timestep));
-        }
+    // 時系列を保持している graph 内のプロパティを更新（JSON再パースは不要）
+    (void)allNodes;
+    (void)ventilationBranches;
+
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        graph[v].updateForTimestep(static_cast<int>(timestep));
     }
-    
-    // エッジのプロパティを更新（unique_idでマッチング）
-    // 事前に unique_id -> ブランチ へのマップを作っておき、探索コストを削減する
-    std::unordered_map<std::string, const EdgeProperties*> branchById;
-    branchById.reserve(ventilationBranches.size());
-    for (const auto& branch : ventilationBranches) {
-        branchById[branch.unique_id] = &branch;
-    }
-
-    auto edge_range = boost::edges(graph);
-    for (auto edge : boost::make_iterator_range(edge_range)) {
-        EdgeProperties& graphEdge = graph[edge];
-
-        auto it = branchById.find(graphEdge.unique_id);
-        if (it == branchById.end()) {
-            continue;
-        }
-
-        const EdgeProperties* srcBranch = it->second;
-        // 時系列データから現在のタイムステップの値を更新
-        graphEdge.updateForTimestep(static_cast<int>(timestep));
-        // 時系列データ自体も更新（次回の更新に備える）
-        graphEdge.vol = srcBranch->vol;
-        graphEdge.enabled = srcBranch->enabled;
+    for (auto e : boost::make_iterator_range(boost::edges(graph))) {
+        graph[e].updateForTimestep(static_cast<int>(timestep));
     }
 }

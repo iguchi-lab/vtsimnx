@@ -51,18 +51,22 @@ private:
         std::string operationMode;
     };
 
+    // 出力用：エアコンキー順キャッシュ（airconModels のキーを昇順で保持）
+    mutable bool airconKeysCacheInitialized_ = false;
+    mutable std::vector<std::string> airconKeysOrdered_;
+
     /**
      * @brief エアコンの基本データをバリデーションして取得する
      * @throws std::runtime_error 必要なデータが見つからない場合
      */
     AirconValidationData validateAirconData(const std::string& airconKey,
-                                            const VertexProperties& nodeProps,
-                                            const TemperatureMap& temperatureMap) const;
+                                            ThermalNetwork& thermalNetwork,
+                                            const VertexProperties& nodeProps) const;
 
     RuntimeContext prepareRuntimeContext(const std::string& airconKey,
+                                         ThermalNetwork& thermalNetwork,
                                          const VertexProperties& nodeProps,
-                                         const FlowRateMap& flowRates,
-                                         const TemperatureMap& temperatureMap) const;
+                                         const FlowRateMap& flowRates) const;
 
 public:
     // === モデル管理 ===
@@ -71,9 +75,10 @@ public:
     ~AirconController();
 
     // === 計算関数 ===
-    double calculateHeatCapacity(const std::string& inNode, const std::string& airconNode,
-                                 const FlowRateMap& flowRates,
-                                 const TemperatureMap& temperatureMap) const;
+    double calculateHeatCapacity(ThermalNetwork& thermalNetwork,
+                                 const std::string& inNode,
+                                 const std::string& airconNode,
+                                 const FlowRateMap& flowRates) const;
 
     // === 制御関数 ===
     template<typename NodeType>
@@ -119,31 +124,29 @@ public:
     }
 
     bool controlAllAircons(ThermalNetwork& thermalNetwork,
-                           const TemperatureMap& temperatureMap,
                            double tolerance,
                            std::ostream& logFile) const;
 
     bool checkAndAdjustCapacity(ThermalNetwork& thermalNetwork, VentilationNetwork& ventNetwork,
                                 const SimulationConstants& constants,
                                 const FlowRateMap& flowRates,
-                                const TemperatureMap& temperatureMap, std::ostream& logFile,
+                                std::ostream& logFile,
                                 int& totalIterations) const;
 
     // === データ収集・ログ ===
-    AirconDataMap collectAirconData(ThermalNetwork& thermalNetwork,
-                                    const FlowRateMap& flowRates,
-                                    const TemperatureMap& temperatureMap,
-                                    const std::string& dataType) const;
+    const std::vector<std::string>& getAirconKeys() const;
 
-    AirconDataMap calculatePower(ThermalNetwork& thermalNetwork,
-                                 const FlowRateMap& flowRates,
-                                 const TemperatureMap& temperatureMap,
-                                 std::ostream& logFile) const;
+    std::vector<double> collectAirconDataValues(ThermalNetwork& thermalNetwork,
+                                                const FlowRateMap& flowRates,
+                                                const std::string& dataType) const;
 
-    AirconDataMap calculateCOP(ThermalNetwork& thermalNetwork,
-                               const FlowRateMap& flowRates,
-                               const TemperatureMap& temperatureMap,
-                               std::ostream& logFile) const;
+    std::vector<double> calculatePowerValues(ThermalNetwork& thermalNetwork,
+                                             const FlowRateMap& flowRates,
+                                             std::ostream& logFile) const;
+
+    std::vector<double> calculateCOPValues(ThermalNetwork& thermalNetwork,
+                                           const FlowRateMap& flowRates,
+                                           std::ostream& logFile) const;
 
     // === 設定 ===
     void applyPreset(ThermalNetwork& thermalNetwork, std::ostream& logFile) const;

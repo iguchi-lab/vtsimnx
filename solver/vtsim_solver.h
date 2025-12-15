@@ -7,6 +7,7 @@
 #include <boost/graph/adjacency_list.hpp>
 #include <limits>
 #include <optional>
+#include <cstdint>
 
 // === 物理定数 ===
 namespace PhysicalConstants {
@@ -45,6 +46,10 @@ struct SimulationConstants {
     double ventilationTolerance;
     double thermalTolerance;
     double convergenceTolerance;
+    // 追加: 圧力-熱の連成反復の停止判定に使う許容誤差（0以下なら convergenceTolerance を使用）
+    // 単位: pressure [Pa], temperature [K]
+    double couplingPressureTolerance = 0.0;
+    double couplingTemperatureTolerance = 0.0;
     double maxInnerIteration;
     bool pressureCalc;
     bool temperatureCalc;
@@ -162,6 +167,14 @@ struct AirconSpec {
 
 // ノード（頂点）のプロパティ
 struct VertexProperties {
+    enum class TypeCode : std::uint8_t {
+        Unknown = 0,
+        Normal,
+        Aircon,
+        Capacity,
+        Layer,
+    };
+
     std::string key;
     std::string name;
     std::string type;
@@ -193,6 +206,8 @@ struct VertexProperties {
     double v = 0.0;
     bool on = false;
     std::optional<AirconSpec> aircon_spec;  // 新しい構造体
+    // type（文字列）の比較をホットパスから外すためのキャッシュ
+    mutable TypeCode type_code = TypeCode::Unknown;
     
     // 時系列データ更新メソッド
     void updateForTimestep(int timestep) {
@@ -215,6 +230,17 @@ struct VertexProperties {
             current_mode = mode[timestep];
         }
     }
+
+    // 高頻度参照用: 文字列 type を enum にキャッシュして返す
+    TypeCode getTypeCode() const {
+        if (type_code != TypeCode::Unknown) return type_code;
+        if (type == "aircon") type_code = TypeCode::Aircon;
+        else if (type == "capacity") type_code = TypeCode::Capacity;
+        else if (type == "layer") type_code = TypeCode::Layer;
+        else if (type == "normal") type_code = TypeCode::Normal;
+        else type_code = TypeCode::Unknown;
+        return type_code;
+    }
     
     // アクセサメソッド
     const AirconSpec* getAirconSpec() const {
@@ -234,6 +260,13 @@ struct VertexProperties {
 
 // エッジ（ブランチ）のプロパティ
 struct EdgeProperties {
+    enum class TypeCode : std::uint8_t {
+        Unknown = 0,
+        Advection,
+        Conductance,
+        HeatGeneration,
+    };
+
     std::string key;
     std::string unique_id;  // 個別ブランチを識別するためのユニークID
     std::string type;
@@ -261,6 +294,8 @@ struct EdgeProperties {
     double conductance = 0.0;
     std::vector<double> heat_generation;
     double current_heat_generation;
+    // type（文字列）の比較をホットパスから外すためのキャッシュ
+    mutable TypeCode type_code = TypeCode::Unknown;
     
     // 時系列データ更新メソッド
     void updateForTimestep(int timestep) {
@@ -274,6 +309,16 @@ struct EdgeProperties {
             current_heat_generation = heat_generation[timestep];
         }
     }
+
+    // 高頻度参照用: 文字列 type を enum にキャッシュして返す
+    TypeCode getTypeCode() const {
+        if (type_code != TypeCode::Unknown) return type_code;
+        if (type == "advection") type_code = TypeCode::Advection;
+        else if (type == "conductance") type_code = TypeCode::Conductance;
+        else if (type == "heat_generation") type_code = TypeCode::HeatGeneration;
+        else type_code = TypeCode::Unknown;
+        return type_code;
+    }
 };
 
 // Boost Graphの定義
@@ -284,23 +329,21 @@ typedef boost::graph_traits<Graph>::edge_descriptor Edge;
 // 1タイムステップ分の結果を格納する構造体
 struct TimestepResult {
     // 圧力関連（pressureCalcがtrueの場合のみ有効）
-    PressureMap pressureMap;
-    std::map<std::string, double> flowRateMap;  // 個別ブランチの風量データ
+    // 出力はバイナリ(float32)前提のため、出力用配列は float を内部表現として保持する
+    std::vector<float> pressure;  // ノード圧力（キー順は VentilationNetwork が提供）
+    std::vector<float> flowRate;  // 個別ブランチの風量データ（キー順は VentilationNetwork が提供）
     FlowBalanceMap flowBalanceMap;
 
     // 温度関連（temperatureCalcがtrueの場合のみ有効）
-    TemperatureMap temperatureMap;
-    std::map<std::string, double> heatRateMap;  // 個別ブランチの熱流量データ
+    std::vector<float> temperature;  // ノード温度（キー順は ThermalNetwork が提供）
+    std::vector<float> heatRate;  // 個別ブランチの熱流量データ（キー順は ThermalNetwork が提供）
     HeatBalanceMap heatBalanceMap;
     
     // エアコン関連（temperatureCalcがtrueの場合のみ有効）
-    AirconDataMap airconInletTempMap;
-    AirconDataMap airconOutletTempMap;
-    AirconDataMap airconFlowMap;
-    AirconDataMap airconSensibleHeatMap;
-    AirconDataMap airconLatentHeatMap;
-    AirconDataMap airconPowerMap;
-    AirconDataMap airconCOPMap;
+    std::vector<float> airconSensibleHeat;     // キー順は AirconController が提供
+    std::vector<float> airconLatentHeat;       // キー順は AirconController が提供
+    std::vector<float> airconPower;            // キー順は AirconController が提供
+    std::vector<float> airconCOP;              // キー順は AirconController が提供
     
     // その他（将来の拡張用）
     AirconDataMap humidityMap;

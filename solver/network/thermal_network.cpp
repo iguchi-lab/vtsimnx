@@ -9,6 +9,7 @@
 #include <fstream>
 #include <unordered_map>
 #include <sstream>
+#include <algorithm>
 
 #include <boost/graph/adjacency_list.hpp>
 
@@ -148,67 +149,88 @@ void ThermalNetwork::syncFlowRatesFromVentilationNetwork(const VentilationNetwor
     }
 }
 
-// ノード温度更新
-void ThermalNetwork::updateNodeTemperatures(const TemperatureMap& tempMap) {
-    for (auto const& [name, temp] : tempMap) {
-        auto it = keyToVertex.find(name);
-        if (it != keyToVertex.end()) {
-            graph[it->second].current_t = temp;
-        }
-    }
-}
-
-// 熱流量をグラフに更新
-void ThermalNetwork::updateHeatRatesInGraph(const HeatRateMap& heatRates) {
-    auto edge_range = boost::edges(graph);
-    for (auto edge : boost::make_iterator_range(edge_range)) {
-        Vertex sourceVertex = boost::source(edge, graph);
-        Vertex targetVertex = boost::target(edge, graph);
-        const auto& sourceNode = graph[sourceVertex];
-        const auto& targetNode = graph[targetVertex];
-
-        std::pair<std::string, std::string> edgeKey = {sourceNode.key, targetNode.key};
-        auto heatIt = heatRates.find(edgeKey);
-        if (heatIt != heatRates.end()) {
-            graph[edge].heat_rate = heatIt->second;
-        }
-    }
-}
-
-// 温度と熱流量を同時に更新
-void ThermalNetwork::updateCalculationResults(const TemperatureMap& tempMap, const HeatRateMap& heatRates) {
-    updateNodeTemperatures(tempMap);
-    updateHeatRatesInGraph(heatRates);
-}
-
-
 // 温度計算
-std::tuple<TemperatureMap, HeatRateMap, HeatBalanceMap>
-ThermalNetwork::calculateTemperature(const SimulationConstants& constants, std::ostream& logs) {
+void ThermalNetwork::calculateTemperature(const SimulationConstants& constants, std::ostream& logs) {
     ThermalSolver solver(*this, logs);
-    return solver.solveTemperatures(constants);
+    solver.solveTemperatures(constants);
 }
 
-// 熱流量データを収集（個別ブランチの熱流量データを返す）
-std::map<std::string, double> ThermalNetwork::collectHeatRates() const {
-    std::map<std::string, double> heatRates;
-
-    auto edge_range = boost::edges(graph);
-    for (auto edge : boost::make_iterator_range(edge_range)) {
-        const auto& edgeData = graph[edge];
-
-        // 出力用キーから末尾の"_000"を除去（存在する場合のみ）
-        std::string key = edgeData.unique_id;
-        const std::string suffix = "_000";
-        if (key.size() > suffix.size() &&
-            key.rfind(suffix) == key.size() - suffix.size()) {
-            key.erase(key.size() - suffix.size());
+const std::vector<std::string>& ThermalNetwork::getTemperatureKeys() const {
+    if (!temperatureCacheInitialized) {
+        // TemperatureMap は std::map でキーが昇順になるため、同じ順序（key昇順）で固定する
+        std::vector<std::pair<std::string, Vertex>> items;
+        items.reserve(boost::num_vertices(graph));
+        for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+            items.emplace_back(graph[v].key, v);
         }
-
-        heatRates[key] = edgeData.heat_rate;
+        std::sort(items.begin(), items.end(),
+                  [](const auto& a, const auto& b) { return a.first < b.first; });
+        temperatureVerticesOrdered.clear();
+        temperatureKeysOrdered.clear();
+        temperatureVerticesOrdered.reserve(items.size());
+        temperatureKeysOrdered.reserve(items.size());
+        for (const auto& kv : items) {
+            temperatureKeysOrdered.push_back(kv.first);
+            temperatureVerticesOrdered.push_back(kv.second);
+        }
+        temperatureCacheInitialized = true;
     }
+    return temperatureKeysOrdered;
+}
 
-    return heatRates;
+std::vector<double> ThermalNetwork::collectTemperatureValues() const {
+    const auto& keys = getTemperatureKeys();
+    (void)keys;
+    std::vector<double> values;
+    values.resize(temperatureVerticesOrdered.size());
+    for (size_t i = 0; i < temperatureVerticesOrdered.size(); ++i) {
+        values[i] = graph[temperatureVerticesOrdered[i]].current_t;
+    }
+    return values;
+}
+
+const std::vector<std::string>& ThermalNetwork::getHeatRateKeys() const {
+    if (!heatRateCacheInitialized) {
+        // (key, edge) を集めてキーでソートし、順序を固定する
+        std::vector<std::pair<std::string, Edge>> items;
+        items.reserve(boost::num_edges(graph));
+        for (auto edge : boost::make_iterator_range(boost::edges(graph))) {
+            const auto& edgeData = graph[edge];
+
+            // 出力用キーから末尾の"_000"を除去（存在する場合のみ）
+            std::string key = edgeData.unique_id;
+            const std::string suffix = "_000";
+            if (key.size() > suffix.size() &&
+                key.rfind(suffix) == key.size() - suffix.size()) {
+                key.erase(key.size() - suffix.size());
+            }
+            items.emplace_back(std::move(key), edge);
+        }
+        std::sort(items.begin(), items.end(),
+                  [](const auto& a, const auto& b) { return a.first < b.first; });
+
+        heatRateEdgesOrdered.clear();
+        heatRateKeysOrdered.clear();
+        heatRateEdgesOrdered.reserve(items.size());
+        heatRateKeysOrdered.reserve(items.size());
+        for (const auto& kv : items) {
+            heatRateKeysOrdered.push_back(kv.first);
+            heatRateEdgesOrdered.push_back(kv.second);
+        }
+        heatRateCacheInitialized = true;
+    }
+    return heatRateKeysOrdered;
+}
+
+std::vector<double> ThermalNetwork::collectHeatRateValues() const {
+    const auto& keys = getHeatRateKeys();
+    (void)keys;
+    std::vector<double> values;
+    values.resize(heatRateEdgesOrdered.size());
+    for (size_t i = 0; i < heatRateEdgesOrdered.size(); ++i) {
+        values[i] = graph[heatRateEdgesOrdered[i]].heat_rate;
+    }
+    return values;
 }
 
 // タイムステップに応じてノードとエッジの時変プロパティを更新
@@ -216,44 +238,19 @@ void ThermalNetwork::updatePropertiesForTimestep(const std::vector<VertexPropert
                                                   const std::vector<EdgeProperties>& thermalBranches,
                                                  const std::vector<EdgeProperties>& ventilationBranches,
                                                   long timestep) {
-    // ノードのプロパティを更新（keyでマッチング）
-    for (const auto& node : allNodes) {
-        auto it = keyToVertex.find(node.key);
-        if (it != keyToVertex.end()) {
-            VertexProperties& graphNode = graph[it->second];
-            // 時系列データから現在のタイムステップの値を更新
-            graphNode.updateForTimestep(static_cast<int>(timestep));
-        }
+    // 時系列を保持している graph 内のプロパティを更新（JSON再パースは不要）
+    (void)allNodes;
+    (void)thermalBranches;
+    (void)ventilationBranches;
+
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        graph[v].updateForTimestep(static_cast<int>(timestep));
     }
-    
-    // 熱ブランチ/換気ブランチを高速参照するマップを構築
-    std::unordered_map<std::string, const EdgeProperties*> thermalBranchById;
-    thermalBranchById.reserve(thermalBranches.size());
-    for (const auto& branch : thermalBranches) {
-        thermalBranchById.emplace(branch.unique_id, &branch);
-    }
-    (void)ventilationBranches; // 現状、移流エッジでは換気ブランチの時系列更新は不要
-
-    // エッジのプロパティを更新（unique_idでマッチング）
-    auto edge_range = boost::edges(graph);
-    for (auto edge : boost::make_iterator_range(edge_range)) {
-        EdgeProperties& graphEdge = graph[edge];
-
-        if (graphEdge.type == "advection" && graphEdge.key.rfind("advection_", 0) == 0) {
-            // 移流エッジは換気ブランチに紐付く。現時点で更新する時変プロパティはないため処理なし。
-            continue;
+    for (auto e : boost::make_iterator_range(boost::edges(graph))) {
+        auto& ep = graph[e];
+        if (ep.type == "advection" && ep.key.rfind("advection_", 0) == 0) {
+            continue; // 換気同期でflow_rateが入るため時系列更新は不要
         }
-
-        auto thermalIt = thermalBranchById.find(graphEdge.unique_id);
-        if (thermalIt == thermalBranchById.end()) {
-            continue;
-        }
-
-        const EdgeProperties* srcBranch = thermalIt->second;
-        // 時系列データから現在のタイムステップの値を更新
-        graphEdge.updateForTimestep(static_cast<int>(timestep));
-        // 時系列データも更新（次回の更新に備える）
-        graphEdge.heat_generation = srcBranch->heat_generation;
-        graphEdge.enabled = srcBranch->enabled;
+        ep.updateForTimestep(static_cast<int>(timestep));
     }
 } 

@@ -18,6 +18,14 @@ class ThermalNetwork {
 private:
     Graph graph;
     std::unordered_map<std::string, Vertex> keyToVertex;  // キーから頂点への高速マッピング
+    // 出力用（temperature）キャッシュ：キー順を固定して値配列で回す
+    mutable bool temperatureCacheInitialized = false;
+    mutable std::vector<Vertex> temperatureVerticesOrdered;
+    mutable std::vector<std::string> temperatureKeysOrdered;
+    // 出力用（heat_rate）キャッシュ：キー順を固定して値配列で回す
+    mutable bool heatRateCacheInitialized = false;
+    mutable std::vector<Edge> heatRateEdgesOrdered;
+    mutable std::vector<std::string> heatRateKeysOrdered;
 
 public:
     // ノード・エッジ操作
@@ -48,13 +56,9 @@ public:
     void syncFlowRatesFromVentilationNetwork(const VentilationNetwork& ventNetwork);
 
     // 計算（宣言のみ。実装は別途）
-    std::tuple<TemperatureMap, HeatRateMap, HeatBalanceMap> calculateTemperature(
-        const SimulationConstants& constants, std::ostream& logs);
+    void calculateTemperature(const SimulationConstants& constants, std::ostream& logs);
 
-    // 更新操作
-    void updateNodeTemperatures(const TemperatureMap& tempMap);
-    void updateHeatRatesInGraph(const HeatRateMap& heatRates);
-    void updateCalculationResults(const TemperatureMap& tempMap, const HeatRateMap& heatRates);
+    // 更新操作（互換性不要のため、計算結果は graph 内に反映される前提）
     
     // タイムステップに応じてノードとエッジの時変プロパティを更新
     void updatePropertiesForTimestep(const std::vector<VertexProperties>& allNodes,
@@ -63,7 +67,10 @@ public:
                                       long timestep);
 
     // 熱流量データ収集（個別ブランチの熱流量データを返す）
-    std::map<std::string, double> collectHeatRates() const;
+    const std::vector<std::string>& getTemperatureKeys() const;
+    std::vector<double> collectTemperatureValues() const;
+    const std::vector<std::string>& getHeatRateKeys() const;
+    std::vector<double> collectHeatRateValues() const;
 };
 
 

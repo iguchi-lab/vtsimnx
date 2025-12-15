@@ -61,6 +61,8 @@ void AirconController::initializeModels(ThermalNetwork& thermalNetwork,
                                         int logVerbosity) {
     logVerbosity_ = logVerbosity;
     airconModels.clear();
+    airconKeysCacheInitialized_ = false;
+    airconKeysOrdered_.clear();
 
     // acmodel側のログ設定
     acmodel::setLogger([&logs](const std::string& message) {
@@ -104,17 +106,31 @@ acmodel::AirconSpec* AirconController::getModel(const std::string& airconKey) co
     return it->second.get();
 }
 
-double AirconController::calculateHeatCapacity(const std::string& inNode,
+namespace {
+static inline bool tryGetTempFromThermalNetwork(const ThermalNetwork& thermalNetwork,
+                                                const std::string& nodeKey,
+                                                double& outTemp) {
+    if (nodeKey.empty()) return false;
+    const auto& keyToV = thermalNetwork.getKeyToVertex();
+    auto it = keyToV.find(nodeKey);
+    if (it == keyToV.end()) return false;
+    outTemp = thermalNetwork.getGraph()[it->second].current_t;
+    return true;
+}
+} // namespace
+
+double AirconController::calculateHeatCapacity(ThermalNetwork& thermalNetwork,
+                                               const std::string& inNode,
                                                const std::string& airconNode,
-                                               const FlowRateMap& flowRates,
-                                               const TemperatureMap& temperatureMap) const {
+                                               const FlowRateMap& flowRates) const {
     if (inNode.empty()) {
         return 0.0;
     }
 
-    auto inletTempIt = temperatureMap.find(inNode);
-    auto outletTempIt = temperatureMap.find(airconNode);
-    if (inletTempIt == temperatureMap.end() || outletTempIt == temperatureMap.end()) {
+    double inletTemp = 0.0;
+    double outletTemp = 0.0;
+    if (!tryGetTempFromThermalNetwork(thermalNetwork, inNode, inletTemp) ||
+        !tryGetTempFromThermalNetwork(thermalNetwork, airconNode, outletTemp)) {
         return 0.0;
     }
 
@@ -123,24 +139,24 @@ double AirconController::calculateHeatCapacity(const std::string& inNode,
         return 0.0;
     }
 
-    double deltaT = inletTempIt->second - outletTempIt->second;
+    double deltaT = inletTemp - outletTemp;
     double heatCapacity = kAirDensity * kAirSpecificHeat * std::abs(flowRate) * deltaT;
     return clampHeatCapacity(heatCapacity);
 }
 
 AirconValidationData AirconController::validateAirconData(const std::string& airconKey,
-                                                          const VertexProperties& nodeProps,
-                                                          const TemperatureMap& temperatureMap) const {
+                                                          ThermalNetwork& thermalNetwork,
+                                                          const VertexProperties& nodeProps) const {
     AirconValidationData data{};
     auto getTemp = [&](const std::string& nodeName, const char* label) -> double {
         if (nodeName.empty()) {
             throw std::runtime_error(std::string(label) + " が設定されていません (" + airconKey + ")");
         }
-        auto it = temperatureMap.find(nodeName);
-        if (it == temperatureMap.end()) {
+        double t = 0.0;
+        if (!tryGetTempFromThermalNetwork(thermalNetwork, nodeName, t)) {
             throw std::runtime_error(std::string(label) + " '" + nodeName + "' の温度が見つかりません");
         }
-        return it->second;
+        return t;
     };
 
     data.outdoorTemp = getTemp(nodeProps.outside_node, "outside_node");
@@ -156,12 +172,12 @@ AirconValidationData AirconController::validateAirconData(const std::string& air
 
 AirconController::RuntimeContext AirconController::prepareRuntimeContext(
     const std::string& airconKey,
+    ThermalNetwork& thermalNetwork,
     const VertexProperties& nodeProps,
-    const FlowRateMap& flowRates,
-    const TemperatureMap& temperatureMap) const {
+    const FlowRateMap& flowRates) const {
     RuntimeContext context{};
-    context.validData = validateAirconData(airconKey, nodeProps, temperatureMap);
-    context.heatCapacity = calculateHeatCapacity(nodeProps.in_node, nodeProps.key, flowRates, temperatureMap);
+    context.validData = validateAirconData(airconKey, thermalNetwork, nodeProps);
+    context.heatCapacity = calculateHeatCapacity(thermalNetwork, nodeProps.in_node, nodeProps.key, flowRates);
     context.airFlowRate = std::abs(getFlowRate(flowRates, nodeProps.in_node, nodeProps.key));
 
     auto mode = nodeProps.current_mode;
@@ -173,7 +189,6 @@ AirconController::RuntimeContext AirconController::prepareRuntimeContext(
 }
 
 bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
-                                         const TemperatureMap& temperatureMap,
                                          double tolerance,
                                          std::ostream& logFile) const {
     bool allControlled = true;
@@ -184,13 +199,11 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
         auto& nodeProps = thermalNetwork.getNode(airconKey);
         double currentTemp = 0.0;
         if (!nodeProps.set_node.empty()) {
-            auto it = temperatureMap.find(nodeProps.set_node);
-            if (it != temperatureMap.end()) {
-                currentTemp = it->second;
-            }
+            (void)tryGetTempFromThermalNetwork(thermalNetwork, nodeProps.set_node, currentTemp);
         } else {
-            auto it = temperatureMap.find(nodeProps.key);
-            currentTemp = (it != temperatureMap.end()) ? it->second : nodeProps.current_t;
+            if (!tryGetTempFromThermalNetwork(thermalNetwork, nodeProps.key, currentTemp)) {
+                currentTemp = nodeProps.current_t;
+            }
         }
         double targetTemp = nodeProps.current_pre_temp;
 
@@ -243,7 +256,6 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                                               VentilationNetwork& /*ventNetwork*/,
                                               const SimulationConstants& /*constants*/,
                                               const FlowRateMap& flowRates,
-                                              const TemperatureMap& temperatureMap,
                                               std::ostream& logs,
                                               int& /*totalIterations*/) const {
     bool adjustmentMade = false;
@@ -253,7 +265,7 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
             continue;
         }
         try {
-            auto context = prepareRuntimeContext(airconKey, nodeProps, flowRates, temperatureMap);
+            auto context = prepareRuntimeContext(airconKey, thermalNetwork, nodeProps, flowRates);
             std::string sourceLabel = "unknown";
             auto maxHeatCapacity = resolveMaxHeatCapacity(nodeProps, context.operationMode, sourceLabel);
             double current = context.heatCapacity;
@@ -280,54 +292,64 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
     return adjustmentMade;
 }
 
-AirconDataMap AirconController::collectAirconData(ThermalNetwork& thermalNetwork,
-                                                  const FlowRateMap& flowRates,
-                                                  const TemperatureMap& temperatureMap,
-                                                  const std::string& dataType) const {
-    AirconDataMap data;
-    for (const auto& [airconKey, _] : airconModels) {
+const std::vector<std::string>& AirconController::getAirconKeys() const {
+    if (!airconKeysCacheInitialized_) {
+        airconKeysOrdered_.clear();
+        airconKeysOrdered_.reserve(airconModels.size());
+        for (const auto& kv : airconModels) {
+            airconKeysOrdered_.push_back(kv.first);
+        }
+        std::sort(airconKeysOrdered_.begin(), airconKeysOrdered_.end());
+        airconKeysCacheInitialized_ = true;
+    }
+    return airconKeysOrdered_;
+}
+
+std::vector<double> AirconController::collectAirconDataValues(ThermalNetwork& thermalNetwork,
+                                                              const FlowRateMap& flowRates,
+                                                              const std::string& dataType) const {
+    const auto& keys = getAirconKeys();
+    std::vector<double> values(keys.size(), 0.0);
+    for (size_t i = 0; i < keys.size(); ++i) {
+        const std::string& airconKey = keys[i];
         const auto& nodeProps = thermalNetwork.getNode(airconKey);
         try {
             if (dataType == "airconTemp") {
-                auto it = temperatureMap.find(nodeProps.key);
-                if (it != temperatureMap.end()) {
-                    data[airconKey] = it->second;
-                }
+                double t = 0.0;
+                if (tryGetTempFromThermalNetwork(thermalNetwork, nodeProps.key, t)) values[i] = t;
             } else if (dataType == "inTemp") {
                 if (!nodeProps.in_node.empty()) {
-                    auto it = temperatureMap.find(nodeProps.in_node);
-                    if (it != temperatureMap.end()) {
-                        data[airconKey] = it->second;
-                    }
+                    double t = 0.0;
+                    if (tryGetTempFromThermalNetwork(thermalNetwork, nodeProps.in_node, t)) values[i] = t;
                 }
             } else if (dataType == "flow") {
-                data[airconKey] = std::abs(getFlowRate(flowRates, nodeProps.in_node, nodeProps.key));
+                values[i] = std::abs(getFlowRate(flowRates, nodeProps.in_node, nodeProps.key));
             } else if (dataType == "sensibleHeatCapacity") {
-                double heat = calculateHeatCapacity(nodeProps.in_node, nodeProps.key, flowRates, temperatureMap);
-                data[airconKey] = heat;
+                values[i] = calculateHeatCapacity(thermalNetwork, nodeProps.in_node, nodeProps.key, flowRates);
             } else if (dataType == "latentHeatCapacity") {
-                data[airconKey] = 0.0; // 潜熱は現状モデル化していない
+                values[i] = 0.0; // 潜熱は現状モデル化していない
             }
         } catch (...) {
-            // 収集失敗時はスキップ
+            values[i] = 0.0;
         }
     }
-    return data;
+    return values;
 }
 
-AirconDataMap AirconController::calculatePower(ThermalNetwork& thermalNetwork,
-                                               const FlowRateMap& flowRates,
-                                               const TemperatureMap& temperatureMap,
-                                               std::ostream& logs) const {
-    AirconDataMap powerMap;
-    for (const auto& [airconKey, _] : airconModels) {
+std::vector<double> AirconController::calculatePowerValues(ThermalNetwork& thermalNetwork,
+                                                           const FlowRateMap& flowRates,
+                                                           std::ostream& logs) const {
+    const auto& keys = getAirconKeys();
+    std::vector<double> power(keys.size(), 0.0);
+    for (size_t i = 0; i < keys.size(); ++i) {
+        const std::string& airconKey = keys[i];
         const auto& nodeProps = thermalNetwork.getNode(airconKey);
         if (!nodeProps.on) {
-            powerMap[airconKey] = 0.0;
+            power[i] = 0.0;
             continue;
         }
         try {
-            auto context = prepareRuntimeContext(airconKey, nodeProps, flowRates, temperatureMap);
+            auto context = prepareRuntimeContext(airconKey, thermalNetwork, nodeProps, flowRates);
             auto* model = getModel(airconKey);
             if (!model) {
                 throw std::runtime_error("初期化済みモデルがありません");
@@ -356,7 +378,7 @@ AirconDataMap AirconController::calculatePower(ThermalNetwork& thermalNetwork,
             if (!result.valid) {
                 throw std::runtime_error("COP推定に失敗しました");
             }
-            double power = result.power * 1000.0; // kW -> W
+            double p = result.power * 1000.0; // kW -> W
             std::ostringstream detail;
             detail << "　　エアコン電力計算: " << airconKey
                    << " [" << context.operationMode << "]"
@@ -365,30 +387,31 @@ AirconDataMap AirconController::calculatePower(ThermalNetwork& thermalNetwork,
                    << " 外気=" << context.validData.outdoorTemp << "°C"
                    << " 室内=" << context.validData.indoorTemp << "°C"
                    << " COP=" << result.COP
-                   << " 電力=" << power << "W";
+                   << " 電力=" << p << "W";
             writeLog(logs, detail.str());
-            powerMap[airconKey] = power;
+            power[i] = p;
         } catch (const std::exception& e) {
             writeLog(logs, std::string("　　エラー: エアコン ") + airconKey + " - " + e.what());
-            powerMap[airconKey] = 0.0;
+            power[i] = 0.0;
         }
     }
-    return powerMap;
+    return power;
 }
 
-AirconDataMap AirconController::calculateCOP(ThermalNetwork& thermalNetwork,
-                                             const FlowRateMap& flowRates,
-                                             const TemperatureMap& temperatureMap,
-                                             std::ostream& logs) const {
-    AirconDataMap copMap;
-    for (const auto& [airconKey, _] : airconModels) {
+std::vector<double> AirconController::calculateCOPValues(ThermalNetwork& thermalNetwork,
+                                                         const FlowRateMap& flowRates,
+                                                         std::ostream& logs) const {
+    const auto& keys = getAirconKeys();
+    std::vector<double> cop(keys.size(), 0.0);
+    for (size_t i = 0; i < keys.size(); ++i) {
+        const std::string& airconKey = keys[i];
         const auto& nodeProps = thermalNetwork.getNode(airconKey);
         if (!nodeProps.on) {
-            copMap[airconKey] = 0.0;
+            cop[i] = 0.0;
             continue;
         }
         try {
-            auto context = prepareRuntimeContext(airconKey, nodeProps, flowRates, temperatureMap);
+            auto context = prepareRuntimeContext(airconKey, thermalNetwork, nodeProps, flowRates);
             auto* model = getModel(airconKey);
             if (!model) {
                 throw std::runtime_error("初期化済みモデルがありません");
@@ -412,13 +435,13 @@ AirconDataMap AirconController::calculateCOP(ThermalNetwork& thermalNetwork,
             if (!result.valid) {
                 throw std::runtime_error("COP推定に失敗しました");
             }
-            copMap[airconKey] = result.COP;
+            cop[i] = result.COP;
         } catch (const std::exception& e) {
             writeLog(logs, std::string("　　エラー: エアコン ") + airconKey + " - " + e.what());
-            copMap[airconKey] = 0.0;
+            cop[i] = 0.0;
         }
     }
-    return copMap;
+    return cop;
 }
 
 void AirconController::applyPreset(ThermalNetwork& thermalNetwork,

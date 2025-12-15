@@ -81,6 +81,26 @@ SimulationConstants parseSimulationConstants(const nlohmann::json& config,
     logLine([&](std::ostringstream& oss) {
         oss << "  収束許容誤差: " << outConstants.convergenceTolerance;
     });
+
+    // 連成反復の停止判定（任意）
+    if (tol.contains("coupling_pressure")) {
+        if (!tol["coupling_pressure"].is_number()) {
+            throw std::runtime_error("Missing or invalid 'simulation.tolerance.coupling_pressure' (number required)");
+        }
+        outConstants.couplingPressureTolerance = tol["coupling_pressure"];
+        logLine([&](std::ostringstream& oss) {
+            oss << "  連成(圧力)許容誤差: " << outConstants.couplingPressureTolerance;
+        });
+    }
+    if (tol.contains("coupling_temperature")) {
+        if (!tol["coupling_temperature"].is_number()) {
+            throw std::runtime_error("Missing or invalid 'simulation.tolerance.coupling_temperature' (number required)");
+        }
+        outConstants.couplingTemperatureTolerance = tol["coupling_temperature"];
+        logLine([&](std::ostringstream& oss) {
+            oss << "  連成(温度)許容誤差: " << outConstants.couplingTemperatureTolerance;
+        });
+    }
     bool customMaxInner = false;
     outConstants.maxInnerIteration = 100;
     if (sim.contains("iteration")) {

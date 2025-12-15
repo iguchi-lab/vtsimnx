@@ -4,26 +4,33 @@
 #include <fstream>
 #include <string>
 #include <string_view>
-#include <unordered_map>
+#include <ios>
 
 namespace logging_detail {
-struct LogState {
-    int indentLevel = 0;
-    int timestepMeta = -1;
-};
-
-inline LogState& stateFor(std::ostream& os) {
-    static std::unordered_map<std::ostream*, LogState> states;
-    return states[&os];
+// std::ostream* をキーにした map は高頻度ログで重くなりやすい。
+// iword/xalloc を使って ostream 本体に状態を保持する（ヒープ確保・ハッシュを避ける）。
+inline int indentIndex() {
+    static int idx = std::ios_base::xalloc();
+    return idx;
+}
+inline int timestepIndex() {
+    static int idx = std::ios_base::xalloc();
+    return idx;
+}
+inline long& indentLevel(std::ios_base& ios) {
+    return ios.iword(indentIndex()); // default 0
+}
+inline long& timestepMeta(std::ios_base& ios) {
+    return ios.iword(timestepIndex()); // default 0 (未設定は -1 を使う)
 }
 } // namespace logging_detail
 
 inline void setLogTimestepMeta(std::ostream& os, int timestepIndex) {
-    logging_detail::stateFor(os).timestepMeta = timestepIndex;
+    logging_detail::timestepMeta(os) = static_cast<long>(timestepIndex);
 }
 
 inline void clearLogTimestepMeta(std::ostream& os) {
-    logging_detail::stateFor(os).timestepMeta = -1;
+    logging_detail::timestepMeta(os) = -1;
 }
 
 inline void writeLog(std::ostream& logFile,
@@ -34,7 +41,7 @@ class ScopedLogIndent {
 public:
     ScopedLogIndent(std::ostream& os, int depth = 1)
         : os_(&os), depth_(std::max(0, depth)) {
-        logging_detail::stateFor(*os_).indentLevel += depth_;
+        logging_detail::indentLevel(*os_) += depth_;
     }
 
     ScopedLogIndent(const ScopedLogIndent&) = delete;
@@ -64,8 +71,8 @@ public:
 private:
     void release() {
         if (!os_ || depth_ == 0) return;
-        auto& state = logging_detail::stateFor(*os_);
-        state.indentLevel = std::max(0, state.indentLevel - depth_);
+        auto& indent = logging_detail::indentLevel(*os_);
+        indent = std::max(0L, indent - depth_);
         depth_ = 0;
         os_ = nullptr;
     }
@@ -81,7 +88,7 @@ public:
                      bool includeTimestepMeta = false)
         : os_(&os), active_(true) {
         writeLog(*os_, title, includeTimestepMeta);
-        logging_detail::stateFor(*os_).indentLevel++;
+        logging_detail::indentLevel(*os_) += 1;
     }
 
     ScopedLogSection(const ScopedLogSection&) = delete;
@@ -111,8 +118,8 @@ public:
 private:
     void release() {
         if (!active_ || !os_) return;
-        auto& state = logging_detail::stateFor(*os_);
-        state.indentLevel = std::max(0, state.indentLevel - 1);
+        auto& indent = logging_detail::indentLevel(*os_);
+        indent = std::max(0L, indent - 1);
         active_ = false;
         os_ = nullptr;
     }
@@ -139,13 +146,16 @@ inline void writeLog(std::ostream& logFile,
         content.remove_prefix(pos);
     }
 
-    auto& state = logging_detail::stateFor(logFile);
-    if (includeTimestepMeta && state.timestepMeta >= 0) {
-        logFile << "[ts=" << state.timestepMeta << "] ";
+    // NOTE: std::endl は毎回 flush するため、ログ量が多いと支配的なボトルネックになる。
+    // ここでは '\n' のみにして flush は呼び出し側（必要時）に任せる。
+    const long ts = logging_detail::timestepMeta(logFile);
+    if (includeTimestepMeta && ts >= 0) {
+        logFile << "[ts=" << ts << "] ";
     }
-    for (int i = 0; i < state.indentLevel; ++i) {
+    const long indent = logging_detail::indentLevel(logFile);
+    for (long i = 0; i < indent; ++i) {
         logFile << "  ";
     }
-    logFile << content << std::endl;
+    logFile << content << '\n';
 }
 

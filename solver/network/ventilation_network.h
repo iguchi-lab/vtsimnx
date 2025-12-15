@@ -11,11 +11,23 @@
 
 using json = nlohmann::json;
 
+class ThermalNetwork; // forward declaration
+
 // 換気回路網クラス
 class VentilationNetwork {
 private:
     Graph graph;
     std::unordered_map<std::string, Vertex> keyToVertex;  // キーから頂点への高速マッピング
+
+    // 出力用（pressure）キャッシュ：キー順を固定して値配列で回す
+    mutable bool pressureCacheInitialized = false;
+    mutable std::vector<Vertex> pressureVerticesOrdered;
+    mutable std::vector<std::string> pressureKeysOrdered;
+
+    // 出力用（flow_rate）キャッシュ：キー順を固定して値配列で回す
+    mutable bool flowRateCacheInitialized = false;
+    mutable std::vector<Edge> flowRateEdgesOrdered;
+    mutable std::vector<std::string> flowRateKeysOrdered;
 
     // スーパーノード検出のキャッシュ（1タイムステップ内で固定）
     bool supernodeCacheValid = false;
@@ -68,6 +80,8 @@ public:
     void updateCalculationResults(const PressureMap& pressureMap, const FlowRateMap& flowRates);
     void updateFlowRatesInGraph(const FlowRateMap& flowRates);
     void updateNodeTemperatures(const TemperatureMap& tempMap);
+    // 温度マップを作らずに ThermalNetwork の graph から反映する
+    void updateNodeTemperaturesFromThermalNetwork(const ThermalNetwork& thermalNetwork);
     
     // タイムステップに応じてノードとエッジの時変プロパティを更新
     void updatePropertiesForTimestep(const std::vector<VertexProperties>& allNodes,
@@ -75,7 +89,10 @@ public:
                                      long timestep);
 
     // 風量データ収集（個別ブランチの風量データを返す）
-    std::map<std::string, double> collectFlowRates() const;
+    const std::vector<std::string>& getPressureKeys() const;
+    std::vector<double> collectPressureValues() const;
+    const std::vector<std::string>& getFlowRateKeys() const;
+    std::vector<double> collectFlowRateValues() const;
 
 };
 
