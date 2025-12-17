@@ -1,0 +1,32 @@
+# --- build artifacts ---
+/build/
+/solver/build/
+**/CMakeFiles/
+**/CMakeCache.txt
+**/cmake_install.cmake
+**/Makefile
+**/*.o
+**/*.obj
+**/*.a
+**/*.so
+**/*.dylib
+**/*.exe
+
+# --- solver runtime outputs ---
+/work/
+/work_test/
+**/*.artifacts.*/
+**/*.f32.bin
+**/*.bin
+**/*.jsonl
+
+# --- python / pytest ---
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# --- virtualenv ---
+/venv/
+.venv/
+
+

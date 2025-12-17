@@ -10,6 +10,7 @@
 #include <unordered_map>
 #include <sstream>
 #include <algorithm>
+#include <cstdint>
 
 #include <boost/graph/adjacency_list.hpp>
 
@@ -57,6 +58,12 @@ void ThermalNetwork::buildFromData(const std::vector<VertexProperties>& allNodes
                                    const std::vector<EdgeProperties>& ventilationBranches,
                                    const SimulationConstants& simConstants,
                                    std::ostream& logs) {
+
+    // 再構築に備えてキャッシュを無効化
+    temperatureCacheInitialized = false;
+    heatRateCacheInitialized = false;
+    advectionEdgeCacheInitialized = false;
+    advectionEdgeByVertexPair.clear();
 
     if (simConstants.temperatureCalc) {
         writeLog(logs, "  熱回路網を作成中...");
@@ -126,26 +133,39 @@ void ThermalNetwork::buildFromData(const std::vector<VertexProperties>& allNodes
 void ThermalNetwork::syncFlowRatesFromVentilationNetwork(const VentilationNetwork& ventNetwork) {
     const auto& ventGraph = ventNetwork.getGraph();
 
-    // 熱回路網側で移流エッジのマップを構築
-    std::unordered_map<std::string, Edge> advectionEdgeByKey;
-    advectionEdgeByKey.reserve(boost::num_edges(graph));
-    auto thermal_edge_range = boost::edges(graph);
-    for (auto thermal_edge : boost::make_iterator_range(thermal_edge_range)) {
-        const auto& thermalEdgeProps = graph[thermal_edge];
-        if (thermalEdgeProps.type == "advection" &&
-            thermalEdgeProps.key.rfind("advection_", 0) == 0) {
-            advectionEdgeByKey.emplace(thermalEdgeProps.key, thermal_edge);
+    // 熱回路網側の移流エッジ（source/target vertex pair）キャッシュを構築（初回のみ）
+    if (!advectionEdgeCacheInitialized) {
+        advectionEdgeByVertexPair.clear();
+        advectionEdgeByVertexPair.reserve(boost::num_edges(graph));
+        for (auto e : boost::make_iterator_range(boost::edges(graph))) {
+            const auto& ep = graph[e];
+            if (ep.getTypeCode() != EdgeProperties::TypeCode::Advection) continue;
+            const Vertex sv = boost::source(e, graph);
+            const Vertex tv = boost::target(e, graph);
+            const std::uint64_t key =
+                (static_cast<std::uint64_t>(static_cast<std::uint32_t>(sv)) << 32) |
+                static_cast<std::uint64_t>(static_cast<std::uint32_t>(tv));
+            advectionEdgeByVertexPair.emplace(key, e);
         }
+        advectionEdgeCacheInitialized = true;
     }
 
     // 換気エッジを走査し、対応する移流エッジに風量をコピー
     auto vent_edge_range = boost::edges(ventGraph);
     for (auto vent_edge : boost::make_iterator_range(vent_edge_range)) {
-        const auto& ventEdge = ventGraph[vent_edge];
-        std::string advectionKey = "advection_" + ventEdge.key;
-        auto it = advectionEdgeByKey.find(advectionKey);
-        if (it == advectionEdgeByKey.end()) continue;
-        graph[it->second].flow_rate = ventEdge.flow_rate;
+        const auto& ventEp = ventGraph[vent_edge];
+        // 換気側の source/target key を、熱側の vertex に変換して同期する
+        auto itS = keyToVertex.find(ventEp.source);
+        auto itT = keyToVertex.find(ventEp.target);
+        if (itS == keyToVertex.end() || itT == keyToVertex.end()) continue;
+        const Vertex sv = itS->second;
+        const Vertex tv = itT->second;
+        const std::uint64_t key =
+            (static_cast<std::uint64_t>(static_cast<std::uint32_t>(sv)) << 32) |
+            static_cast<std::uint64_t>(static_cast<std::uint32_t>(tv));
+        auto it = advectionEdgeByVertexPair.find(key);
+        if (it == advectionEdgeByVertexPair.end()) continue;
+        graph[it->second].flow_rate = ventEp.flow_rate;
     }
 }
 
@@ -248,7 +268,7 @@ void ThermalNetwork::updatePropertiesForTimestep(const std::vector<VertexPropert
     }
     for (auto e : boost::make_iterator_range(boost::edges(graph))) {
         auto& ep = graph[e];
-        if (ep.type == "advection" && ep.key.rfind("advection_", 0) == 0) {
+        if (ep.getTypeCode() == EdgeProperties::TypeCode::Advection) {
             continue; // 換気同期でflow_rateが入るため時系列更新は不要
         }
         ep.updateForTimestep(static_cast<int>(timestep));

@@ -83,6 +83,9 @@ void PressureSolver::setInitialPressures(std::vector<double>& pressures,
 
 bool PressureSolver::initializeSolverSetup(SolverSetup& setup) {
     const auto& graph = network_.getGraph();
+    const size_t vCount = static_cast<size_t>(boost::num_vertices(graph));
+    setup.vertexToParameterIndexVec.assign(vCount, -1);
+
     auto vertex_range = boost::vertices(graph);
     size_t parameterIndex = 0;
     for (auto vertex : boost::make_iterator_range(vertex_range)) {
@@ -90,6 +93,9 @@ bool PressureSolver::initializeSolverSetup(SolverSetup& setup) {
         if (nodeData.calc_p) {
             setup.nodeNames.push_back(nodeData.key);
             setup.vertexToParameterIndex[vertex] = parameterIndex++;
+            // Graph は vecS のため vertex は 0..V-1 を想定
+            setup.vertexToParameterIndexVec[static_cast<size_t>(vertex)] =
+                static_cast<int>(parameterIndex - 1);
         }
     }
 
@@ -100,6 +106,15 @@ bool PressureSolver::initializeSolverSetup(SolverSetup& setup) {
 
     setup.pressures.resize(setup.nodeNames.size());
     setInitialPressures(setup.pressures, setup.nodeNames);
+
+    // incident edges を構築（全エッジ走査を残差ごとに行わない）
+    setup.incidentEdgesByVertex.assign(vCount, {});
+    for (auto e : boost::make_iterator_range(boost::edges(graph))) {
+        Vertex sv = boost::source(e, graph);
+        Vertex tv = boost::target(e, graph);
+        setup.incidentEdgesByVertex[static_cast<size_t>(sv)].push_back(e);
+        setup.incidentEdgesByVertex[static_cast<size_t>(tv)].push_back(e);
+    }
     return true;
 }
 
@@ -113,7 +128,8 @@ void PressureSolver::addFlowBalanceConstraints(const SolverSetup& setup, ceres::
             nodeName,
             network_.getGraph(),
             network_.getKeyToVertex(),
-            setup.vertexToParameterIndex,
+            setup.vertexToParameterIndexVec,
+            setup.incidentEdgesByVertex,
             setup.pressures.size(),
             logFile_
         );
@@ -267,30 +283,6 @@ PressureSolver::SolverResult PressureSolver::solvePressures(
     }
     auto& nodeNames = setup.nodeNames;
     auto& pressures = setup.pressures;
-
-    // まず Newton-GS+SOR を試行（圧力版）
-    writeLog(logFile_, "--------Newton-GS+SOR(圧力)ソルバーを試行します...");
-    try {
-        constexpr double kSorOmega = 1.2;
-        auto ngsResult = PressureSolverNewtonGS::solvePressuresNewtonGS(
-            network_, constants, kSorOmega, logFile_);
-
-        // 残差チェック（maxBalanceで判定）
-        double maxBalance = 0.0;
-        for (const auto& [node, bal] : std::get<2>(ngsResult)) {
-            maxBalance = std::max(maxBalance, std::abs(bal));
-        }
-        if (maxBalance <= constants.ventilationTolerance) {
-            network_.setLastPressureConverged(true);
-            return ngsResult;
-        } else {
-            writeLog(logFile_, "--------Newton-GS+SOR(圧力)はバランス超過 (maxBalance="
-                               + std::to_string(maxBalance) + ", tol=" + std::to_string(constants.ventilationTolerance)
-                               + ")。Ceresにフォールバックします...");
-        }
-    } catch (const std::exception& e) {
-        writeLog(logFile_, "--------Newton-GS+SOR(圧力)でエラー: " + std::string(e.what()) + " Ceresにフォールバックします...");
-    }
 
     ceres::Problem problem;
     addFlowBalanceConstraints(setup, problem);

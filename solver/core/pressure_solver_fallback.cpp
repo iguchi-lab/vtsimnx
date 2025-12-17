@@ -1,5 +1,4 @@
 #include "core/pressure_solver.h"
-#include "core/pressure_solver_newton_gs.h"
 #include "network/ventilation_network.h"
 #include "utils/utils.h"
 #include "../archenv/include/archenv.h"
@@ -88,28 +87,6 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
         return os.str();
     };
 
-    // フォールバック前に Newton-GS+SOR(圧力) を再試行
-    try {
-        constexpr double kSorOmega = 1.2;
-        auto ngsResult = PressureSolverNewtonGS::solvePressuresNewtonGS(
-            network_, constants, kSorOmega, logFile_);
-        double maxBalanceNGS = 0.0;
-        for (const auto& [node, bal] : std::get<2>(ngsResult)) {
-            maxBalanceNGS = std::max(maxBalanceNGS, std::abs(bal));
-        }
-        if (maxBalanceNGS <= constants.ventilationTolerance) {
-            network_.setLastPressureConverged(true);
-            return ngsResult;
-        } else {
-            fallbackLog(0, "Newton-GS+SOR(圧力)はバランス超過 (maxBalance=" +
-                            formatScientific(maxBalanceNGS) +
-                            ", tol=" + formatScientific(constants.ventilationTolerance) +
-                            ")。フォールバック継続します");
-        }
-    } catch (const std::exception& e) {
-        fallbackLog(0, std::string("Newton-GS+SOR(圧力)でエラー: ") + e.what() + " フォールバック継続します");
-    }
-
     network_.setLastPressureConverged(false);
     fallbackLog(0, "エラー: 圧力計算が収束しませんでした");
 
@@ -142,6 +119,16 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
     std::map<std::string, double> currentIndividualFlows = calculateIndividualFlowRates(currentPressures);
 
     Graph& g = network_.getGraph();
+
+    // トポロジはフォールバック中は不変なので、incident edges を一度だけ構築して使い回す
+    const size_t vCount = static_cast<size_t>(boost::num_vertices(g));
+    std::vector<std::vector<Edge>> incidentEdgesByVertex(vCount);
+    for (auto e : boost::make_iterator_range(boost::edges(g))) {
+        Vertex sv = boost::source(e, g);
+        Vertex tv = boost::target(e, g);
+        incidentEdgesByVertex[static_cast<size_t>(sv)].push_back(e);
+        incidentEdgesByVertex[static_cast<size_t>(tv)].push_back(e);
+    }
 
     // 室内同士の高コンダクタンスエッジ抽出（相対閾値: median*ratio）
     std::vector<Edge> candidateEdges;
@@ -349,30 +336,6 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
         }
         fallbackLog(0, outerTag + " 開始 | " + prevCostText);
 
-        // 外部反復ごとにNewton-GS+SOR(圧力)を再試行
-        try {
-            constexpr double kSorOmega = 1.2;
-            auto ngsResult = PressureSolverNewtonGS::solvePressuresNewtonGS(
-                network_, constants, kSorOmega, logFile_);
-            double maxBalanceNGS = 0.0;
-            for (const auto& [node, bal] : std::get<2>(ngsResult)) {
-                maxBalanceNGS = std::max(maxBalanceNGS, std::abs(bal));
-            }
-            if (maxBalanceNGS <= constants.ventilationTolerance) {
-                network_.setLastPressureConverged(true);
-                fallbackLog(0, outerTag + " Newton-GS+SOR(圧力)で収束 (maxBalance=" +
-                                   formatScientific(maxBalanceNGS) +
-                                   ", tol=" + formatScientific(constants.ventilationTolerance) + ")");
-                return ngsResult;
-            } else {
-                fallbackLog(0, outerTag + " Newton-GS+SOR(圧力)はバランス超過 (maxBalance=" +
-                                   formatScientific(maxBalanceNGS) +
-                                   ", tol=" + formatScientific(constants.ventilationTolerance) + ") -> 継続");
-            }
-        } catch (const std::exception& e) {
-            fallbackLog(0, outerTag + " Newton-GS+SOR(圧力)でエラー: " + std::string(e.what()) + " -> 継続");
-        }
-
         fallbackLog(1, "[A] スーパーノード代表圧フェーズ開始" + std::string(outer >= 2 ? " | source=B(prev)" : " | source=A(current)"));
         StageAMapping stageMapping = buildStageAMapping(g, vertices, groupOfVertex);
         auto& vToParamIdx = stageMapping.vertexToParamIndex;
@@ -391,7 +354,8 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
             groupOfVertex,
             prevPressureMapFB,
             pressuresFB,
-            superCountA);
+            superCountA,
+            incidentEdgesByVertex);
 
         ceres::Solver::Summary fbSummary;
         bool fbOKA = false;
@@ -658,7 +622,8 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
                 nodeName,
                 g,
                 network_.getKeyToVertex(),
-                vToParamIdxB,
+                stageBSetup.vertexToParamIndexVec,
+                incidentEdgesByVertex,
                 pressuresFBB.size(),
                 logFile_
             );

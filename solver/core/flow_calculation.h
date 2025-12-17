@@ -5,85 +5,83 @@
 #include <cmath>
 
 // =============================================================================
-// FlowCalculation - 風量計算の共通テンプレート関数群
+// FlowCalculation - 風量計算の共通関数群（double専用）
 // =============================================================================
 
 namespace FlowCalculation {
 
 // 開口部の風量計算（simple_opening）
-template <typename T>
-T calcSimpleOpeningFlow(const T& dp, const EdgeProperties& edgeData) {
-    const T alpha = T(edgeData.alpha);
-    const T area  = T(edgeData.area);
-    const T eps   = T(archenv::TOLERANCE_SMALL);
-    const T abs_dp = (dp >= T(0.0)) ? dp : -dp;
-    const T K = alpha * area * sqrt(T(2.0) / T(archenv::DENSITY_DRY_AIR));
+inline double calcSimpleOpeningFlow(double dp, const EdgeProperties& edgeData) {
+    const double alpha = edgeData.alpha;
+    const double area  = edgeData.area;
+    const double eps   = archenv::TOLERANCE_SMALL;
+    const double abs_dp = std::abs(dp);
+    const double K = alpha * area * std::sqrt(2.0 / archenv::DENSITY_DRY_AIR);
     if (abs_dp >= eps) {
-    T sign = (dp >= T(0.0)) ? T(1.0) : T(-1.0);
-        return sign * K * sqrt(abs_dp);
+        const double sign = (dp >= 0.0) ? 1.0 : -1.0;
+        return sign * K * std::sqrt(abs_dp);
     }
-    return K * sqrt(eps) * (dp / eps);
+    // 小差圧は線形近似
+    return K * std::sqrt(eps) * (dp / eps);
 }
 
 // 隙間の風量計算（gap）
-template <typename T>
-T calcGapFlow(const T& dp, const EdgeProperties& edgeData) {
-    const T a  = T(edgeData.a);
-    T n  = T(edgeData.n);
-    if (n == T(0.0)) n = T(1.0);
-    const T eps = T(archenv::TOLERANCE_SMALL);
-    const T abs_dp = (dp >= T(0.0)) ? dp : -dp;
+inline double calcGapFlow(double dp, const EdgeProperties& edgeData) {
+    const double a  = edgeData.a;
+    double n = edgeData.n;
+    if (n == 0.0) n = 1.0;
+    const double eps = archenv::TOLERANCE_SMALL;
+    const double abs_dp = std::abs(dp);
     if (abs_dp >= eps) {
-    T sign = (dp >= T(0.0)) ? T(1.0) : T(-1.0);
-        return sign * a * pow(abs_dp, T(1.0) / n);
+        const double sign = (dp >= 0.0) ? 1.0 : -1.0;
+        return sign * a * std::pow(abs_dp, 1.0 / n);
     }
-    return a * pow(eps, T(1.0) / n - T(1.0)) * dp;
+    // 小差圧は線形近似
+    return a * std::pow(eps, 1.0 / n - 1.0) * dp;
 }
 
 // ファンの風量計算（fan）
-template <typename T>
-T calcFanFlow(const T& dp, const EdgeProperties& edgeData) {
-    T q_max = T(edgeData.q_max);
-    T p_max = T(edgeData.p_max);
-    T p1 = T(edgeData.p1);
-    T q1 = T(edgeData.q1);
+inline double calcFanFlow(double dp, const EdgeProperties& edgeData) {
+    const double q_max = edgeData.q_max;
+    const double p_max = edgeData.p_max;
+    const double p1 = edgeData.p1;
+    const double q1 = edgeData.q1;
 
-    T dp_fan = -dp;
-    T tolerance = T(archenv::TOLERANCE_MEDIUM);
+    const double dp_fan = -dp;
+    const double tolerance = archenv::TOLERANCE_MEDIUM;
 
-    auto smoothCondition = [tolerance](const T& x, const T& threshold) -> T {
-        T diff = x - threshold;
-        T scale = T(1.0) / tolerance;
-        return T(0.5) * (tanh(scale * diff) + T(1.0));
+    auto smoothCondition = [tolerance](double x, double threshold) -> double {
+        const double diff = x - threshold;
+        const double scale = 1.0 / tolerance;
+        return 0.5 * (std::tanh(scale * diff) + 1.0);
     };
 
-    T cond1 = smoothCondition(dp_fan, p_max + tolerance);
+    const double cond1 = smoothCondition(dp_fan, p_max + tolerance);
 
-    T cond2 = smoothCondition(dp_fan, p1 + tolerance) * (T(1.0) - cond1);
-    T flow2;
-    T p_diff = p1 - p_max;
+    const double cond2 = smoothCondition(dp_fan, p1 + tolerance) * (1.0 - cond1);
+    double flow2 = 0.0;
+    const double p_diff = p1 - p_max;
     if (edgeData.p1 == edgeData.p_max) {
         flow2 = q1;
     } else {
         flow2 = q1 * (dp_fan - p_max) / p_diff;
     }
 
-    T cond3 = smoothCondition(dp_fan, tolerance) * (T(1.0) - smoothCondition(dp_fan, p1 + tolerance));
-    T flow3;
+    const double cond3 = smoothCondition(dp_fan, tolerance) * (1.0 - smoothCondition(dp_fan, p1 + tolerance));
+    double flow3 = 0.0;
     if (edgeData.p1 == 0.0) {
         flow3 = q_max;
     } else {
         flow3 = q1 + (q_max - q1) * (dp_fan - p1) / (-p1);
     }
 
-    T cond4 = T(1.0) - smoothCondition(dp_fan, tolerance);
+    const double cond4 = 1.0 - smoothCondition(dp_fan, tolerance);
 
-    return cond1 * T(0.0) + cond2 * flow2 + cond3 * flow3 + cond4 * q_max;
+    return cond1 * 0.0 + cond2 * flow2 + cond3 * flow3 + cond4 * q_max;
 }
 
 // 統一風量計算インターフェース（ブランチタイプに応じて適切な計算関数を呼び出す）
-template <typename T>
-T calculateUnifiedFlow(const T& dp, const EdgeProperties& edgeData) {
+inline double calculateUnifiedFlow(double dp, const EdgeProperties& edgeData) {
     if (edgeData.type == "simple_opening") {
         return calcSimpleOpeningFlow(dp, edgeData);
     } else if (edgeData.type == "gap") {
@@ -91,9 +89,9 @@ T calculateUnifiedFlow(const T& dp, const EdgeProperties& edgeData) {
     } else if (edgeData.type == "fan") {
         return calcFanFlow(dp, edgeData);
     } else if (edgeData.type == "fixed_flow") {
-        return T(edgeData.current_vol);
+        return edgeData.current_vol;
     } else {
-        return T(0.0);
+        return 0.0;
     }
 }
 

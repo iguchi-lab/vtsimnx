@@ -11,6 +11,7 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <cstdint>
 
 #include <boost/graph/adjacency_list.hpp>
 
@@ -152,6 +153,23 @@ VentilationNetwork::calculatePressure(const SimulationConstants& constants, std:
 
 // 流量マップからグラフを一括更新
 void VentilationNetwork::updateFlowRatesInGraph(const FlowRateMap& flowRates) {
+    // 外部I/Fは (string,string)->double の map だが、内部更新は vertex index に落として O(E) 化する
+    std::unordered_map<std::uint64_t, double> flowByVertexPair;
+    flowByVertexPair.reserve(flowRates.size() * 2 + 1);
+    for (const auto& kv : flowRates) {
+        const auto& srcKey = kv.first.first;
+        const auto& dstKey = kv.first.second;
+        auto itS = keyToVertex.find(srcKey);
+        auto itT = keyToVertex.find(dstKey);
+        if (itS == keyToVertex.end() || itT == keyToVertex.end()) continue;
+        const Vertex sv = itS->second;
+        const Vertex tv = itT->second;
+        const std::uint64_t packed =
+            (static_cast<std::uint64_t>(static_cast<std::uint32_t>(sv)) << 32) |
+            static_cast<std::uint64_t>(static_cast<std::uint32_t>(tv));
+        flowByVertexPair[packed] = kv.second;
+    }
+
     auto edge_range = boost::edges(graph);
     for (auto edge : boost::make_iterator_range(edge_range)) {
         Vertex sourceVertex = boost::source(edge, graph);
@@ -160,19 +178,23 @@ void VentilationNetwork::updateFlowRatesInGraph(const FlowRateMap& flowRates) {
         const auto& targetNode = graph[targetVertex];
         const auto& edgeData   = graph[edge];
 
-        std::pair<std::string, std::string> forwardKey{sourceNode.key, targetNode.key};
-        auto flowIt = flowRates.find(forwardKey);
         double flow = 0.0;
         bool flowResolved = false;
 
-        if (flowIt != flowRates.end()) {
-            flow = flowIt->second;
+        const std::uint64_t fwd =
+            (static_cast<std::uint64_t>(static_cast<std::uint32_t>(sourceVertex)) << 32) |
+            static_cast<std::uint64_t>(static_cast<std::uint32_t>(targetVertex));
+        auto itF = flowByVertexPair.find(fwd);
+        if (itF != flowByVertexPair.end()) {
+            flow = itF->second;
             flowResolved = true;
         } else {
-            std::pair<std::string, std::string> reverseKey{targetNode.key, sourceNode.key};
-            auto reverseIt = flowRates.find(reverseKey);
-            if (reverseIt != flowRates.end()) {
-                flow = -reverseIt->second;
+            const std::uint64_t rev =
+                (static_cast<std::uint64_t>(static_cast<std::uint32_t>(targetVertex)) << 32) |
+                static_cast<std::uint64_t>(static_cast<std::uint32_t>(sourceVertex));
+            auto itR = flowByVertexPair.find(rev);
+            if (itR != flowByVertexPair.end()) {
+                flow = -itR->second;
                 flowResolved = true;
             }
         }

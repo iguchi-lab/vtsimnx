@@ -73,6 +73,19 @@ double calculatePressureChange(const PressureMap& oldPressures, const PressureMa
     return maxChange;
 }
 
+static double calculateMaxAbsDiff(const std::vector<double>& oldValues, const std::vector<double>& newValues) {
+    const size_t n = std::min(oldValues.size(), newValues.size());
+    double maxChange = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+        maxChange = std::max(maxChange, std::abs(newValues[i] - oldValues[i]));
+    }
+    // サイズ不一致は設計上想定しないが、念のため差分を「大きい」とみなす
+    if (oldValues.size() != newValues.size()) {
+        maxChange = std::max(maxChange, std::numeric_limits<double>::infinity());
+    }
+    return maxChange;
+}
+
 // 温度変化量を計算
 static double calculateTemperatureChangeByVertex(const Graph& graph, const std::vector<double>& prevTemps) {
     double maxChange = 0.0;
@@ -85,6 +98,110 @@ static double calculateTemperatureChangeByVertex(const Graph& graph, const std::
     return maxChange;
 }
 
+namespace {
+
+static inline bool needsCoupledCalculation(const SimulationConstants& constants) {
+    // 両方が true のときのみ連成
+    return constants.pressureCalc && constants.temperatureCalc;
+}
+
+static inline double couplingPressureTol(const SimulationConstants& constants) {
+    return (constants.couplingPressureTolerance > 0.0)
+               ? constants.couplingPressureTolerance
+               : constants.convergenceTolerance;
+}
+
+static inline double couplingTemperatureTol(const SimulationConstants& constants) {
+    return (constants.couplingTemperatureTolerance > 0.0)
+               ? constants.couplingTemperatureTolerance
+               : constants.convergenceTolerance;
+}
+
+static inline void capturePrevTempsByVertex(const Graph& graph, std::vector<double>& prevTempsByVertex) {
+    const size_t vCount = static_cast<size_t>(boost::num_vertices(graph));
+    prevTempsByVertex.resize(vCount);
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        prevTempsByVertex[static_cast<size_t>(v)] = graph[v].current_t;
+    }
+}
+
+struct AirconStepResult {
+    bool shouldRecompute = false; // 設定温度等の調整が入り、同じ外側反復をやり直すべき
+    bool allControlled = false;   // 全エアコン制御完了
+};
+
+static AirconStepResult runAirconControlAndAdjust(AirconController& airconController,
+                                                  ThermalNetwork& thermalNetwork,
+                                                  VentilationNetwork& ventNetwork,
+                                                  const SimulationConstants& constants,
+                                                  const FlowRateMap& flowRates,
+                                                  std::ostream& logs,
+                                                  int& totalIterations,
+                                                  TimingList& timings,
+                                                  const std::string& meta) {
+    AirconStepResult r;
+    bool allAirconControlled = false;
+    {
+        ScopedTimer timer(timings, "aircon_control", meta);
+        allAirconControlled = airconController.controlAllAircons(
+            thermalNetwork, constants.thermalTolerance, logs);
+    }
+    if (!allAirconControlled) {
+        r.allControlled = false;
+        return r;
+    }
+
+    bool adjustmentMade = false;
+    {
+        ScopedTimer timer(timings, "aircon_capacity_adjust", meta);
+        adjustmentMade = airconController.checkAndAdjustCapacity(
+            thermalNetwork, ventNetwork, constants, flowRates, logs, totalIterations);
+    }
+
+    if (adjustmentMade) {
+        r.shouldRecompute = true;
+        r.allControlled = false;
+        return r;
+    }
+
+    r.shouldRecompute = false;
+    r.allControlled = true;
+    return r;
+}
+
+static void buildTimestepResult(const SimulationConstants& constants,
+                                VentilationNetwork& ventNetwork,
+                                ThermalNetwork& thermalNetwork,
+                                AirconController& airconController,
+                                const FlowRateMap& flowRates,
+                                std::ostream& logs,
+                                TimestepResult& timestepResultOut) {
+    TimestepResult timestepResult;
+
+    if (constants.pressureCalc) {
+        convertDoublesToF32(timestepResult.pressure, ventNetwork.collectPressureValues());
+        convertDoublesToF32(timestepResult.flowRate, ventNetwork.collectFlowRateValues());
+    }
+
+    if (constants.temperatureCalc) {
+        convertDoublesToF32(timestepResult.temperature, thermalNetwork.collectTemperatureValues());
+        convertDoublesToF32(timestepResult.heatRate, thermalNetwork.collectHeatRateValues());
+
+        convertDoublesToF32(timestepResult.airconSensibleHeat,
+                            airconController.collectAirconDataValues(thermalNetwork, flowRates, "sensibleHeatCapacity"));
+        convertDoublesToF32(timestepResult.airconLatentHeat,
+                            airconController.collectAirconDataValues(thermalNetwork, flowRates, "latentHeatCapacity"));
+        convertDoublesToF32(timestepResult.airconPower,
+                            airconController.calculatePowerValues(thermalNetwork, flowRates, logs));
+        convertDoublesToF32(timestepResult.airconCOP,
+                            airconController.calculateCOPValues(thermalNetwork, flowRates, logs));
+    }
+
+    timestepResultOut = std::move(timestepResult);
+}
+
+} // namespace
+
 // 換気・熱計算の連成を行う関数
 std::tuple<PressureMap, FlowRateMap, FlowBalanceMap>
 performCoupledCalculation(VentilationNetwork& ventNetwork,
@@ -94,10 +211,11 @@ performCoupledCalculation(VentilationNetwork& ventNetwork,
                           int& totalIterations,
                           TimingList& timings,
                           const std::string& meta) {
-    PressureMap     pressureMap, prevPressureMap;
+    PressureMap     pressureMap;
     FlowRateMap     flowRates;
     FlowBalanceMap  flowBalance;
     std::vector<double> prevTempsByVertex;
+    std::vector<double> prevPressuresByKey;
 
     int iterationCount = 0;
 
@@ -106,14 +224,12 @@ performCoupledCalculation(VentilationNetwork& ventNetwork,
         totalIterations++;
 
         // 前回の値を保存
-        prevPressureMap    = pressureMap;
+        if (constants.pressureCalc) {
+            // map(string) をホットパスから外し、キー順固定の vector で差分を取る
+            prevPressuresByKey = ventNetwork.collectPressureValues();
+        }
         if (constants.temperatureCalc) {
-            const auto& g = thermalNetwork.getGraph();
-            const size_t vCount = static_cast<size_t>(boost::num_vertices(g));
-            prevTempsByVertex.resize(vCount);
-            for (auto v : boost::make_iterator_range(boost::vertices(g))) {
-                prevTempsByVertex[static_cast<size_t>(v)] = g[v].current_t;
-            }
+            capturePrevTempsByVertex(thermalNetwork.getGraph(), prevTempsByVertex);
         }
 
         ScopedLogSection iterationScope(
@@ -154,21 +270,15 @@ performCoupledCalculation(VentilationNetwork& ventNetwork,
             }
         }
 
-        // 連成計算が必要かどうかをチェック（両方がtrueの場合のみ連成）
-        bool needsCoupledCalculation = constants.pressureCalc && constants.temperatureCalc;
-        
         // 連成計算が不要な場合、1回の計算後にループを抜ける
-        if (!needsCoupledCalculation) {
+        if (!needsCoupledCalculation(constants)) {
             writeLog(logs, "圧力-熱連成計算は不要です（圧力または熱計算のみ）");
             break;
         }
 
         // 変化量を計算してログ出力
-        double pressureChange = calculatePressureChange(prevPressureMap, pressureMap);
-        double temperatureChange = 0.0;
-        if (constants.temperatureCalc) {
-            temperatureChange = calculateTemperatureChangeByVertex(thermalNetwork.getGraph(), prevTempsByVertex);
-        }
+        const double pressureChange = calculateMaxAbsDiff(prevPressuresByKey, ventNetwork.collectPressureValues());
+        double temperatureChange = calculateTemperatureChangeByVertex(thermalNetwork.getGraph(), prevTempsByVertex);
         writeLog(
             logs,
             "圧力変化量: " + std::to_string(pressureChange) +
@@ -176,12 +286,8 @@ performCoupledCalculation(VentilationNetwork& ventNetwork,
         
         // 収束判定（2回目以降の反復でのみ実行）
         if (iterationCount > 1) {
-            double pTol = (constants.couplingPressureTolerance > 0.0)
-                              ? constants.couplingPressureTolerance
-                              : constants.convergenceTolerance;
-            double tTol = (constants.couplingTemperatureTolerance > 0.0)
-                              ? constants.couplingTemperatureTolerance
-                              : constants.convergenceTolerance;
+            const double pTol = couplingPressureTol(constants);
+            const double tTol = couplingTemperatureTol(constants);
             if (pressureChange < pTol && temperatureChange < tTol) {
                 writeLog(logs, "圧力-熱計算 連成計算が収束しました (" +
                                         std::to_string(iterationCount) + "回)");
@@ -231,27 +337,21 @@ void runSimulation(VentilationNetwork& ventNetwork,
             }
 
             // エアコン制御ロジック（連成計算後）
-            bool allAirconControlled;
-            {
-                ScopedTimer timer(timings, "aircon_control", meta + ",iteration=" + std::to_string(iteration + 1));
-                allAirconControlled = airconController.controlAllAircons(
-                    thermalNetwork, constants.thermalTolerance, logs);
+            const auto airconRes = runAirconControlAndAdjust(
+                airconController,
+                thermalNetwork,
+                ventNetwork,
+                constants,
+                flowRates,
+                logs,
+                totalIterations,
+                timings,
+                meta + ",iteration=" + std::to_string(iteration + 1));
+            if (airconRes.shouldRecompute) {
+                writeLog(logs, "エアコン制御の修正が行われました。再計算を実行します。");
+                continue;
             }
-
-            if (allAirconControlled) {
-                // 処理熱量チェックと設定温度調整
-                bool adjustmentMade;
-                {
-                    ScopedTimer timer(timings, "aircon_capacity_adjust", meta + ",iteration=" + std::to_string(iteration + 1));
-                    adjustmentMade = airconController.checkAndAdjustCapacity(
-                        thermalNetwork, ventNetwork, constants, flowRates, logs, totalIterations);
-                }
-                if (adjustmentMade) {
-                    writeLog(logs, "エアコン制御の修正が行われました。再計算を実行します。");
-                    continue;
-                }
-                loopConverged = true;
-            }
+            loopConverged = airconRes.allControlled;
         }
         if (loopConverged) {
             writeLog(logs,
@@ -262,28 +362,7 @@ void runSimulation(VentilationNetwork& ventNetwork,
     }
 
     // 1タイムステップ分の結果を構築（呼び出し側で即座に書き出す想定）
-    TimestepResult timestepResult;
-    
-    if (constants.pressureCalc) {
-        convertDoublesToF32(timestepResult.pressure, ventNetwork.collectPressureValues());
-        convertDoublesToF32(timestepResult.flowRate, ventNetwork.collectFlowRateValues());
-    }
-
-    if (constants.temperatureCalc) {
-        convertDoublesToF32(timestepResult.temperature, thermalNetwork.collectTemperatureValues());
-        convertDoublesToF32(timestepResult.heatRate, thermalNetwork.collectHeatRateValues());
-        
-        convertDoublesToF32(timestepResult.airconSensibleHeat,
-                            airconController.collectAirconDataValues(thermalNetwork, flowRates, "sensibleHeatCapacity"));
-        convertDoublesToF32(timestepResult.airconLatentHeat,
-                            airconController.collectAirconDataValues(thermalNetwork, flowRates, "latentHeatCapacity"));
-        convertDoublesToF32(timestepResult.airconPower,
-                            airconController.calculatePowerValues(thermalNetwork, flowRates, logs));
-        convertDoublesToF32(timestepResult.airconCOP,
-                            airconController.calculateCOPValues(thermalNetwork, flowRates, logs));
-    }
-    
-    timestepResultOut = std::move(timestepResult);
+    buildTimestepResult(constants, ventNetwork, thermalNetwork, airconController, flowRates, logs, timestepResultOut);
 
     writeLog(logs,
              "タイムステップ終了  総連成反復回数: " + std::to_string(totalIterations),

@@ -27,6 +27,11 @@ private:
     mutable std::vector<Edge> heatRateEdgesOrdered;
     mutable std::vector<std::string> heatRateKeysOrdered;
 
+    // 換気→熱の移流エッジ同期用キャッシュ（graph が不変な前提で構築は1回）
+    // key: (sourceVertex<<32 | targetVertex)
+    mutable bool advectionEdgeCacheInitialized = false;
+    mutable std::unordered_map<std::uint64_t, Edge> advectionEdgeByVertexPair;
+
 public:
     // ノード・エッジ操作
     Vertex addNode(const VertexProperties& node);

@@ -28,10 +28,8 @@ std::vector<EdgeProperties> parseVentilationBranches(const json& config, std::os
         EdgeProperties branch{};
         const std::string branchPrefix = "ventilation_branches[" + std::to_string(index-1) + "]";
 
-        if (branchJson.contains("key") && !branchJson["key"].is_string())
-            throw std::runtime_error("ventilation_branches[" + std::to_string(index-1) + "].key must be string");
-        if (branchJson.contains("type") && !branchJson["type"].is_string())
-            throw std::runtime_error("ventilation_branches[" + std::to_string(index-1) + "].type must be string");
+        parser_utils::checkStringIfPresent(branchJson, "key", branchPrefix);
+        parser_utils::checkStringIfPresent(branchJson, "type", branchPrefix);
         if (branchJson.contains("key"))   branch.key   = branchJson["key"].get<std::string>();
         if (branchJson.contains("type"))  branch.type  = branchJson["type"].get<std::string>();
 
@@ -47,21 +45,21 @@ std::vector<EdgeProperties> parseVentilationBranches(const json& config, std::os
         branch.unique_id = branch.key;
 
         // 詳細
-        if (branchJson.contains("subtype") && !branchJson["subtype"].is_string())
-            throw std::runtime_error("ventilation_branches[" + std::to_string(index-1) + "].subtype must be string");
-        if (branchJson.contains("comment") && !branchJson["comment"].is_string())
-            throw std::runtime_error("ventilation_branches[" + std::to_string(index-1) + "].comment must be string");
-        if (branchJson.contains("source") && !branchJson["source"].is_string())
-            throw std::runtime_error("ventilation_branches[" + std::to_string(index-1) + "].source must be string");
-        if (branchJson.contains("target") && !branchJson["target"].is_string())
-            throw std::runtime_error("ventilation_branches[" + std::to_string(index-1) + "].target must be string");
-        auto mustNumber = [&](const char* key) {
-            if (branchJson.contains(key) && !branchJson[key].is_number()) {
-                throw std::runtime_error(std::string("ventilation_branches[") + std::to_string(index-1) + "]." + key + " must be number");
-            }
-        };
-        mustNumber("alpha"); mustNumber("area"); mustNumber("a"); mustNumber("n"); mustNumber("eta");
-        mustNumber("p_max"); mustNumber("p1"); mustNumber("q_max"); mustNumber("q1"); mustNumber("h_from"); mustNumber("h_to");
+        parser_utils::checkStringIfPresent(branchJson, "subtype", branchPrefix);
+        parser_utils::checkStringIfPresent(branchJson, "comment", branchPrefix);
+        parser_utils::checkStringIfPresent(branchJson, "source", branchPrefix);
+        parser_utils::checkStringIfPresent(branchJson, "target", branchPrefix);
+        parser_utils::checkNumberIfPresent(branchJson, "alpha", branchPrefix);
+        parser_utils::checkNumberIfPresent(branchJson, "area", branchPrefix);
+        parser_utils::checkNumberIfPresent(branchJson, "a", branchPrefix);
+        parser_utils::checkNumberIfPresent(branchJson, "n", branchPrefix);
+        parser_utils::checkNumberIfPresent(branchJson, "eta", branchPrefix);
+        parser_utils::checkNumberIfPresent(branchJson, "p_max", branchPrefix);
+        parser_utils::checkNumberIfPresent(branchJson, "p1", branchPrefix);
+        parser_utils::checkNumberIfPresent(branchJson, "q_max", branchPrefix);
+        parser_utils::checkNumberIfPresent(branchJson, "q1", branchPrefix);
+        parser_utils::checkNumberIfPresent(branchJson, "h_from", branchPrefix);
+        parser_utils::checkNumberIfPresent(branchJson, "h_to", branchPrefix);
         if (branchJson.contains("subtype")) branch.subtype = branchJson["subtype"].get<std::string>();
         if (branchJson.contains("comment")) branch.comment = branchJson["comment"].get<std::string>();
         if (branchJson.contains("source"))  branch.source  = branchJson["source"].get<std::string>();
@@ -171,12 +169,8 @@ std::vector<EdgeProperties> parseThermalBranches(const json& config, std::ostrea
             throw std::runtime_error("thermal_branches[" + std::to_string(index-1) + "].source must be string");
         if (branchJson.contains("target") && !branchJson["target"].is_string())
             throw std::runtime_error("thermal_branches[" + std::to_string(index-1) + "].target must be string");
-        auto mustNumberT = [&](const char* key) {
-            if (branchJson.contains(key) && !branchJson[key].is_number()) {
-                throw std::runtime_error(std::string("thermal_branches[") + std::to_string(index-1) + "]." + key + " must be number");
-            }
-        };
-        mustNumberT("conductance"); mustNumberT("area");
+        parser_utils::checkNumberIfPresent(branchJson, "conductance", branchPrefix);
+        parser_utils::checkNumberIfPresent(branchJson, "area", branchPrefix);
         if (branchJson.contains("subtype"))      branch.subtype      = branchJson["subtype"].get<std::string>();
         if (branchJson.contains("comment"))      branch.comment      = branchJson["comment"].get<std::string>();
         if (branchJson.contains("source"))       branch.source       = branchJson["source"].get<std::string>();

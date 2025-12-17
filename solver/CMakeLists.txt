@@ -29,7 +29,6 @@ set(CORE_SOURCES
     core/pressure_solver.cpp
     core/pressure_solver_ceres.cpp
     core/pressure_solver_fallback.cpp
-    core/pressure_solver_newton_gs.cpp
     core/thermal_solver.cpp
     core/thermal_solver_linear_gs.cpp
 )
@@ -59,6 +58,8 @@ set(ARCHENV_SOURCES
 set(MAIN_SOURCES
     vtsimnx_solver.cpp
     simulation_runner.cpp
+    app/vtsimnx_app.cpp
+    output/artifact_io.cpp
 )
 
 # すべてのソースファイル
@@ -104,4 +105,23 @@ target_compile_options(vtsimnx_solver PRIVATE
     -Wall
     -Wextra
 )
+
+# =============================================================================
+# C++ unit tests (minimal harness)
+# =============================================================================
+option(VTSIMNX_BUILD_CPP_TESTS "Build C++ unit tests for solver" ON)
+if(VTSIMNX_BUILD_CPP_TESTS)
+    enable_testing()
+    add_executable(vtsimnx_solver_cpp_tests
+        tests_cpp/test_flow_math.cpp
+    )
+    target_link_libraries(vtsimnx_solver_cpp_tests
+        Boost::boost
+    )
+    target_compile_options(vtsimnx_solver_cpp_tests PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_tests COMMAND vtsimnx_solver_cpp_tests)
+endif()
 

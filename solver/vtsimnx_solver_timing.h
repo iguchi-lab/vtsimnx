@@ -14,14 +14,18 @@ using TimingList = std::vector<TimingEntry>;
 
 // タイミング計測の有効/無効（デフォルト: 有効）
 // 実運用では「詳細タイミングを無効化」してオーバーヘッドを抑えたいケースがあるため、
-// グローバルフラグで制御できるようにしておく（C++17 inline 変数）。
-inline bool g_enable_timings = true;
-inline void setTimingsEnabled(bool enabled) { g_enable_timings = enabled; }
+// グローバル状態で制御できるようにしておく（inline関数 + 関数内static）。
+inline bool& timingsEnabledRef() {
+    static bool enabled = true;
+    return enabled;
+}
+inline bool timingsEnabled() { return timingsEnabledRef(); }
+inline void setTimingsEnabled(bool enabled) { timingsEnabledRef() = enabled; }
 
 class ScopedTimer {
 public:
     ScopedTimer(TimingList& timings, std::string name, std::string metadata = {})
-        : timings_(g_enable_timings ? &timings : nullptr) {
+        : timings_(timingsEnabled() ? &timings : nullptr) {
         if (!timings_) return;
         // 有効時のみ計測・保持する（無効時は now() すら呼ばない）
         name_ = std::move(name);

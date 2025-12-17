@@ -377,6 +377,11 @@ PressureSolver::StageAMapping PressureSolver::buildStageAMapping(
         }
     }
     mapping.parameterCount = next;
+    // Vertex -> param index (vecS前提)
+    mapping.vertexToParamIndexVec.assign(static_cast<size_t>(boost::num_vertices(graph)), -1);
+    for (const auto& kv : mapping.vertexToParamIndex) {
+        mapping.vertexToParamIndexVec[static_cast<size_t>(kv.first)] = static_cast<int>(kv.second);
+    }
     return mapping;
 }
 
@@ -407,8 +412,8 @@ void PressureSolver::setupStageAProblem(
     const std::vector<int>& groupOfVertex,
     const PressureMap& prevPressureMapFB,
     std::vector<double>& pressuresFB,
-    int superCountA) {
-    auto& vToParamIdx = mapping.vertexToParamIndex;
+    int superCountA,
+    const std::vector<std::vector<Edge>>& incidentEdgesByVertex) {
     size_t parameterCount = pressuresFB.size();
     double* parameterData = pressuresFB.data();
     const auto& nodeKeyToVertex = network_.getKeyToVertex();
@@ -418,7 +423,8 @@ void PressureSolver::setupStageAProblem(
             nodeName,
             graph,
             nodeKeyToVertex,
-            vToParamIdx,
+            mapping.vertexToParamIndexVec,
+            incidentEdgesByVertex,
             parameterCount,
             logFile_
         );
@@ -444,8 +450,8 @@ void PressureSolver::setupStageAProblem(
             ceres::CostFunction* costG = new GroupFlowBalanceConstraint(
                 gv,
                 graph,
-                nodeKeyToVertex,
-                vToParamIdx,
+                mapping.vertexToParamIndexVec,
+                incidentEdgesByVertex,
                 parameterCount,
                 logFile_
             );
@@ -514,6 +520,10 @@ PressureSolver::StageBSetup PressureSolver::buildStageBSetup(
                         ? stageAPressureMap.at(node.key)
                         : node.current_p;
         setup.pressures[idx] = p0;
+    }
+    setup.vertexToParamIndexVec.assign(static_cast<size_t>(boost::num_vertices(graph)), -1);
+    for (const auto& kv : setup.vertexToParamIndex) {
+        setup.vertexToParamIndexVec[static_cast<size_t>(kv.first)] = static_cast<int>(kv.second);
     }
     return setup;
 }

@@ -9,7 +9,7 @@ SimulationConstants parseSimulationConstants(const nlohmann::json& config,
                                              std::ostream& logs)
 {
     SimulationConstants outConstants;
-    logs << "シミュレーション定数を解析中...\n";
+    writeLog(logs, "シミュレーション定数を解析中...");
     // ルート検証
     if (!config.contains("simulation") || !config["simulation"].is_object()) {
         throw std::runtime_error("Missing or invalid 'simulation' object");

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../vtsim_solver.h"
-#include "core/pressure_solver_newton_gs.h"
 #include <ceres/ceres.h>
 #include <functional>
 #include <fstream>
@@ -35,15 +34,23 @@ private:
         std::vector<std::string> nodeNames;
         std::vector<double> pressures;
         std::map<Vertex, size_t> vertexToParameterIndex;
+        // 高速化用: Vertex(=0..V-1) -> param index（無ければ -1）
+        std::vector<int> vertexToParameterIndexVec;
+        // 高速化用: incident edges（全エッジ走査を避ける）
+        std::vector<std::vector<Edge>> incidentEdgesByVertex;
     };
     struct StageAMapping {
         std::map<int, size_t> groupToParamIndex;
         std::map<Vertex, size_t> vertexToParamIndex;
+        // 高速化用: Vertex -> param index（無ければ -1）
+        std::vector<int> vertexToParamIndexVec;
         std::vector<std::string> nodeNames;
         size_t parameterCount = 0;
     };
     struct StageBSetup {
         std::map<Vertex, size_t> vertexToParamIndex;
+        // 高速化用: Vertex -> param index（無ければ -1）
+        std::vector<int> vertexToParamIndexVec;
         std::vector<std::string> nodeNames;
         std::vector<double> pressures;
     };
@@ -95,7 +102,8 @@ private:
         const std::vector<int>& groupOfVertex,
         const PressureMap& prevPressureMapFB,
         std::vector<double>& pressuresFB,
-        int superCountA);
+        int superCountA,
+        const std::vector<std::vector<Edge>>& incidentEdgesByVertex);
     StageBSetup buildStageBSetup(
         const Graph& graph,
         const PressureMap& stageAPressureMap);

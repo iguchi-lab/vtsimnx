@@ -26,26 +26,16 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
         const std::string nodePrefix = "nodes[" + std::to_string(index-1) + "]";
 
         // 必須/基本フィールド
-        if (nodeJson.contains("key") && !nodeJson["key"].is_string())
-            throw std::runtime_error("nodes[" + std::to_string(index-1) + "].key must be string");
-        if (nodeJson.contains("name") && !nodeJson["name"].is_string())
-            throw std::runtime_error("nodes[" + std::to_string(index-1) + "].name must be string");
-        if (nodeJson.contains("type") && !nodeJson["type"].is_string())
-            throw std::runtime_error("nodes[" + std::to_string(index-1) + "].type must be string");
-        if (nodeJson.contains("subtype") && !nodeJson["subtype"].is_string())
-            throw std::runtime_error("nodes[" + std::to_string(index-1) + "].subtype must be string");
-        if (nodeJson.contains("comment") && !nodeJson["comment"].is_string())
-            throw std::runtime_error("nodes[" + std::to_string(index-1) + "].comment must be string");
-        if (nodeJson.contains("ref_node") && !nodeJson["ref_node"].is_string())
-            throw std::runtime_error("nodes[" + std::to_string(index-1) + "].ref_node must be string");
-        if (nodeJson.contains("in_node") && !nodeJson["in_node"].is_string())
-            throw std::runtime_error("nodes[" + std::to_string(index-1) + "].in_node must be string");
-        if (nodeJson.contains("set_node") && !nodeJson["set_node"].is_string())
-            throw std::runtime_error("nodes[" + std::to_string(index-1) + "].set_node must be string");
-        if (nodeJson.contains("outside_node") && !nodeJson["outside_node"].is_string())
-            throw std::runtime_error("nodes[" + std::to_string(index-1) + "].outside_node must be string");
-        if (nodeJson.contains("model") && !nodeJson["model"].is_string())
-            throw std::runtime_error("nodes[" + std::to_string(index-1) + "].model must be string");
+        parser_utils::checkStringIfPresent(nodeJson, "key", nodePrefix);
+        parser_utils::checkStringIfPresent(nodeJson, "name", nodePrefix);
+        parser_utils::checkStringIfPresent(nodeJson, "type", nodePrefix);
+        parser_utils::checkStringIfPresent(nodeJson, "subtype", nodePrefix);
+        parser_utils::checkStringIfPresent(nodeJson, "comment", nodePrefix);
+        parser_utils::checkStringIfPresent(nodeJson, "ref_node", nodePrefix);
+        parser_utils::checkStringIfPresent(nodeJson, "in_node", nodePrefix);
+        parser_utils::checkStringIfPresent(nodeJson, "set_node", nodePrefix);
+        parser_utils::checkStringIfPresent(nodeJson, "outside_node", nodePrefix);
+        parser_utils::checkStringIfPresent(nodeJson, "model", nodePrefix);
         if (nodeJson.contains("key"))    node.key  = nodeJson["key"].get<std::string>();
         if (nodeJson.contains("name"))   node.name = nodeJson["name"].get<std::string>();
         if (nodeJson.contains("type"))   node.type = nodeJson["type"].get<std::string>();
@@ -58,16 +48,10 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
         if (nodeJson.contains("model")) node.model = nodeJson["model"].get<std::string>();
 
         // 計算フラグ
-        auto requireBoolean = [&](const char* key) {
-            if (!nodeJson[key].is_boolean()) {
-                throw std::runtime_error(nodePrefix + "." + key + " must be boolean");
-            }
-            return nodeJson[key].get<bool>();
-        };
-        if (nodeJson.contains("calc_p")) node.calc_p = requireBoolean("calc_p");
-        if (nodeJson.contains("calc_t")) node.calc_t = requireBoolean("calc_t");
-        if (nodeJson.contains("calc_x")) node.calc_x = requireBoolean("calc_x");
-        if (nodeJson.contains("calc_c")) node.calc_c = requireBoolean("calc_c");
+        if (nodeJson.contains("calc_p")) node.calc_p = parser_utils::getBooleanIfPresent(nodeJson, "calc_p", nodePrefix, false);
+        if (nodeJson.contains("calc_t")) node.calc_t = parser_utils::getBooleanIfPresent(nodeJson, "calc_t", nodePrefix, false);
+        if (nodeJson.contains("calc_x")) node.calc_x = parser_utils::getBooleanIfPresent(nodeJson, "calc_x", nodePrefix, false);
+        if (nodeJson.contains("calc_c")) node.calc_c = parser_utils::getBooleanIfPresent(nodeJson, "calc_c", nodePrefix, false);
 
         // 時系列ベクトル（配列/単一値の両対応）
         auto readSeries = [&](const char* field, std::vector<double>& storage, double fallback) -> double {
@@ -118,10 +102,7 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
 
         // 容積
         if (nodeJson.contains("v")) {
-            if (!nodeJson["v"].is_number()) {
-                throw std::runtime_error("nodes[" + std::to_string(index-1) + "].v must be number");
-            }
-            node.v = nodeJson["v"].get<double>();
+            node.v = parser_utils::getNumberIfPresent(nodeJson, "v", nodePrefix, 0.0);
         }
 
         // エアコン仕様原本
