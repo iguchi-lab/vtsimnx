@@ -33,6 +33,15 @@ def get_artifact_file(
         resp.raise_for_status()
         return resp.content
 
+    def _get_bytes_fallback(relpaths: List[str]) -> bytes:
+        last_exc: Optional[Exception] = None
+        for p in relpaths:
+            try:
+                return _get_bytes(p)
+            except Exception as e:
+                last_exc = e
+        raise last_exc  # type: ignore[misc]
+
     def _load_json_bytes(raw: bytes) -> Dict[str, Any]:
         return json.loads(raw.decode("utf-8"))
 
@@ -105,8 +114,9 @@ def get_artifact_file(
     if not filename.endswith(".f32.bin"):
         return data
 
-    schema = _load_json_bytes(_get_bytes("artifacts/schema.json"))
-    manifest = _load_json_bytes(_get_bytes("artifacts/manifest.json"))
+    # schema/manifest は配置ゆれがあるので両方試す
+    schema = _load_json_bytes(_get_bytes_fallback(["schema.json", "artifacts/schema.json"]))
+    manifest = _load_json_bytes(_get_bytes_fallback(["manifest.json", "artifacts/manifest.json"]))
 
     dtype = schema.get("dtype")
     layout = schema.get("layout")

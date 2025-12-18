@@ -97,12 +97,15 @@ def main() -> int:
     if not artifacts_dir.exists():
         raise FileNotFoundError(f"artifacts ディレクトリが見つかりません: {artifacts_dir}")
 
-    manifest_path = artifacts_dir / "manifest.json"
-    schema_path = artifacts_dir / "schema.json"
-    if not manifest_path.exists():
-        raise FileNotFoundError(f"manifest.json が見つかりません: {manifest_path}")
-    if not schema_path.exists():
-        raise FileNotFoundError(f"schema.json が見つかりません: {schema_path}")
+    # schema/manifest は配置ゆれがあるため artifacts/直下 or artifact_dir直下を許容
+    manifest_candidates = [artifacts_dir / "manifest.json", artifact_dir / "manifest.json"]
+    schema_candidates = [artifacts_dir / "schema.json", artifact_dir / "schema.json"]
+    manifest_path = next((p for p in manifest_candidates if p.exists()), None)
+    schema_path = next((p for p in schema_candidates if p.exists()), None)
+    if manifest_path is None:
+        raise FileNotFoundError(f"manifest.json が見つかりません: {', '.join(str(p) for p in manifest_candidates)}")
+    if schema_path is None:
+        raise FileNotFoundError(f"schema.json が見つかりません: {', '.join(str(p) for p in schema_candidates)}")
 
     manifest = _load_json(manifest_path)
     schema = _load_json(schema_path)
@@ -125,9 +128,11 @@ def main() -> int:
         return 0
 
     for series_name, bin_name in pairs:
-        bin_path = artifacts_dir / bin_name
-        if not bin_path.exists():
-            raise FileNotFoundError(f"バイナリが見つかりません: {bin_path}")
+        # バイナリも artifacts/直下 or artifact_dir直下を許容
+        bin_candidates = [artifacts_dir / bin_name, artifact_dir / bin_name]
+        bin_path = next((p for p in bin_candidates if p.exists()), None)
+        if bin_path is None:
+            raise FileNotFoundError(f"バイナリが見つかりません: {', '.join(str(p) for p in bin_candidates)}")
 
         cols = _series_columns(schema, series_name)
         N = len(cols)
