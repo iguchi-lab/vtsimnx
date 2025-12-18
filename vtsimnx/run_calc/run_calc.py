@@ -20,6 +20,7 @@ class CalcRunResult:
     artifact_dir: str
     dataframes: Dict[str, pd.DataFrame]
     errors: Dict[str, str]
+    log_text: Optional[str]
 
     @property
     def df_vent_flow(self) -> Optional[pd.DataFrame]:
@@ -28,6 +29,10 @@ class CalcRunResult:
     @property
     def df_vent_pressure(self) -> Optional[pd.DataFrame]:
         return self.dataframes.get("vent_pressure")
+
+    @property
+    def log(self) -> Optional[str]:
+        return self.log_text
 
 
 def _extract_output_block(resp_json: Dict[str, Any]) -> Dict[str, Any]:
@@ -71,6 +76,18 @@ def run_calc(
 
     dfs: Dict[str, pd.DataFrame] = {}
     errors: Dict[str, str] = {}
+    log_text: Optional[str] = None
+
+    # solver.log（あれば）を簡単に参照できるように取得しておく
+    log_file = output.get("log_file")
+    if isinstance(log_file, str) and log_file:
+        try:
+            raw = get_artifact_file(base_url, artifact_dir, log_file)
+            if isinstance(raw, (bytes, bytearray)):
+                log_text = bytes(raw).decode("utf-8", errors="replace")
+        except Exception as e:
+            errors["__log__"] = f"{type(e).__name__}: {e}"
+
     for series_name, fname in result_files.items():
         if not isinstance(series_name, str) or not isinstance(fname, str):
             continue
@@ -84,7 +101,7 @@ def run_calc(
             # 一部の系列が未生成/空/不整合でも、他の系列は利用できるようにスキップする
             errors[series_name] = f"{type(e).__name__}: {e}"
 
-    return CalcRunResult(output=resp_json, artifact_dir=artifact_dir, dataframes=dfs, errors=errors)
+    return CalcRunResult(output=resp_json, artifact_dir=artifact_dir, dataframes=dfs, errors=errors, log_text=log_text)
 
 if __name__ == "__main__":
     config_json = {
