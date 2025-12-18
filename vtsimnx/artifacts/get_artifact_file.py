@@ -16,12 +16,12 @@ def get_artifact_file(
     成果物ディレクトリからファイルを1つ取得する。
 
     想定API:
-      GET {base_url}/artifacts/{artifact_dir}/{filename}
+      GET {base_url}/work/{artifact_dir}/{filename}
 
     - output_path を指定すると、取得した内容をそのパスに保存する（Noneなら保存しない）
     - 返り値は取得したバイト列
     """
-    url = base_url.rstrip("/") + f"/artifacts/{artifact_dir}/{filename}"
+    url = base_url.rstrip("/") + f"/work/{artifact_dir}/{filename}"
     resp = requests.get(url, timeout=timeout)
     resp.raise_for_status()
     data = resp.content
