@@ -41,26 +41,9 @@ class _Handler(BaseHTTPRequestHandler):
         return
 
 
-def test_list_artifact_files(tmp_path):
-    server = HTTPServer(("127.0.0.1", 0), _Handler)
-    port = server.server_address[1]
-
-    t = threading.Thread(target=server.serve_forever, daemon=True)
-    t.start()
-
-    try:
-        out_path = tmp_path / "artifact_files.json"
-        data = vt.list_artifact_files(
-            f"http://127.0.0.1:{port}",
-            "output.artifacts.123",
-            output_path=str(out_path),
-        )
-        assert data["artifact_dir"] == "output.artifacts.123"
-        assert len(data["files"]) == 2
-        assert out_path.exists()
-    finally:
-        server.shutdown()
-        server.server_close()
+def test_list_artifact_files_removed():
+    # list_artifact_files は削除された（仕様変更）
+    assert not hasattr(vt, "list_artifact_files")
 
 
 def test_get_artifact_file(tmp_path):
