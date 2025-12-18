@@ -17,6 +17,7 @@ from .utils import materials as materials
 
 from .run_calc import run_calc
 from .artifacts import list_artifact_files
+from .artifacts import get_artifact_file
 
 __all__ = [
     # builder
@@ -32,4 +33,5 @@ __all__ = [
     "run_calc",
     # artifacts
     "list_artifact_files",
+    "get_artifact_file",
 ]
