@@ -48,9 +48,12 @@ def get_artifact_file(
     def _extract_result_files(manifest: Dict[str, Any]) -> Dict[str, str]:
         # 想定される形（いずれか）:
         #   - {"result": {"result_files": {...}}}
+        #   - {"output": {"result_files": {...}}}
         #   - {"result_files": {...}}
         #   - {"files": {...}}
-        if isinstance(manifest.get("result"), dict) and isinstance(manifest["result"].get("result_files"), dict):
+        if isinstance(manifest.get("output"), dict) and isinstance(manifest["output"].get("result_files"), dict):
+            result_files = manifest["output"]["result_files"]
+        elif isinstance(manifest.get("result"), dict) and isinstance(manifest["result"].get("result_files"), dict):
             result_files = manifest["result"]["result_files"]
         elif isinstance(manifest.get("result_files"), dict):
             result_files = manifest["result_files"]
