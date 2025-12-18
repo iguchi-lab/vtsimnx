@@ -16,6 +16,7 @@ from .utils.utils import (
 from .utils import materials as materials
 
 from .run_calc import run_calc
+from .artifacts import list_artifact_files
 
 __all__ = [
     # builder
@@ -29,4 +30,6 @@ __all__ = [
     "materials",
     # run_calc
     "run_calc",
+    # artifacts
+    "list_artifact_files",
 ]

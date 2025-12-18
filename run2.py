@@ -145,6 +145,5 @@ def main():
     with open('neutoral_close.json', 'w') as f:
         json.dump(config_json, f, indent=4)
 
-
 if __name__ == "__main__":
     main()
