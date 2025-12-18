@@ -19,6 +19,7 @@ class CalcRunResult:
     output: Dict[str, Any]
     artifact_dir: str
     dataframes: Dict[str, pd.DataFrame]
+    errors: Dict[str, str]
 
     @property
     def df_vent_flow(self) -> Optional[pd.DataFrame]:
@@ -69,16 +70,21 @@ def run_calc(
     from vtsimnx.artifacts.get_artifact_file import get_artifact_file
 
     dfs: Dict[str, pd.DataFrame] = {}
+    errors: Dict[str, str] = {}
     for series_name, fname in result_files.items():
         if not isinstance(series_name, str) or not isinstance(fname, str):
             continue
         if not fname.endswith(".f32.bin"):
             continue
-        df = get_artifact_file(base_url, artifact_dir, fname)
-        if isinstance(df, pd.DataFrame):
-            dfs[series_name] = df
+        try:
+            df = get_artifact_file(base_url, artifact_dir, fname)
+            if isinstance(df, pd.DataFrame):
+                dfs[series_name] = df
+        except Exception as e:
+            # 一部の系列が未生成/空/不整合でも、他の系列は利用できるようにスキップする
+            errors[series_name] = f"{type(e).__name__}: {e}"
 
-    return CalcRunResult(output=resp_json, artifact_dir=artifact_dir, dataframes=dfs)
+    return CalcRunResult(output=resp_json, artifact_dir=artifact_dir, dataframes=dfs, errors=errors)
 
 if __name__ == "__main__":
     config_json = {
