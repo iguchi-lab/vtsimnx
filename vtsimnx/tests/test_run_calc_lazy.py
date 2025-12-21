@@ -25,6 +25,15 @@ class _Handler(BaseHTTPRequestHandler):
 
         _State.post_run += 1
 
+        # Windows環境だと、POSTボディを読まずに応答すると接続中断扱いになることがある。
+        # ここで Content-Length 分を読み捨てておく。
+        try:
+            n = int(self.headers.get("Content-Length", "0"))
+        except Exception:
+            n = 0
+        if n > 0:
+            _ = self.rfile.read(n)
+
         # 結果（/run レスポンス）: log.text があるので log 取得はHTTP不要にできる
         body = {
             "result": {

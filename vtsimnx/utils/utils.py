@@ -1,4 +1,5 @@
 import json
+import gzip
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Union
@@ -51,7 +52,11 @@ def read_json(fn: Union[str, Path]):
     """
     JSON ファイルを読み込み、Python オブジェクト（dict など）を返す。
     """
-    with open(fn, encoding="utf-8") as f:
+    p = Path(fn)
+    if p.suffix.lower() == ".gz":
+        with gzip.open(p, "rt", encoding="utf-8") as f:
+            return json.load(f)
+    with open(p, encoding="utf-8") as f:
         return json.load(f)
 
 

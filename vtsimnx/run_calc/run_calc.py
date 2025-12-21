@@ -1,5 +1,6 @@
 import json
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 import pandas as pd
@@ -147,12 +148,21 @@ def _extract_result_files(output: Dict[str, Any]) -> Dict[str, str]:
 
 def run_calc(
     base_url: str,
-    config_json: Dict[str, Any],
+    config_json: Union[Dict[str, Any], str, Path],
     output_path: Optional[str] = "calc_result.json",
     *,
     with_dataframes: bool = False,
     timeout: float = 60.0,
 ) -> Union[Dict[str, Any], CalcRunResult]:
+    # 互換: 設定をファイル（.json / .json.gz）で渡せるようにする
+    if not isinstance(config_json, dict):
+        # 遅延import（循環回避）
+        from vtsimnx.utils.utils import read_json
+
+        config_json = read_json(config_json)  # type: ignore[assignment]
+        if not isinstance(config_json, dict):
+            raise TypeError(f"config_json must be dict (or json file path), got {type(config_json).__name__}")
+
     url = base_url.rstrip("/") + "/run"
     response = requests.post(url, json={"config": config_json}, timeout=timeout)
     if output_path is not None:

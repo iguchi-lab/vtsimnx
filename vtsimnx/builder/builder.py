@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, Optional
 from copy import deepcopy
+import gzip
 import json
 
 from .logger import get_logger
@@ -92,8 +93,14 @@ def build_config(
 
         # JSON 出力
         if output_path:
-            with open(output_path, "w", encoding="utf-8") as f:
-                json.dump(output_json, f, indent=4, ensure_ascii=False)
+            # 大規模JSONは同じ数列が大量に繰り返されるため gzip 圧縮が非常に効く。
+            # output_path が *.gz の場合は圧縮して保存する。
+            if str(output_path).lower().endswith(".gz"):
+                with gzip.open(output_path, "wt", encoding="utf-8") as f:
+                    json.dump(output_json, f, ensure_ascii=False, separators=(",", ":"))
+            else:
+                with open(output_path, "w", encoding="utf-8") as f:
+                    json.dump(output_json, f, indent=4, ensure_ascii=False)
             logger.info(f"設定データを {output_path} に出力しました")
 
         return output_json
