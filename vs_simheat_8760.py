@@ -363,4 +363,18 @@ input_data['surfaces'] = [
     {'key': '2階トイレ->外部||N_窓',                 **surface['E_窓'],           'area':  0.54},
 ]
 
-config_json = vt.build_config(input_data, output_path='vs_simheat_8760.json.gz')
+import os
+config_json = vt.build_config(input_data)
+
+base_url = os.getenv("VTSIMNX_API_URL")
+
+if base_url:
+    result  = vt.run_calc(base_url, config_json)
+else:
+    print("VTSIMNX_API_URLが設定されていないため、run_calcをスキップします。")
+    print("APIサーバーを使用する場合は、環境変数VTSIMNX_API_URLを設定してください。")
+
+print(result)
+
+df_temp = result.get_series_df("thermal_temperature")
+print(df_temp)

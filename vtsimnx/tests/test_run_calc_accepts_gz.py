@@ -46,7 +46,7 @@ def test_run_calc_accepts_json_gz(tmp_path):
 
     try:
         base_url = f"http://127.0.0.1:{port}"
-        _ = vt.run_calc(base_url, p, output_path=None, with_dataframes=False)
+        _ = vt.run_calc(base_url, p, output_path=None, with_dataframes=False, compress_request=False)
 
         assert isinstance(_State.received, dict)
         assert _State.received["config"] == cfg

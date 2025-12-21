@@ -124,7 +124,13 @@ def test_run_calc_with_dataframes_is_lazy():
 
     try:
         base_url = f"http://127.0.0.1:{port}"
-        res = vt.run_calc(base_url, {"simulation": {"index": {"length": 2, "timestep": 1}}}, output_path=None, with_dataframes=True)
+        res = vt.run_calc(
+            base_url,
+            {"simulation": {"index": {"length": 2, "timestep": 1}}},
+            output_path=None,
+            with_dataframes=True,
+            compress_request=False,  # このスタブはgzipを解凍しない
+        )
 
         # /run 以外の GET は、まだ走っていない（遅延ロード）
         assert _State.post_run == 1

@@ -20,7 +20,8 @@ logger = get_logger(__name__)
 # ------------------------------
 def build_config(
     raw_config: Dict[str, Any],
-    output_path: Optional[str] = "parsed_input_data.json",
+    # output_path を指定しない場合はファイルを出力しない（容量節約）
+    output_path: Optional[str] = None,
     add_surface: bool = True,
     add_aircon: bool = True,
     add_capacity: bool = True,

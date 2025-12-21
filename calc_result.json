@@ -1,8 +1,8 @@
 {
     "result": {
-        "artifact_dir": "output.artifacts.1766019364039",
+        "artifact_dir": "output.artifacts.1766290789141",
         "format_version": 5,
-        "input_length": 122513,
+        "input_length": 45060622,
         "log_file": "solver.log",
         "result_files": {
             "aircon_cop": "aircon.cop.f32.bin",
@@ -18,29 +18,21 @@
         "status": "ok",
         "timings": [
             {
-                "duration_ms": 2.739904,
+                "duration_ms": 429.828601,
                 "name": "load_input"
             },
             {
-                "duration_ms": 0.057978,
+                "duration_ms": 0.059045,
                 "name": "parse_simulation_constants"
             },
             {
-                "duration_ms": 5.975436,
+                "duration_ms": 2159.293629,
                 "name": "runSimulationLoop"
             },
             {
-                "duration_ms": 5.976428,
+                "duration_ms": 2159.294904,
                 "name": "simulation_total"
             }
-        ],
-        "log": {
-            "available": true,
-            "truncated": false,
-            "bytes": 1933,
-            "artifact_dir": "output.artifacts.1766019364039",
-            "log_file": "solver.log",
-            "text": "入力JSONを読み込みました。\nシミュレーション定数を解析中...\n  シミュレーション開始時刻: 2025-08-24 00:00:00\n  シミュレーション終了時刻: 2025-08-24 01:00:00\n  シミュレーション時間ステップ: 60\n  シミュレーション長さ: 1\n  圧力許容誤差: 1e-06\n  温度許容誤差: 1e-06\n  収束許容誤差: 1e-06\n  最大内部反復回数（デフォルト値）: 100\n  圧力計算フラグ: true\n  温度計算フラグ: false\n  湿度計算フラグ: false\n  濃度計算フラグ: false\n  設定ファイルを解析しました。\nタイムステップループ開始: length=1, timestep=60秒\n初期化: ネットワークトポロジー構築中...\n   トポロジ構築中...\n    全てのノードデータを読み込みました: 20個\n    全ての換気ブランチを読み込みました: 384個\n    全ての熱ブランチを読み込みました: 0個\n    換気回路網を作成中...\n    換気回路網を作成しました: 19ノード, 384ブランチ\n    熱回路網を作成しました: 0ノード, 0ブランチ\n  初期化完了: ネットワークトポロジー構築済み (所要時間: 0.002秒)\n圧力-温度連成計算-エアコン制御ループ 1:\n  圧力-熱計算 連成反復 1:\n    圧力計算\n      ①標準設定でソルバーを実行します...\n      ①標準設定でソルバーを実行します 所要時間: 0.002秒 (前処理 0.000秒, 残差評価 0.001秒, ヤコビアン評価 0.001秒, 線形ソルバー 0.000秒, 最適化 0.002秒)\n      標準設定で収束しました\n      圧力計算収束 | iter=17 | residual=2.800884e-21 | tol=0.000001\n    圧力-熱連成計算は不要です（圧力または熱計算のみ）\n圧力-温度連成計算-エアコン制御ループ 1 が収束しました。\n[ts=1] タイムステップ終了  総連成反復回数: 1\nタイムステップループ終了\n"
-        }
+        ]
     }
 }
