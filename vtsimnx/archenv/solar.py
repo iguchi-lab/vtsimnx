@@ -104,18 +104,28 @@ def sun_loc(idx, lat = 36.00, lon = 140.00, td = -0.5):
     df['太陽高度の正弦 sin_hs'] = sin_hs(
         lat, df['太陽の赤緯 delta_d'], df['太陽の時角 T_d_t']
     )
+    # 数値誤差で sin_hs が [-1, 1] を僅かに逸脱すると sqrt が NaN になったり、
+    # cos_hs ≈ 0（天頂近傍）で方位角の sin/cos 計算が不安定になる。
+    # ここでクリップ＆安全な cos_hs を作る。
+    df['太陽高度の正弦 sin_hs'] = np.clip(df['太陽高度の正弦 sin_hs'], -1.0, 1.0)
     df['太陽高度の余弦 cos_hs'] = np.sqrt(
-        1 - np.power(df['太陽高度の正弦 sin_hs'], 2)
+        np.clip(1 - np.power(df['太陽高度の正弦 sin_hs'], 2), 0.0, 1.0)
     )
     df['太陽高度 hs'] = _alt_deg_from_sin(df['太陽高度の正弦 sin_hs'])
 
     # 太陽方位角
+    # cos_hs が極小だと分母が不安定になるので、近傍は方位角が定義できない前提で丸め込む
+    eps = 1e-12
+    safe_cos_hs = np.where(df['太陽高度の余弦 cos_hs'] < eps, np.nan, df['太陽高度の余弦 cos_hs'])
     df['太陽方位角の正弦 sin_AZs'] = sin_AZs(
-        df['太陽の赤緯 delta_d'], df['太陽の時角 T_d_t'], df['太陽高度の余弦 cos_hs']
+        df['太陽の赤緯 delta_d'], df['太陽の時角 T_d_t'], safe_cos_hs
     )
     df['太陽方位角の余弦 cos_AZs'] = cos_AZs(
-        df['太陽高度の正弦 sin_hs'], lat, df['太陽の時角 T_d_t'], df['太陽高度の余弦 cos_hs']
+        df['太陽高度の正弦 sin_hs'], lat, df['太陽の時角 T_d_t'], safe_cos_hs
     )
+    # 数値誤差で [-1, 1] を僅かに逸脱することがあるためクリップ
+    df['太陽方位角の正弦 sin_AZs'] = np.clip(df['太陽方位角の正弦 sin_AZs'], -1.0, 1.0)
+    df['太陽方位角の余弦 cos_AZs'] = np.clip(df['太陽方位角の余弦 cos_AZs'], -1.0, 1.0)
 
     df['太陽方位角 AZs'] = _az_deg_from_sin_cos(
         df['太陽方位角の正弦 sin_AZs'], df['太陽方位角の余弦 cos_AZs']
