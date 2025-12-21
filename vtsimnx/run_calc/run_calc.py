@@ -1,4 +1,5 @@
 import json
+import gzip
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
@@ -152,6 +153,7 @@ def run_calc(
     output_path: Optional[str] = "calc_result.json",
     *,
     with_dataframes: bool = False,
+    compress_request: bool = False,
     timeout: float = 60.0,
 ) -> Union[Dict[str, Any], CalcRunResult]:
     # 互換: 設定をファイル（.json / .json.gz）で渡せるようにする
@@ -164,7 +166,22 @@ def run_calc(
             raise TypeError(f"config_json must be dict (or json file path), got {type(config_json).__name__}")
 
     url = base_url.rstrip("/") + "/run"
-    response = requests.post(url, json={"config": config_json}, timeout=timeout)
+    payload = {"config": config_json}
+    if compress_request:
+        raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+        gz = gzip.compress(raw)
+        response = requests.post(
+            url,
+            data=gz,
+            headers={
+                "Content-Type": "application/json",
+                "Content-Encoding": "gzip",
+                "Accept": "application/json",
+            },
+            timeout=timeout,
+        )
+    else:
+        response = requests.post(url, json=payload, timeout=timeout)
     if output_path is not None:
         with open(output_path, "w", encoding="utf-8") as f:
             json.dump(response.json(), f, indent=4, ensure_ascii=False)
