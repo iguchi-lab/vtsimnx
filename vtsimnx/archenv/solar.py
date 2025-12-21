@@ -145,6 +145,13 @@ def astro_sun_loc(idx, lat = '36 00 00.00', lon = '140 00 00.00', td = -0.5):
     from astropy.coordinates import AltAz
     from astropy.coordinates import EarthLocation
 
+    # 互換: float（deg）でも渡せるようにする
+    # EarthLocation は unit 付きの文字列（例: "36d"）を受け付ける
+    if isinstance(lat, (int, float)):
+        lat = f"{float(lat)}d"
+    if isinstance(lon, (int, float)):
+        lon = f"{float(lon)}d"
+
     loc = EarthLocation(lat = lat, lon = lon)
     time = astropy.time.Time(idx) + (-9 + td ) * u.hour
     sun = get_sun(time).transform_to(AltAz(obstime = time, location = loc))
@@ -320,13 +327,16 @@ def direc_solar(s_ib, s_id, s_sin_hs, s_cos_hs, s_hs, s_sin_AZs, s_cos_AZs, s_AZ
     return df
 
 
-def make_solar(*args, **kwargs):
+def make_solar(*args, use_astro: bool = False, **kwargs):
     """方位別日射量の総合算出
     指定方法:
       - 全天日射量を与えると内部で直散分離 → 方位別
       - 法線面直達日射量と水平面拡散日射量を与えるとそのまま方位別へ
     戻り値:
       (DataFrame) 中間列と方位別日射（壁/ガラス/水平）
+
+    use_astro=True の場合は astropy を用いた高精度太陽位置（astro_sun_loc）を使用する。
+    （astropy が未インストールの場合は ImportError になります）
     """
     # 互換対応: 先頭位置引数で DataFrame/Series を受けた場合に自動でキーへマッピングする
     if args:
@@ -362,10 +372,21 @@ def make_solar(*args, **kwargs):
             sec   = delta.seconds
             micro = delta.microseconds
             td    = sec + micro / 1000000 / 2 / 3600
-        df = pd.concat(
-            [s_ig, sun_loc(s_ig.index, lat = lat, lon = lon, td = td)],
-            axis = 1
-        )
+        if use_astro:
+            df_sun = astro_sun_loc(s_ig.index, lat=lat, lon=lon, td=td).rename(
+                columns={
+                    "太陽高度の正弦 sin_alt": "太陽高度の正弦 sin_hs",
+                    "太陽高度の余弦 cos_alt": "太陽高度の余弦 cos_hs",
+                    "太陽高度 alt": "太陽高度 hs",
+                    "太陽方位角の正弦 sin_az": "太陽方位角の正弦 sin_AZs",
+                    "太陽方位角の余弦 cos_az": "太陽方位角の余弦 cos_AZs",
+                    "太陽方位角 az": "太陽方位角 AZs",
+                }
+            )
+        else:
+            df_sun = sun_loc(s_ig.index, lat=lat, lon=lon, td=td)
+
+        df = pd.concat([s_ig, df_sun], axis=1)
         df = pd.concat(
             [df, sep_direct_diffuse(s_ig, df['太陽高度 hs'])],
             axis = 1
@@ -391,10 +412,21 @@ def make_solar(*args, **kwargs):
             sec   = delta.seconds
             micro = delta.microseconds
             td    = - sec + micro / 1000000 / 2 / 3600
-        df = pd.concat(
-            [s_ib, s_id, sun_loc(s_ib.index, lat = lat, lon = lon, td = td)],
-            axis = 1
-        )
+        if use_astro:
+            df_sun = astro_sun_loc(s_ib.index, lat=lat, lon=lon, td=td).rename(
+                columns={
+                    "太陽高度の正弦 sin_alt": "太陽高度の正弦 sin_hs",
+                    "太陽高度の余弦 cos_alt": "太陽高度の余弦 cos_hs",
+                    "太陽高度 alt": "太陽高度 hs",
+                    "太陽方位角の正弦 sin_az": "太陽方位角の正弦 sin_AZs",
+                    "太陽方位角の余弦 cos_az": "太陽方位角の余弦 cos_AZs",
+                    "太陽方位角 az": "太陽方位角 AZs",
+                }
+            )
+        else:
+            df_sun = sun_loc(s_ib.index, lat=lat, lon=lon, td=td)
+
+        df = pd.concat([s_ib, s_id, df_sun], axis=1)
         df = direc_solar(
             df['法線面直達日射量 Ib'], df['水平面拡散日射量 Id'],
             df['太陽高度の正弦 sin_hs'], df['太陽高度の余弦 cos_hs'], df['太陽高度 hs'],
