@@ -1,8 +1,8 @@
 {
     "result": {
-        "artifact_dir": "output.artifacts.1766290789141",
+        "artifact_dir": "output.artifacts.1766298472184",
         "format_version": 5,
-        "input_length": 45060622,
+        "input_length": 67948693,
         "log_file": "solver.log",
         "result_files": {
             "aircon_cop": "aircon.cop.f32.bin",
@@ -18,19 +18,19 @@
         "status": "ok",
         "timings": [
             {
-                "duration_ms": 429.828601,
+                "duration_ms": 643.555571,
                 "name": "load_input"
             },
             {
-                "duration_ms": 0.059045,
+                "duration_ms": 0.063215,
                 "name": "parse_simulation_constants"
             },
             {
-                "duration_ms": 2159.293629,
+                "duration_ms": 2222.954046,
                 "name": "runSimulationLoop"
             },
             {
-                "duration_ms": 2159.294904,
+                "duration_ms": 2222.955828,
                 "name": "simulation_total"
             }
         ]

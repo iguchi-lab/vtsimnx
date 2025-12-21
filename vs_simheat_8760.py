@@ -380,4 +380,3 @@ else:
 print(result)
 
 df_temp = result.get_series_df("thermal_temperature")
-print(df_temp)
