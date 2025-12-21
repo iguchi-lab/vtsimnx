@@ -337,7 +337,7 @@ def direc_solar(s_ib, s_id, s_sin_hs, s_cos_hs, s_hs, s_sin_AZs, s_cos_AZs, s_AZ
     return df
 
 
-def make_solar(*args, use_astro: bool = False, **kwargs):
+def make_solar(*args, use_astro: bool = False, time_alignment: str = "center", timestamp_ref: str = "start", **kwargs):
     """方位別日射量の総合算出
     指定方法:
       - 全天日射量を与えると内部で直散分離 → 方位別
@@ -347,7 +347,29 @@ def make_solar(*args, use_astro: bool = False, **kwargs):
 
     use_astro=True の場合は astropy を用いた高精度太陽位置（astro_sun_loc）を使用する。
     （astropy が未インストールの場合は ImportError になります）
+
+    time_alignment / timestamp_ref:
+      - time_alignment="center": タイムステップ区間の中央時刻で評価（td=±Δt/2）
+      - time_alignment="timestamp": インデックス時刻そのもの（td=0）
+      - timestamp_ref="start": インデックスが区間開始を表す
+      - timestamp_ref="end":   インデックスが区間終了を表す（例: 00:00 が 23:00-00:00 の値）
     """
+    if time_alignment not in ("center", "timestamp"):
+        raise ValueError(f"time_alignment must be 'center' or 'timestamp', got {time_alignment!r}")
+    if timestamp_ref not in ("start", "end"):
+        raise ValueError(f"timestamp_ref must be 'start' or 'end', got {timestamp_ref!r}")
+
+    def _auto_td_from_index(idx: pd.DatetimeIndex) -> float:
+        if time_alignment == "timestamp":
+            return 0.0
+        # center
+        if len(idx) < 2:
+            return 0.0
+        delta_h = (idx[1] - idx[0]).total_seconds() / 3600.0
+        # indexが区間開始なら +Δt/2、区間終了なら -Δt/2
+        sgn = 1.0 if timestamp_ref == "start" else -1.0
+        return sgn * delta_h / 2.0
+
     # 互換対応: 先頭位置引数で DataFrame/Series を受けた場合に自動でキーへマッピングする
     if args:
         first = args[0]
@@ -378,10 +400,7 @@ def make_solar(*args, use_astro: bool = False, **kwargs):
         if '時刻調整' in kwargs:
             td = kwargs['時刻調整']
         else:
-            delta = (s_ig.index[1] - s_ig.index[0])
-            sec   = delta.seconds
-            micro = delta.microseconds
-            td    = sec + micro / 1000000 / 2 / 3600
+            td = _auto_td_from_index(s_ig.index)
         if use_astro:
             # astropy の方位角は 0°=北, 90°=東（一般的な測地系）
             # 本コードの方位角 AZs は 0°=南, -90°=東, +90°=西, ±180°=北 を前提に
@@ -425,10 +444,7 @@ def make_solar(*args, use_astro: bool = False, **kwargs):
         if '時刻調整' in kwargs:
             td = kwargs['時刻調整']
         else:
-            delta = (s_ib.index[1] - s_ib.index[0])
-            sec   = delta.seconds
-            micro = delta.microseconds
-            td    = - sec + micro / 1000000 / 2 / 3600
+            td = _auto_td_from_index(s_ib.index)
         if use_astro:
             df_a = astro_sun_loc(s_ib.index, lat=lat, lon=lon, td=td)
             az = df_a["太陽方位角 az"]
