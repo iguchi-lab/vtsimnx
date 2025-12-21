@@ -139,6 +139,16 @@ def astro_sun_loc(idx, lat = '36 00 00.00', lon = '140 00 00.00', td = -0.5):
     lat, lon は DMS 表記の文字列を想定（例: '36 00 00.00'）
     戻り値: 仰角/方位角の sin, cos と角度 [deg]
     """
+    # IERS（地球回転パラメータ）を自動取得して精度劣化の警告を避ける
+    # オフライン等で取得できない場合もあるため、例外は握りつぶして続行する
+    try:
+        from astropy.utils import iers
+
+        iers.conf.auto_download = True
+        iers.conf.iers_auto_url = "https://datacenter.iers.org/data/9/finals2000A.all"
+    except Exception:
+        pass
+
     import astropy.time
     import astropy.units as u
     from astropy.coordinates import get_sun
@@ -373,16 +383,23 @@ def make_solar(*args, use_astro: bool = False, **kwargs):
             micro = delta.microseconds
             td    = sec + micro / 1000000 / 2 / 3600
         if use_astro:
-            df_sun = astro_sun_loc(s_ig.index, lat=lat, lon=lon, td=td).rename(
-                columns={
-                    "太陽高度の正弦 sin_alt": "太陽高度の正弦 sin_hs",
-                    "太陽高度の余弦 cos_alt": "太陽高度の余弦 cos_hs",
-                    "太陽高度 alt": "太陽高度 hs",
-                    "太陽方位角の正弦 sin_az": "太陽方位角の正弦 sin_AZs",
-                    "太陽方位角の余弦 cos_az": "太陽方位角の余弦 cos_AZs",
-                    "太陽方位角 az": "太陽方位角 AZs",
-                }
-            )
+            # astropy の方位角は 0°=北, 90°=東（一般的な測地系）
+            # 本コードの方位角 AZs は 0°=南, -90°=東, +90°=西, ±180°=北 を前提に
+            # direc_solar 内で象限判定しているため、ここで座標系を変換する。
+            df_a = astro_sun_loc(s_ig.index, lat=lat, lon=lon, td=td)
+
+            # astro az(=0北) -> 本コードAZs(=0南)
+            # wrap を [-180, 180] に揃える
+            az = df_a["太陽方位角 az"]
+            AZs = ((az - 180.0 + 180.0) % 360.0) - 180.0
+
+            df_sun = pd.DataFrame(index=df_a.index)
+            df_sun["太陽高度の正弦 sin_hs"] = df_a["太陽高度の正弦 sin_alt"]
+            df_sun["太陽高度の余弦 cos_hs"] = df_a["太陽高度の余弦 cos_alt"]
+            df_sun["太陽高度 hs"] = df_a["太陽高度 alt"]
+            df_sun["太陽方位角 AZs"] = AZs
+            df_sun["太陽方位角の正弦 sin_AZs"] = np.sin(np.radians(AZs))
+            df_sun["太陽方位角の余弦 cos_AZs"] = np.cos(np.radians(AZs))
         else:
             df_sun = sun_loc(s_ig.index, lat=lat, lon=lon, td=td)
 
@@ -413,16 +430,17 @@ def make_solar(*args, use_astro: bool = False, **kwargs):
             micro = delta.microseconds
             td    = - sec + micro / 1000000 / 2 / 3600
         if use_astro:
-            df_sun = astro_sun_loc(s_ib.index, lat=lat, lon=lon, td=td).rename(
-                columns={
-                    "太陽高度の正弦 sin_alt": "太陽高度の正弦 sin_hs",
-                    "太陽高度の余弦 cos_alt": "太陽高度の余弦 cos_hs",
-                    "太陽高度 alt": "太陽高度 hs",
-                    "太陽方位角の正弦 sin_az": "太陽方位角の正弦 sin_AZs",
-                    "太陽方位角の余弦 cos_az": "太陽方位角の余弦 cos_AZs",
-                    "太陽方位角 az": "太陽方位角 AZs",
-                }
-            )
+            df_a = astro_sun_loc(s_ib.index, lat=lat, lon=lon, td=td)
+            az = df_a["太陽方位角 az"]
+            AZs = ((az - 180.0 + 180.0) % 360.0) - 180.0
+
+            df_sun = pd.DataFrame(index=df_a.index)
+            df_sun["太陽高度の正弦 sin_hs"] = df_a["太陽高度の正弦 sin_alt"]
+            df_sun["太陽高度の余弦 cos_hs"] = df_a["太陽高度の余弦 cos_alt"]
+            df_sun["太陽高度 hs"] = df_a["太陽高度 alt"]
+            df_sun["太陽方位角 AZs"] = AZs
+            df_sun["太陽方位角の正弦 sin_AZs"] = np.sin(np.radians(AZs))
+            df_sun["太陽方位角の余弦 cos_AZs"] = np.cos(np.radians(AZs))
         else:
             df_sun = sun_loc(s_ib.index, lat=lat, lon=lon, td=td)
 
