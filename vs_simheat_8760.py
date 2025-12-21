@@ -1,7 +1,10 @@
 import vtsimnx as vt
 
+
+
 df_i       = vt.read_hasp('3639999.has')
-solar      = vt.make_solar(df_i)
+solar      = vt.make_solar(df_i, use_astro=True)
+nocturnal  = vt.make_nocturnal(df_i)
 materials  = vt.materials
 
 room_volume = {
@@ -71,43 +74,43 @@ layers = {
 }
 
 surface = {
-        'E_基礎外壁': {'part': 'wall', 'layers': layers['基礎外壁'], 'solar': solar['日射熱取得量（東面）']},
-        'N_基礎外壁': {'part': 'wall', 'layers': layers['基礎外壁'], 'solar': solar['日射熱取得量（北面）']},
-        'S_基礎外壁': {'part': 'wall', 'layers': layers['基礎外壁'], 'solar': solar['日射熱取得量（南面）']},
-        'W_基礎外壁': {'part': 'wall', 'layers': layers['基礎外壁'], 'solar': solar['日射熱取得量（西面）']},
+    'E_基礎外壁': {'part': 'wall', 'layers': layers['基礎外壁'], 'solar': solar['日射熱取得量（東面）'], 'nocturnal': nocturnal['夜間放射量_垂直']},
+    'N_基礎外壁': {'part': 'wall', 'layers': layers['基礎外壁'], 'solar': solar['日射熱取得量（北面）'], 'nocturnal': nocturnal['夜間放射量_垂直']},
+    'S_基礎外壁': {'part': 'wall', 'layers': layers['基礎外壁'], 'solar': solar['日射熱取得量（南面）'], 'nocturnal': nocturnal['夜間放射量_垂直']},
+    'W_基礎外壁': {'part': 'wall', 'layers': layers['基礎外壁'], 'solar': solar['日射熱取得量（西面）'], 'nocturnal': nocturnal['夜間放射量_垂直']},
 
-        '0_外壁_一般部': {'part': 'wall', 'layers': layers['外壁_一般部']},
-        'E_外壁_一般部': {'part': 'wall', 'layers': layers['外壁_一般部'], 'solar': solar['日射熱取得量（東面）']},
-        'N_外壁_一般部': {'part': 'wall', 'layers': layers['外壁_一般部'], 'solar': solar['日射熱取得量（北面）']},
-        'S_外壁_一般部': {'part': 'wall', 'layers': layers['外壁_一般部'], 'solar': solar['日射熱取得量（南面）']},
-        'W_外壁_一般部': {'part': 'wall', 'layers': layers['外壁_一般部'], 'solar': solar['日射熱取得量（西面）']},
-        'H_外壁_一般部': {'part': 'wall', 'layers': layers['外壁_一般部'], 'solar': solar['日射熱取得量（水平面）']},
-        'D_外壁_一般部': {'part': 'wall', 'layers': layers['外壁_一般部'], 'solar': solar['日射熱取得量（拡散）']},
+    '0_外壁_一般部': {'part': 'wall', 'layers': layers['外壁_一般部'], 'nocturnal': nocturnal['夜間放射量_垂直']},
+    'E_外壁_一般部': {'part': 'wall', 'layers': layers['外壁_一般部'], 'solar': solar['日射熱取得量（東面）'], 'nocturnal': nocturnal['夜間放射量_垂直']},
+    'N_外壁_一般部': {'part': 'wall', 'layers': layers['外壁_一般部'], 'solar': solar['日射熱取得量（北面）'], 'nocturnal': nocturnal['夜間放射量_垂直']},
+    'S_外壁_一般部': {'part': 'wall', 'layers': layers['外壁_一般部'], 'solar': solar['日射熱取得量（南面）'], 'nocturnal': nocturnal['夜間放射量_垂直']},
+    'W_外壁_一般部': {'part': 'wall', 'layers': layers['外壁_一般部'], 'solar': solar['日射熱取得量（西面）'], 'nocturnal': nocturnal['夜間放射量_垂直']},
+    'H_外壁_一般部': {'part': 'wall', 'layers': layers['外壁_一般部'], 'solar': solar['日射熱取得量（水平面）'], 'nocturnal': nocturnal['夜間放射量_水平']},
+    'D_外壁_一般部': {'part': 'wall', 'layers': layers['外壁_一般部'], 'solar': solar['日射熱取得量（拡散）'], 'nocturnal': nocturnal['夜間放射量_垂直']},
 
-        '0_外壁_熱橋部': {'part': 'wall', 'layers': layers['外壁_熱橋部']},
-        'E_外壁_熱橋部': {'part': 'wall', 'layers': layers['外壁_熱橋部'], 'solar': solar['日射熱取得量（東面）']},
-        'N_外壁_熱橋部': {'part': 'wall', 'layers': layers['外壁_熱橋部'], 'solar': solar['日射熱取得量（北面）']},
-        'S_外壁_熱橋部': {'part': 'wall', 'layers': layers['外壁_熱橋部'], 'solar': solar['日射熱取得量（南面）']},
-        'W_外壁_熱橋部': {'part': 'wall', 'layers': layers['外壁_熱橋部'], 'solar': solar['日射熱取得量（西面）']},
-        'H_外壁_熱橋部': {'part': 'wall', 'layers': layers['外壁_熱橋部'], 'solar': solar['日射熱取得量（水平面）']},
-        'D_外壁_熱橋部': {'part': 'wall', 'layers': layers['外壁_熱橋部'], 'solar': solar['日射熱取得量（拡散）']},
+    '0_外壁_熱橋部': {'part': 'wall', 'layers': layers['外壁_熱橋部'], 'nocturnal': nocturnal['夜間放射量_垂直']},
+    'E_外壁_熱橋部': {'part': 'wall', 'layers': layers['外壁_熱橋部'], 'solar': solar['日射熱取得量（東面）'], 'nocturnal': nocturnal['夜間放射量_垂直']},
+    'N_外壁_熱橋部': {'part': 'wall', 'layers': layers['外壁_熱橋部'], 'solar': solar['日射熱取得量（北面）'], 'nocturnal': nocturnal['夜間放射量_垂直']},
+    'S_外壁_熱橋部': {'part': 'wall', 'layers': layers['外壁_熱橋部'], 'solar': solar['日射熱取得量（南面）'], 'nocturnal': nocturnal['夜間放射量_垂直']},
+    'W_外壁_熱橋部': {'part': 'wall', 'layers': layers['外壁_熱橋部'], 'solar': solar['日射熱取得量（西面）'], 'nocturnal': nocturnal['夜間放射量_垂直']},
+    'H_外壁_熱橋部': {'part': 'wall', 'layers': layers['外壁_熱橋部'], 'solar': solar['日射熱取得量（水平面）'], 'nocturnal': nocturnal['夜間放射量_水平']},
+    'D_外壁_熱橋部': {'part': 'wall', 'layers': layers['外壁_熱橋部'], 'solar': solar['日射熱取得量（拡散）'], 'nocturnal': nocturnal['夜間放射量_垂直']},
 
-        '外皮床_一般部': {'part': 'floor', 'layers': layers['外皮床_一般部'], 'alpha-o': 4.4},
-        '外皮床_熱橋部': {'part': 'floor', 'layers': layers['外皮床_熱橋部'], 'alpha-o': 4.4},
-        '外皮天井':      {'part': 'floor', 'layers': layers['外皮床_一般部'], 'alpha-o': 4.4},
+    '外皮床_一般部': {'part': 'floor', 'layers': layers['外皮床_一般部'], 'alpha-o': 4.4},
+    '外皮床_熱橋部': {'part': 'floor', 'layers': layers['外皮床_熱橋部'], 'alpha-o': 4.4},
+    '外皮天井':      {'part': 'floor', 'layers': layers['外皮床_一般部'], 'alpha-o': 4.4},
 
-        '間仕切壁':      {'part': 'wall',    'layers': layers['間仕切壁'], 'alpha-o': 4.4},
-        '床':            {'part': 'floor',   'layers': layers['床'],       'alpha-o': 4.4},
-        '天井':          {'part': 'ceiling', 'layers': layers['天井'],     'alpha-o': 4.4},
-        '屋根':          {'part': 'ceiling', 'layers': layers['屋根'],     'alpha-o': 4.4},
+    '間仕切壁':      {'part': 'wall',    'layers': layers['間仕切壁'], 'alpha-o': 4.4},
+    '床':            {'part': 'floor',   'layers': layers['床'],       'alpha-o': 4.4},
+    '天井':          {'part': 'ceiling', 'layers': layers['天井'],     'alpha-o': 4.4},
+    '屋根':          {'part': 'ceiling', 'layers': layers['屋根'],     'alpha-o': 4.4},
 
-        '室内建具':      {'part': 'wall', 'u_value': 2.33, 'alpha-o': 4.4},
+    '室内建具':      {'part': 'wall', 'u_value': 2.33, 'alpha-o': 4.4},
 
-        'E_窓':          {'part': 'glass', 'u_value': 4.65, 'eta': 0.90, 'solar': solar['日射熱取得量（東面ガラス）'], 'noctural': 10},
-        'N_窓':          {'part': 'glass', 'u_value': 4.65, 'eta': 0.90, 'solar': solar['日射熱取得量（北面ガラス）'], 'noctural': 10},
-        'S_窓':          {'part': 'glass', 'u_value': 4.65, 'eta': 0.90, 'solar': solar['日射熱取得量（南面ガラス）'], 'noctural': 10},
-        'W_窓':          {'part': 'glass', 'u_value': 4.65, 'eta': 0.90, 'solar': solar['日射熱取得量（西面ガラス）'], 'noctural': 10},
-    }
+    'E_窓':          {'part': 'glass', 'u_value': 4.65, 'eta': 0.70, 'solar': solar['日射熱取得量（東面ガラス）'], 'nocturnal': nocturnal['夜間放射量_垂直']},
+    'N_窓':          {'part': 'glass', 'u_value': 4.65, 'eta': 0.70, 'solar': solar['日射熱取得量（北面ガラス）'], 'nocturnal': nocturnal['夜間放射量_垂直']},
+    'S_窓':          {'part': 'glass', 'u_value': 4.65, 'eta': 0.70, 'solar': solar['日射熱取得量（南面ガラス）'], 'nocturnal': nocturnal['夜間放射量_垂直']},
+    'W_窓':          {'part': 'glass', 'u_value': 4.65, 'eta': 0.70, 'solar': solar['日射熱取得量（西面ガラス）'], 'nocturnal': nocturnal['夜間放射量_垂直']},
+}
 
 input_data = {'simulation':           {},
               'nodes':                [],
