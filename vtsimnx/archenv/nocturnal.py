@@ -11,7 +11,7 @@ rn = lambda t, h: (94.21 + 39.06 * np.sqrt(e(t, h) / 100) \
                    - 0.85 * Sigma * np.power(T(t), 4)) * 4.187 / 1000
 
 
-def make_nocturnal(*args, **kwargs):
+def make_nocturnal(*args, vertical_factor: float = 0.5, **kwargs):
     """夜間放射量を算出する
 
     指定方法:
@@ -23,7 +23,7 @@ def make_nocturnal(*args, **kwargs):
       - 夜間放射量（'夜間放射量' or 'n_r'）を与える: その値を使用
 
     戻り値:
-      (DataFrame) 夜間放射量（列: '夜間放射量'）
+      (DataFrame) 夜間放射量（列: '夜間放射量', '夜間_水平', '夜間_垂直'）
     """
     # 互換: 先頭位置引数で DataFrame/Series を受けた場合に自動でキーへマッピングする
     if args:
@@ -44,24 +44,28 @@ def make_nocturnal(*args, **kwargs):
             # Series だけ渡された場合は夜間放射量として扱う
             kwargs.setdefault("夜間放射量", first)
 
+    def _build_df(n_r: pd.Series) -> pd.DataFrame:
+        df = pd.DataFrame(index=n_r.index)
+        # 後方互換
+        df["夜間放射量"] = n_r
+        # 日射と同様に「水平/垂直」を明示した列も返す
+        df["夜間放射量_水平"] = n_r
+        df["夜間放射量_垂直"] = n_r * float(vertical_factor)
+        return df
+
     if "外気温" in kwargs:
         t = kwargs["外気温"]
         h = kwargs["外気相対湿度"]
-        df = pd.DataFrame(index=t.index)
-        df["夜間放射量"] = MJ_to_Wh(rn(t, h))
-        return df
+        n_r = MJ_to_Wh(rn(t, h))
+        return _build_df(n_r)
 
     if "夜間放射量" in kwargs:
         n_r = kwargs["夜間放射量"]
-        df = pd.DataFrame(index=n_r.index)
-        df["夜間放射量"] = n_r
-        return df
+        return _build_df(n_r)
 
     if "n_r" in kwargs:
         n_r = kwargs["n_r"]
-        df = pd.DataFrame(index=n_r.index)
-        df["夜間放射量"] = n_r
-        return df
+        return _build_df(n_r)
 
     raise TypeError("make_nocturnal: 外気温/外気相対湿度 か、夜間放射量（夜間放射量 or n_r）を指定してください。")
 

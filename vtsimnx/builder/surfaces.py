@@ -101,6 +101,35 @@ def process_wall_solar(surface: dict, sim_length: int) -> list:
     return thermal_branches
 
 
+def process_wall_nocturnal(surface: dict, sim_length: int) -> list:
+    """
+    夜間放射（長波放射）による熱損失を、void から表面ノードへの heat_generation として表現する。
+
+    注意:
+    - 熱ブランチは target が必ず実在ノードである必要があるため、`surface->void` は作れない。
+      代わりに `void->surface` を作り、heat_generation を負にして「表面から void へ流出」を表す。
+    - nocturnal は [W/m2]（または入力系列と同単位）を想定し、面積を掛けて [W] の系列にする。
+    """
+    thermal_branches: list = []
+    _, _, _, o_prefix = get_node_prefix(surface)
+
+    # 設定キーは "nocturnal" を推奨。互換で "night_radiation" も受ける。
+    noct = surface.get("nocturnal", surface.get("night_radiation"))
+    if noct is None:
+        return thermal_branches
+
+    # 表面->void への流出なので負符号
+    heat_generation = -surface["area"] * np.array(noct)
+    heat_generation = ensure_timeseries(heat_generation, sim_length)
+
+    branch_key = f"void->{o_prefix}_s"
+    logger.info(f"　外壁夜間放射熱ブランチ【{branch_key}】を追加します。")
+    thermal_branches.append(
+        {"key": branch_key, "heat_generation": heat_generation, "subtype": "nocturnal_loss"}
+    )
+    return thermal_branches
+
+
 def process_glass_solar(surface: dict, surfaces: list, sim_length: int) -> list:
     thermal_branches: list = []
 
@@ -157,6 +186,7 @@ def process_surfaces(
     surface_config: list,
     sim_length: int,
     add_solar: bool = True,
+    add_nocturnal: bool = True,
     add_radiation: bool = True,
 ) -> tuple[list, list]:
     """
@@ -193,6 +223,16 @@ def process_surfaces(
         logger.info("日射の解析が完了しました。")
     else:
         logger.info("日射の解析をスキップします。")
+
+    # 夜間放射（外部への放射損失）
+    if add_nocturnal:
+        logger.info("夜間放射の解析を開始します。")
+        for s in (x for x in surface_data if ("nocturnal" in x or "night_radiation" in x)):
+            if s["part"] in ["wall", "floor", "ceiling", "glass"]:
+                thermal_branches.extend(process_wall_nocturnal(s, sim_length))
+        logger.info("夜間放射の解析が完了しました。")
+    else:
+        logger.info("夜間放射の解析をスキップします。")
 
     # 室内放射
     if add_radiation:
