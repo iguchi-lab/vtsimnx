@@ -7,24 +7,11 @@ import vtsimnx as vt
 
 class _Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        # 期待: /artifacts/<artifact_dir>/files
-        if self.path == "/artifacts/output.artifacts.123/files":
-            body = {
-                "artifact_dir": "output.artifacts.123",
-                "files": [
-                    {"name": "solver.log", "size_bytes": 10, "url": "/artifacts/output.artifacts.123/files/solver.log"},
-                    {"name": "schema.json", "size_bytes": 20, "url": "/artifacts/output.artifacts.123/files/schema.json"},
-                ],
-            }
-            raw = json.dumps(body).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Content-Length", str(len(raw)))
-            self.end_headers()
-            self.wfile.write(raw)
-            return
-
-        if self.path == "/artifacts/output.artifacts.123/files/solver.log":
+        # get_artifact_file の想定: /work/<artifact_dir>/<filename>
+        if self.path in (
+            "/work/output.artifacts.123/solver.log",
+            "/work/output.artifacts.123/artifacts/solver.log",  # フォールバック経路
+        ):
             raw = b"hello\n"
             self.send_response(200)
             self.send_header("Content-Type", "text/plain; charset=utf-8")
