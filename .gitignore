@@ -17,6 +17,40 @@ __pycache__/
 .mypy_cache/
 *.egg-info/
 
+# Build artifacts
+build/
+dist/
+.eggs/
+*.egg
+*.whl
+
+# Coverage
+.coverage
+coverage.xml
+htmlcov/
+
+# Tool caches
+.ruff_cache/
+.tox/
+.nox/
+
+# Env files
+.env
+.env.*
+*.env
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Windows
+Thumbs.db
+Desktop.ini
+
+# Project generated files
+calc_result.json
+output.artifacts.*/
+work/
+
 # OS/Editor
 .DS_Store
 .vscode/

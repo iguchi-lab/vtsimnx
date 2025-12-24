@@ -42,6 +42,7 @@ class _Handler(BaseHTTPRequestHandler):
                 "log": {"text": "preloaded log"},
                 "result_files": {
                     "vent_flow_rate": "vent.flow_rate.f32.bin",
+                    "vent_pressure": "vent.pressure.f32.bin",
                 },
             }
         }
@@ -63,7 +64,10 @@ class _Handler(BaseHTTPRequestHandler):
                 "dtype": "f32le",
                 "layout": "timestep-major",
                 "length": 2,
-                "series": {"vent_flow_rate": {"keys": ["c1", "c2"]}},
+                "series": {
+                    "vent_flow_rate": {"keys": ["c1", "c2"]},
+                    "vent_pressure": {"keys": ["p1"]},
+                },
             }
             raw = json.dumps(schema).encode("utf-8")
             self.send_response(200)
@@ -77,7 +81,10 @@ class _Handler(BaseHTTPRequestHandler):
             _State.get_manifest += 1
             manifest = {
                 "result": {
-                    "result_files": {"vent_flow_rate": "vent.flow_rate.f32.bin"},
+                    "result_files": {
+                        "vent_flow_rate": "vent.flow_rate.f32.bin",
+                        "vent_pressure": "vent.pressure.f32.bin",
+                    },
                 }
             }
             raw = json.dumps(manifest).encode("utf-8")
@@ -91,6 +98,17 @@ class _Handler(BaseHTTPRequestHandler):
         if self.path == "/work/output.artifacts.123/vent.flow_rate.f32.bin":
             _State.get_bin += 1
             arr = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.dtype("<f4"))  # (T=2, N=2)
+            raw = arr.tobytes()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/octet-stream")
+            self.send_header("Content-Length", str(len(raw)))
+            self.end_headers()
+            self.wfile.write(raw)
+            return
+
+        if self.path == "/work/output.artifacts.123/vent.pressure.f32.bin":
+            _State.get_bin += 1
+            arr = np.array([10.0, 20.0], dtype=np.dtype("<f4"))  # (T=2, N=1)
             raw = arr.tobytes()
             self.send_response(200)
             self.send_header("Content-Type", "application/octet-stream")
@@ -147,8 +165,16 @@ def test_run_calc_with_dataframes_is_lazy():
         assert list(df.columns) == ["c1", "c2"]
         assert df.shape == (2, 2)
         assert _State.get_schema >= 1
-        assert _State.get_manifest >= 1
         assert _State.get_bin >= 1
+
+        # 別系列を要求しても schema は再取得しない（キャッシュ）
+        schema_count = _State.get_schema
+        df2 = res.get_series_df("vent_pressure")
+        assert df2 is not None
+        assert list(df2.columns) == ["p1"]
+        assert df2.shape == (2, 1)
+        assert _State.get_schema == schema_count
+        assert _State.get_bin >= 2
     finally:
         server.shutdown()
         server.server_close()

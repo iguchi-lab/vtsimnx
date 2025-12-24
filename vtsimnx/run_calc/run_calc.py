@@ -1,97 +1,15 @@
 import json
 import gzip
 from dataclasses import dataclass, field
-import math
 from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
+import numpy as np
 import pandas as pd
 import requests
 
-
-def _is_nan_or_inf(x: float) -> bool:
-    # JSONとしてInfinity/NaNを送ると相手側で失敗することがあるため None に落とす
-    return math.isnan(x) or math.isinf(x)
-
-
-def _to_jsonable(obj: Any) -> Any:
-    """
-    JSON化できない型（pandas/numpy 等）を、JSON互換の型へ再帰変換する。
-    - pd.Series -> list
-    - pd.DataFrame -> dict[str, list]
-    - numpy scalar/ndarray -> python scalar / list
-    - Timestamp/datetime/date -> ISO文字列
-    - NaN/Inf/NaT -> None
-    """
-    # None / bool / int / str はそのまま
-    if obj is None or isinstance(obj, (bool, int, str)):
-        return obj
-
-    # float: NaN/Inf を None へ
-    if isinstance(obj, float):
-        return None if _is_nan_or_inf(obj) else obj
-
-    # datetime/date
-    if isinstance(obj, (datetime, date)):
-        return obj.isoformat()
-
-    # pathlib.Path
-    if isinstance(obj, Path):
-        return str(obj)
-
-    # pandas
-    if isinstance(obj, pd.Timestamp):
-        # NaT もここに来る可能性があるため isna を見る
-        try:
-            if pd.isna(obj):
-                return None
-        except Exception:
-            pass
-        return obj.isoformat()
-
-    if isinstance(obj, pd.Series):
-        return [_to_jsonable(v) for v in obj.tolist()]
-
-    if isinstance(obj, pd.Index):
-        return [_to_jsonable(v) for v in obj.tolist()]
-
-    if isinstance(obj, pd.DataFrame):
-        # orient="list" で列->配列の形にしてから再帰変換
-        as_dict = obj.to_dict(orient="list")
-        return {str(k): [_to_jsonable(v) for v in vals] for k, vals in as_dict.items()}
-
-    # numpy（依存は環境によっては optional の可能性があるので遅延import）
-    try:
-        import numpy as np  # type: ignore
-
-        if isinstance(obj, np.generic):
-            return _to_jsonable(obj.item())
-
-        if isinstance(obj, np.ndarray):
-            return _to_jsonable(obj.tolist())
-    except Exception:
-        pass
-
-    # dict / list / tuple
-    if isinstance(obj, dict):
-        out: Dict[str, Any] = {}
-        for k, v in obj.items():
-            # JSONのキーは文字列のみ
-            out[str(k)] = _to_jsonable(v)
-        return out
-
-    if isinstance(obj, (list, tuple)):
-        return [_to_jsonable(v) for v in obj]
-
-    # pandas の NaT / numpy.nan などスカラ判定の最後の砦
-    try:
-        if pd.isna(obj):  # type: ignore[arg-type]
-            return None
-    except Exception:
-        pass
-
-    raise TypeError(f"run_calc: JSONに変換できない型です: {type(obj).__name__}")
+from vtsimnx.utils.jsonable import to_jsonable
 
 
 @dataclass
@@ -116,6 +34,7 @@ class CalcRunResult:
     errors: Dict[str, str] = field(default_factory=dict)
     _dataframes: Dict[str, pd.DataFrame] = field(default_factory=dict, repr=False)
     _log_text: Optional[str] = field(default=None, repr=False)
+    _schema: Optional[Dict[str, Any]] = field(default=None, repr=False)
 
     @property
     def dataframes(self) -> Dict[str, pd.DataFrame]:
@@ -188,13 +107,40 @@ class CalcRunResult:
 
         try:
             # 遅延import（import順の循環を避ける）
-            from vtsimnx.artifacts.get_artifact_file import get_artifact_file
+            from vtsimnx.artifacts.get_artifact_file import get_artifact_file, get_artifact_bytes
+            from vtsimnx.artifacts._schema import series_columns
 
-            df = get_artifact_file(self.base_url, self.artifact_dir, fname)
-            if isinstance(df, pd.DataFrame):
-                self._dataframes[series_name] = df
-                return df
-            self.errors[series_name] = f"TypeError: expected DataFrame, got {type(df).__name__}"
+            # schema.json は複数系列で共通なのでキャッシュする（GET回数削減）
+            if self._schema is None:
+                raw_schema = get_artifact_file(self.base_url, self.artifact_dir, "schema.json")
+                if not isinstance(raw_schema, (bytes, bytearray)):
+                    raise TypeError(f"schema.json: expected bytes, got {type(raw_schema).__name__}")
+                self._schema = json.loads(bytes(raw_schema).decode("utf-8"))
+
+            schema = self._schema
+            if not isinstance(schema, dict):
+                raise TypeError(f"schema.json: expected dict, got {type(schema).__name__}")
+
+            T = schema.get("length")
+            if not isinstance(T, int) or T < 0:
+                raise ValueError(f"schema.json length が不正です: {T!r}")
+
+            cols = series_columns(schema, series_name)
+            N = len(cols)
+
+            # bin本体は bytes で取得して自前で復元（manifest.json は不要）
+            data = get_artifact_bytes(self.base_url, self.artifact_dir, fname)
+            arr = np.frombuffer(data, dtype=np.dtype("<f4"))
+            expected = T * N
+            if arr.size != expected:
+                raise ValueError(
+                    f"{fname}: 要素数が不一致です (actual={arr.size}, expected={expected}, T={T}, N={N})"
+                )
+            arr = arr.reshape((T, N))
+            df = pd.DataFrame(arr, columns=cols)
+
+            self._dataframes[series_name] = df
+            return df
         except Exception as e:
             self.errors[series_name] = f"{type(e).__name__}: {e}"
 
@@ -252,7 +198,7 @@ def run_calc(
             raise TypeError(f"config_json must be dict (or json file path), got {type(config_json).__name__}")
 
     # pandas.Series などを含む場合でも送れるよう、JSON互換へ正規化
-    config_json = _to_jsonable(config_json)  # type: ignore[assignment]
+    config_json = to_jsonable(config_json)  # type: ignore[assignment]
     if not isinstance(config_json, dict):
         raise TypeError(f"config_json must be dict after normalization, got {type(config_json).__name__}")
 

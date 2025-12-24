@@ -7,6 +7,75 @@ import numpy as np
 import pandas as pd
 import requests
 
+from ._schema import extract_result_files, series_columns
+
+
+def _get_bytes(base_url: str, artifact_dir: str, relpath: str, timeout: float) -> bytes:
+    url = base_url.rstrip("/") + f"/work/{artifact_dir}/{relpath.lstrip('/')}"
+    resp = requests.get(url, timeout=timeout)
+    resp.raise_for_status()
+    return resp.content
+
+
+def _get_bytes_fallback(base_url: str, artifact_dir: str, relpaths: List[str], timeout: float) -> bytes:
+    last_exc: Optional[Exception] = None
+    for p in relpaths:
+        try:
+            return _get_bytes(base_url, artifact_dir, p, timeout=timeout)
+        except Exception as e:
+            last_exc = e
+    raise last_exc  # type: ignore[misc]
+
+
+def _get_artifact_bytes_with_used_path(
+    base_url: str,
+    artifact_dir: str,
+    filename: str,
+    *,
+    timeout: float,
+) -> tuple[bytes, str]:
+    # まずは指定されたパスで取得（ダメなら artifacts/ 配下も試す）
+    data: Optional[bytes] = None
+    tried: List[str] = []
+    last_exc: Optional[Exception] = None
+    for rel in [filename, f"artifacts/{filename}" if not filename.startswith("artifacts/") else filename]:
+        if rel in tried:
+            continue
+        tried.append(rel)
+        try:
+            data = _get_bytes(base_url, artifact_dir, rel, timeout=timeout)
+            return data, rel
+        except Exception as e:
+            last_exc = e
+            data = None
+    raise last_exc  # type: ignore[misc]
+
+
+def get_artifact_bytes(
+    base_url: str,
+    artifact_dir: str,
+    filename: str,
+    *,
+    output_path: Optional[str] = None,
+    timeout: float = 60.0,
+) -> bytes:
+    """
+    成果物ディレクトリからファイルを1つ取得して bytes を返す（復元はしない）。
+
+    想定API:
+      GET {base_url}/work/{artifact_dir}/{filename}
+
+    - filename が見つからない場合は artifacts/filename もフォールバックで試す
+    - output_path を指定すると保存も行う
+    """
+    data, _used = _get_artifact_bytes_with_used_path(
+        base_url, artifact_dir, filename, timeout=timeout
+    )
+    if output_path is not None:
+        with open(output_path, "wb") as f:
+            f.write(data)
+    return data
+
 
 def get_artifact_file(
     base_url: str,
@@ -27,87 +96,13 @@ def get_artifact_file(
       - layout: schema.json の "timestep-major" -> shape=(T, N)
     - それ以外は取得したバイト列を返す
     """
-    def _get_bytes(relpath: str) -> bytes:
-        url = base_url.rstrip("/") + f"/work/{artifact_dir}/{relpath.lstrip('/')}"
-        resp = requests.get(url, timeout=timeout)
-        resp.raise_for_status()
-        return resp.content
-
-    def _get_bytes_fallback(relpaths: List[str]) -> bytes:
-        last_exc: Optional[Exception] = None
-        for p in relpaths:
-            try:
-                return _get_bytes(p)
-            except Exception as e:
-                last_exc = e
-        raise last_exc  # type: ignore[misc]
-
     def _load_json_bytes(raw: bytes) -> Dict[str, Any]:
         return json.loads(raw.decode("utf-8"))
 
-    def _extract_result_files(manifest: Dict[str, Any]) -> Dict[str, str]:
-        # 想定される形（いずれか）:
-        #   - {"result": {"result_files": {...}}}
-        #   - {"output": {"result_files": {...}}}
-        #   - {"result_files": {...}}
-        #   - {"files": {...}}
-        if isinstance(manifest.get("output"), dict) and isinstance(manifest["output"].get("result_files"), dict):
-            result_files = manifest["output"]["result_files"]
-        elif isinstance(manifest.get("result"), dict) and isinstance(manifest["result"].get("result_files"), dict):
-            result_files = manifest["result"]["result_files"]
-        elif isinstance(manifest.get("result_files"), dict):
-            result_files = manifest["result_files"]
-        elif isinstance(manifest.get("files"), dict):
-            result_files = manifest["files"]
-        else:
-            raise ValueError("manifest.json から result_files/files が見つかりませんでした")
-
-        out: Dict[str, str] = {}
-        for k, v in result_files.items():
-            if isinstance(k, str) and isinstance(v, str):
-                out[k] = v
-        return out
-
-    def _series_columns(schema: Dict[str, Any], series_name: str) -> List[str]:
-        series = schema.get("series")
-        if not isinstance(series, dict) or series_name not in series:
-            raise KeyError(f"schema.json に series.{series_name} がありません")
-        spec = series[series_name]
-        if not isinstance(spec, dict):
-            raise TypeError(f"schema.json の series.{series_name} が不正です")
-        keys = spec.get("keys", [])
-        if keys is None:
-            keys = []
-        if not isinstance(keys, list):
-            raise TypeError(f"schema.json の series.{series_name}.keys が配列ではありません")
-        if len(keys) == 0:
-            return [series_name]
-        cols: List[str] = []
-        for k in keys:
-            if not isinstance(k, str):
-                raise TypeError(f"schema.json の series.{series_name}.keys に文字列以外が含まれています")
-            cols.append(k)
-        return cols
-
-    # まずは指定されたパスで取得（ダメなら artifacts/ 配下も試す）
-    data: Optional[bytes] = None
-    tried: List[str] = []
-    last_exc: Optional[Exception] = None
-    for rel in [filename, f"artifacts/{filename}" if not filename.startswith("artifacts/") else filename]:
-        if rel in tried:
-            continue
-        tried.append(rel)
-        try:
-            data = _get_bytes(rel)
-            filename = rel  # 実際に取得できた相対パスに寄せる
-            break
-        except Exception as e:
-            last_exc = e
-            data = None
-
-    if data is None:
-        # 最後の例外をそのまま出す（requests の raise_for_status など）
-        raise last_exc  # type: ignore[misc]
+    data, used_relpath = _get_artifact_bytes_with_used_path(
+        base_url, artifact_dir, filename, timeout=timeout
+    )
+    filename = used_relpath
 
     if output_path is not None:
         with open(output_path, "wb") as f:
@@ -118,8 +113,8 @@ def get_artifact_file(
         return data
 
     # schema/manifest は配置ゆれがあるので両方試す
-    schema = _load_json_bytes(_get_bytes_fallback(["schema.json", "artifacts/schema.json"]))
-    manifest = _load_json_bytes(_get_bytes_fallback(["manifest.json", "artifacts/manifest.json"]))
+    schema = _load_json_bytes(_get_bytes_fallback(base_url, artifact_dir, ["schema.json", "artifacts/schema.json"], timeout=timeout))
+    manifest = _load_json_bytes(_get_bytes_fallback(base_url, artifact_dir, ["manifest.json", "artifacts/manifest.json"], timeout=timeout))
 
     dtype = schema.get("dtype")
     layout = schema.get("layout")
@@ -132,7 +127,7 @@ def get_artifact_file(
     if not isinstance(T, int) or T < 0:
         raise ValueError(f"schema.json length が不正です: {T!r}")
 
-    result_files = _extract_result_files(manifest)
+    result_files = extract_result_files(manifest)
     bin_basename = filename.split("/")[-1]
 
     # manifest: series_name -> bin_filename なので逆引き
@@ -144,7 +139,7 @@ def get_artifact_file(
     if series_name is None:
         raise KeyError(f"manifest.json から {bin_basename} に対応する series 名が見つかりませんでした")
 
-    cols = _series_columns(schema, series_name)
+    cols = series_columns(schema, series_name)
     N = len(cols)
 
     arr = np.frombuffer(data, dtype=np.dtype("<f4"))

@@ -1,11 +1,14 @@
-import argparse
 import vtsimnx as vt
 
 materials = vt.materials
 
-def main(hasp_path: str, lat: float, lon: float) -> None:
+def main() -> None:
+    hasp_path = "3639999.has"
+    lat = 35.681236
+    lon = 139.767125
+
     df_i       = vt.read_hasp(hasp_path)
-    solar      = vt.make_solar(df_i, lat = lat, lon = lon)
+    solar      = vt.make_solar(df_i, lat=lat, lon=lon)
 
     room_volume = {
         '床下':         13.08,
@@ -377,9 +380,4 @@ def main(hasp_path: str, lat: float, lon: float) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--hasp", default="3639999.has")
-    parser.add_argument("--lat", type=float, default=35.681236)
-    parser.add_argument("--lon", type=float, default=139.767125)
-    args = parser.parse_args()
-    main(args.hasp, args.lat, args.lon)
+    main()

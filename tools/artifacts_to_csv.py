@@ -8,66 +8,12 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 import pandas as pd
 
+from vtsimnx.artifacts._schema import extract_result_files, series_columns
+
 
 def _load_json(path: Path) -> Dict[str, Any]:
     with path.open("r", encoding="utf-8") as f:
         return json.load(f)
-
-
-def _extract_result_files(manifest: Dict[str, Any]) -> Dict[str, str]:
-    """
-    manifest.json から「系列名 -> ファイル名」の辞書を取り出す。
-
-    想定される形（いずれか）:
-      - {"output": {"result_files": {...}}}
-      - {"result": {"result_files": {...}}}
-      - {"result_files": {...}}
-      - {"files": {...}}
-    """
-    if isinstance(manifest.get("output"), dict) and isinstance(manifest["output"].get("result_files"), dict):
-        result_files = manifest["output"]["result_files"]
-    elif isinstance(manifest.get("result"), dict) and isinstance(manifest["result"].get("result_files"), dict):
-        result_files = manifest["result"]["result_files"]
-    elif isinstance(manifest.get("result_files"), dict):
-        result_files = manifest["result_files"]
-    elif isinstance(manifest.get("files"), dict):
-        result_files = manifest["files"]
-    else:
-        raise ValueError("manifest.json から result_files/files が見つかりませんでした")
-
-    out: Dict[str, str] = {}
-    for k, v in result_files.items():
-        if isinstance(k, str) and isinstance(v, str):
-            out[k] = v
-    return out
-
-
-def _series_columns(schema: Dict[str, Any], series_name: str) -> List[str]:
-    series = schema.get("series")
-    if not isinstance(series, dict) or series_name not in series:
-        raise KeyError(f"schema.json に series.{series_name} がありません")
-
-    spec = series[series_name]
-    if not isinstance(spec, dict):
-        raise TypeError(f"schema.json の series.{series_name} が不正です")
-
-    keys = spec.get("keys", [])
-    if keys is None:
-        keys = []
-
-    if not isinstance(keys, list):
-        raise TypeError(f"schema.json の series.{series_name}.keys が配列ではありません")
-
-    # keys が [] の場合はスカラー
-    if len(keys) == 0:
-        return [series_name]
-
-    cols: List[str] = []
-    for k in keys:
-        if not isinstance(k, str):
-            raise TypeError(f"schema.json の series.{series_name}.keys に文字列以外が含まれています")
-        cols.append(k)
-    return cols
 
 
 def _read_f32le_timestep_major(bin_path: Path, T: int, N: int) -> np.ndarray:
@@ -124,7 +70,7 @@ def main() -> int:
     if not isinstance(T, int) or T < 0:
         raise ValueError(f"schema.json length が不正です: {T!r}")
 
-    result_files = _extract_result_files(manifest)
+    result_files = extract_result_files(manifest)
     pairs = _iter_f32_bins(result_files)
     if len(pairs) == 0:
         print("変換対象の *.f32.bin が見つかりませんでした（manifest.json を確認してください）")
@@ -137,7 +83,7 @@ def main() -> int:
         if bin_path is None:
             raise FileNotFoundError(f"バイナリが見つかりません: {', '.join(str(p) for p in bin_candidates)}")
 
-        cols = _series_columns(schema, series_name)
+        cols = series_columns(schema, series_name)
         N = len(cols)
 
         arr = _read_f32le_timestep_major(bin_path, T=T, N=N)
