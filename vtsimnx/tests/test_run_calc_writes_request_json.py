@@ -61,7 +61,7 @@ def test_run_calc_writes_request_json(tmp_path):
         )
 
         saved = json.loads(req_path.read_text(encoding="utf-8"))
-        assert saved["config"]["nodes"][0]["t"] == [1.0, 2.0, None]
+        assert saved["nodes"][0]["t"] == [1.0, 2.0, None]
     finally:
         server.shutdown()
         server.server_close()

@@ -211,10 +211,10 @@ def run_calc(
         p = Path(request_output_path)
         if p.suffix.lower() == ".gz":
             with gzip.open(p, "wt", encoding="utf-8") as f:
-                json.dump(payload, f, ensure_ascii=False, indent=2)
+                json.dump(config_json, f, ensure_ascii=False, indent=2)
         else:
             with p.open("w", encoding="utf-8") as f:
-                json.dump(payload, f, ensure_ascii=False, indent=2)
+                json.dump(config_json, f, ensure_ascii=False, indent=2)
 
     if compress_request:
         raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
@@ -233,7 +233,7 @@ def run_calc(
         response = requests.post(url, json=payload, timeout=timeout)
     if output_path is not None:
         with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(config_json, f, indent=4, ensure_ascii=False)
+            json.dump(response.json(), f, indent=4, ensure_ascii=False)
     resp_json: Dict[str, Any] = response.json()
 
     if not with_dataframes:
