@@ -32,6 +32,6 @@ python -m pytest
 python run.py
 ```
 
-`run.py` は `3639999.has` を読み込み、日射・表面設定・ノード/分岐を作って `build_config` を呼びます。引数で緯度経度やファイルパスを変更可能です（`python run.py --lat 35.68 --lon 139.77 --hasp 3639999.has`）。
+`run.py` は `3639999.has` を読み込み、日射・表面設定・ノード/分岐などの入力データを作って、`run_calc` 経由でAPI（`/run`）に渡します（builderはAPI側で実行されます）。
 
-補足: `build_config` はデフォルトではファイル出力しません。JSONを保存したい場合は `output_path` を明示してください（例: `vt.build_config(..., output_path="parsed_input_data.json.gz")`）。
+APIサーバーを使用する場合は、環境変数 `VTSIMNX_API_URL` を設定してください（例: `VTSIMNX_API_URL=http://localhost:8000`）。引数で緯度経度やファイルパスを変更可能です（`python run.py --lat 35.68 --lon 139.77 --hasp 3639999.has`）。

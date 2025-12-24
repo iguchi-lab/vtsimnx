@@ -1,11 +1,97 @@
 import json
 import gzip
 from dataclasses import dataclass, field
+import math
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
 
 import pandas as pd
 import requests
+
+
+def _is_nan_or_inf(x: float) -> bool:
+    # JSONとしてInfinity/NaNを送ると相手側で失敗することがあるため None に落とす
+    return math.isnan(x) or math.isinf(x)
+
+
+def _to_jsonable(obj: Any) -> Any:
+    """
+    JSON化できない型（pandas/numpy 等）を、JSON互換の型へ再帰変換する。
+    - pd.Series -> list
+    - pd.DataFrame -> dict[str, list]
+    - numpy scalar/ndarray -> python scalar / list
+    - Timestamp/datetime/date -> ISO文字列
+    - NaN/Inf/NaT -> None
+    """
+    # None / bool / int / str はそのまま
+    if obj is None or isinstance(obj, (bool, int, str)):
+        return obj
+
+    # float: NaN/Inf を None へ
+    if isinstance(obj, float):
+        return None if _is_nan_or_inf(obj) else obj
+
+    # datetime/date
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+
+    # pathlib.Path
+    if isinstance(obj, Path):
+        return str(obj)
+
+    # pandas
+    if isinstance(obj, pd.Timestamp):
+        # NaT もここに来る可能性があるため isna を見る
+        try:
+            if pd.isna(obj):
+                return None
+        except Exception:
+            pass
+        return obj.isoformat()
+
+    if isinstance(obj, pd.Series):
+        return [_to_jsonable(v) for v in obj.tolist()]
+
+    if isinstance(obj, pd.Index):
+        return [_to_jsonable(v) for v in obj.tolist()]
+
+    if isinstance(obj, pd.DataFrame):
+        # orient="list" で列->配列の形にしてから再帰変換
+        as_dict = obj.to_dict(orient="list")
+        return {str(k): [_to_jsonable(v) for v in vals] for k, vals in as_dict.items()}
+
+    # numpy（依存は環境によっては optional の可能性があるので遅延import）
+    try:
+        import numpy as np  # type: ignore
+
+        if isinstance(obj, np.generic):
+            return _to_jsonable(obj.item())
+
+        if isinstance(obj, np.ndarray):
+            return _to_jsonable(obj.tolist())
+    except Exception:
+        pass
+
+    # dict / list / tuple
+    if isinstance(obj, dict):
+        out: Dict[str, Any] = {}
+        for k, v in obj.items():
+            # JSONのキーは文字列のみ
+            out[str(k)] = _to_jsonable(v)
+        return out
+
+    if isinstance(obj, (list, tuple)):
+        return [_to_jsonable(v) for v in obj]
+
+    # pandas の NaT / numpy.nan などスカラ判定の最後の砦
+    try:
+        if pd.isna(obj):  # type: ignore[arg-type]
+            return None
+    except Exception:
+        pass
+
+    raise TypeError(f"run_calc: JSONに変換できない型です: {type(obj).__name__}")
 
 
 @dataclass
@@ -164,6 +250,11 @@ def run_calc(
         config_json = read_json(config_json)  # type: ignore[assignment]
         if not isinstance(config_json, dict):
             raise TypeError(f"config_json must be dict (or json file path), got {type(config_json).__name__}")
+
+    # pandas.Series などを含む場合でも送れるよう、JSON互換へ正規化
+    config_json = _to_jsonable(config_json)  # type: ignore[assignment]
+    if not isinstance(config_json, dict):
+        raise TypeError(f"config_json must be dict after normalization, got {type(config_json).__name__}")
 
     url = base_url.rstrip("/") + "/run"
     payload = {"config": config_json}

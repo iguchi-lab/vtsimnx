@@ -140,10 +140,14 @@ def main():
             devided_gap("1・2Fホール",  "2Fトイレ",    "1・2Fホール-2Fトイレ", 0.790, 1.800, 3.410, a0=65.48/3600/(0.790*2+1.800*2), n0=1.74, number=2)
     }
 
-    config_json = vt.build_config(input_data)
-
-    with open('neutoral_close.json', 'w') as f:
-        json.dump(config_json, f, indent=4)
+    import os
+    base_url = os.getenv("VTSIMNX_API_URL")
+    if base_url:
+        # 互換: run_calc はデフォルトで CalcRunResult を返すため、JSONだけ欲しい場合は明示する
+        output_json = vt.run_calc(base_url, input_data, with_dataframes=False)
+    else:
+        print("VTSIMNX_API_URLが設定されていないため、run_calcをスキップします。")
+        print("APIサーバーを使用する場合は、環境変数VTSIMNX_API_URLを設定してください。")
 
 if __name__ == "__main__":
     main()

@@ -1,7 +1,3 @@
-from .builder import build_config
-# 後方互換（従来の vt.parse(...) を維持）
-parse = build_config
-
 from .archenv import (
     make_solar, sun_loc, make_wind, make_nocturnal,
     calc_PMV, calc_PPD, calc_fungal_index,
@@ -19,8 +15,6 @@ from .run_calc import run_calc
 from .artifacts import get_artifact_file
 
 __all__ = [
-    # builder
-    "build_config", "parse",
     # archenv
     "make_solar", "sun_loc", "make_wind", "make_nocturnal",
     "calc_PMV", "calc_PPD", "calc_fungal_index",

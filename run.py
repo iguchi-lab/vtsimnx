@@ -366,14 +366,11 @@ def main(hasp_path: str, lat: float, lon: float) -> None:
         {'key': '2階トイレ->外部||N_窓',                 **surface['E_窓'],           'area':  0.54},
     ]
 
-    # build_config はデフォルトではファイル出力しない（容量節約）
-    config_json = vt.build_config(input_data)
-
     import os
     base_url = os.getenv("VTSIMNX_API_URL")
     if base_url:
         # 互換: run_calc はデフォルトで CalcRunResult を返すため、JSONだけ欲しい場合は明示する
-        output_json = vt.run_calc(base_url, config_json, with_dataframes=False)
+        output_json = vt.run_calc(base_url, input_data, with_dataframes=False)
     else:
         print("VTSIMNX_API_URLが設定されていないため、run_calcをスキップします。")
         print("APIサーバーを使用する場合は、環境変数VTSIMNX_API_URLを設定してください。")

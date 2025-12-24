@@ -367,15 +367,15 @@ input_data['surfaces'] = [
 ]
 
 import os
-config_json = vt.build_config(input_data)
 
 base_url = os.getenv("VTSIMNX_API_URL")
 
-if base_url:
-    result  = vt.run_calc(base_url, config_json)
-else:
+if not base_url:
     print("VTSIMNX_API_URLが設定されていないため、run_calcをスキップします。")
     print("APIサーバーを使用する場合は、環境変数VTSIMNX_API_URLを設定してください。")
+    raise SystemExit(0)
+
+result  = vt.run_calc(base_url, input_data)
 
 print(result)
 
