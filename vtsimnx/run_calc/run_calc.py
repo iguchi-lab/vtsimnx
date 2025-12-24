@@ -233,7 +233,7 @@ def run_calc(
         response = requests.post(url, json=payload, timeout=timeout)
     if output_path is not None:
         with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(response.json(), f, indent=4, ensure_ascii=False)
+            json.dump(config_json, f, indent=4, ensure_ascii=False)
     resp_json: Dict[str, Any] = response.json()
 
     if not with_dataframes:
