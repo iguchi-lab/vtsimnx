@@ -187,6 +187,7 @@ def run_calc(
     with_dataframes: bool = True,
     compress_request: bool = True,
     timeout: float = 60.0,
+    request_output_path: Optional[Union[str, Path]] = None,
 ) -> Union[Dict[str, Any], CalcRunResult]:
     # 互換: 設定をファイル（.json / .json.gz）で渡せるようにする
     if not isinstance(config_json, dict):
@@ -204,6 +205,17 @@ def run_calc(
 
     url = base_url.rstrip("/") + "/run"
     payload = {"config": config_json}
+
+    # デバッグ/監査用途: 送信するリクエストJSONを保存（必要な場合のみ）
+    if request_output_path is not None:
+        p = Path(request_output_path)
+        if p.suffix.lower() == ".gz":
+            with gzip.open(p, "wt", encoding="utf-8") as f:
+                json.dump(payload, f, ensure_ascii=False, indent=2)
+        else:
+            with p.open("w", encoding="utf-8") as f:
+                json.dump(payload, f, ensure_ascii=False, indent=2)
+
     if compress_request:
         raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
         gz = gzip.compress(raw)
