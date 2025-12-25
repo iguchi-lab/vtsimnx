@@ -14,6 +14,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <cstdint>
+#include <streambuf>
 
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
@@ -35,6 +36,29 @@ namespace {
 
 // 出力JSONの形式バージョン（API側での互換性判断用）
 static constexpr int kOutputFormatVersion = 5; // binary artifacts
+
+// verbosity を入力JSONから読む（無ければ 1）
+static int readRequestedVerbosity(const json& inputJson) {
+    try {
+        if (inputJson.contains("simulation") && inputJson["simulation"].is_object()) {
+            const auto& sim = inputJson["simulation"];
+            if (sim.contains("log") && sim["log"].is_object()) {
+                const auto& lg = sim["log"];
+                if (lg.contains("verbosity") && lg["verbosity"].is_number_integer()) {
+                    return lg["verbosity"].get<int>();
+                }
+            }
+        }
+    } catch (...) {}
+    return 1;
+}
+
+// 書き捨て用 ostream（verbosity=0 のときに使う）
+struct NullBuffer final : std::streambuf {
+    int overflow(int c) override { return c; }
+};
+static NullBuffer g_null_buf;
+static std::ostream g_null_stream(&g_null_buf);
 
 // ヘルパー: ファイル全体を読み込む（失敗時は false, err に理由）
 static bool readFileToString(const char* path, std::string& out, std::string& err) {
@@ -105,7 +129,7 @@ static bool loadInputData(const char* inputPath, InputData& inputData, std::stri
 
 // シミュレーション実行: ネットワークを構築し、タイムステップループを実行
 static bool runSimulationLoop(const InputData& inputData,
-                              std::ofstream& logFile,
+                              std::ostream& logs,
                               std::ofstream& ventPressureFile,
                               std::ofstream& ventFlowRateFile,
                               std::ofstream& thermalTemperatureFile,
@@ -123,7 +147,7 @@ static bool runSimulationLoop(const InputData& inputData,
         SimulationConstants simConstants;
         {
             ScopedTimer timer(timings, "parse_simulation_constants");
-            simConstants = parseSimulationConstants(inputData.inputJson, logFile);
+            simConstants = parseSimulationConstants(inputData.inputJson, logs);
         }
 
         // 詳細タイミング（各タイムステップ等）はオーバーヘッドになりやすいので、
@@ -135,7 +159,7 @@ static bool runSimulationLoop(const InputData& inputData,
         setTimingsEnabled(enableDetailedTimings);
 
         // lengthがタイムステップの回数、timestepが1タイムステップの秒数
-        writeLog(logFile, "タイムステップループ開始: length=" +
+        writeLog(logs, "タイムステップループ開始: length=" +
                               std::to_string(simConstants.length) +
                               ", timestep=" + std::to_string(simConstants.timestep) + "秒");
 
@@ -149,32 +173,32 @@ static bool runSimulationLoop(const InputData& inputData,
         AirconController   airconController;
 
         {
-            ScopedLogSection initScope(logFile, "初期化: ネットワークトポロジー構築中...");
-            writeLog(logFile, " トポロジ構築中...");
+            ScopedLogSection initScope(logs, "初期化: ネットワークトポロジー構築中...");
+            writeLog(logs, " トポロジ構築中...");
             auto topoStart = std::chrono::steady_clock::now();
 
             {
                 ScopedTimer timer(timings, "initial_data_parse");
-                allNodes               = parseNodes(inputData.inputJson, logFile, 0);
-                allVentilationBranches = parseVentilationBranches(inputData.inputJson, logFile, 0);
-                allThermalBranches     = parseThermalBranches(inputData.inputJson, logFile, 0);
+                allNodes               = parseNodes(inputData.inputJson, logs, 0);
+                allVentilationBranches = parseVentilationBranches(inputData.inputJson, logs, 0);
+                allThermalBranches     = parseThermalBranches(inputData.inputJson, logs, 0);
             }
 
             {
                 ScopedTimer timer(timings, "build_networks");
-                ventNetwork.buildFromData(allNodes, allVentilationBranches, simConstants, logFile);
-                thermalNetwork.buildFromData(allNodes, allThermalBranches, allVentilationBranches, simConstants, logFile);
+                ventNetwork.buildFromData(allNodes, allVentilationBranches, simConstants, logs);
+                thermalNetwork.buildFromData(allNodes, allThermalBranches, allVentilationBranches, simConstants, logs);
             }
 
             if (simConstants.temperatureCalc) {
-                airconController.initializeModels(thermalNetwork, logFile, simConstants.logVerbosity);
+                airconController.initializeModels(thermalNetwork, logs, simConstants.logVerbosity);
             }
             auto topoEnd = std::chrono::steady_clock::now();
             double topoSec = std::chrono::duration_cast<std::chrono::duration<double>>(topoEnd - topoStart).count();
             std::ostringstream oss;
             oss << "初期化完了: ネットワークトポロジー構築済み (所要時間: "
                 << std::fixed << std::setprecision(3) << topoSec << "秒)";
-            writeLog(logFile, oss.str());
+            writeLog(logs, oss.str());
         }
 
         // 前のタイムステップの温度を保存（熱容量ノード用）
@@ -213,18 +237,18 @@ static bool runSimulationLoop(const InputData& inputData,
                 stepMeta = "timestep=" + std::to_string(timestepIndex + 1);
             }
             ScopedTimer timestepTimer(timings, "timestep", stepMeta);
-            setLogTimestepMeta(logFile, static_cast<int>(timestepIndex + 1));
+            setLogTimestepMeta(logs, static_cast<int>(timestepIndex + 1));
             const bool verboseStepLog = (simConstants.logVerbosity >= 2);
             std::unique_ptr<ScopedLogSection> timestepScope;
             if (verboseStepLog) {
                 timestepScope = std::make_unique<ScopedLogSection>(
-                    logFile,
+                    logs,
                     "タイムステップ " + std::to_string(timestepIndex + 1) + " を実行中...",
                     true);
             }
 
             if (timestepIndex > 0) {
-                if (verboseStepLog) writeLog(logFile, " 時変プロパティ更新中...");
+                if (verboseStepLog) writeLog(logs, " 時変プロパティ更新中...");
                 ScopedTimer timer(timings, "parse_timestep_data", stepMeta);
                 const auto topoStart =
                     verboseStepLog ? std::chrono::steady_clock::now() : std::chrono::steady_clock::time_point{};
@@ -239,7 +263,7 @@ static bool runSimulationLoop(const InputData& inputData,
                             prevTempByVertex[static_cast<size_t>(capacityRefVertices[i])];
                     }
                     if (verboseStepLog) {
-                        writeLog(logFile, "熱容量ノード温度を更新しました: " + std::to_string(capacityVertices.size()) + "個");
+                        writeLog(logs, "熱容量ノード温度を更新しました: " + std::to_string(capacityVertices.size()) + "個");
                     }
                 }
 
@@ -248,14 +272,14 @@ static bool runSimulationLoop(const InputData& inputData,
                     double topoSec = std::chrono::duration_cast<std::chrono::duration<double>>(topoEnd - topoStart).count();
                     std::ostringstream oss;
                     oss << " トポロジ更新完了 (所要時間: " << std::fixed << std::setprecision(3) << topoSec << "秒)";
-                    writeLog(logFile, oss.str());
+                    writeLog(logs, oss.str());
                 }
             }
 
             TimestepResult timestepResult;
             if (simConstants.pressureCalc || simConstants.temperatureCalc) {
                 ScopedTimer timer(timings, "runSimulation", stepMeta);
-                runSimulation(ventNetwork, thermalNetwork, airconController, simConstants, timestepResult, logFile, timings, stepMeta);
+                runSimulation(ventNetwork, thermalNetwork, airconController, simConstants, timestepResult, logs, timings, stepMeta);
             }
 
             if (simConstants.temperatureCalc) {
@@ -328,12 +352,12 @@ static bool runSimulationLoop(const InputData& inputData,
         airconPowerFile.flush();
         airconCOPFile.flush();
 
-        clearLogTimestepMeta(logFile);
-        writeLog(logFile, "タイムステップループ終了");
+        clearLogTimestepMeta(logs);
+        writeLog(logs, "タイムステップループ終了");
         return true;
     } catch (const std::exception& e) {
         err = std::string("シミュレーション実行中にエラーが発生しました: ") + e.what();
-        writeLog(logFile, "[ERROR] " + err);
+        writeLog(logs, "[ERROR] " + err);
         return false;
     }
 }
@@ -536,12 +560,14 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
         return 1;
     }
 
-    writeLog(logFile, "入力JSONを読み込みました。");
+    const int requestedVerbosity = readRequestedVerbosity(inputData.inputJson);
+    std::ostream& logs = (requestedVerbosity <= 0) ? g_null_stream : static_cast<std::ostream&>(logFile);
+    writeLog(logs, "入力JSONを読み込みました。");
 
     auto simStart = std::chrono::steady_clock::now();
     bool simulationSuccess = runSimulationLoop(
         inputData,
-        logFile,
+        logs,
         ventPressureFile,
         ventFlowRateFile,
         thermalTemperatureFile,

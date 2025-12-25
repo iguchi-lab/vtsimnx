@@ -9,7 +9,12 @@ SimulationConstants parseSimulationConstants(const nlohmann::json& config,
                                              std::ostream& logs)
 {
     SimulationConstants outConstants;
-    writeLog(logs, "シミュレーション定数を解析中...");
+    // ログ冗長度（任意, 既定 1）
+    outConstants.logVerbosity = parser_utils::readVerbosity(config);
+    const bool logEnabled = (outConstants.logVerbosity > 0);
+    if (logEnabled) {
+        writeLog(logs, "シミュレーション定数を解析中...");
+    }
     // ルート検証
     if (!config.contains("simulation") || !config["simulation"].is_object()) {
         throw std::runtime_error("Missing or invalid 'simulation' object");
@@ -25,10 +30,15 @@ SimulationConstants parseSimulationConstants(const nlohmann::json& config,
     }
     outConstants.startTime = idx["start"];
     auto logLine = [&](const auto& formatter) {
+        if (!logEnabled) return;
         std::ostringstream oss;
         formatter(oss);
         writeLog(logs, oss.str());
     };
+
+    logLine([&](std::ostringstream& oss) {
+        oss << "  ログ冗長度(verbosity): " << outConstants.logVerbosity;
+    });
 
     logLine([&](std::ostringstream& oss) {
         oss << "  シミュレーション開始時刻: " << outConstants.startTime;
@@ -162,7 +172,9 @@ SimulationConstants parseSimulationConstants(const nlohmann::json& config,
         oss << "  濃度計算フラグ: " << parser_utils::boolToString(outConstants.concentrationCalc);
     });
 
-    writeLog(logs, "  設定ファイルを解析しました。");
+    if (logEnabled) {
+        writeLog(logs, "  設定ファイルを解析しました。");
+    }
 
 
     return outConstants;

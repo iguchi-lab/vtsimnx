@@ -8,13 +8,88 @@ C++ 製 VTSimNX ソルバの実行を担う薄いラッパーモジュール。
 import json
 import subprocess
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
+from datetime import datetime, timezone
+import uuid
+import os
 
 # プロジェクトルート（このファイルの親の親）を基準にパスを解決する。
 BASE_DIR = Path(__file__).resolve().parent.parent
 # 想定するソルバ実行ファイルのパス。トップレベル build/ を参照する。
 # 絶対パスで解決して、どのディレクトリから実行しても正しく動作するようにする。
 SOLVER_EXE = (BASE_DIR / "build" / "vtsimnx_solver").resolve()
+
+def force_log_verbosity(config: Dict[str, Any], *, debug: bool, debug_verbosity: int, default_verbosity: int = 1) -> None:
+    """
+    API/CLI 共通: ログ冗長度を統制する。
+    - debug=false: 常に verbosity=default_verbosity に落とす（指定があっても上書き）
+    - debug=true : verbosity を debug_verbosity まで引き上げ（既に高い場合は維持）
+    """
+    sim = config.get("simulation")
+    if not isinstance(sim, dict):
+        sim = {}
+        config["simulation"] = sim
+    log = sim.get("log")
+    if not isinstance(log, dict):
+        log = {}
+        sim["log"] = log
+
+    if debug:
+        try:
+            current = int(log.get("verbosity", 0))
+        except Exception:
+            current = 0
+        log["verbosity"] = max(current, int(debug_verbosity))
+    else:
+        log["verbosity"] = int(default_verbosity)
+
+def set_log_verbosity(config: Dict[str, Any], verbosity: int) -> None:
+    """API/CLI 共通: verbosity を明示的にセットする。"""
+    sim = config.get("simulation")
+    if not isinstance(sim, dict):
+        sim = {}
+        config["simulation"] = sim
+    log = sim.get("log")
+    if not isinstance(log, dict):
+        log = {}
+        sim["log"] = log
+    log["verbosity"] = int(verbosity)
+
+def _artifact_dir_from_output(work_dir: Path, output_data: Dict[str, Any]) -> Optional[Path]:
+    """
+    C++ ソルバが返す output.json の `artifact_dir` から、work_dir 配下の artifact パスを解決する。
+    """
+    artifact_dir = output_data.get("artifact_dir")
+    if not isinstance(artifact_dir, str) or not artifact_dir:
+        return None
+    artifact_dir_path = (work_dir / artifact_dir).resolve()
+
+    # セキュリティ: work_dir 外を指していないことを確認（パストラバーサル対策）
+    work_root = work_dir.resolve()
+    if work_root not in artifact_dir_path.parents and artifact_dir_path != work_root:
+        return None
+    return artifact_dir_path
+
+def write_artifact_manifest(output_data: Dict[str, Any]) -> Optional[Path]:
+    """
+    artifact_dir 配下に manifest.json を保存する。
+    - artifact取得APIのホワイトリスト/メタ情報として使う
+    - work/output.json は上書きされ得るので、artifact側に固定で残す
+    """
+    work_dir = BASE_DIR / "work"
+    artifact_dir_path = _artifact_dir_from_output(work_dir, output_data)
+    if artifact_dir_path is None:
+        return None
+    artifact_dir_path.mkdir(parents=True, exist_ok=True)
+
+    manifest_path = artifact_dir_path / "manifest.json"
+    manifest = {
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "output": output_data,
+    }
+    # UTF-8で確実に保存（ログ本文など巨大データは入れない想定）
+    manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
+    return manifest_path
 
 
 def _invoke_solver(input_path: Path, output_path: Path, cwd: Path) -> None:
@@ -62,73 +137,42 @@ def run_solver(input_data: Dict[str, Any]) -> Dict[str, Any]:
     work_dir = BASE_DIR / "work"
     work_dir.mkdir(exist_ok=True)
 
-    input_path = work_dir / "input.json"
-    output_path = work_dir / "output.json"
+    # 並列実行安全性:
+    # 同一 work_dir で input.json / output.json を共有すると、同時リクエストで上書き競合が起きる。
+    # そのため、リクエストごとにユニークなファイル名を使う。
+    run_id = uuid.uuid4().hex
+    input_path = work_dir / f"input.{run_id}.json"
+    output_path = work_dir / f"output.{run_id}.json"
 
     # 入力を書き出し
     with input_path.open("w", encoding="utf-8") as f:
         json.dump(input_data, f, ensure_ascii=False, indent=2)
 
-    # 既存の出力ファイルがあれば削除
-    if output_path.exists():
-        output_path.unlink()
+    keep_run_files = os.getenv("VTSIMNX_KEEP_RUN_FILES") is not None
+    try:
+        _invoke_solver(input_path, output_path, cwd=work_dir)
 
-    _invoke_solver(input_path, output_path, cwd=work_dir)
+        with output_path.open("r", encoding="utf-8") as f:
+            output_data = json.load(f)
+    finally:
+        # デフォルトでは一時入出力を消して work/ 汚染を抑える（必要なら env で残せる）
+        if not keep_run_files:
+            try:
+                if input_path.exists():
+                    input_path.unlink()
+            except Exception:
+                pass
+            try:
+                if output_path.exists():
+                    output_path.unlink()
+            except Exception:
+                pass
 
-    with output_path.open("r", encoding="utf-8") as f:
-        output_data = json.load(f)
+    # artifact_dir 配下に manifest を残す（後続のダウンロードAPIで参照）
+    try:
+        write_artifact_manifest(output_data)
+    except Exception:
+        # manifest書き込み失敗は致命ではないので握りつぶす（ログ/運用で気づけるようにするなら後で改善）
+        pass
 
     return output_data
-
-def run_solver_from_files(input_path: "Path | str", output_path: "Path | str") -> Dict[str, Any]:
-    """
-    テスト/スクリプト用: 既存の入力ファイルと出力ファイルパスを受け取り、
-    C++ ソルバを実行して出力 JSON を返す。
-
-    Args:
-        input_path: 入力 JSON ファイルのパス（相対パスまたは絶対パス）
-        output_path: ソルバに書き出させる出力 JSON ファイルのパス（相対パスまたは絶対パス）
-
-    Returns:
-        Dict[str, Any]: 出力 JSON の内容
-
-    Raises:
-        RuntimeError: ソルバが異常終了した、または出力が生成されなかった場合
-    """
-    # パスを解決（相対パスは現在の作業ディレクトリを基準に解決）
-    in_path = Path(input_path)
-    out_path = Path(output_path)
-    
-    # 絶対パスに変換（相対パスの場合は現在の作業ディレクトリを基準に解決）
-    if not in_path.is_absolute():
-        in_abs = Path.cwd() / in_path
-    else:
-        in_abs = in_path
-        
-    if not out_path.is_absolute():
-        out_abs = Path.cwd() / out_path
-    else:
-        out_abs = out_path
-    
-    # 絶対パスに正規化
-    in_abs = in_abs.resolve()
-    out_abs = out_abs.resolve()
-
-    # 出力先ディレクトリを作成
-    out_abs.parent.mkdir(parents=True, exist_ok=True)
-    if out_abs.exists():
-        out_abs.unlink()
-    _invoke_solver(in_abs, out_abs, cwd=out_abs.parent)
-
-    with out_abs.open("r", encoding="utf-8") as f:
-        return json.load(f)
-
-if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser(description="Run VTSimNX solver")
-    parser.add_argument("input_path", type=str, help="Input JSON file path")
-    parser.add_argument("output_path", type=str, help="Output JSON file path")
-    args = parser.parse_args()
-    result = run_solver_from_files(args.input_path, args.output_path)
-    # 出力は C++ 側が <output>.json と artifact_dir 配下にまとめて書き出す。
-    # ここでは重複ファイル（.results.json 等）を作らず、output.json の生成のみで統一する。

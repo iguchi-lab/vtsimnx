@@ -67,7 +67,8 @@ void ThermalNetwork::buildFromData(const std::vector<VertexProperties>& allNodes
 
     if (simConstants.temperatureCalc) {
         writeLog(logs, "  熱回路網を作成中...");
-        const int verbosity = (simConstants.logVerbosity > 0) ? simConstants.logVerbosity : 2;
+        int verbosity = simConstants.logVerbosity;
+        if (verbosity < 0) verbosity = 1;
         // 熱ブランチの両端ノードを収集
         std::set<std::string> allNodeKeys;
         for (const auto& edge : thermalBranches) {

@@ -211,6 +211,7 @@ performCoupledCalculation(VentilationNetwork& ventNetwork,
                           int& totalIterations,
                           TimingList& timings,
                           const std::string& meta) {
+    const bool logEnabled = (constants.logVerbosity > 0);
     PressureMap     pressureMap;
     FlowRateMap     flowRates;
     FlowBalanceMap  flowBalance;
@@ -232,13 +233,17 @@ performCoupledCalculation(VentilationNetwork& ventNetwork,
             capturePrevTempsByVertex(thermalNetwork.getGraph(), prevTempsByVertex);
         }
 
-        ScopedLogSection iterationScope(
-            logs,
-            "圧力-熱計算 連成反復 " + std::to_string(iterationCount) + ":");
+        std::unique_ptr<ScopedLogSection> iterationScope;
+        if (logEnabled) {
+            iterationScope = std::make_unique<ScopedLogSection>(
+                logs,
+                "圧力-熱計算 連成反復 " + std::to_string(iterationCount) + ":");
+        }
 
         // 換気計算
         if (constants.pressureCalc) {
-            ScopedLogSection pressureScope(logs, "圧力計算");
+            std::unique_ptr<ScopedLogSection> pressureScope;
+            if (logEnabled) pressureScope = std::make_unique<ScopedLogSection>(logs, "圧力計算");
             {
                 ScopedTimer timer(timings, "pressure_solve_iteration", meta);
                 std::tie(pressureMap, flowRates, flowBalance) =
@@ -247,7 +252,9 @@ performCoupledCalculation(VentilationNetwork& ventNetwork,
             ventNetwork.updateCalculationResults(pressureMap, flowRates);
 
             if (iterationCount == 1 && !ventNetwork.getLastPressureConverged()) {
-                writeLog(logs, "エラー: フォールバック後も未収束のため停止します（最終通常解の再試行は無効化）");
+                if (logEnabled) {
+                    writeLog(logs, "エラー: フォールバック後も未収束のため停止します（最終通常解の再試行は無効化）");
+                }
                 throw std::runtime_error("Disabled final normal solve: stopping after fallback non-convergence");
             }
             // 熱計算が有効な場合、換気計算結果を熱回路網に同期
@@ -258,7 +265,8 @@ performCoupledCalculation(VentilationNetwork& ventNetwork,
 
         // 熱計算
         if (constants.temperatureCalc) {
-            ScopedLogSection thermalScope(logs, "熱計算");
+            std::unique_ptr<ScopedLogSection> thermalScope;
+            if (logEnabled) thermalScope = std::make_unique<ScopedLogSection>(logs, "熱計算");
             {
                 ScopedTimer timer(timings, "thermal_solve_iteration", meta);
                 thermalNetwork.calculateTemperature(constants, logs);
@@ -272,32 +280,36 @@ performCoupledCalculation(VentilationNetwork& ventNetwork,
 
         // 連成計算が不要な場合、1回の計算後にループを抜ける
         if (!needsCoupledCalculation(constants)) {
-            writeLog(logs, "圧力-熱連成計算は不要です（圧力または熱計算のみ）");
+            if (logEnabled) writeLog(logs, "圧力-熱連成計算は不要です（圧力または熱計算のみ）");
             break;
         }
 
         // 変化量を計算してログ出力
         const double pressureChange = calculateMaxAbsDiff(prevPressuresByKey, ventNetwork.collectPressureValues());
         double temperatureChange = calculateTemperatureChangeByVertex(thermalNetwork.getGraph(), prevTempsByVertex);
-        writeLog(
-            logs,
-            "圧力変化量: " + std::to_string(pressureChange) +
-                " Pa, 温度変化量: " + std::to_string(temperatureChange) + " K");
+        if (logEnabled) {
+            writeLog(
+                logs,
+                "圧力変化量: " + std::to_string(pressureChange) +
+                    " Pa, 温度変化量: " + std::to_string(temperatureChange) + " K");
+        }
         
         // 収束判定（2回目以降の反復でのみ実行）
         if (iterationCount > 1) {
             const double pTol = couplingPressureTol(constants);
             const double tTol = couplingTemperatureTol(constants);
             if (pressureChange < pTol && temperatureChange < tTol) {
-                writeLog(logs, "圧力-熱計算 連成計算が収束しました (" +
-                                        std::to_string(iterationCount) + "回)");
+                if (logEnabled) {
+                    writeLog(logs, "圧力-熱計算 連成計算が収束しました (" +
+                                            std::to_string(iterationCount) + "回)");
+                }
                 break;
             }
         }
 
         // 最大反復回数に達した場合、エラーを投げて停止
         if (iterationCount >= constants.maxInnerIteration) {
-            writeLog(logs, "圧力-熱計算 連成計算が最大反復回数に達しました");
+            if (logEnabled) writeLog(logs, "圧力-熱計算 連成計算が最大反復回数に達しました");
             throw std::runtime_error("Maximum iteration count reached: stopping after maximum iteration count");
         }
     } while (true);
@@ -314,6 +326,7 @@ void runSimulation(VentilationNetwork& ventNetwork,
                    TimingList& timings,
                    const std::string& meta) {
 
+    const bool logEnabled = (constants.logVerbosity > 0);
     int totalIterations = 0; // 総反復回数を記録
 
     // エアコンの設定を適用
@@ -348,15 +361,17 @@ void runSimulation(VentilationNetwork& ventNetwork,
                 timings,
                 meta + ",iteration=" + std::to_string(iteration + 1));
             if (airconRes.shouldRecompute) {
-                writeLog(logs, "エアコン制御の修正が行われました。再計算を実行します。");
+                if (logEnabled) writeLog(logs, "エアコン制御の修正が行われました。再計算を実行します。");
                 continue;
             }
             loopConverged = airconRes.allControlled;
         }
         if (loopConverged) {
-            writeLog(logs,
-                     "圧力-温度連成計算-エアコン制御ループ " +
-                         std::to_string(iteration + 1) + " が収束しました。");
+            if (logEnabled) {
+                writeLog(logs,
+                         "圧力-温度連成計算-エアコン制御ループ " +
+                             std::to_string(iteration + 1) + " が収束しました。");
+            }
             break;   // 全てのエアコンが制御完了の場合、反復を終了
         }
     }
@@ -364,7 +379,9 @@ void runSimulation(VentilationNetwork& ventNetwork,
     // 1タイムステップ分の結果を構築（呼び出し側で即座に書き出す想定）
     buildTimestepResult(constants, ventNetwork, thermalNetwork, airconController, flowRates, logs, timestepResultOut);
 
-    writeLog(logs,
-             "タイムステップ終了  総連成反復回数: " + std::to_string(totalIterations),
-             true);
+    if (logEnabled) {
+        writeLog(logs,
+                 "タイムステップ終了  総連成反復回数: " + std::to_string(totalIterations),
+                 true);
+    }
 }

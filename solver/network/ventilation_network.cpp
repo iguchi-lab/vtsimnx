@@ -72,7 +72,8 @@ void VentilationNetwork::buildFromData(const std::vector<VertexProperties>& allN
 
     if (simConstants.pressureCalc) {
         writeLog(logs, "  換気回路網を作成中...");
-        const int verbosity = (simConstants.logVerbosity > 0) ? simConstants.logVerbosity : 2;
+        int verbosity = simConstants.logVerbosity;
+        if (verbosity < 0) verbosity = 1;
         // 換気ブランチ両端のノードを収集
         std::set<std::string> allNodeKeys;
         for (const auto& edge : ventilationBranches) {
