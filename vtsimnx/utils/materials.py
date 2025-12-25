@@ -1,4 +1,10 @@
-materials = {
+# 材料物性テーブル
+# - lambda: 熱伝導率 [W/(m·K)]
+# - v_capa: 体積比熱（容積熱容量）[J/(m³·K)] = ρ[kg/m³] × c_p[J/(kg·K)]
+#
+# もともとの資料値は [kJ/(m³·K)] を採用しているため、ここでは kJ 値を保持しつつ、
+# 外部公開する `materials` では v_capa を ×1000 して [J/(m³·K)] に揃える。
+_materials_kj_per_m3k = {
     '中空層(1cm以上)':                          {'lambda':   0.09,  'v_capa':    1.298},
     '中空層(1cm以下)':                          {'lambda':   0.09,  'v_capa':    1.298},
     '中空層(工場生産2cm以下)':                  {'lambda':   0.09,  'v_capa':    1.298},
@@ -90,4 +96,10 @@ materials = {
     '畳':                                       {'lambda':   0.15,  'v_capa':  290.0},
     'ALC':                                      {'lambda':   0.15,  'v_capa':  660.0},
     'ネオマゼウス':                             {'lambda':   0.018, 'v_capa':   51.0},
+}
+
+# Public: v_capa を [J/(m³·K)] に変換したテーブル
+materials = {
+    k: {**v, "v_capa": v["v_capa"] * 1000.0}
+    for k, v in _materials_kj_per_m3k.items()
 }
