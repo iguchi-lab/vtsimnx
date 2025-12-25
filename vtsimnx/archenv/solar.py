@@ -133,7 +133,7 @@ def sun_loc(idx, lat = 36.00, lon = 140.00, td = -0.5):
         df['太陽の赤緯 delta_d'], df['太陽の時角 T_d_t'], safe_cos_hs
     )
     df['太陽方位角の余弦 cos_AZs'] = cos_AZs(
-        df['太陽高度の正弦 sin_hs'], lat, df['太陽の時角 T_d_t'], safe_cos_hs
+        df['太陽高度の正弦 sin_hs'], lat, df['太陽の赤緯 delta_d'], safe_cos_hs
     )
     # 数値誤差で [-1, 1] を僅かに逸脱することがあるためクリップ
     df['太陽方位角の正弦 sin_AZs'] = np.clip(df['太陽方位角の正弦 sin_AZs'], -1.0, 1.0)
@@ -551,6 +551,10 @@ def make_solar(
             s_id = kwargs['水平面拡散日射量']
         else:
             raise Exception('ERROR: 水平面拡散日射量 s_id がありません。')
+
+        # 入力 Series の name は任意なので、以降の参照に合わせてここで正規化する
+        s_ib = s_ib.rename('法線面直達日射量 Ib')
+        s_id = s_id.rename('水平面拡散日射量 Id')
         if '時刻調整' in kwargs:
             td = kwargs['時刻調整']
         else:

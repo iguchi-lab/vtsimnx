@@ -28,6 +28,16 @@ def test_make_solar_accepts_direct_and_global_series():
     )
 
 
+def test_make_solar_accepts_direct_and_diffuse_series_without_names():
+    # Series.name が None でも動くこと（内部で列名を正規化する）
+    idx = pd.date_range("2026-06-21 12:00:00", periods=2, freq="1h")
+    s_ib = pd.Series([800.0, 800.0], index=idx)  # name=None
+    s_id = pd.Series([100.0, 100.0], index=idx)  # name=None
+
+    df = vt.make_solar(法線面直達日射量=s_ib, 水平面拡散日射量=s_id, 緯度=35.0, 経度=139.0)
+    assert "日射熱取得量（南面）" in df.columns
+
+
 def test_make_solar_dataframe_prefers_direct_and_global_over_erbs():
     # DataFrame 入力（HASP: 直達日射量 + 水平面全天日射量）を想定
     idx = pd.date_range("2026-06-21 12:00:00", periods=2, freq="1h")
