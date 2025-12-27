@@ -8,7 +8,7 @@ def test_thermal_mass_is_converted_to_capacity_node_and_branch_and_removed():
             "tolerance": {"ventilation": 1e-6, "thermal": 1e-6, "convergence": 1e-6},
             "calc_flag": {"p": False, "t": False, "x": False, "c": False},
         },
-        "nodes": [{"key": "N1", "thermal_mass": 100.0}],
+        "nodes": [{"key": "N1", "thermal_mass": 100.0, "t": 23.0}],
         "ventilation_branches": [],
         "thermal_branches": [],
     }
@@ -18,7 +18,9 @@ def test_thermal_mass_is_converted_to_capacity_node_and_branch_and_removed():
     n1 = next(n for n in out["nodes"] if n["key"] == "N1")
     assert "thermal_mass" not in n1
 
-    assert any(n["key"] == "N1_c" and n.get("type") == "capacity" for n in out["nodes"])
+    n1c = next(n for n in out["nodes"] if n["key"] == "N1_c")
+    assert n1c.get("type") == "capacity"
+    assert n1c.get("t") == 23.0
     tb = next(b for b in out["thermal_branches"] if b["key"] == "N1_c->N1")
     assert tb["subtype"] == "capacity"
     assert tb["conductance"] == 100.0 / 10

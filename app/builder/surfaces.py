@@ -22,6 +22,37 @@ DEFAULT_ALPHA_O = 20.3  # 室外側表面の対流熱伝達率
 DEFAULT_ALPHA_R = 4.7   # 放射熱伝達率
 
 
+def _scalar_initial_temperature(value):
+    """
+    ノード設定の `t`（スカラー or 時系列）から「初期値（スカラー）」を取り出す。
+
+    背景:
+    - solver 側は `t` が配列だと timestep ごとに `current_t` を更新する。
+      `calc_t=True` のノードでは、その後に計算結果で上書きされるため、
+      配列 `t` は「境界条件」というより「各ステップの初期推定値」を与える意味合いになる。
+    - ここでは “表面分割で自動生成した層ノード” の初期値を素直に設定したいだけなので、
+      時系列が来ても先頭要素（初期値）だけを採用する。
+    """
+    if value is None:
+        return None
+    # numpy/pandas は builder 側で list に正規化される想定だが、念のため対応
+    if isinstance(value, (list, tuple, np.ndarray)):
+        if len(value) == 0:
+            return None
+        return float(value[0])
+    try:
+        return float(value)
+    except Exception:
+        return None
+
+
+def _leading_node_key_from_layer_key(layer_key: str) -> str:
+    """
+    生成層ノードの key（例: 'A-B_wall_s'）から、先頭に現れるノード名（例: 'A'）を返す。
+    """
+    return str(layer_key).split("-", 1)[0]
+
+
 def get_node_prefix(surface: dict) -> tuple[str, str, str, str]:
     start_node     = surface["key"].split(CHAIN_DELIMITER)[0]
     end_node       = surface["key"].split(CHAIN_DELIMITER)[1]
@@ -34,7 +65,7 @@ def get_node_prefix(surface: dict) -> tuple[str, str, str, str]:
     return start_node, end_node, i_prefix, o_prefix
 
 
-def process_surface(surface: dict) -> tuple[list, list]:
+def process_surface(surface: dict, initial_t_by_node_key: dict[str, float] | None = None) -> tuple[list, list]:
     nodes: list = []
     thermal_branches: list = []
 
@@ -73,9 +104,19 @@ def process_surface(surface: dict) -> tuple[list, list]:
 
     for i, node in enumerate(node_names):
         logger.info(f"　ノード【{node}】 を追加します。")
-        nodes.append(
-            {"key": node, "calc_t": True, "thermal_mass": thermal_mass[i], "type": "layer", "subtype": node_types[i]}
-        )
+        node_dict = {
+            "key": node,
+            "calc_t": True,
+            "thermal_mass": thermal_mass[i],
+            "type": "layer",
+            "subtype": node_types[i],
+        }
+        # 生成ノードの初期温度: ノード key の先頭に現れるノード（例: A-B... なら A）の初期温度をコピー
+        if initial_t_by_node_key:
+            lead = _leading_node_key_from_layer_key(node)
+            if lead in initial_t_by_node_key:
+                node_dict["t"] = initial_t_by_node_key[lead]
+        nodes.append(node_dict)
 
     for i, branch in enumerate(thermal_branch_names):
         logger.info(f"　熱ブランチ【{branch}】を追加します。")
@@ -185,6 +226,7 @@ def process_radiation(node: str, surfaces: list) -> list:
 def process_surfaces(
     surface_config: list,
     sim_length: int,
+    node_config: list | None = None,
     add_solar: bool = True,
     add_nocturnal: bool = True,
     add_radiation: bool = True,
@@ -203,11 +245,25 @@ def process_surfaces(
     thermal_branches: list = []
 
     surface_data = surface_config
+    initial_t_by_node_key: dict[str, float] = {}
+    if node_config:
+        for n in node_config:
+            if not isinstance(n, dict):
+                continue
+            k = n.get("key")
+            if not k:
+                continue
+            if "t" not in n:
+                continue
+            init_t = _scalar_initial_temperature(n.get("t"))
+            if init_t is None:
+                continue
+            initial_t_by_node_key[str(k)] = init_t
 
     # 表面の分解
     logger.info("表面の解析を開始します。")
     for s in surface_data:
-        add_nodes, add_tb = process_surface(s)
+        add_nodes, add_tb = process_surface(s, initial_t_by_node_key=initial_t_by_node_key)
         nodes.extend(add_nodes)
         thermal_branches.extend(add_tb)
     logger.info("表面の解析が完了しました。")

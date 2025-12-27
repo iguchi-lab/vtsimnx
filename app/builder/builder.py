@@ -47,6 +47,7 @@ def build_config_with_warnings(
             add_nodes, add_tb = process_surfaces(
                 surface_config,
                 sim_length,
+                node_config=node_config,
                 add_solar=add_surface_solar,
                 add_radiation=add_surface_radiation,
             )
@@ -134,6 +135,7 @@ def build_config_with_warning_details(
         add_nodes, add_tb = process_surfaces(
             surface_config,
             sim_length,
+            node_config=node_config,
             add_solar=add_surface_solar,
             add_radiation=add_surface_radiation,
         )

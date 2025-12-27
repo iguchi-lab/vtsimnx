@@ -9,6 +9,7 @@ def test_process_surfaces_adds_nocturnal_branch():
         "part": "wall",
         "area": 2.0,
         "u_value": 1.0,
+        "epsilon": 0.9,
         # 1ステップあたりの夜間放射量（例）[W/m2]
         "nocturnal": [10.0, 20.0, 30.0],
     }
@@ -22,6 +23,6 @@ def test_process_surfaces_adds_nocturnal_branch():
     assert b["key"].startswith("void->外部-室内_wall_s")
     hg = np.array(b["heat_generation"], dtype=float)
     assert hg.shape == (3,)
-    assert hg.tolist() == [-20.0, -40.0, -60.0]  # -area * nocturnal
+    assert hg.tolist() == [-18.0, -36.0, -54.0]  # -area * epsilon * nocturnal
 
 
