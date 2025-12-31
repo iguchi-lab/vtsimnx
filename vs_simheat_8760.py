@@ -41,7 +41,13 @@ solar = pd.concat(
 solar["日射熱取得量（拡散）"] = (
     diffuse["水平面拡散日射量の拡散成分（拡散）"] + diffuse["水平面拡散日射量の反射成分（拡散）"]
 )
-nocturnal  = vt.make_nocturnal(df_i)
+nocturnal = vt.nocturnal_gain_by_angles(
+    傾斜角=90.0,
+    夜間放射量_水平=df_i["夜間放射量"] if "夜間放射量" in df_i.columns else None,
+    外気温=df_i["外気温"] if "外気温" in df_i.columns else None,
+    外気相対湿度=df_i["外気相対湿度"] if "外気相対湿度" in df_i.columns else None,
+    名前="鉛直",
+)
 materials  = vt.materials
 
 room_volume = {

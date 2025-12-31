@@ -11,64 +11,44 @@ rn = lambda t, h: (94.21 + 39.06 * np.sqrt(e(t, h) / 100) \
                    - 0.85 * Sigma * np.power(T(t), 4)) * 4.187 / 1000
 
 
-def make_nocturnal(*args, vertical_factor: float = 0.5, **kwargs):
-    """夜間放射量を算出する
-
-    指定方法:
-      - (DataFrame) を位置引数で与える: 列名から自動マッピング
-          - 外気温: '外気温'
-          - 外気相対湿度: '外気相対湿度'
-          - 夜間放射量: '夜間放射量' / 'n_r'
-      - 外気温/外気相対湿度 を与える: 気温・相対湿度から推算
-      - 夜間放射量（'夜間放射量' or 'n_r'）を与える: その値を使用
-
-    戻り値:
-      (DataFrame) 夜間放射量（列: '夜間放射量', '夜間_水平', '夜間_垂直'）
+def nocturnal_gain_by_angles(
+    *,
+    傾斜角: float,
+    外気温: pd.Series | None = None,
+    外気相対湿度: pd.Series | None = None,
+    夜間放射量_水平: pd.Series | None = None,
+    名前: str = "任意面",
+) -> pd.DataFrame:
     """
-    # 互換: 先頭位置引数で DataFrame/Series を受けた場合に自動でキーへマッピングする
-    if args:
-        first = args[0]
-        if isinstance(first, pd.DataFrame):
-            df0 = first
-            if "夜間放射量" in df0.columns:
-                kwargs.setdefault("夜間放射量", df0["夜間放射量"])
-            elif "n_r" in df0.columns:
-                kwargs.setdefault("n_r", df0["n_r"])
-            else:
-                # 推算用
-                if "外気温" in df0.columns:
-                    kwargs.setdefault("外気温", df0["外気温"])
-                if "外気相対湿度" in df0.columns:
-                    kwargs.setdefault("外気相対湿度", df0["外気相対湿度"])
-        elif isinstance(first, pd.Series):
-            # Series だけ渡された場合は夜間放射量として扱う
-            kwargs.setdefault("夜間放射量", first)
+    傾斜角だけ指定して、その面の夜間放射量（長波放射）を返す。
 
-    def _build_df(n_r: pd.Series) -> pd.DataFrame:
-        df = pd.DataFrame(index=n_r.index)
-        # 後方互換
-        df["夜間放射量"] = n_r
-        # 日射と同様に「水平/垂直」を明示した列も返す
-        df["夜間放射量_水平"] = n_r
-        df["夜間放射量_垂直"] = n_r * float(vertical_factor)
-        return df
+    入力（どちらか）:
+      - 外気温 + 外気相対湿度: rn(t,h) から水平面の夜間放射量を推算
+      - 夜間放射量_水平: 水平面の夜間放射量 [Wh/m2] を直接与える
 
-    if "外気温" in kwargs:
-        t = kwargs["外気温"]
-        h = kwargs["外気相対湿度"]
-        n_r = MJ_to_Wh(rn(t, h))
-        return _build_df(n_r)
+    傾斜角:
+      0=水平上向き, 90=鉛直
 
-    if "夜間放射量" in kwargs:
-        n_r = kwargs["夜間放射量"]
-        return _build_df(n_r)
+    モデル:
+      旧 make_nocturnal の vertical_factor=0.5 を一般化し、
+      等方天空の view factor を用いて
+        (F_sky = (1+cosβ)/2)
+      で水平面の夜間放射量をスケールする。
+      （β=0 → 1.0, β=90 → 0.5）
+    """
+    if 夜間放射量_水平 is None:
+        if 外気温 is None or 外気相対湿度 is None:
+            raise TypeError("nocturnal_gain_by_angles: 外気温/外気相対湿度 か 夜間放射量_水平 を指定してください。")
+        夜間放射量_水平 = MJ_to_Wh(rn(外気温, 外気相対湿度))
 
-    if "n_r" in kwargs:
-        n_r = kwargs["n_r"]
-        return _build_df(n_r)
+    beta = np.radians(float(傾斜角))
+    f_sky = (1.0 + float(np.cos(beta))) / 2.0
 
-    raise TypeError("make_nocturnal: 外気温/外気相対湿度 か、夜間放射量（夜間放射量 or n_r）を指定してください。")
+    out = pd.DataFrame(index=夜間放射量_水平.index)
+    out["夜間放射量_水平"] = 夜間放射量_水平
+    out[f"夜間放射量（{名前}）"] = 夜間放射量_水平 * f_sky
+    return out
 
-__all__ = ["rn", "make_nocturnal"]
+__all__ = ["rn", "nocturnal_gain_by_angles"]
 
 

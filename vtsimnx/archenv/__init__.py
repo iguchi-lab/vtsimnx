@@ -5,7 +5,7 @@ from .archenv import (
 )
 
 from .wind import make_wind
-from .nocturnal import make_nocturnal
+from .nocturnal import nocturnal_gain_by_angles
 from .solar import (
     sun_loc, astro_sun_loc, solar_gain_by_angles,
 )
@@ -21,7 +21,7 @@ __all__ = [
     # 風
     "make_wind",
     # 夜間放射
-    "make_nocturnal",
+    "nocturnal_gain_by_angles",
     # 日射
     "sun_loc", "astro_sun_loc", "solar_gain_by_angles",
     # 快適性・カビ
