@@ -11,8 +11,8 @@ def main() -> None:
 
     df_i       = vt.read_hasp(hasp_path)
     # 日射は solar_gain_by_angles で必要な面だけ計算する（方位別の大量出力は作らない）
-    s_ig = df_i["水平面全天日射量"]
     s_ib = df_i["直達日射量"]
+    s_id = df_i["水平面拡散日射量"]
 
     def _gain(name: str, az: float, tilt: float) -> pd.DataFrame:
         return vt.solar_gain_by_angles(
@@ -20,8 +20,8 @@ def main() -> None:
             傾斜角=tilt,
             緯度=lat,
             経度=lon,
-            全天日射量=s_ig,
             法線面直達日射量=s_ib,
+            水平面拡散日射量=s_id,
             名前=name,
         )
 
