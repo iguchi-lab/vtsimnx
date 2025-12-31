@@ -229,6 +229,7 @@ def _solar_gain_by_angles_from_solar_df(
     *,
     方位角: float,
     傾斜角: float,
+    日射モード: str = "all",
     名前: str = "任意面",
     albedo: float = 0.1,
     glass_tau_diffuse: float = 0.808,
@@ -257,6 +258,8 @@ def _solar_gain_by_angles_from_solar_df(
       既存の E/S/W/N の結果との整合のため、拡散/反射は「垂直面(=0.5)」を基準に
       傾斜角に応じて view factor でスケールする簡易モデルを採用する。
     """
+    if 日射モード not in ("all", "diffuse_only"):
+        raise ValueError(f"日射モード must be 'all' or 'diffuse_only', got {日射モード!r}")
     required = [
         "法線面直達日射量 Ib",
         "水平面拡散日射量 Id",
@@ -287,6 +290,8 @@ def _solar_gain_by_angles_from_solar_df(
 
     # 直達（面上）
     ib_surf = ib * cos_theta
+    if 日射モード == "diffuse_only":
+        ib_surf = ib_surf * 0.0
 
     # 拡散/反射（既存互換の簡易モデルを傾斜角でスケール）
     # 垂直面基準: Id_D = Id*0.5, Id_R = (Id+Ib)*sin(hs)*0.5*albedo
@@ -295,12 +300,15 @@ def _solar_gain_by_angles_from_solar_df(
     f_sky = (1.0 + float(np.cos(beta))) / 2.0
     f_gnd = (1.0 - float(np.cos(beta))) / 2.0
     id_d = id_ * f_sky
-    id_r = (id_ + ib) * np.maximum(sin_hs, 0.0) * float(albedo) * f_gnd
+    ib_for_ref = ib if 日射モード == "all" else (ib * 0.0)
+    id_r = (id_ + ib_for_ref) * np.maximum(sin_hs, 0.0) * float(albedo) * f_gnd
 
     wall_gain = ib_surf + id_d + id_r
 
     # ガラス（直達はeta(cosθ)で角度補正、拡散/反射は一定透過率）
     ib_glass = ib_surf * eta(cos_theta)
+    if 日射モード == "diffuse_only":
+        ib_glass = ib_glass * 0.0
     id_d_g = id_d * float(glass_tau_diffuse)
     id_r_g = id_r * float(glass_tau_diffuse)
     glass_gain = ib_glass + id_d_g + id_r_g
@@ -432,6 +440,7 @@ def solar_gain_by_angles(
     time_alignment: str = "center",
     timestamp_ref: str = "start",
     min_sun_alt_deg: float = 0.0,
+    日射モード: str = "all",
     albedo: float = 0.1,
     glass_tau_diffuse: float = 0.808,
 ) -> pd.DataFrame:
@@ -442,6 +451,10 @@ def solar_gain_by_angles(
       - 全天日射量のみ（Erbs 直散分離）
       - 全天日射量 + 法線面直達日射量（Id を復元）
       - 法線面直達日射量 + 水平面拡散日射量（そのまま使用）
+
+    日射モード:
+      - "all": 直達 + 拡散 + 反射
+      - "diffuse_only": 日陰などを想定し、直達は 0 扱い（反射は拡散由来のみ）
     """
     df_min = _solar_base(
         全天日射量=全天日射量,
@@ -458,6 +471,7 @@ def solar_gain_by_angles(
         df_min,
         方位角=方位角,
         傾斜角=傾斜角,
+        日射モード=日射モード,
         名前=名前,
         albedo=albedo,
         glass_tau_diffuse=glass_tau_diffuse,

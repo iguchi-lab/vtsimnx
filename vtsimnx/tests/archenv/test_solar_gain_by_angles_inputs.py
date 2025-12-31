@@ -62,3 +62,37 @@ def test_solar_gain_by_angles_accepts_ib_and_id():
     assert np.allclose(out["水平面拡散日射量 Id"].to_numpy(), 100.0)
 
 
+def test_solar_gain_by_angles_diffuse_only_zeroes_direct_terms():
+    idx = pd.date_range("2026-06-21 12:00:00", periods=2, freq="1h")
+    s_ib = pd.Series([800.0, 800.0], index=idx)
+    s_id = pd.Series([100.0, 100.0], index=idx)
+
+    out = vt.solar_gain_by_angles(
+        方位角=0.0,
+        傾斜角=90.0,
+        緯度=35.0,
+        経度=139.0,
+        法線面直達日射量=s_ib,
+        水平面拡散日射量=s_id,
+        名前="南面",
+        日射モード="diffuse_only",
+    )
+
+    # 直達を 0 扱い
+    assert np.allclose(out["直達日射量の南面面成分 Ib"].to_numpy(), 0.0)
+    assert np.allclose(out["直達日射量の南面面成分（ガラス） Ib_g"].to_numpy(), 0.0)
+
+    # 合計は拡散+反射のみになる
+    np.testing.assert_allclose(
+        out["日射熱取得量（南面）"].to_numpy(),
+        (out["水平面拡散日射量の拡散成分（南面）"] + out["水平面拡散日射量の反射成分（南面）"]).to_numpy(),
+    )
+    np.testing.assert_allclose(
+        out["日射熱取得量（南面ガラス）"].to_numpy(),
+        (
+            out["水平面拡散日射量の拡散成分（ガラス）（南面）"]
+            + out["水平面拡散日射量の反射成分（ガラス）（南面）"]
+        ).to_numpy(),
+    )
+
+
