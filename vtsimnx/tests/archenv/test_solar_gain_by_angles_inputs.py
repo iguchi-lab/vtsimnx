@@ -96,3 +96,28 @@ def test_solar_gain_by_angles_diffuse_only_zeroes_direct_terms():
     )
 
 
+def test_solar_gain_by_angles_horizontal_equals_ghi():
+    # 傾斜角=0（水平上向き）のとき
+    #   直達面成分 = DNI*sin(hs)
+    #   拡散面成分 = DHI
+    #   地面反射 = 0
+    # なので、合計=GHI(=DHI + DNI*sin(hs)) になることを確認する
+    idx = pd.date_range("2026-06-21 12:00:00", periods=2, freq="1h")
+    s_ib = pd.Series([800.0, 800.0], index=idx)
+    s_id = pd.Series([100.0, 100.0], index=idx)
+
+    out = vt.solar_gain_by_angles(
+        方位角=0.0,
+        傾斜角=0.0,
+        緯度=35.0,
+        経度=139.0,
+        法線面直達日射量=s_ib,
+        水平面拡散日射量=s_id,
+        名前="水平面",
+    )
+
+    sin_hs = np.sin(np.radians(out["太陽高度 hs"].to_numpy()))
+    ghi_expected = s_id.to_numpy() + s_ib.to_numpy() * np.maximum(sin_hs, 0.0)
+    np.testing.assert_allclose(out["日射熱取得量（水平面）"].to_numpy(), ghi_expected, rtol=0, atol=1e-6)
+
+

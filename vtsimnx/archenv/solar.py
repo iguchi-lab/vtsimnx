@@ -293,15 +293,18 @@ def _solar_gain_by_angles_from_solar_df(
     if 日射モード == "diffuse_only":
         ib_surf = ib_surf * 0.0
 
-    # 拡散/反射（既存互換の簡易モデルを傾斜角でスケール）
-    # 垂直面基準: Id_D = Id*0.5, Id_R = (Id+Ib)*sin(hs)*0.5*albedo
+    # 拡散/反射（等方モデル + 地面反射の簡易モデル）
+    # - Id は水平面拡散（DHI）
+    # - Ib は法線面直達（DNI）
+    # - 水平面全天（GHI）= DHI + DNI*sin(hs)
     # 傾斜角で view factor:
     #   F_sky   = (1+cosβ)/2, F_ground = (1-cosβ)/2
     f_sky = (1.0 + float(np.cos(beta))) / 2.0
     f_gnd = (1.0 - float(np.cos(beta))) / 2.0
     id_d = id_ * f_sky
     ib_for_ref = ib if 日射モード == "all" else (ib * 0.0)
-    id_r = (id_ + ib_for_ref) * np.maximum(sin_hs, 0.0) * float(albedo) * f_gnd
+    ghi = id_ + ib_for_ref * np.maximum(sin_hs, 0.0)
+    id_r = ghi * float(albedo) * f_gnd
 
     wall_gain = ib_surf + id_d + id_r
 
