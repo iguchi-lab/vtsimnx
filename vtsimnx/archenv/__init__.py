@@ -7,8 +7,7 @@ from .archenv import (
 from .wind import make_wind
 from .nocturnal import make_nocturnal
 from .solar import (
-    Kt, Id, Ib, delta_d, e_d, T_d_t,
-    sun_loc, astro_sun_loc, sep_direct_diffuse, eta, direc_solar, make_solar,
+    sun_loc, astro_sun_loc, solar_gain_by_angles,
 )
 from .comfort import (
     calc_R, calc_C, calc_RC, calc_PMV, calc_PPD, calc_fungal_index,
@@ -24,8 +23,7 @@ __all__ = [
     # 夜間放射
     "make_nocturnal",
     # 日射
-    "Kt", "Id", "Ib", "delta_d", "e_d", "T_d_t",
-    "sun_loc", "astro_sun_loc", "sep_direct_diffuse", "eta", "direc_solar", "make_solar",
+    "sun_loc", "astro_sun_loc", "solar_gain_by_angles",
     # 快適性・カビ
     "calc_R", "calc_C", "calc_RC", "calc_PMV", "calc_PPD", "calc_fungal_index",
 ]

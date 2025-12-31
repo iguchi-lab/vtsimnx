@@ -224,160 +224,116 @@ def eta(c):
     return c * (2.3920 + c2 * (-3.8636 + c2 * (3.7568 + c2 * (-1.3968))))
 
 
-def direc_solar(s_ib, s_id, s_sin_hs, s_cos_hs, s_hs, s_sin_AZs, s_cos_AZs, s_AZs):
-    """直達・拡散・反射から方位別日射量（壁/ガラス/水平）を算出する"""
-    df = pd.concat(
-        [s_ib, s_id, s_sin_hs, s_cos_hs, s_hs, s_sin_AZs, s_cos_AZs, s_AZs],
-        axis = 1
-    )
-    df.columns = [
-        '法線面直達日射量 Ib', '水平面拡散日射量 Id',
-        '太陽高度の正弦 sin_hs', '太陽高度の余弦 cos_hs', '太陽高度 hs',
-        '太陽方位角の正弦 sin_AZs', '太陽方位角の余弦 cos_AZs', '太陽方位角 AZs'
+def _solar_gain_by_angles_from_solar_df(
+    df_solar: pd.DataFrame,
+    *,
+    方位角: float,
+    傾斜角: float,
+    名前: str = "任意面",
+    albedo: float = 0.1,
+    glass_tau_diffuse: float = 0.808,
+) -> pd.DataFrame:
+    """
+    必要な中間列（Ib/Id と太陽位置）を持つ DataFrame から、任意の面（方位角/傾斜角）の
+    日射熱取得量（壁面/ガラス面）を計算する（内部ユーティリティ）。
+
+    入力:
+      df_solar: 内部計算用DataFrame（少なくとも以下の列が必要）
+        - '法線面直達日射量 Ib'
+        - '水平面拡散日射量 Id'
+        - '太陽高度の正弦 sin_hs'
+        - '太陽高度の余弦 cos_hs'
+        - '太陽方位角 AZs' （0=南, -90=東, +90=西, ±180=北）
+
+    角度の定義:
+      - 方位角: 面の法線方位 [deg]（本コードのAZs座標系）
+      - 傾斜角: 面の傾斜角 [deg]（0=水平上向き, 90=鉛直）
+
+    出力:
+      壁面: 直達 + 拡散 + 反射
+      ガラス面: 直達(eta補正) + 拡散/反射(一定透過率)
+
+    注:
+      既存の E/S/W/N の結果との整合のため、拡散/反射は「垂直面(=0.5)」を基準に
+      傾斜角に応じて view factor でスケールする簡易モデルを採用する。
+    """
+    required = [
+        "法線面直達日射量 Ib",
+        "水平面拡散日射量 Id",
+        "太陽高度の正弦 sin_hs",
+        "太陽高度の余弦 cos_hs",
+        "太陽方位角 AZs",
     ]
+    missing = [c for c in required if c not in df_solar.columns]
+    if missing:
+        raise KeyError(f"solar_gain_by_angles: df_solar に必要列がありません: {missing}")
 
-    cond = df['太陽高度 hs'] > 0
-    az = df['太陽方位角 AZs']
-    cos_hs = df['太陽高度の余弦 cos_hs']
-    sin_hs = df['太陽高度の正弦 sin_hs']
-    sin_az = df['太陽方位角の正弦 sin_AZs']
-    cos_az = df['太陽方位角の余弦 cos_AZs']
-    Ib_col = df['法線面直達日射量 Ib']
+    ib = df_solar["法線面直達日射量 Ib"].astype("float64")
+    id_ = df_solar["水平面拡散日射量 Id"].astype("float64")
+    sin_hs = df_solar["太陽高度の正弦 sin_hs"].astype("float64")
+    cos_hs = df_solar["太陽高度の余弦 cos_hs"].astype("float64")
+    azs = df_solar["太陽方位角 AZs"].astype("float64")
 
-    df.loc[cond & (-180 < az) & (az < 0),   '直達日射量の東面成分 Ib_E'] = (
-        -1 * Ib_col * cos_hs * sin_az
-    )  # 東
-    df.loc[cond & (-90  < az) & (az < 90),  '直達日射量の南面成分 Ib_S'] = (
-           Ib_col * cos_hs * cos_az
-    )  # 南
-    df.loc[cond & (0    < az) & (az < 180), '直達日射量の西面成分 Ib_W'] = (
-           Ib_col * cos_hs * sin_az
-    )  # 西
-    df.loc[cond & (-180 < az) & (az < -90), '直達日射量の北面成分 Ib_N'] = (
-        -1 * Ib_col * cos_hs * cos_az
-    )  # 北
-    df.loc[cond & (  90 < az) & (az < 180), '直達日射量の北面成分 Ib_N'] = (
-        -1 * Ib_col * cos_hs * cos_az
-    )  # 北
-    df.loc[cond, '直達日射量の水平面成分 Ib_H'] = (
-        Ib_col * sin_hs
-    )
-    df.loc[cond, '水平面拡散日射量の反射成分 Id_R'] = (
-        (df['水平面拡散日射量 Id'] + Ib_col) * sin_hs * 0.5 * 0.1
-    )
-    df['水平面拡散日射量の拡散成分 Id_D'] = df['水平面拡散日射量 Id'] * 0.5
+    beta = np.radians(float(傾斜角))
+    gamma = float(方位角)
 
-    df = df.fillna(0)
+    # 入射角の余弦 cos(theta)
+    # cosθ = sin(hs)*cosβ + cos(hs)*sinβ*cos(AZs-γ)
+    cos_theta = (
+        sin_hs * float(np.cos(beta))
+        + cos_hs * float(np.sin(beta)) * np.cos(np.radians(azs - gamma))
+    )
+    cos_theta = np.maximum(cos_theta, 0.0)
 
-    df['直達日射量の東面成分（ガラス） Ib_E_g'] = (
-        df['直達日射量の東面成分 Ib_E'] * eta(-1 * cos_hs * sin_az)
-    )  # 東
-    df['直達日射量の南面成分（ガラス） Ib_S_g'] = (
-        df['直達日射量の南面成分 Ib_S'] * eta(      cos_hs * cos_az)
-    )  # 南
-    df['直達日射量の西面成分（ガラス） Ib_W_g'] = (
-        df['直達日射量の西面成分 Ib_W'] * eta(      cos_hs * sin_az)
-    )  # 西
-    df['直達日射量の北面成分（ガラス） Ib_N_g'] = (
-        df['直達日射量の北面成分 Ib_N'] * eta(-1 * cos_hs * cos_az)
-    )  # 北
-    df['直達日射量の水平面成分（ガラス） Ib_H_g'] = (
-        df['直達日射量の水平面成分 Ib_H'] * eta(sin_hs)
-    )  # 水平
-    df['水平面拡散日射量の反射成分（ガラス） Id_R_g'] = (
-        df['水平面拡散日射量の反射成分 Id_R'] * 0.808
-    )  # 透過率
-    df['水平面拡散日射量の拡散成分（ガラス） Id_D_g'] = (
-        df['水平面拡散日射量の拡散成分 Id_D'] * 0.808
-    )  # 透過率
+    # 直達（面上）
+    ib_surf = ib * cos_theta
 
-    df['日射熱取得量（東面）'] = (
-        df['直達日射量の東面成分 Ib_E']
-        + df['水平面拡散日射量の拡散成分 Id_D']
-        + df['水平面拡散日射量の反射成分 Id_R']
-    )
-    df['日射熱取得量（南面）'] = (
-        df['直達日射量の南面成分 Ib_S']
-        + df['水平面拡散日射量の拡散成分 Id_D']
-        + df['水平面拡散日射量の反射成分 Id_R']
-    )
-    df['日射熱取得量（西面）'] = (
-        df['直達日射量の西面成分 Ib_W']
-        + df['水平面拡散日射量の拡散成分 Id_D']
-        + df['水平面拡散日射量の反射成分 Id_R']
-    )
-    df['日射熱取得量（北面）'] = (
-        df['直達日射量の北面成分 Ib_N']
-        + df['水平面拡散日射量の拡散成分 Id_D']
-        + df['水平面拡散日射量の反射成分 Id_R']
-    )
-    df['日射熱取得量（水平面）'] = (
-        df['直達日射量の水平面成分 Ib_H']
-        + df['水平面拡散日射量の拡散成分 Id_D']
-        + df['水平面拡散日射量の反射成分 Id_R']
-    )
-    df['日射熱取得量（拡散）'] = (
-        + df['水平面拡散日射量の拡散成分 Id_D']
-        + df['水平面拡散日射量の反射成分 Id_R']
-    )
+    # 拡散/反射（既存互換の簡易モデルを傾斜角でスケール）
+    # 垂直面基準: Id_D = Id*0.5, Id_R = (Id+Ib)*sin(hs)*0.5*albedo
+    # 傾斜角で view factor:
+    #   F_sky   = (1+cosβ)/2, F_ground = (1-cosβ)/2
+    f_sky = (1.0 + float(np.cos(beta))) / 2.0
+    f_gnd = (1.0 - float(np.cos(beta))) / 2.0
+    id_d = id_ * f_sky
+    id_r = (id_ + ib) * np.maximum(sin_hs, 0.0) * float(albedo) * f_gnd
 
-    df['日射熱取得量（東面ガラス）'] = (
-        df['直達日射量の東面成分（ガラス） Ib_E_g']
-        + df['水平面拡散日射量の拡散成分（ガラス） Id_D_g']
-        + df['水平面拡散日射量の反射成分（ガラス） Id_R_g']
-    )
-    df['日射熱取得量（南面ガラス）'] = (
-        df['直達日射量の南面成分（ガラス） Ib_S_g']
-        + df['水平面拡散日射量の拡散成分（ガラス） Id_D_g']
-        + df['水平面拡散日射量の反射成分（ガラス） Id_R_g']
-    )
-    df['日射熱取得量（西面ガラス）'] = (
-        df['直達日射量の西面成分（ガラス） Ib_W_g']
-        + df['水平面拡散日射量の拡散成分（ガラス） Id_D_g']
-        + df['水平面拡散日射量の反射成分（ガラス） Id_R_g']
-    )
-    df['日射熱取得量（北面ガラス）'] = (
-        df['直達日射量の北面成分（ガラス） Ib_N_g']
-        + df['水平面拡散日射量の拡散成分（ガラス） Id_D_g']
-        + df['水平面拡散日射量の反射成分（ガラス） Id_R_g']
-    )
-    df['日射熱取得量（水平面ガラス）'] = (
-        df['直達日射量の水平面成分（ガラス） Ib_H_g']
-        + df['水平面拡散日射量の拡散成分（ガラス） Id_D_g']
-        + df['水平面拡散日射量の反射成分（ガラス） Id_R_g']
-    )
-    df['日射熱取得量（拡散）'] = (
-        df['水平面拡散日射量の拡散成分 Id_D']
-        + df['水平面拡散日射量の反射成分 Id_R']
-    )
+    wall_gain = ib_surf + id_d + id_r
 
-    return df
+    # ガラス（直達はeta(cosθ)で角度補正、拡散/反射は一定透過率）
+    ib_glass = ib_surf * eta(cos_theta)
+    id_d_g = id_d * float(glass_tau_diffuse)
+    id_r_g = id_r * float(glass_tau_diffuse)
+    glass_gain = ib_glass + id_d_g + id_r_g
+
+    out = pd.DataFrame(index=df_solar.index)
+    out[f"入射角cos({名前})"] = cos_theta
+    out[f"直達日射量の{名前}面成分 Ib"] = ib_surf
+    out[f"水平面拡散日射量の拡散成分（{名前}）"] = id_d
+    out[f"水平面拡散日射量の反射成分（{名前}）"] = id_r
+    out[f"日射熱取得量（{名前}）"] = wall_gain
+
+    out[f"直達日射量の{名前}面成分（ガラス） Ib_g"] = ib_glass
+    out[f"水平面拡散日射量の拡散成分（ガラス）（{名前}）"] = id_d_g
+    out[f"水平面拡散日射量の反射成分（ガラス）（{名前}）"] = id_r_g
+    out[f"日射熱取得量（{名前}ガラス）"] = glass_gain
+
+    return out
 
 
-def make_solar(
-    *args,
-    use_astro: bool = False,
-    time_alignment: str = "center",
-    timestamp_ref: str = "start",
-    min_sun_alt_deg: float = 0.0,
-    **kwargs,
-):
-    """方位別日射量の総合算出
-    指定方法:
-      - 全天日射量を与えると内部で直散分離 → 方位別
-      - 法線面直達日射量と水平面全天日射量を与えると Id=IG−Ib·sin(hs) で復元 → 方位別
-      - 法線面直達日射量と水平面拡散日射量を与えるとそのまま方位別へ
-    戻り値:
-      (DataFrame) 中間列と方位別日射（壁/ガラス/水平）
-
-    use_astro=True の場合は astropy を用いた高精度太陽位置（astro_sun_loc）を使用する。
-    （astropy が未インストールの場合は ImportError になります）
-
-    time_alignment / timestamp_ref:
-      - time_alignment="center": タイムステップ区間の中央時刻で評価（td=±Δt/2）
-      - time_alignment="timestamp": インデックス時刻そのもの（td=0）
-      - timestamp_ref="start": インデックスが区間開始を表す
-      - timestamp_ref="end":   インデックスが区間終了を表す（例: 00:00 が 23:00-00:00 の値）
+def _solar_base(
+    *,
+    全天日射量: pd.Series | None,
+    法線面直達日射量: pd.Series | None,
+    水平面拡散日射量: pd.Series | None,
+    緯度: float,
+    経度: float,
+    use_astro: bool,
+    time_alignment: str,
+    timestamp_ref: str,
+    min_sun_alt_deg: float,
+) -> pd.DataFrame:
+    """
+    太陽位置（sin/cos/角度）と、Ib/Id（法線面直達・水平面拡散）だけを作る最小ユーティリティ。
     """
     if time_alignment not in ("center", "timestamp"):
         raise ValueError(f"time_alignment must be 'center' or 'timestamp', got {time_alignment!r}")
@@ -386,208 +342,136 @@ def make_solar(
     if not (0.0 <= float(min_sun_alt_deg) <= 90.0):
         raise ValueError(f"min_sun_alt_deg must be in [0, 90], got {min_sun_alt_deg!r}")
 
-    def _auto_td_from_index(idx: pd.DatetimeIndex) -> float:
+    # 入力の組み合わせチェック
+    if 全天日射量 is None and not (法線面直達日射量 is not None and 水平面拡散日射量 is not None):
+        raise TypeError("solar_gain_by_angles: 全天日射量 か、(法線面直達日射量 and 水平面拡散日射量) を指定してください。")
+
+    idx = (全天日射量.index if 全天日射量 is not None else 法線面直達日射量.index)  # type: ignore[union-attr]
+
+    def _auto_td_from_index(idx_: pd.DatetimeIndex) -> float:
         if time_alignment == "timestamp":
             return 0.0
-        # center
-        if len(idx) < 2:
+        if len(idx_) < 2:
             return 0.0
-        delta_h = (idx[1] - idx[0]).total_seconds() / 3600.0
-        # indexが区間開始なら +Δt/2、区間終了なら -Δt/2
+        delta_h = (idx_[1] - idx_[0]).total_seconds() / 3600.0
         sgn = 1.0 if timestamp_ref == "start" else -1.0
         return sgn * delta_h / 2.0
 
-    # 互換対応: 先頭位置引数で DataFrame/Series を受けた場合に自動でキーへマッピングする
-    if args:
-        first = args[0]
-        if isinstance(first, pd.Series):
-            # 旧API: make_solar(series_IG, lat=..., lon=...)
-            kwargs.setdefault('全天日射量', first)
-        elif isinstance(first, pd.DataFrame):
-            df0 = first
-            # 列名の別名に対応
-            ig_col_candidates = ['全天日射量', '水平面全天日射量', 'IG']
-            # HASP などでは「直達日射量」という列名で法線面直達（DNI 相当）が入ってくる想定
-            ib_col_candidates = ['法線面直達日射量', '直達日射量', 'Ib']
-            id_col_candidates = ['水平面拡散日射量', 'Id']
-            ig_col = next((c for c in ig_col_candidates if c in df0.columns), None)
-            ib_col = next((c for c in ib_col_candidates if c in df0.columns), None)
-            id_col = next((c for c in id_col_candidates if c in df0.columns), None)
-            # 優先順位:
-            #  - IG + Ib が揃っているなら、それを使って Id を復元できる（今回の不具合の主因）
-            #  - 次に Ib + Id
-            #  - 最後に IG のみ（Erbs 直散分離）
-            if ig_col is not None and ib_col is not None:
-                kwargs.setdefault('全天日射量', df0[ig_col])
-                kwargs.setdefault('法線面直達日射量', df0[ib_col])
-            elif ib_col is not None and id_col is not None:
-                kwargs.setdefault('法線面直達日射量', df0[ib_col])
-                kwargs.setdefault('水平面拡散日射量', df0[id_col])
-            elif ig_col is not None:
-                kwargs.setdefault('全天日射量', df0[ig_col])
-            # それ以外は kwargs のみで続行
+    td = _auto_td_from_index(idx)
 
-    # 互換: キー名揺れをここで正規化（kwargs で直接渡されたケース）
-    if '水平面全天日射量' in kwargs and '全天日射量' not in kwargs:
-        kwargs['全天日射量'] = kwargs['水平面全天日射量']
-    if '直達日射量' in kwargs and '法線面直達日射量' not in kwargs:
-        kwargs['法線面直達日射量'] = kwargs['直達日射量']
+    # 太陽位置
+    if use_astro:
+        df_a = astro_sun_loc(idx, lat=緯度, lon=経度, td=td)
+        az = df_a["太陽方位角 az"]
+        AZs = ((az - 180.0 + 180.0) % 360.0) - 180.0
+        df_sun = pd.DataFrame(index=df_a.index)
+        df_sun["太陽高度の正弦 sin_hs"] = df_a["太陽高度の正弦 sin_alt"]
+        df_sun["太陽高度の余弦 cos_hs"] = df_a["太陽高度の余弦 cos_alt"]
+        df_sun["太陽高度 hs"] = df_a["太陽高度 alt"]
+        df_sun["太陽方位角 AZs"] = AZs
+        df_sun["太陽方位角の正弦 sin_AZs"] = np.sin(np.radians(AZs))
+        df_sun["太陽方位角の余弦 cos_AZs"] = np.cos(np.radians(AZs))
+    else:
+        df_sun = sun_loc(idx, lat=緯度, lon=経度, td=td)
 
-    lat = kwargs['緯度'] if '緯度' in kwargs else 36.00
-    lon = kwargs['経度'] if '経度' in kwargs else 140.00
+    # Ib/Id の決定
+    if 法線面直達日射量 is not None and 水平面拡散日射量 is not None:
+        ib = 法線面直達日射量.astype("float64")
+        id_ = 水平面拡散日射量.astype("float64")
+        df_min = pd.DataFrame(index=idx)
+        df_min["法線面直達日射量 Ib"] = ib
+        df_min["水平面拡散日射量 Id"] = id_
+        return pd.concat([df_min, df_sun], axis=1)
 
-    # ケースA: 法線面直達 + 水平面全天 が与えられた場合（直散分離はせず、Id を復元する）
-    #   IG = Ib*sin(hs) + Id  →  Id = IG - Ib*sin(hs)
-    if '全天日射量' in kwargs and '法線面直達日射量' in kwargs and '水平面拡散日射量' not in kwargs:
-        s_ig = kwargs['全天日射量']
-        s_ib_in = kwargs['法線面直達日射量']
+    if 全天日射量 is None:
+        raise TypeError("solar_gain_by_angles: 全天日射量 がありません。")
 
-        if '時刻調整' in kwargs:
-            td = kwargs['時刻調整']
-        else:
-            td = _auto_td_from_index(s_ig.index)
+    ig = 全天日射量.astype("float64")
+    sin_hs = df_sun["太陽高度の正弦 sin_hs"].astype("float64")
+    hs = df_sun["太陽高度 hs"].astype("float64")
+    day = (hs > float(min_sun_alt_deg)) & (sin_hs > 0)
 
-        # 太陽位置
-        if use_astro:
-            df_a = astro_sun_loc(s_ig.index, lat=lat, lon=lon, td=td)
-            az = df_a["太陽方位角 az"]
-            AZs = ((az - 180.0 + 180.0) % 360.0) - 180.0
-
-            df_sun = pd.DataFrame(index=df_a.index)
-            df_sun["太陽高度の正弦 sin_hs"] = df_a["太陽高度の正弦 sin_alt"]
-            df_sun["太陽高度の余弦 cos_hs"] = df_a["太陽高度の余弦 cos_alt"]
-            df_sun["太陽高度 hs"] = df_a["太陽高度 alt"]
-            df_sun["太陽方位角 AZs"] = AZs
-            df_sun["太陽方位角の正弦 sin_AZs"] = np.sin(np.radians(AZs))
-            df_sun["太陽方位角の余弦 cos_AZs"] = np.cos(np.radians(AZs))
-        else:
-            df_sun = sun_loc(s_ig.index, lat=lat, lon=lon, td=td)
-
-        # Id 復元（夜間は 0、また Ib*sin(hs) が IG を超える場合は Ib を上限で丸める）
-        sin_hs = df_sun["太陽高度の正弦 sin_hs"].astype("float64")
-        hs = df_sun["太陽高度 hs"].astype("float64")
-        ig = s_ig.astype("float64")
-        ib = s_ib_in.astype("float64")
-
-        day = (hs > float(min_sun_alt_deg)) & (sin_hs > 0)
-        ib_used = pd.Series(0.0, index=s_ig.index)
-        id_used = pd.Series(0.0, index=s_ig.index)
+    # (A) IG + Ib で与えられた場合: Id = IG - Ib*sin(hs) を復元（Ibは上限で丸める）
+    if 法線面直達日射量 is not None:
+        ib_in = 法線面直達日射量.astype("float64")
+        ib_used = pd.Series(0.0, index=idx)
+        id_used = pd.Series(0.0, index=idx)
         if day.any():
-            ib_h = ib[day] * sin_hs[day]
-            # 直達水平成分が IG を超える場合、Ib を IG/sin(hs) に制限（Id=0 になる）
+            ib_h = ib_in[day] * sin_hs[day]
             ib_cap = ig[day] / sin_hs[day]
-            ib_eff = np.where(ib_h > ig[day], ib_cap, ib[day])
+            ib_eff = np.where(ib_h > ig[day], ib_cap, ib_in[day])
             ib_used.loc[day] = ib_eff
             id_eff = ig[day] - ib_used.loc[day] * sin_hs[day]
             id_used.loc[day] = np.maximum(id_eff, 0.0)
+        df_min = pd.DataFrame(index=idx)
+        df_min["法線面直達日射量 Ib"] = ib_used
+        df_min["水平面拡散日射量 Id"] = id_used
+        df_min["水平面全天日射量"] = ig
+        return pd.concat([df_min, df_sun], axis=1)
 
-        # 出力（IG も残しておく）
-        df = pd.concat(
-            [
-                ig.rename("水平面全天日射量"),
-                ib_used.rename("法線面直達日射量 Ib"),
-                id_used.rename("水平面拡散日射量 Id"),
-                df_sun,
-            ],
-            axis=1,
-        )
-        df = direc_solar(
-            df["法線面直達日射量 Ib"],
-            df["水平面拡散日射量 Id"],
-            df["太陽高度の正弦 sin_hs"],
-            df["太陽高度の余弦 cos_hs"],
-            df["太陽高度 hs"],
-            df["太陽方位角の正弦 sin_AZs"],
-            df["太陽方位角の余弦 cos_AZs"],
-            df["太陽方位角 AZs"],
-        )
-        # direc_solar の df に IG を戻す（列順は気にしない）
-        df = pd.concat([ig.rename("水平面全天日射量"), df], axis=1)
+    # (B) IG のみ: Erbs 直散分離
+    df_sep = sep_direct_diffuse(ig, df_sun["太陽高度 hs"], min_sun_alt_deg=min_sun_alt_deg)
+    df_min = pd.DataFrame(index=idx)
+    df_min["法線面直達日射量 Ib"] = df_sep["法線面直達日射量 Ib"]
+    df_min["水平面拡散日射量 Id"] = df_sep["水平面拡散日射量 Id"]
+    df_min["水平面全天日射量"] = ig
+    return pd.concat([df_min, df_sun], axis=1)
 
-    # ケースB: 水平面全天のみ（Erbs 直散分離）
-    elif '全天日射量' in kwargs:
-        s_ig = kwargs['全天日射量']
-        if '時刻調整' in kwargs:
-            td = kwargs['時刻調整']
-        else:
-            td = _auto_td_from_index(s_ig.index)
-        if use_astro:
-            # astropy の方位角は 0°=北, 90°=東（一般的な測地系）
-            # 本コードの方位角 AZs は 0°=南, -90°=東, +90°=西, ±180°=北 を前提に
-            # direc_solar 内で象限判定しているため、ここで座標系を変換する。
-            df_a = astro_sun_loc(s_ig.index, lat=lat, lon=lon, td=td)
 
-            # astro az(=0北) -> 本コードAZs(=0南)
-            # wrap を [-180, 180] に揃える
-            az = df_a["太陽方位角 az"]
-            AZs = ((az - 180.0 + 180.0) % 360.0) - 180.0
+def solar_gain_by_angles(
+    *,
+    方位角: float,
+    傾斜角: float,
+    緯度: float = 36.00,
+    経度: float = 140.00,
+    全天日射量: pd.Series | None = None,
+    法線面直達日射量: pd.Series | None = None,
+    水平面拡散日射量: pd.Series | None = None,
+    名前: str = "任意面",
+    use_astro: bool = False,
+    time_alignment: str = "center",
+    timestamp_ref: str = "start",
+    min_sun_alt_deg: float = 0.0,
+    albedo: float = 0.1,
+    glass_tau_diffuse: float = 0.808,
+) -> pd.DataFrame:
+    """
+    任意の緯度/経度/方位角/傾斜角で、壁面/ガラス面の日射熱取得量を返す。
 
-            df_sun = pd.DataFrame(index=df_a.index)
-            df_sun["太陽高度の正弦 sin_hs"] = df_a["太陽高度の正弦 sin_alt"]
-            df_sun["太陽高度の余弦 cos_hs"] = df_a["太陽高度の余弦 cos_alt"]
-            df_sun["太陽高度 hs"] = df_a["太陽高度 alt"]
-            df_sun["太陽方位角 AZs"] = AZs
-            df_sun["太陽方位角の正弦 sin_AZs"] = np.sin(np.radians(AZs))
-            df_sun["太陽方位角の余弦 cos_AZs"] = np.cos(np.radians(AZs))
-        else:
-            df_sun = sun_loc(s_ig.index, lat=lat, lon=lon, td=td)
-
-        df = pd.concat([s_ig, df_sun], axis=1)
-        df = pd.concat(
-            [df, sep_direct_diffuse(s_ig, df['太陽高度 hs'], min_sun_alt_deg=min_sun_alt_deg)],
-            axis = 1
-        )  # 直散分離結果
-        df = direc_solar(
-            df['法線面直達日射量 Ib'], df['水平面拡散日射量 Id'],              # 方位別日射量
-            df['太陽高度の正弦 sin_hs'], df['太陽高度の余弦 cos_hs'], df['太陽高度 hs'],
-            df['太陽方位角の正弦 sin_AZs'], df['太陽方位角の余弦 cos_AZs'], df['太陽方位角 AZs']
-        )
-    else:
-        if '法線面直達日射量' in kwargs:
-            s_ib = kwargs['法線面直達日射量']
-        else:
-            raise Exception('ERROR: 法線面直達日射量 s_ib がありません。')
-        if '水平面拡散日射量' in kwargs:
-            s_id = kwargs['水平面拡散日射量']
-        else:
-            raise Exception('ERROR: 水平面拡散日射量 s_id がありません。')
-
-        # 入力 Series の name は任意なので、以降の参照に合わせてここで正規化する
-        s_ib = s_ib.rename('法線面直達日射量 Ib')
-        s_id = s_id.rename('水平面拡散日射量 Id')
-        if '時刻調整' in kwargs:
-            td = kwargs['時刻調整']
-        else:
-            td = _auto_td_from_index(s_ib.index)
-        if use_astro:
-            df_a = astro_sun_loc(s_ib.index, lat=lat, lon=lon, td=td)
-            az = df_a["太陽方位角 az"]
-            AZs = ((az - 180.0 + 180.0) % 360.0) - 180.0
-
-            df_sun = pd.DataFrame(index=df_a.index)
-            df_sun["太陽高度の正弦 sin_hs"] = df_a["太陽高度の正弦 sin_alt"]
-            df_sun["太陽高度の余弦 cos_hs"] = df_a["太陽高度の余弦 cos_alt"]
-            df_sun["太陽高度 hs"] = df_a["太陽高度 alt"]
-            df_sun["太陽方位角 AZs"] = AZs
-            df_sun["太陽方位角の正弦 sin_AZs"] = np.sin(np.radians(AZs))
-            df_sun["太陽方位角の余弦 cos_AZs"] = np.cos(np.radians(AZs))
-        else:
-            df_sun = sun_loc(s_ib.index, lat=lat, lon=lon, td=td)
-
-        df = pd.concat([s_ib, s_id, df_sun], axis=1)
-        df = direc_solar(
-            df['法線面直達日射量 Ib'], df['水平面拡散日射量 Id'],
-            df['太陽高度の正弦 sin_hs'], df['太陽高度の余弦 cos_hs'], df['太陽高度 hs'],
-            df['太陽方位角の正弦 sin_AZs'], df['太陽方位角の余弦 cos_AZs'], df['太陽方位角 AZs']
-        )
-
-    return df
+    入力（日射）の指定は以下のいずれか:
+      - 全天日射量のみ（Erbs 直散分離）
+      - 全天日射量 + 法線面直達日射量（Id を復元）
+      - 法線面直達日射量 + 水平面拡散日射量（そのまま使用）
+    """
+    df_min = _solar_base(
+        全天日射量=全天日射量,
+        法線面直達日射量=法線面直達日射量,
+        水平面拡散日射量=水平面拡散日射量,
+        緯度=float(緯度),
+        経度=float(経度),
+        use_astro=bool(use_astro),
+        time_alignment=time_alignment,
+        timestamp_ref=timestamp_ref,
+        min_sun_alt_deg=float(min_sun_alt_deg),
+    )
+    out = _solar_gain_by_angles_from_solar_df(
+        df_min,
+        方位角=方位角,
+        傾斜角=傾斜角,
+        名前=名前,
+        albedo=albedo,
+        glass_tau_diffuse=glass_tau_diffuse,
+    )
+    # デバッグしやすいよう、基礎列も返す
+    out["法線面直達日射量 Ib"] = df_min["法線面直達日射量 Ib"]
+    out["水平面拡散日射量 Id"] = df_min["水平面拡散日射量 Id"]
+    out["太陽高度 hs"] = df_min["太陽高度 hs"]
+    out["太陽方位角 AZs"] = df_min["太陽方位角 AZs"]
+    return out
 
 __all__ = [
-    "Kt", "Id", "Ib",
-    "delta_d", "e_d", "T_d_t",
     "sun_loc", "astro_sun_loc",
-    "sep_direct_diffuse", "eta", "direc_solar", "make_solar",
+    "solar_gain_by_angles",
 ]
 
 

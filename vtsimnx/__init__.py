@@ -1,5 +1,6 @@
 from .archenv import (
-    make_solar, sun_loc, make_wind, make_nocturnal,
+    sun_loc, make_wind, make_nocturnal,
+    solar_gain_by_angles,
     calc_PMV, calc_PPD, calc_fungal_index,
 )
 
@@ -16,7 +17,8 @@ from .artifacts import get_artifact_file
 
 __all__ = [
     # archenv
-    "make_solar", "sun_loc", "make_wind", "make_nocturnal",
+    "sun_loc", "make_wind", "make_nocturnal",
+    "solar_gain_by_angles",
     "calc_PMV", "calc_PPD", "calc_fungal_index",
     # utils
     "read_json", "read_csv", "index", "read_hasp",

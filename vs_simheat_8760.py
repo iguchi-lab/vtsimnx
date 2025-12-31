@@ -1,9 +1,46 @@
+import pandas as pd
+
 import vtsimnx as vt
 
 
 
 df_i       = vt.read_hasp('3639999.has')
-solar      = vt.make_solar(df_i, use_astro=True)
+# 日射は solar_gain_by_angles で必要な面だけ計算する（方位別の大量出力は作らない）
+s_ig = df_i["水平面全天日射量"]
+s_ib = df_i["直達日射量"]
+
+def _gain(name: str, az: float, tilt: float):
+    return vt.solar_gain_by_angles(
+        方位角=az,
+        傾斜角=tilt,
+        緯度=36.0,
+        経度=140.0,
+        全天日射量=s_ig,
+        法線面直達日射量=s_ib,
+        名前=name,
+        use_astro=True,
+    )
+
+east = _gain("東面", -90.0, 90.0)
+south = _gain("南面", 0.0, 90.0)
+west = _gain("西面", 90.0, 90.0)
+north = _gain("北面", 180.0, 90.0)
+horiz = _gain("水平面", 0.0, 0.0)
+diffuse = _gain("拡散", 0.0, 90.0)
+
+solar = pd.concat(
+    [
+        east[["日射熱取得量（東面）", "日射熱取得量（東面ガラス）"]],
+        south[["日射熱取得量（南面）", "日射熱取得量（南面ガラス）"]],
+        west[["日射熱取得量（西面）", "日射熱取得量（西面ガラス）"]],
+        north[["日射熱取得量（北面）", "日射熱取得量（北面ガラス）"]],
+        horiz[["日射熱取得量（水平面）", "日射熱取得量（水平面ガラス）"]],
+    ],
+    axis=1,
+)
+solar["日射熱取得量（拡散）"] = (
+    diffuse["水平面拡散日射量の拡散成分（拡散）"] + diffuse["水平面拡散日射量の反射成分（拡散）"]
+)
 nocturnal  = vt.make_nocturnal(df_i)
 materials  = vt.materials
 
