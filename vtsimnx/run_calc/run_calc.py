@@ -179,6 +179,60 @@ def _extract_result_files(output: Dict[str, Any]) -> Dict[str, str]:
     return out
 
 
+def _normalize_simulation_index_inplace(cfg: Dict[str, Any]) -> None:
+    """
+    cfg["simulation"]["index"] が DatetimeIndex（または datetime 配列）なら
+    API互換の dict 形式へ正規化する:
+        {"start": "...", "end": "...", "timestep": 3600, "length": 8760}
+    """
+    sim = cfg.get("simulation")
+    if not isinstance(sim, dict):
+        return
+
+    idx = sim.get("index")
+    # すでに dict なら何もしない
+    if isinstance(idx, dict):
+        return
+
+    # pandas DatetimeIndex / Index / list などを DatetimeIndex へ寄せる
+    try:
+        if isinstance(idx, pd.Index):
+            dt_index = pd.DatetimeIndex(idx)
+        elif isinstance(idx, (list, tuple)):
+            dt_index = pd.to_datetime(list(idx))
+        else:
+            return
+    except Exception:
+        return
+
+    if len(dt_index) == 0:
+        return
+
+    # timestep 推定（一定間隔前提）。1点しかないなら 0 とする
+    if len(dt_index) >= 2:
+        deltas = np.diff(dt_index.asi8)  # ns
+        step_ns = int(deltas[0])
+        if not np.all(deltas == step_ns):
+            raise ValueError("simulation.index の間隔が一定ではありません（timestep を推定できません）。")
+        timestep = int(round(step_ns / 1_000_000_000))
+    else:
+        timestep = 0
+
+    def _fmt(ts: pd.Timestamp) -> str:
+        # API側の既存例に合わせて "YYYY-MM-DD HH:MM:SS" 形式にする
+        ts = pd.Timestamp(ts)
+        if ts.tzinfo is not None:
+            ts = ts.tz_convert(None)
+        return ts.strftime("%Y-%m-%d %H:%M:%S")
+
+    sim["index"] = {
+        "start": _fmt(dt_index[0]),
+        "end": _fmt(dt_index[-1]),
+        "timestep": timestep,
+        "length": int(len(dt_index)),
+    }
+
+
 def run_calc(
     base_url: str,
     config_json: Union[Dict[str, Any], str, Path],
@@ -199,6 +253,7 @@ def run_calc(
             raise TypeError(f"config_json must be dict (or json file path), got {type(config_json).__name__}")
 
     # pandas.Series などを含む場合でも送れるよう、JSON互換へ正規化
+    _normalize_simulation_index_inplace(config_json)
     config_json = to_jsonable(config_json)  # type: ignore[assignment]
     if not isinstance(config_json, dict):
         raise TypeError(f"config_json must be dict after normalization, got {type(config_json).__name__}")

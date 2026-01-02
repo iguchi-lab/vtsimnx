@@ -45,7 +45,7 @@ def test_run_calc_writes_request_json(tmp_path):
         req_path = tmp_path / "request.json"
 
         cfg = {
-            "simulation": {"index": {"length": 3, "timestep": 1}},
+            "simulation": {"index": pd.date_range("2025-01-01 01:00:00", periods=3, freq="1h")},
             "nodes": [{"key": "外部", "t": pd.Series([1.0, 2.0, None])}],
             "ventilation_branches": [],
             "thermal_branches": [],
@@ -62,6 +62,11 @@ def test_run_calc_writes_request_json(tmp_path):
 
         saved = json.loads(req_path.read_text(encoding="utf-8"))
         assert saved["nodes"][0]["t"] == [1.0, 2.0, None]
+        idx = saved["simulation"]["index"]
+        assert idx["start"] == "2025-01-01 01:00:00"
+        assert idx["end"] == "2025-01-01 03:00:00"
+        assert idx["timestep"] == 3600
+        assert idx["length"] == 3
     finally:
         server.shutdown()
         server.server_close()

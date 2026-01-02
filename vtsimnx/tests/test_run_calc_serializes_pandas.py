@@ -44,8 +44,9 @@ def test_run_calc_serializes_pandas_series():
         base_url = f"http://127.0.0.1:{port}"
 
         s = pd.Series([1.0, 2.0, None])
+        idx = pd.date_range("2025-01-01 01:00:00", periods=3, freq="1h")
         cfg = {
-            "simulation": {"index": {"length": 3, "timestep": 1}},
+            "simulation": {"index": idx},
             "nodes": [{"key": "外部", "t": s}],
         }
 
@@ -54,6 +55,8 @@ def test_run_calc_serializes_pandas_series():
         assert isinstance(_State.received, dict)
         sent_cfg = _State.received["config"]
         assert sent_cfg["nodes"][0]["t"] == [1.0, 2.0, None]
+        assert sent_cfg["simulation"]["index"]["timestep"] == 3600
+        assert sent_cfg["simulation"]["index"]["length"] == 3
     finally:
         server.shutdown()
         server.server_close()
