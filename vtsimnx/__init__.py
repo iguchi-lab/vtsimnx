@@ -11,6 +11,7 @@ from .utils.utils import (
 # 互換のため、サブモジュールをトップレベルに再エクスポート
 # 例: import vtsimnx as vt; vt.materials で参照可能にする
 from .utils import materials as materials
+from .utils import schedule as schedule
 from .utils import make_8760_data, ac_mode, pre_tmp, vol, heat
 
 from .run_calc import run_calc
@@ -25,6 +26,7 @@ __all__ = [
     "read_json", "read_csv", "index", "read_hasp",
     # submodules (compat)
     "materials",
+    "schedule",
     # schedule (compat)
     "make_8760_data", "ac_mode", "pre_tmp", "vol", "heat",
     # run_calc
