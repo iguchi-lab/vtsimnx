@@ -31,6 +31,8 @@ class CalcRunResult:
     artifact_dir: str
     base_url: str
     result_files: Dict[str, str]
+    # 送信した設定（クライアント側）。indexの復元などに使う
+    config: Optional[Dict[str, Any]] = field(default=None, repr=False)
     errors: Dict[str, str] = field(default_factory=dict)
     _dataframes: Dict[str, pd.DataFrame] = field(default_factory=dict, repr=False)
     _log_text: Optional[str] = field(default=None, repr=False)
@@ -139,6 +141,16 @@ class CalcRunResult:
             arr = arr.reshape((T, N))
             df = pd.DataFrame(arr, columns=cols)
 
+            # 可能なら時間軸インデックスを付与（クライアントが送った simulation.index から復元）
+            try:
+                idx = _time_index_from_config(self.config, expected_length=T)
+                if idx is not None:
+                    df.index = idx
+                    df.index.name = "time"
+            except Exception as e:
+                # 取得自体は成功させたいので、index付与の失敗は errors に記録して続行
+                self.errors["__index__"] = f"{type(e).__name__}: {e}"
+
             self._dataframes[series_name] = df
             return df
         except Exception as e:
@@ -177,6 +189,39 @@ def _extract_result_files(output: Dict[str, Any]) -> Dict[str, str]:
         if isinstance(k, str) and isinstance(v, str):
             out[k] = v
     return out
+
+
+def _time_index_from_config(config: Optional[Dict[str, Any]], *, expected_length: int) -> Optional[pd.DatetimeIndex]:
+    """
+    config["simulation"]["index"] が dict（start/end/timestep/length）なら DatetimeIndex を復元する。
+    expected_length と length が一致しない場合は None。
+    """
+    if not isinstance(config, dict):
+        return None
+    sim = config.get("simulation")
+    if not isinstance(sim, dict):
+        return None
+    spec = sim.get("index")
+    if not isinstance(spec, dict):
+        return None
+
+    start = spec.get("start")
+    timestep = spec.get("timestep")
+    length = spec.get("length")
+    if not isinstance(start, str) or not start:
+        return None
+    if not isinstance(timestep, int) or timestep < 0:
+        return None
+    if not isinstance(length, int) or length <= 0:
+        return None
+    if length != int(expected_length):
+        return None
+
+    start_ts = pd.to_datetime(start)
+    # timestep==0 の場合は単一点を返す
+    if timestep == 0:
+        return pd.DatetimeIndex([start_ts] * length)
+    return pd.date_range(start=start_ts, periods=length, freq=pd.to_timedelta(timestep, unit="s"))
 
 
 def _normalize_simulation_index_inplace(cfg: Dict[str, Any]) -> None:
@@ -307,6 +352,7 @@ def run_calc(
         artifact_dir=artifact_dir,
         base_url=base_url,
         result_files=result_files,
+        config=config_json,
     )
 
 if __name__ == "__main__":

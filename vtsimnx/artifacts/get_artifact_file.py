@@ -82,6 +82,8 @@ def get_artifact_file(
     artifact_dir: str,
     filename: str,
     output_path: Optional[str] = None,
+    *,
+    index_spec: Optional[Dict[str, Any]] = None,
     timeout: float = 60.0,
 ) -> Union[bytes, "pd.DataFrame"]:
     """
@@ -148,6 +150,26 @@ def get_artifact_file(
         raise ValueError(f"{bin_basename}: 要素数が不一致です (actual={arr.size}, expected={expected}, T={T}, N={N})")
     arr = arr.reshape((T, N))
 
-    return pd.DataFrame(arr, columns=cols)
+    df = pd.DataFrame(arr, columns=cols)
+    # 任意: index_spec があれば時間軸を付与
+    if isinstance(index_spec, dict):
+        try:
+            start = index_spec.get("start")
+            timestep = index_spec.get("timestep")
+            length = index_spec.get("length")
+            if isinstance(start, str) and isinstance(timestep, int) and isinstance(length, int):
+                if length == T:
+                    start_ts = pd.to_datetime(start)
+                    if timestep == 0:
+                        df.index = pd.DatetimeIndex([start_ts] * T)
+                    else:
+                        df.index = pd.date_range(
+                            start=start_ts, periods=T, freq=pd.to_timedelta(timestep, unit="s")
+                        )
+                    df.index.name = "time"
+        except Exception:
+            # index付与に失敗してもDataFrame自体は返す
+            pass
+    return df
 
 
