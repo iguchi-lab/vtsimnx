@@ -28,9 +28,8 @@ astro = [
   "astropy>=5",
 ]
 
-# パッケージ探索の明示設定（vtsim_config と vtsimnx を含める）
 [tool.setuptools.packages.find]
-include = ["vtsimnx*", "vtsim_config*"]
+include = ["vtsimnx*"]
 
 [tool.pytest.ini_options]
 testpaths = ["vtsimnx/tests"]

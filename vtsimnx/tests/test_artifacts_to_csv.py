@@ -41,13 +41,13 @@ def test_tools_artifacts_to_csv_smoke(tmp_path: Path) -> None:
     np.array([10.0, 11.0, 12.0], dtype="<f4").tofile(artifacts_dir / "vent.pressure.f32.bin")  # (3,1)
 
     # run main()
-    from tools.artifacts_to_csv import main
+    from vtsimnx.tools.artifacts_to_csv import main
 
     import sys
 
     argv_bak = sys.argv[:]
     try:
-        sys.argv = ["tools/artifacts_to_csv.py", "--artifact-dir", str(artifact_dir)]
+        sys.argv = ["vtsimnx.tools.artifacts_to_csv", "--artifact-dir", str(artifact_dir)]
         rc = main()
     finally:
         sys.argv = argv_bak

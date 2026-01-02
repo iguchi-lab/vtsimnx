@@ -103,3 +103,5 @@ materials = {
     k: {**v, "v_capa": v["v_capa"] * 1000.0}
     for k, v in _materials_kj_per_m3k.items()
 }
+
+

@@ -8,11 +8,10 @@ from .utils.utils import (
     read_json, read_csv, index, read_hasp,
 )
 
-# 互換のため、サブモジュールをトップレベルに再エクスポート
-# 例: import vtsimnx as vt; vt.materials で参照可能にする
-from .utils import materials as materials
-from .utils import schedule as schedule
-from .utils import make_8760_data, ac_mode, pre_tmp, vol, heat
+# materials（辞書）
+from .materials import materials as materials
+from . import schedule as schedule
+from .schedule import make_8760_data, ac_mode, pre_tmp, vol, sensible_heat
 
 from .run_calc import run_calc
 from .artifacts import get_artifact_file
@@ -24,11 +23,12 @@ __all__ = [
     "calc_PMV", "calc_PPD", "calc_fungal_index",
     # utils
     "read_json", "read_csv", "index", "read_hasp",
-    # submodules (compat)
+    # materials
     "materials",
     "schedule",
     # schedule (compat)
-    "make_8760_data", "ac_mode", "pre_tmp", "vol", "heat",
+    "make_8760_data", "ac_mode", "pre_tmp", "vol",
+    "sensible_heat",
     # run_calc
     "run_calc",
     # artifacts
