@@ -1,5 +1,5 @@
-from .get_artifact_file import get_artifact_file
+from .get_artifact_file import get_artifact_bytes, get_artifact_file
 
-__all__ = ["get_artifact_file"]
+__all__ = ["get_artifact_bytes", "get_artifact_file"]
 
 

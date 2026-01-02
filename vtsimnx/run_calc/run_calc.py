@@ -1,5 +1,4 @@
 import json
-import gzip
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
@@ -7,8 +6,16 @@ from typing import Any, Dict, Optional, Union
 
 import numpy as np
 import pandas as pd
-import requests
 
+from vtsimnx.artifacts._schema import extract_result_files
+from vtsimnx.run_calc._http import _post_run
+from vtsimnx.run_calc._index import (
+    _normalize_simulation_index_inplace,
+    _time_index_from_config,
+    _time_index_from_output,
+)
+from vtsimnx.run_calc._io import _write_json
+from vtsimnx.run_calc._response import _output_block
 from vtsimnx.utils.jsonable import to_jsonable
 
 
@@ -65,7 +72,7 @@ class CalcRunResult:
         if self._log_text is not None:
             return self._log_text
 
-        output = _extract_output_block(self.output)
+        output = _output_block(self.output)
 
         # まずはレスポンス内の log.text を優先
         log_block = output.get("log")
@@ -141,9 +148,13 @@ class CalcRunResult:
             arr = arr.reshape((T, N))
             df = pd.DataFrame(arr, columns=cols)
 
-            # 可能なら時間軸インデックスを付与（クライアントが送った simulation.index から復元）
+            # 可能なら時間軸インデックスを付与
+            # - まずAPIレスポンス(output.index) を優先
+            # - 無ければクライアントが送った simulation.index から復元
             try:
-                idx = _time_index_from_config(self.config, expected_length=T)
+                idx = _time_index_from_output(self.output, expected_length=T)
+                if idx is None:
+                    idx = _time_index_from_config(self.config, expected_length=T)
                 if idx is not None:
                     df.index = idx
                     df.index.name = "time"
@@ -165,117 +176,6 @@ class CalcRunResult:
         for series_name in list(self.result_files.keys()):
             _ = self.get_series_df(series_name)
         return self._dataframes
-
-
-def _extract_output_block(resp_json: Dict[str, Any]) -> Dict[str, Any]:
-    # APIの形の揺れを吸収: {"output": {...}} / {"result": {...}} / 直下
-    if isinstance(resp_json.get("output"), dict):
-        return resp_json["output"]  # type: ignore[return-value]
-    if isinstance(resp_json.get("result"), dict):
-        return resp_json["result"]  # type: ignore[return-value]
-    return resp_json
-
-
-def _extract_result_files(output: Dict[str, Any]) -> Dict[str, str]:
-    result_files = output.get("result_files")
-    if not isinstance(result_files, dict):
-        # 互換: files という名前の場合
-        result_files = output.get("files")
-    if not isinstance(result_files, dict):
-        raise ValueError("run_calcレスポンスから result_files/files を取得できませんでした")
-
-    out: Dict[str, str] = {}
-    for k, v in result_files.items():
-        if isinstance(k, str) and isinstance(v, str):
-            out[k] = v
-    return out
-
-
-def _time_index_from_config(config: Optional[Dict[str, Any]], *, expected_length: int) -> Optional[pd.DatetimeIndex]:
-    """
-    config["simulation"]["index"] が dict（start/end/timestep/length）なら DatetimeIndex を復元する。
-    expected_length と length が一致しない場合は None。
-    """
-    if not isinstance(config, dict):
-        return None
-    sim = config.get("simulation")
-    if not isinstance(sim, dict):
-        return None
-    spec = sim.get("index")
-    if not isinstance(spec, dict):
-        return None
-
-    start = spec.get("start")
-    timestep = spec.get("timestep")
-    length = spec.get("length")
-    if not isinstance(start, str) or not start:
-        return None
-    if not isinstance(timestep, int) or timestep < 0:
-        return None
-    if not isinstance(length, int) or length <= 0:
-        return None
-    if length != int(expected_length):
-        return None
-
-    start_ts = pd.to_datetime(start)
-    # timestep==0 の場合は単一点を返す
-    if timestep == 0:
-        return pd.DatetimeIndex([start_ts] * length)
-    return pd.date_range(start=start_ts, periods=length, freq=pd.to_timedelta(timestep, unit="s"))
-
-
-def _normalize_simulation_index_inplace(cfg: Dict[str, Any]) -> None:
-    """
-    cfg["simulation"]["index"] が DatetimeIndex（または datetime 配列）なら
-    API互換の dict 形式へ正規化する:
-        {"start": "...", "end": "...", "timestep": 3600, "length": 8760}
-    """
-    sim = cfg.get("simulation")
-    if not isinstance(sim, dict):
-        return
-
-    idx = sim.get("index")
-    # すでに dict なら何もしない
-    if isinstance(idx, dict):
-        return
-
-    # pandas DatetimeIndex / Index / list などを DatetimeIndex へ寄せる
-    try:
-        if isinstance(idx, pd.Index):
-            dt_index = pd.DatetimeIndex(idx)
-        elif isinstance(idx, (list, tuple)):
-            dt_index = pd.to_datetime(list(idx))
-        else:
-            return
-    except Exception:
-        return
-
-    if len(dt_index) == 0:
-        return
-
-    # timestep 推定（一定間隔前提）。1点しかないなら 0 とする
-    if len(dt_index) >= 2:
-        deltas = np.diff(dt_index.asi8)  # ns
-        step_ns = int(deltas[0])
-        if not np.all(deltas == step_ns):
-            raise ValueError("simulation.index の間隔が一定ではありません（timestep を推定できません）。")
-        timestep = int(round(step_ns / 1_000_000_000))
-    else:
-        timestep = 0
-
-    def _fmt(ts: pd.Timestamp) -> str:
-        # API側の既存例に合わせて "YYYY-MM-DD HH:MM:SS" 形式にする
-        ts = pd.Timestamp(ts)
-        if ts.tzinfo is not None:
-            ts = ts.tz_convert(None)
-        return ts.strftime("%Y-%m-%d %H:%M:%S")
-
-    sim["index"] = {
-        "start": _fmt(dt_index[0]),
-        "end": _fmt(dt_index[-1]),
-        "timestep": timestep,
-        "length": int(len(dt_index)),
-    }
 
 
 def run_calc(
@@ -303,48 +203,31 @@ def run_calc(
     if not isinstance(config_json, dict):
         raise TypeError(f"config_json must be dict after normalization, got {type(config_json).__name__}")
 
-    url = base_url.rstrip("/") + "/run"
     payload = {"config": config_json}
 
     # デバッグ/監査用途: 送信するリクエストJSONを保存（必要な場合のみ）
     if request_output_path is not None:
-        p = Path(request_output_path)
-        if p.suffix.lower() == ".gz":
-            with gzip.open(p, "wt", encoding="utf-8") as f:
-                json.dump(config_json, f, ensure_ascii=False, indent=2)
-        else:
-            with p.open("w", encoding="utf-8") as f:
-                json.dump(config_json, f, ensure_ascii=False, indent=2)
+        _write_json(request_output_path, config_json)
 
-    if compress_request:
-        raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        gz = gzip.compress(raw)
-        response = requests.post(
-            url,
-            data=gz,
-            headers={
-                "Content-Type": "application/json",
-                "Content-Encoding": "gzip",
-                "Accept": "application/json",
-            },
-            timeout=timeout,
-        )
-    else:
-        response = requests.post(url, json=payload, timeout=timeout)
+    resp_json = _post_run(
+        base_url,
+        payload=payload,
+        compress_request=compress_request,
+        timeout=timeout,
+    )
+
     if output_path is not None:
-        with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(response.json(), f, indent=4, ensure_ascii=False)
-    resp_json: Dict[str, Any] = response.json()
+        _write_json(output_path, resp_json)
 
     if not with_dataframes:
         return resp_json
 
-    output = _extract_output_block(resp_json)
+    output = _output_block(resp_json)
     artifact_dir = output.get("artifact_dir")
     if not isinstance(artifact_dir, str) or not artifact_dir:
         raise ValueError(f"run_calcレスポンスから artifact_dir を取得できませんでした: {artifact_dir!r}")
 
-    result_files = _extract_result_files(output)
+    result_files = extract_result_files(output)
 
     # ここでは DataFrame を作らない（遅延ロード）
     return CalcRunResult(

@@ -27,6 +27,55 @@ def _get_bytes_fallback(base_url: str, artifact_dir: str, relpaths: List[str], t
     raise last_exc  # type: ignore[misc]
 
 
+def _load_json_bytes(raw: bytes) -> Dict[str, Any]:
+    return json.loads(raw.decode("utf-8"))
+
+
+def _get_json_fallback(
+    base_url: str,
+    artifact_dir: str,
+    relpaths: List[str],
+    *,
+    timeout: float,
+) -> Dict[str, Any]:
+    raw = _get_bytes_fallback(base_url, artifact_dir, relpaths, timeout=timeout)
+    obj = _load_json_bytes(raw)
+    if not isinstance(obj, dict):
+        raise TypeError(f"expected JSON object, got {type(obj).__name__}")
+    return obj
+
+
+def _infer_index_spec_from_manifest(manifest: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    """
+    manifest（または manifest["output"]）に index があれば返す。
+    """
+    output = manifest.get("output") if isinstance(manifest.get("output"), dict) else manifest
+    if isinstance(output, dict) and isinstance(output.get("index"), dict):
+        return output.get("index")  # type: ignore[return-value]
+    return None
+
+
+def _apply_time_index_inplace(df: "pd.DataFrame", index_spec: Dict[str, Any], *, expected_length: int) -> None:
+    """
+    index_spec（start/timestep/length）に基づいて df.index を time軸にする。
+    失敗しても例外は上位で握りつぶす前提。
+    """
+    start = index_spec.get("start")
+    timestep = index_spec.get("timestep")
+    length = index_spec.get("length")
+    if not (isinstance(start, str) and isinstance(timestep, int) and isinstance(length, int)):
+        return
+    if length != expected_length:
+        return
+
+    start_ts = pd.to_datetime(start)
+    if timestep == 0:
+        df.index = pd.DatetimeIndex([start_ts] * expected_length)
+    else:
+        df.index = pd.date_range(start=start_ts, periods=expected_length, freq=pd.to_timedelta(timestep, unit="s"))
+    df.index.name = "time"
+
+
 def _get_artifact_bytes_with_used_path(
     base_url: str,
     artifact_dir: str,
@@ -98,9 +147,6 @@ def get_artifact_file(
       - layout: schema.json の "timestep-major" -> shape=(T, N)
     - それ以外は取得したバイト列を返す
     """
-    def _load_json_bytes(raw: bytes) -> Dict[str, Any]:
-        return json.loads(raw.decode("utf-8"))
-
     data, used_relpath = _get_artifact_bytes_with_used_path(
         base_url, artifact_dir, filename, timeout=timeout
     )
@@ -115,8 +161,8 @@ def get_artifact_file(
         return data
 
     # schema/manifest は配置ゆれがあるので両方試す
-    schema = _load_json_bytes(_get_bytes_fallback(base_url, artifact_dir, ["schema.json", "artifacts/schema.json"], timeout=timeout))
-    manifest = _load_json_bytes(_get_bytes_fallback(base_url, artifact_dir, ["manifest.json", "artifacts/manifest.json"], timeout=timeout))
+    schema = _get_json_fallback(base_url, artifact_dir, ["schema.json", "artifacts/schema.json"], timeout=timeout)
+    manifest = _get_json_fallback(base_url, artifact_dir, ["manifest.json", "artifacts/manifest.json"], timeout=timeout)
 
     dtype = schema.get("dtype")
     layout = schema.get("layout")
@@ -151,22 +197,13 @@ def get_artifact_file(
     arr = arr.reshape((T, N))
 
     df = pd.DataFrame(arr, columns=cols)
-    # 任意: index_spec があれば時間軸を付与
+    # index_spec が明示されていればそれを優先。無ければ manifest/output の index を使う。
+    if index_spec is None:
+        index_spec = _infer_index_spec_from_manifest(manifest)
+
     if isinstance(index_spec, dict):
         try:
-            start = index_spec.get("start")
-            timestep = index_spec.get("timestep")
-            length = index_spec.get("length")
-            if isinstance(start, str) and isinstance(timestep, int) and isinstance(length, int):
-                if length == T:
-                    start_ts = pd.to_datetime(start)
-                    if timestep == 0:
-                        df.index = pd.DatetimeIndex([start_ts] * T)
-                    else:
-                        df.index = pd.date_range(
-                            start=start_ts, periods=T, freq=pd.to_timedelta(timestep, unit="s")
-                        )
-                    df.index.name = "time"
+            _apply_time_index_inplace(df, index_spec, expected_length=T)
         except Exception:
             # index付与に失敗してもDataFrame自体は返す
             pass
