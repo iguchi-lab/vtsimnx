@@ -22,10 +22,11 @@ from .common import (
 )
 
 # 空調モード（本モジュールの ac_mode の値）
-# 1: 暖房 / 2: 冷房 / 3: 停止
+# 0: 停止 / 1: 暖房 / 2: 冷房 / 3:自動
+AC_MODE_STOP = 0
 AC_MODE_HEATING = 1
 AC_MODE_COOLING = 2
-AC_MODE_STOP = 3
+AC_MODE_AUTO = 3
 
 ac_mode_profiles = {
     "LD": {
