@@ -21,7 +21,6 @@ using json = nlohmann::json;
 
 #include "vtsim_solver.h"
 #include "vtsimnx_solver_timing.h"
-#include "vtsimnx_solver_timing.h"
 #include "parser/sim_constants_parser.h"
 #include "parser/nodes_parser.h"
 #include "parser/branches_parser.h"
@@ -59,6 +58,53 @@ struct NullBuffer final : std::streambuf {
 };
 static NullBuffer g_null_buf;
 static std::ostream g_null_stream(&g_null_buf);
+
+struct OutputFiles {
+    std::ofstream& ventPressureFile;
+    std::ofstream& ventFlowRateFile;
+    std::ofstream& thermalTemperatureFile;
+    std::ofstream& thermalTemperatureCapacityFile;
+    std::ofstream& thermalTemperatureLayerFile;
+    std::ofstream& thermalHeatRateAdvectionFile;
+    std::ofstream& thermalHeatRateHeatGenerationFile;
+    std::ofstream& thermalHeatRateSolarGainFile;
+    std::ofstream& thermalHeatRateNocturnalLossFile;
+    std::ofstream& thermalHeatRateConvectionFile;
+    std::ofstream& thermalHeatRateConductionFile;
+    std::ofstream& thermalHeatRateRadiationFile;
+    std::ofstream& thermalHeatRateCapacityFile;
+    std::ofstream& airconSensibleHeatFile;
+    std::ofstream& airconLatentHeatFile;
+    std::ofstream& airconPowerFile;
+    std::ofstream& airconCOPFile;
+};
+
+static void initializeSchemaIfNeeded(ArtifactIO::OutputSchema& schema,
+                                     VentilationNetwork& ventNetwork,
+                                     ThermalNetwork& thermalNetwork,
+                                     AirconController& airconController) {
+    if (schema.initialized) return;
+    schema.pressureKeys = ventNetwork.getPressureKeys();
+    schema.flowRateKeys = ventNetwork.getFlowRateKeys();
+    schema.temperatureKeys = thermalNetwork.getTemperatureKeys();
+    schema.temperatureKeysCapacity = thermalNetwork.getTemperatureKeysCapacity();
+    schema.temperatureKeysLayer = thermalNetwork.getTemperatureKeysLayer();
+    schema.heatRateKeysAdvection = thermalNetwork.getHeatRateKeysAdvection();
+    schema.heatRateKeysHeatGeneration = thermalNetwork.getHeatRateKeysHeatGeneration();
+    schema.heatRateKeysSolarGain = thermalNetwork.getHeatRateKeysSolarGain();
+    schema.heatRateKeysNocturnalLoss = thermalNetwork.getHeatRateKeysNocturnalLoss();
+    schema.heatRateKeysConvection = thermalNetwork.getHeatRateKeysConvection();
+    schema.heatRateKeysConduction = thermalNetwork.getHeatRateKeysConduction();
+    schema.heatRateKeysRadiation = thermalNetwork.getHeatRateKeysRadiation();
+    schema.heatRateKeysCapacity = thermalNetwork.getHeatRateKeysCapacity();
+
+    const auto& airconKeys = airconController.getAirconKeys();
+    schema.airconSensibleHeatKeys = airconKeys;
+    schema.airconLatentHeatKeys = airconKeys;
+    schema.airconPowerKeys = airconKeys;
+    schema.airconCOPKeys = airconKeys;
+    schema.initialized = true;
+}
 
 // ヘルパー: ファイル全体を読み込む（失敗時は false, err に理由）
 static bool readFileToString(const char* path, std::string& out, std::string& err) {
@@ -130,23 +176,7 @@ static bool loadInputData(const char* inputPath, InputData& inputData, std::stri
 // シミュレーション実行: ネットワークを構築し、タイムステップループを実行
 static bool runSimulationLoop(const InputData& inputData,
                               std::ostream& logs,
-                              std::ofstream& ventPressureFile,
-                              std::ofstream& ventFlowRateFile,
-                              std::ofstream& thermalTemperatureFile,
-                              std::ofstream& thermalTemperatureCapacityFile,
-                              std::ofstream& thermalTemperatureLayerFile,
-                              std::ofstream& thermalHeatRateAdvectionFile,
-                              std::ofstream& thermalHeatRateHeatGenerationFile,
-                              std::ofstream& thermalHeatRateSolarGainFile,
-                              std::ofstream& thermalHeatRateNocturnalLossFile,
-                              std::ofstream& thermalHeatRateConvectionFile,
-                              std::ofstream& thermalHeatRateConductionFile,
-                              std::ofstream& thermalHeatRateRadiationFile,
-                              std::ofstream& thermalHeatRateCapacityFile,
-                              std::ofstream& airconSensibleHeatFile,
-                              std::ofstream& airconLatentHeatFile,
-                              std::ofstream& airconPowerFile,
-                              std::ofstream& airconCOPFile,
+                              OutputFiles& outFiles,
                               const std::filesystem::path& schemaPath,
                               std::string& err,
                               TimingList& timings) {
@@ -308,27 +338,7 @@ static bool runSimulationLoop(const InputData& inputData,
 
             {
                 ScopedTimer timer(timings, "write_timestep_results", stepMeta);
-                if (!schema.initialized) {
-                    schema.pressureKeys = ventNetwork.getPressureKeys();
-                    schema.flowRateKeys = ventNetwork.getFlowRateKeys();
-                    schema.temperatureKeys = thermalNetwork.getTemperatureKeys();
-                    schema.temperatureKeysCapacity = thermalNetwork.getTemperatureKeysCapacity();
-                    schema.temperatureKeysLayer = thermalNetwork.getTemperatureKeysLayer();
-                    schema.heatRateKeysAdvection = thermalNetwork.getHeatRateKeysAdvection();
-                    schema.heatRateKeysHeatGeneration = thermalNetwork.getHeatRateKeysHeatGeneration();
-                    schema.heatRateKeysSolarGain = thermalNetwork.getHeatRateKeysSolarGain();
-                    schema.heatRateKeysNocturnalLoss = thermalNetwork.getHeatRateKeysNocturnalLoss();
-                    schema.heatRateKeysConvection = thermalNetwork.getHeatRateKeysConvection();
-                    schema.heatRateKeysConduction = thermalNetwork.getHeatRateKeysConduction();
-                    schema.heatRateKeysRadiation = thermalNetwork.getHeatRateKeysRadiation();
-                    schema.heatRateKeysCapacity = thermalNetwork.getHeatRateKeysCapacity();
-                    const auto& airconKeys = airconController.getAirconKeys();
-                    schema.airconSensibleHeatKeys = airconKeys;
-                    schema.airconLatentHeatKeys = airconKeys;
-                    schema.airconPowerKeys = airconKeys;
-                    schema.airconCOPKeys = airconKeys;
-                    schema.initialized = true;
-                }
+                initializeSchemaIfNeeded(schema, ventNetwork, thermalNetwork, airconController);
 
                 if (!schemasWritten) {
                     std::string schemaErr;
@@ -343,64 +353,64 @@ static bool runSimulationLoop(const InputData& inputData,
                     schemasWritten = true;
                 }
 
-                ArtifactIO::writeFloat32ArrayBinary(ventPressureFile, timestepResult.pressure, schema.pressureKeys.size());
-                ArtifactIO::writeFloat32ArrayBinary(ventFlowRateFile, timestepResult.flowRate, schema.flowRateKeys.size());
-                ArtifactIO::writeFloat32ArrayBinary(thermalTemperatureFile, timestepResult.temperature, schema.temperatureKeys.size());
-                ArtifactIO::writeFloat32ArrayBinary(thermalTemperatureCapacityFile, timestepResult.temperatureCapacity, schema.temperatureKeysCapacity.size());
-                ArtifactIO::writeFloat32ArrayBinary(thermalTemperatureLayerFile, timestepResult.temperatureLayer, schema.temperatureKeysLayer.size());
-                ArtifactIO::writeFloat32ArrayBinary(thermalHeatRateAdvectionFile, timestepResult.heatRateAdvection, schema.heatRateKeysAdvection.size());
-                ArtifactIO::writeFloat32ArrayBinary(thermalHeatRateHeatGenerationFile, timestepResult.heatRateHeatGeneration, schema.heatRateKeysHeatGeneration.size());
-                ArtifactIO::writeFloat32ArrayBinary(thermalHeatRateSolarGainFile, timestepResult.heatRateSolarGain, schema.heatRateKeysSolarGain.size());
-                ArtifactIO::writeFloat32ArrayBinary(thermalHeatRateNocturnalLossFile, timestepResult.heatRateNocturnalLoss, schema.heatRateKeysNocturnalLoss.size());
-                ArtifactIO::writeFloat32ArrayBinary(thermalHeatRateConvectionFile, timestepResult.heatRateConvection, schema.heatRateKeysConvection.size());
-                ArtifactIO::writeFloat32ArrayBinary(thermalHeatRateConductionFile, timestepResult.heatRateConduction, schema.heatRateKeysConduction.size());
-                ArtifactIO::writeFloat32ArrayBinary(thermalHeatRateRadiationFile, timestepResult.heatRateRadiation, schema.heatRateKeysRadiation.size());
-                ArtifactIO::writeFloat32ArrayBinary(thermalHeatRateCapacityFile, timestepResult.heatRateCapacity, schema.heatRateKeysCapacity.size());
-                ArtifactIO::writeFloat32ArrayBinary(airconSensibleHeatFile, timestepResult.airconSensibleHeat, schema.airconSensibleHeatKeys.size());
-                ArtifactIO::writeFloat32ArrayBinary(airconLatentHeatFile, timestepResult.airconLatentHeat, schema.airconLatentHeatKeys.size());
-                ArtifactIO::writeFloat32ArrayBinary(airconPowerFile, timestepResult.airconPower, schema.airconPowerKeys.size());
-                ArtifactIO::writeFloat32ArrayBinary(airconCOPFile, timestepResult.airconCOP, schema.airconCOPKeys.size());
+                ArtifactIO::writeFloat32ArrayBinary(outFiles.ventPressureFile, timestepResult.pressure, schema.pressureKeys.size());
+                ArtifactIO::writeFloat32ArrayBinary(outFiles.ventFlowRateFile, timestepResult.flowRate, schema.flowRateKeys.size());
+                ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalTemperatureFile, timestepResult.temperature, schema.temperatureKeys.size());
+                ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalTemperatureCapacityFile, timestepResult.temperatureCapacity, schema.temperatureKeysCapacity.size());
+                ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalTemperatureLayerFile, timestepResult.temperatureLayer, schema.temperatureKeysLayer.size());
+                ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalHeatRateAdvectionFile, timestepResult.heatRateAdvection, schema.heatRateKeysAdvection.size());
+                ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalHeatRateHeatGenerationFile, timestepResult.heatRateHeatGeneration, schema.heatRateKeysHeatGeneration.size());
+                ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalHeatRateSolarGainFile, timestepResult.heatRateSolarGain, schema.heatRateKeysSolarGain.size());
+                ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalHeatRateNocturnalLossFile, timestepResult.heatRateNocturnalLoss, schema.heatRateKeysNocturnalLoss.size());
+                ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalHeatRateConvectionFile, timestepResult.heatRateConvection, schema.heatRateKeysConvection.size());
+                ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalHeatRateConductionFile, timestepResult.heatRateConduction, schema.heatRateKeysConduction.size());
+                ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalHeatRateRadiationFile, timestepResult.heatRateRadiation, schema.heatRateKeysRadiation.size());
+                ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalHeatRateCapacityFile, timestepResult.heatRateCapacity, schema.heatRateKeysCapacity.size());
+                ArtifactIO::writeFloat32ArrayBinary(outFiles.airconSensibleHeatFile, timestepResult.airconSensibleHeat, schema.airconSensibleHeatKeys.size());
+                ArtifactIO::writeFloat32ArrayBinary(outFiles.airconLatentHeatFile, timestepResult.airconLatentHeat, schema.airconLatentHeatKeys.size());
+                ArtifactIO::writeFloat32ArrayBinary(outFiles.airconPowerFile, timestepResult.airconPower, schema.airconPowerKeys.size());
+                ArtifactIO::writeFloat32ArrayBinary(outFiles.airconCOPFile, timestepResult.airconCOP, schema.airconCOPKeys.size());
 
                 resultsLinesWritten += 8;
                 if (resultsLinesWritten % kResultsFlushIntervalLines == 0) {
-                    ventPressureFile.flush();
-                    ventFlowRateFile.flush();
-                    thermalTemperatureFile.flush();
-                    thermalTemperatureCapacityFile.flush();
-                    thermalTemperatureLayerFile.flush();
-                    thermalHeatRateAdvectionFile.flush();
-                    thermalHeatRateHeatGenerationFile.flush();
-                    thermalHeatRateSolarGainFile.flush();
-                    thermalHeatRateNocturnalLossFile.flush();
-                    thermalHeatRateConvectionFile.flush();
-                    thermalHeatRateConductionFile.flush();
-                    thermalHeatRateRadiationFile.flush();
-                    thermalHeatRateCapacityFile.flush();
-                    airconSensibleHeatFile.flush();
-                    airconLatentHeatFile.flush();
-                    airconPowerFile.flush();
-                    airconCOPFile.flush();
+                    outFiles.ventPressureFile.flush();
+                    outFiles.ventFlowRateFile.flush();
+                    outFiles.thermalTemperatureFile.flush();
+                    outFiles.thermalTemperatureCapacityFile.flush();
+                    outFiles.thermalTemperatureLayerFile.flush();
+                    outFiles.thermalHeatRateAdvectionFile.flush();
+                    outFiles.thermalHeatRateHeatGenerationFile.flush();
+                    outFiles.thermalHeatRateSolarGainFile.flush();
+                    outFiles.thermalHeatRateNocturnalLossFile.flush();
+                    outFiles.thermalHeatRateConvectionFile.flush();
+                    outFiles.thermalHeatRateConductionFile.flush();
+                    outFiles.thermalHeatRateRadiationFile.flush();
+                    outFiles.thermalHeatRateCapacityFile.flush();
+                    outFiles.airconSensibleHeatFile.flush();
+                    outFiles.airconLatentHeatFile.flush();
+                    outFiles.airconPowerFile.flush();
+                    outFiles.airconCOPFile.flush();
                 }
             }
         }
 
-        ventPressureFile.flush();
-        ventFlowRateFile.flush();
-        thermalTemperatureFile.flush();
-        thermalTemperatureCapacityFile.flush();
-        thermalTemperatureLayerFile.flush();
-        thermalHeatRateAdvectionFile.flush();
-        thermalHeatRateHeatGenerationFile.flush();
-        thermalHeatRateSolarGainFile.flush();
-        thermalHeatRateNocturnalLossFile.flush();
-        thermalHeatRateConvectionFile.flush();
-        thermalHeatRateConductionFile.flush();
-        thermalHeatRateRadiationFile.flush();
-        thermalHeatRateCapacityFile.flush();
-        airconSensibleHeatFile.flush();
-        airconLatentHeatFile.flush();
-        airconPowerFile.flush();
-        airconCOPFile.flush();
+        outFiles.ventPressureFile.flush();
+        outFiles.ventFlowRateFile.flush();
+        outFiles.thermalTemperatureFile.flush();
+        outFiles.thermalTemperatureCapacityFile.flush();
+        outFiles.thermalTemperatureLayerFile.flush();
+        outFiles.thermalHeatRateAdvectionFile.flush();
+        outFiles.thermalHeatRateHeatGenerationFile.flush();
+        outFiles.thermalHeatRateSolarGainFile.flush();
+        outFiles.thermalHeatRateNocturnalLossFile.flush();
+        outFiles.thermalHeatRateConvectionFile.flush();
+        outFiles.thermalHeatRateConductionFile.flush();
+        outFiles.thermalHeatRateRadiationFile.flush();
+        outFiles.thermalHeatRateCapacityFile.flush();
+        outFiles.airconSensibleHeatFile.flush();
+        outFiles.airconLatentHeatFile.flush();
+        outFiles.airconPowerFile.flush();
+        outFiles.airconCOPFile.flush();
 
         clearLogTimestepMeta(logs);
         writeLog(logs, "タイムステップループ終了");
@@ -742,10 +752,7 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
     std::ostream& logs = (requestedVerbosity <= 0) ? g_null_stream : static_cast<std::ostream&>(logFile);
     writeLog(logs, "入力JSONを読み込みました。");
 
-    auto simStart = std::chrono::steady_clock::now();
-    bool simulationSuccess = runSimulationLoop(
-        inputData,
-        logs,
+    OutputFiles outFiles{
         ventPressureFile,
         ventFlowRateFile,
         thermalTemperatureFile,
@@ -763,6 +770,13 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
         airconLatentHeatFile,
         airconPowerFile,
         airconCOPFile,
+    };
+
+    auto simStart = std::chrono::steady_clock::now();
+    bool simulationSuccess = runSimulationLoop(
+        inputData,
+        logs,
+        outFiles,
         schemaPath,
         err,
         timings);

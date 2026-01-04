@@ -253,23 +253,23 @@ double CRIEPIModel::calculateCoolingEfficiency(double Q, double P, double V_inne
     
     // 蒸発器側の空気質量流量計算 (C++: V_innerは既にm³/s単位)
     double M_evp = (1 - PythonConstants::BYPASS_FACTOR) * ae::air_density(ae::jis::T_C_IN) * i_v;
-    acmodel::log("　　　M_evp: " + std::to_string(M_evp) + ", ae::jis::T_C_IN: " + std::to_string(ae::jis::T_C_IN));
+    acmodel::log("　　　M_evp: " + std::to_string(M_evp) + ", ae::jis::T_C_IN: " + std::to_string(ae::jis::T_C_IN), 3);
     
     // 蒸発温度計算 (Python: T_evp = T_C_IN - q / (M_evp * ae.air_specific_heat(X_C_IN)))
     double T_evp = ae::jis::T_C_IN - q / (M_evp * ae::air_specific_heat(ae::jis::X_C_IN));
-    acmodel::log("　　　T_evp: " + std::to_string(T_evp) + ", ae::jis::X_C_IN: " + std::to_string(ae::jis::X_C_IN));
+    acmodel::log("　　　T_evp: " + std::to_string(T_evp) + ", ae::jis::X_C_IN: " + std::to_string(ae::jis::X_C_IN), 3);
     
     // Python版avoid_over_saturation関数の呼び出し
     T_evp = avoidOverSaturation(T_evp, ae::jis::X_C_IN);
-    acmodel::log("　　　T_evp adjusted: " + std::to_string(T_evp));
+    acmodel::log("　　　T_evp adjusted: " + std::to_string(T_evp), 3);
     
     // 凝縮器側の空気質量流量計算 (C++: V_outerは既にm³/s単位)
     double M_cnd = (1 - PythonConstants::BYPASS_FACTOR) * ae::air_density(ae::jis::T_C_EX) * o_v;
-    acmodel::log("　　　M_cnd: " + std::to_string(M_cnd));
+    acmodel::log("　　　M_cnd: " + std::to_string(M_cnd), 3);
     
     // 凝縮温度計算 (Python: T_cnd = T_C_EX + (q + P) / (M_cnd * ae.air_specific_heat(X_C_EX)))
     double T_cnd = ae::jis::T_C_EX + (q + power) / (M_cnd * ae::air_specific_heat(ae::jis::X_C_EX));
-    acmodel::log("　　　T_cnd: " + std::to_string(T_cnd));
+    acmodel::log("　　　T_cnd: " + std::to_string(T_cnd), 3);
 
     // 効率計算 (Python: return (T_evp + 273.15) / (T_cnd - T_evp))
     return (T_evp + 273.15) / (T_cnd - T_evp);
@@ -286,23 +286,23 @@ double CRIEPIModel::calculateHeatingEfficiency(double Q, double P, double V_inne
     
     // 蒸発器側の空気質量流量計算 (C++: V_outerは既にm³/s単位)
     double M_evp = (1 - PythonConstants::BYPASS_FACTOR) * ae::air_density(ae::jis::T_H_EX) * o_v;
-    acmodel::log("　　　M_evp: " + std::to_string(M_evp));
+    acmodel::log("　　　M_evp: " + std::to_string(M_evp), 3);
     
     // 蒸発温度計算 (Python: T_evp = T_H_EX - (q - P) / (M_evp * ae.air_specific_heat(X_H_EX)))
     double T_evp = ae::jis::T_H_EX - (q - power) / (M_evp * ae::air_specific_heat(ae::jis::X_H_EX));
-    acmodel::log("　　　T_evp: " + std::to_string(T_evp));
+    acmodel::log("　　　T_evp: " + std::to_string(T_evp), 3);
     
     // Python版avoid_over_saturation関数の呼び出し
     T_evp = avoidOverSaturation(T_evp, ae::jis::X_H_EX);
-    acmodel::log("　　　T_evp adjusted: " + std::to_string(T_evp));
+    acmodel::log("　　　T_evp adjusted: " + std::to_string(T_evp), 3);
     
     // 凝縮器側の空気質量流量計算 (C++: V_innerは既にm³/s単位)
     double M_cnd = (1 - PythonConstants::BYPASS_FACTOR) * ae::air_density(ae::jis::T_H_IN) * i_v;
-    acmodel::log("　　　M_cnd: " + std::to_string(M_cnd));
+    acmodel::log("　　　M_cnd: " + std::to_string(M_cnd), 3);
     
     // 凝縮温度計算 (Python: T_cnd = T_H_IN + q / (M_cnd * ae.air_specific_heat(X_H_IN)))
     double T_cnd = ae::jis::T_H_IN + q / (M_cnd * ae::air_specific_heat(ae::jis::X_H_IN));
-    acmodel::log("　　　T_cnd: " + std::to_string(T_cnd));
+    acmodel::log("　　　T_cnd: " + std::to_string(T_cnd), 3);
 
     // 効率計算 (Python: return (T_cnd + 273.15) / (T_cnd - T_evp))
     return (T_cnd + 273.15) / (T_cnd - T_evp);

@@ -1,6 +1,6 @@
 #include "network/thermal_network.h"
 #include "network/ventilation_network.h"
-#include "core/thermal_solver.h"
+#include "core/thermal/thermal_solver.h"
 #include "utils/utils.h"
 
 #include <iostream>
@@ -28,9 +28,18 @@ Vertex ThermalNetwork::addNode(const VertexProperties& node) {
 void ThermalNetwork::addEdge(const EdgeProperties& edge) {
     auto sourceIt = keyToVertex.find(edge.source);
     auto targetIt = keyToVertex.find(edge.target);
-    if (sourceIt != keyToVertex.end() && targetIt != keyToVertex.end()) {
-        boost::add_edge(sourceIt->second, targetIt->second, edge, graph);
+    if (sourceIt == keyToVertex.end() || targetIt == keyToVertex.end()) {
+        std::vector<std::string> missingNodes;
+        if (sourceIt == keyToVertex.end()) missingNodes.push_back(edge.source);
+        if (targetIt == keyToVertex.end()) missingNodes.push_back(edge.target);
+        std::string message = "熱ブランチ '" + edge.key + "' に必要なノードが見つかりません: ";
+        for (size_t i = 0; i < missingNodes.size(); ++i) {
+            message += missingNodes[i];
+            if (i + 1 < missingNodes.size()) message += ", ";
+        }
+        throw std::runtime_error(message);
     }
+    boost::add_edge(sourceIt->second, targetIt->second, edge, graph);
 }
 
 // ノード数を取得
@@ -59,9 +68,39 @@ void ThermalNetwork::buildFromData(const std::vector<VertexProperties>& allNodes
                                    const SimulationConstants& simConstants,
                                    std::ostream& logs) {
 
-    // 再構築に備えてキャッシュを無効化
+    // 再構築に備えて内部状態をリセット（積み増し防止）
+    graph = Graph{};
+    keyToVertex.clear();
+    lastThermalConverged = true;
+    lastThermalRmseBalance = 0.0;
+    lastThermalMaxBalance = 0.0;
+    lastThermalMethod.clear();
+
+    // 出力/同期キャッシュを無効化
     temperatureCacheInitialized = false;
+    temperatureVerticesOrdered.clear();
+    temperatureKeysOrdered.clear();
+    temperatureVerticesOrderedCapacity.clear();
+    temperatureKeysOrderedCapacity.clear();
+    temperatureVerticesOrderedLayer.clear();
+    temperatureKeysOrderedLayer.clear();
     heatRateCacheInitialized = false;
+    heatRateEdgesOrderedAdvection.clear();
+    heatRateKeysOrderedAdvection.clear();
+    heatRateEdgesOrderedHeatGeneration.clear();
+    heatRateKeysOrderedHeatGeneration.clear();
+    heatRateEdgesOrderedSolarGain.clear();
+    heatRateKeysOrderedSolarGain.clear();
+    heatRateEdgesOrderedNocturnalLoss.clear();
+    heatRateKeysOrderedNocturnalLoss.clear();
+    heatRateEdgesOrderedConvection.clear();
+    heatRateKeysOrderedConvection.clear();
+    heatRateEdgesOrderedConduction.clear();
+    heatRateKeysOrderedConduction.clear();
+    heatRateEdgesOrderedRadiation.clear();
+    heatRateKeysOrderedRadiation.clear();
+    heatRateEdgesOrderedCapacity.clear();
+    heatRateKeysOrderedCapacity.clear();
     advectionEdgeCacheInitialized = false;
     advectionEdgeByVertexPair.clear();
 

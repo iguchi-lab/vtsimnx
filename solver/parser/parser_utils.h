@@ -11,7 +11,7 @@ namespace parser_utils {
 
     // 与えられたインデックスの要素を返す。範囲外なら末尾、空ならフォールバック
     template <typename T>
-    inline const T& valueOrLast(const std::vector<T>& vec, size_t idx, const T& fallback) {
+    inline T valueOrLast(const std::vector<T>& vec, size_t idx, T fallback) {
         if (!vec.empty()) {
             if (idx < vec.size()) return vec[idx];
             return vec.back();

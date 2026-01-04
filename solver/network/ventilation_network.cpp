@@ -1,6 +1,6 @@
 #include "network/ventilation_network.h"
-#include "core/pressure_solver.h"
-#include "core/flow_calculation.h"
+#include "core/ventilation/pressure_solver.h"
+#include "core/ventilation/flow_calculation.h"
 #include "utils/utils.h"
 #include "network/thermal_network.h"
 
@@ -69,6 +69,17 @@ void VentilationNetwork::buildFromData(const std::vector<VertexProperties>& allN
                                        const std::vector<EdgeProperties>& ventilationBranches,
                                        const SimulationConstants& simConstants,
                                        std::ostream& logs) {
+    // 再構築に備えて内部状態をリセット（積み増し防止）
+    graph = Graph{};
+    keyToVertex.clear();
+    pressureCacheInitialized = false;
+    pressureVerticesOrdered.clear();
+    pressureKeysOrdered.clear();
+    flowRateCacheInitialized = false;
+    flowRateEdgesOrdered.clear();
+    flowRateKeysOrdered.clear();
+    invalidateSupernodeCache();
+    lastPressureConverged = false;
 
     // pressureCalc=false でも、熱計算（移流）で換気ブランチの fixed_flow 等が必要になるため
     // 換気回路網自体は構築しておく（圧力は解かない）。

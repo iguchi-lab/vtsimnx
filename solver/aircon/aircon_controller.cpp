@@ -52,6 +52,28 @@ inline double clampHeatCapacity(double value) {
     return value;
 }
 
+static inline acmodel::InputData buildAcmodelInput(const std::string& operationMode,
+                                                   const AirconValidationData& validData,
+                                                   double heatCapacity,
+                                                   double airFlowRate) {
+    acmodel::InputData input;
+    input.T_ex = validData.outdoorTemp;
+    input.T_in = validData.indoorTemp;
+    if (operationMode == "heating") {
+        input.X_ex = archenv::jis::X_H_EX;
+        input.X_in = archenv::jis::X_H_IN;
+    } else {
+        input.X_ex = archenv::jis::X_C_EX;
+        input.X_in = archenv::jis::X_C_IN;
+    }
+    input.Q = heatCapacity;
+    input.Q_S = heatCapacity;
+    input.Q_L = 0.0;
+    input.V_inner = airFlowRate;
+    input.V_outer = kDefaultOuterFlowRate;
+    return input;
+}
+
 } // namespace
 
 AirconController::~AirconController() = default;
@@ -66,7 +88,8 @@ void AirconController::initializeModels(ThermalNetwork& thermalNetwork,
 
     // acmodel側のログ設定
     acmodel::setLogger([&logs](const std::string& message) {
-        writeLog(logs, std::string("　　[acmodel] ") + message);
+        // acmodel::log 側で [acmodel] プレフィックスを付けるため、ここでは付けない
+        writeLog(logs, message);
     });
     acmodel::setLogVerbosity(logVerbosity_);
 
@@ -95,6 +118,7 @@ void AirconController::initializeModels(ThermalNetwork& thermalNetwork,
             if (auto* m = getModel(node.key)) {
                 const std::string s = m->getInitializationSummary();
                 if (!s.empty()) {
+                    // 初期化サマリは acmodel 側のログではないため、プレフィックスをここで付けて統一する
                     writeLog(logs, std::string("　　[acmodel] ") + s);
                 }
             }
@@ -104,6 +128,19 @@ void AirconController::initializeModels(ThermalNetwork& thermalNetwork,
         }
     }
     writeLog(logs, "  エアコンモデル初期化総数: " + std::to_string(initialized) + "台");
+}
+
+void AirconController::registerModelForTesting(const std::string& airconKey,
+                                               std::unique_ptr<acmodel::AirconSpec> model) {
+    airconModels[airconKey] = std::move(model);
+    airconKeysCacheInitialized_ = false;
+    airconKeysOrdered_.clear();
+}
+
+void AirconController::clearModelsForTesting() {
+    airconModels.clear();
+    airconKeysCacheInitialized_ = false;
+    airconKeysOrdered_.clear();
 }
 
 acmodel::AirconSpec* AirconController::getModel(const std::string& airconKey) const {
@@ -212,7 +249,8 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
                                          std::ostream& logFile) const {
     bool allControlled = true;
 
-    for (const auto& [airconKey, _] : airconModels) {
+    // 順序を決定的にしてログ/挙動の再現性を上げる
+    for (const auto& airconKey : getAirconKeys()) {
         auto& nodeProps = thermalNetwork.getNode(airconKey);
         double currentTemp = 0.0;
         if (!nodeProps.set_node.empty()) {
@@ -286,7 +324,8 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                                               std::ostream& logs,
                                               int& /*totalIterations*/) const {
     bool adjustmentMade = false;
-    for (const auto& [airconKey, _] : airconModels) {
+    // 順序を決定的にしてログ/挙動の再現性を上げる
+    for (const auto& airconKey : getAirconKeys()) {
         const auto& nodeProps = thermalNetwork.getNode(airconKey);
         if (!nodeProps.on) {
             continue;
@@ -383,21 +422,8 @@ std::vector<double> AirconController::calculatePowerValues(ThermalNetwork& therm
             if (!model) {
                 throw std::runtime_error("初期化済みモデルがありません");
             }
-            acmodel::InputData input;
-            input.T_ex = context.validData.outdoorTemp;
-            input.T_in = context.validData.indoorTemp;
-            if (context.operationMode == "heating") {
-                input.X_ex = archenv::jis::X_H_EX;
-                input.X_in = archenv::jis::X_H_IN;
-            } else {
-                input.X_ex = archenv::jis::X_C_EX;
-                input.X_in = archenv::jis::X_C_IN;
-            }
-            input.Q = context.heatCapacity;
-            input.Q_S = context.heatCapacity;
-            input.Q_L = 0.0;
-            input.V_inner = context.airFlowRate;
-            input.V_outer = kDefaultOuterFlowRate;
+            const acmodel::InputData input =
+                buildAcmodelInput(context.operationMode, context.validData, context.heatCapacity, context.airFlowRate);
             auto result = model->estimateCOP(context.operationMode, input);
             if (logVerbosity_ >= 2) {
                 for (const auto& msg : result.logMessages) {
@@ -445,21 +471,8 @@ std::vector<double> AirconController::calculateCOPValues(ThermalNetwork& thermal
             if (!model) {
                 throw std::runtime_error("初期化済みモデルがありません");
             }
-            acmodel::InputData input;
-            input.T_ex = context.validData.outdoorTemp;
-            input.T_in = context.validData.indoorTemp;
-            if (context.operationMode == "heating") {
-                input.X_ex = archenv::jis::X_H_EX;
-                input.X_in = archenv::jis::X_H_IN;
-            } else {
-                input.X_ex = archenv::jis::X_C_EX;
-                input.X_in = archenv::jis::X_C_IN;
-            }
-            input.Q = context.heatCapacity;
-            input.Q_S = context.heatCapacity;
-            input.Q_L = 0.0;
-            input.V_inner = context.airFlowRate;
-            input.V_outer = kDefaultOuterFlowRate;
+            const acmodel::InputData input =
+                buildAcmodelInput(context.operationMode, context.validData, context.heatCapacity, context.airFlowRate);
             auto result = model->estimateCOP(context.operationMode, input);
             // verbosity>=2 のときは、acmodel 側の詳細ログも出す
             if (logVerbosity_ >= 2) {
@@ -495,7 +508,8 @@ std::vector<double> AirconController::calculateCOPValues(ThermalNetwork& thermal
 void AirconController::applyPreset(ThermalNetwork& thermalNetwork,
                                    std::ostream& logs) const {
     auto& graph = thermalNetwork.getGraph();
-    for (const auto& [airconKey, _] : airconModels) {
+    // 順序を決定的にしてログ/挙動の再現性を上げる
+    for (const auto& airconKey : getAirconKeys()) {
         auto& nodeProps = thermalNetwork.getNode(airconKey);
         nodeProps.on = false;
         std::string target = nodeProps.set_node.empty() ? nodeProps.key : nodeProps.set_node;

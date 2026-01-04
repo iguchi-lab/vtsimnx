@@ -2,11 +2,9 @@
 
 #include "vtsim_solver.h"
 #include <vector>
-#include <fstream>
 #include <string>
 #include <unordered_map>
 #include <memory>
-#include <map>
 #include <stdexcept>
 #include <sstream>
 
@@ -73,6 +71,11 @@ public:
     void initializeModels(ThermalNetwork& thermalNetwork, std::ostream& logs, int logVerbosity);
     acmodel::AirconSpec* getModel(const std::string& airconKey) const;
     ~AirconController();
+
+    // === テスト用（本番コードの挙動は変えない）===
+    // モデルを外部から登録できる注入口。単体テストでモックモデルを差し込むために使用する。
+    void registerModelForTesting(const std::string& airconKey, std::unique_ptr<acmodel::AirconSpec> model);
+    void clearModelsForTesting();
 
     // === 計算関数 ===
     // エアコンの処理熱量（顕熱）を計算する。

@@ -125,6 +125,26 @@ static inline void capturePrevTempsByVertex(const Graph& graph, std::vector<doub
     }
 }
 
+struct CoupledDelta {
+    double pressureChange = 0.0;     // [Pa]
+    double temperatureChange = 0.0;  // [K]
+};
+
+static inline CoupledDelta computeCoupledDelta(const SimulationConstants& constants,
+                                               VentilationNetwork& ventNetwork,
+                                               ThermalNetwork& thermalNetwork,
+                                               const std::vector<double>& prevPressuresByKey,
+                                               const std::vector<double>& prevTempsByVertex) {
+    CoupledDelta d{};
+    if (constants.pressureCalc) {
+        d.pressureChange = calculateMaxAbsDiff(prevPressuresByKey, ventNetwork.collectPressureValues());
+    }
+    if (constants.temperatureCalc) {
+        d.temperatureChange = calculateTemperatureChangeByVertex(thermalNetwork.getGraph(), prevTempsByVertex);
+    }
+    return d;
+}
+
 struct AirconStepResult {
     bool shouldRecompute = false; // 設定温度等の調整が入り、同じ外側反復をやり直すべき
     bool allControlled = false;   // 全エアコン制御完了
@@ -225,7 +245,7 @@ static void buildTimestepResult(const SimulationConstants& constants,
 
 } // namespace
 
-// 換気・熱計算の連成を行う関数
+// 換気・熱計算の「1回分」を実行する（runSimulation 側で収束反復を制御する）
 std::tuple<PressureMap, FlowRateMap, FlowBalanceMap>
 performCoupledCalculation(VentilationNetwork& ventNetwork,
                           ThermalNetwork& thermalNetwork,
@@ -234,34 +254,11 @@ performCoupledCalculation(VentilationNetwork& ventNetwork,
                           int& totalIterations,
                           TimingList& timings,
                           const std::string& meta) {
+    (void)totalIterations; // runSimulation 側で反復回数を管理する
     const bool logEnabled = (constants.logVerbosity > 0);
     PressureMap     pressureMap;
     FlowRateMap     flowRates;
     FlowBalanceMap  flowBalance;
-    std::vector<double> prevTempsByVertex;
-    std::vector<double> prevPressuresByKey;
-
-    int iterationCount = 0;
-
-    do {
-        iterationCount++;
-        totalIterations++;
-
-        // 前回の値を保存
-        if (constants.pressureCalc) {
-            // map(string) をホットパスから外し、キー順固定の vector で差分を取る
-            prevPressuresByKey = ventNetwork.collectPressureValues();
-        }
-        if (constants.temperatureCalc) {
-            capturePrevTempsByVertex(thermalNetwork.getGraph(), prevTempsByVertex);
-        }
-
-        std::unique_ptr<ScopedLogSection> iterationScope;
-        if (logEnabled) {
-            iterationScope = std::make_unique<ScopedLogSection>(
-                logs,
-                "圧力-熱計算 連成反復 " + std::to_string(iterationCount) + ":");
-        }
 
         // 換気計算
         if (constants.pressureCalc) {
@@ -274,16 +271,8 @@ performCoupledCalculation(VentilationNetwork& ventNetwork,
             }
             ventNetwork.updateCalculationResults(pressureMap, flowRates);
 
-            if (iterationCount == 1 && !ventNetwork.getLastPressureConverged()) {
-                if (logEnabled) {
-                    writeLog(logs, "エラー: フォールバック後も未収束のため停止します（最終通常解の再試行は無効化）");
-                }
-                throw std::runtime_error("Disabled final normal solve: stopping after fallback non-convergence");
-            }
-            // 熱計算が有効な場合、換気計算結果を熱回路網に同期
-            if (constants.temperatureCalc) {
-                thermalNetwork.syncFlowRatesFromVentilationNetwork(ventNetwork);
-            }
+        // runSimulation 側の1回目チェックと同じ条件で止めたいので、ここでは totalIterations を見ない
+        // （未収束フラグは solve 後に network 側に保持される）
         }
 
         // 熱計算
@@ -291,6 +280,9 @@ performCoupledCalculation(VentilationNetwork& ventNetwork,
             // pressureCalc=false の場合でも fixed_flow 等で flow_rate が入るため、移流用に同期する
             if (!constants.pressureCalc) {
                 thermalNetwork.syncFlowRatesFromVentilationNetwork(ventNetwork);
+        } else {
+            // 熱計算が有効な場合、換気計算結果を熱回路網に同期
+            thermalNetwork.syncFlowRatesFromVentilationNetwork(ventNetwork);
             }
             std::unique_ptr<ScopedLogSection> thermalScope;
             if (logEnabled) thermalScope = std::make_unique<ScopedLogSection>(logs, "熱計算");
@@ -304,42 +296,6 @@ performCoupledCalculation(VentilationNetwork& ventNetwork,
                 ventNetwork.updateNodeTemperaturesFromThermalNetwork(thermalNetwork);
             }
         }
-
-        // 連成計算が不要な場合、1回の計算後にループを抜ける
-        if (!needsCoupledCalculation(constants)) {
-            if (logEnabled) writeLog(logs, "圧力-熱連成計算は不要です（圧力または熱計算のみ）");
-            break;
-        }
-
-        // 変化量を計算してログ出力
-        const double pressureChange = calculateMaxAbsDiff(prevPressuresByKey, ventNetwork.collectPressureValues());
-        double temperatureChange = calculateTemperatureChangeByVertex(thermalNetwork.getGraph(), prevTempsByVertex);
-        if (logEnabled) {
-            writeLog(
-                logs,
-                "圧力変化量: " + std::to_string(pressureChange) +
-                    " Pa, 温度変化量: " + std::to_string(temperatureChange) + " K");
-        }
-        
-        // 収束判定（2回目以降の反復でのみ実行）
-        if (iterationCount > 1) {
-            const double pTol = couplingPressureTol(constants);
-            const double tTol = couplingTemperatureTol(constants);
-            if (pressureChange < pTol && temperatureChange < tTol) {
-                if (logEnabled) {
-                    writeLog(logs, "圧力-熱計算 連成計算が収束しました (" +
-                                            std::to_string(iterationCount) + "回)");
-                }
-                break;
-            }
-        }
-
-        // 最大反復回数に達した場合、エラーを投げて停止
-        if (iterationCount >= constants.maxInnerIteration) {
-            if (logEnabled) writeLog(logs, "圧力-熱計算 連成計算が最大反復回数に達しました");
-            throw std::runtime_error("Maximum iteration count reached: stopping after maximum iteration count");
-        }
-    } while (true);
 
     return {pressureMap, flowRates, flowBalance};
 }
@@ -368,9 +324,78 @@ void runSimulation(VentilationNetwork& ventNetwork,
         {
             ScopedLogSection coupledScope(logs, loopLabel);
             {
+                // 連成反復（pressure/thermal の収束まで回す）
+                std::vector<double> prevTempsByVertex;
+                std::vector<double> prevPressuresByKey;
+                int coupledIter = 0;
+                while (true) {
+                    ++coupledIter;
+                    ++totalIterations;
+
+                    // 前回の値を保存
+                    if (constants.pressureCalc) {
+                        prevPressuresByKey = ventNetwork.collectPressureValues();
+                    }
+                    if (constants.temperatureCalc) {
+                        capturePrevTempsByVertex(thermalNetwork.getGraph(), prevTempsByVertex);
+                    }
+
+                    std::unique_ptr<ScopedLogSection> iterScope;
+                    if (logEnabled) {
+                        iterScope = std::make_unique<ScopedLogSection>(
+                            logs,
+                            "圧力-熱計算 連成反復 " + std::to_string(coupledIter) + ":");
+                    }
+
+            {
                 ScopedTimer timer(timings, "performCoupledCalculation", meta + ",iteration=" + std::to_string(iteration + 1));
                 std::tie(pressureMap, flowRates, flowBalance) =
-                    performCoupledCalculation(ventNetwork, thermalNetwork, constants, logs, totalIterations, timings, meta + ",iteration=" + std::to_string(iteration + 1));
+                            performCoupledCalculation(ventNetwork, thermalNetwork, constants, logs, totalIterations, timings,
+                                                      meta + ",iteration=" + std::to_string(iteration + 1));
+                    }
+
+                    // 1回目で pressure が未収束なら停止（従来と同じ）
+                    if (constants.pressureCalc && coupledIter == 1 && !ventNetwork.getLastPressureConverged()) {
+                        if (logEnabled) {
+                            writeLog(logs, "エラー: フォールバック後も未収束のため停止します（最終通常解の再試行は無効化）");
+                        }
+                        throw std::runtime_error("Disabled final normal solve: stopping after fallback non-convergence");
+                    }
+
+                    // 連成計算が不要な場合、1回の計算後に抜ける（従来と同じ）
+                    if (!needsCoupledCalculation(constants)) {
+                        if (logEnabled) writeLog(logs, "圧力-熱連成計算は不要です（圧力または熱計算のみ）");
+                        break;
+                    }
+
+                    // 変化量を計算してログ出力
+                    const auto delta = computeCoupledDelta(constants, ventNetwork, thermalNetwork,
+                                                           prevPressuresByKey, prevTempsByVertex);
+                    if (logEnabled) {
+                        writeLog(
+                            logs,
+                            "圧力変化量: " + std::to_string(delta.pressureChange) +
+                                " Pa, 温度変化量: " + std::to_string(delta.temperatureChange) + " K");
+                    }
+
+                    // 収束判定（2回目以降）
+                    if (coupledIter > 1) {
+                        const double pTol = couplingPressureTol(constants);
+                        const double tTol = couplingTemperatureTol(constants);
+                        if (delta.pressureChange < pTol && delta.temperatureChange < tTol) {
+                            if (logEnabled) {
+                                writeLog(logs, "圧力-熱計算 連成計算が収束しました (" +
+                                                    std::to_string(coupledIter) + "回)");
+                            }
+                            break;
+                        }
+                    }
+
+                    if (coupledIter >= static_cast<int>(constants.maxInnerIteration)) {
+                        if (logEnabled) writeLog(logs, "圧力-熱計算 連成計算が最大反復回数に達しました");
+                        throw std::runtime_error("Maximum iteration count reached: stopping after maximum iteration count");
+                    }
+                }
             }
             // pressureCalc=false の場合でも、aircon制御（処理熱量/風量/COP計算）が流量を参照できるように
             // VentilationNetwork の確定 flow_rate（fixed_flow 等）から FlowRateMap を生成する。

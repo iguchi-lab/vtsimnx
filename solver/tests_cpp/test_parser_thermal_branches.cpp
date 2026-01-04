@@ -45,6 +45,8 @@ int main() {
              json::array({{
                  {"key", "A->B"},
                  {"type", "response_conduction"},
+                 {"source", "A"},
+                 {"target", "B"},
                  // area missing
                  {"resp_a_src", json::array({5.0})},
                  {"resp_b_src", json::array({-5.0})},
@@ -69,6 +71,8 @@ int main() {
              json::array({{
                  {"key", "A->B"},
                  {"type", "response_conduction"},
+                 {"source", "A"},
+                 {"target", "B"},
                  {"area", 10.0},
                  {"resp_a_src", json::array({5.0, 1.0})},
                  {"resp_b_src", json::array({-5.0})}, // mismatch
@@ -93,6 +97,8 @@ int main() {
              json::array({{
                  {"key", "A->B"},
                  {"type", "response_conduction"},
+                 {"source", "A"},
+                 {"target", "B"},
                  {"area", 10.0},
                  {"resp_a_src", json::array({5.0})},
                  {"resp_b_src", json::array({-5.0})},

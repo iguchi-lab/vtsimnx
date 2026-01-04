@@ -1,4 +1,8 @@
 #include "acmodel.h"
+#include "criepi_model.h"
+#include "rac_model.h"
+#include "duct_central_model.h"
+#include "latent_evaluate_model.h"
 #include <stdexcept>
 #include <iostream>
 
@@ -37,6 +41,14 @@ std::unique_ptr<AirconSpec> AirconModelFactory::createModel(const std::string& t
     } else {
         throw std::runtime_error("エアコンモデルのタイプが不明です");
     }
+}
+
+AirconType AirconModelFactory::getTypeFromString(const std::string& typeStr) {
+    if (typeStr == "CRIEPI") return AirconType::CRIEPI;
+    if (typeStr == "RAC") return AirconType::RAC;
+    if (typeStr == "DUCT_CENTRAL") return AirconType::DUCT_CENTRAL;
+    if (typeStr == "LATENT_EVALUATE") return AirconType::LATENT_EVALUATE;
+    throw std::runtime_error("エアコンモデルのタイプが不明です");
 }
 
 void initialize() {

@@ -48,9 +48,9 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
         const std::string nodePrefix = "nodes[" + std::to_string(index-1) + "]";
 
         // 必須/基本フィールド
-        parser_utils::checkStringIfPresent(nodeJson, "key", nodePrefix);
+        parser_utils::requireString(nodeJson, "key", nodePrefix);
         parser_utils::checkStringIfPresent(nodeJson, "name", nodePrefix);
-        parser_utils::checkStringIfPresent(nodeJson, "type", nodePrefix);
+        parser_utils::requireString(nodeJson, "type", nodePrefix);
         parser_utils::checkStringIfPresent(nodeJson, "subtype", nodePrefix);
         parser_utils::checkStringIfPresent(nodeJson, "comment", nodePrefix);
         parser_utils::checkStringIfPresent(nodeJson, "ref_node", nodePrefix);
@@ -58,9 +58,9 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
         parser_utils::checkStringIfPresent(nodeJson, "set_node", nodePrefix);
         parser_utils::checkStringIfPresent(nodeJson, "outside_node", nodePrefix);
         parser_utils::checkStringIfPresent(nodeJson, "model", nodePrefix);
-        if (nodeJson.contains("key"))    node.key  = nodeJson["key"].get<std::string>();
+        node.key = nodeJson["key"].get<std::string>();
         if (nodeJson.contains("name"))   node.name = nodeJson["name"].get<std::string>();
-        if (nodeJson.contains("type"))   node.type = nodeJson["type"].get<std::string>();
+        node.type = nodeJson["type"].get<std::string>();
         if (nodeJson.contains("subtype")) node.subtype = nodeJson["subtype"].get<std::string>();
         if (nodeJson.contains("comment")) node.comment = nodeJson["comment"].get<std::string>();
         if (nodeJson.contains("ref_node")) node.ref_node = nodeJson["ref_node"].get<std::string>();

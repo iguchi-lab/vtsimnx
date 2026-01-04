@@ -3,6 +3,8 @@
 #include <vector>
 #include <string>
 
+#include "../archenv/include/archenv.h"
+
 namespace acmodel {
 
 /**
@@ -15,10 +17,12 @@ public:
     static constexpr double MAX_TEMP = 50.0;          // 最大温度探索範囲
     
     // 物理定数
-    static constexpr double C_P_AIR = 1006.0;         // 空気の比熱 [J/kg・K]
-    static constexpr double RHO_AIR = 1.2;            // 空気の密度 [kg/m³]
-    static constexpr double C_P_W = 1.846;            // 水蒸気の定圧比熱 [J/kg・K]
-    static constexpr double F = 101325.0;             // 大気圧 [Pa]
+    // NOTE: 物性値は solver 全体で archenv に統一する（単位系のブレを避ける）
+    static constexpr double C_P_AIR = archenv::SPECIFIC_HEAT_AIR;          // 空気の比熱 [J/(kg·K)]
+    static constexpr double RHO_AIR = archenv::DENSITY_DRY_AIR;            // 空気の密度 [kg/m³]
+    // C_P_W / L_WTR はモデル内部の式（kJ 系）との整合があるため現状維持（単位に注意）
+    static constexpr double C_P_W = 1.846;                                 // 水蒸気の定圧比熱 [kJ/(kg·K)] (legacy)
+    static constexpr double F = archenv::STANDARD_ATMOSPHERIC_PRESSURE;    // 大気圧 [Pa]
     
     // 水の蒸発潜熱 [kJ/kg]
     static constexpr double L_WTR = 2500.8 - 2.3668 * 27;

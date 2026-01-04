@@ -26,12 +26,18 @@ set(NETWORK_SOURCES
 )
 
 set(CORE_SOURCES
-    core/pressure_solver.cpp
-    core/pressure_solver_ceres.cpp
-    core/pressure_solver_fallback.cpp
-    core/thermal_solver.cpp
-    core/thermal_solver_linear_gs.cpp
-    core/thermal_solver_linear_direct.cpp
+    core/ventilation/pressure_solver.cpp
+    core/ventilation/pressure_solver_ceres.cpp
+    core/ventilation/pressure_solver_fallback.cpp
+    core/ventilation/pressure_constraints.cpp
+    core/thermal/thermal_solver.cpp
+    core/thermal/thermal_solver_linear_direct.cpp
+    core/thermal/thermal_direct_internal.cpp
+    core/thermal/thermal_direct_topology.cpp
+    core/thermal/thermal_direct_rhs.cpp
+    core/thermal/thermal_direct_build.cpp
+    core/thermal/thermal_direct_solve.cpp
+    core/thermal/thermal_direct_postprocess.cpp
 )
 
 set(AIRCON_SOURCES
@@ -126,6 +132,19 @@ if(VTSIMNX_BUILD_CPP_TESTS)
     )
     add_test(NAME vtsimnx_solver_cpp_test_flow_math COMMAND vtsimnx_solver_cpp_test_flow_math)
 
+    # 1b) fan jacobian sweep (analytic vs numeric over many parameter sets)
+    add_executable(vtsimnx_solver_cpp_test_fan_jacobian_sweep
+        tests_cpp/test_fan_jacobian_sweep.cpp
+    )
+    target_link_libraries(vtsimnx_solver_cpp_test_fan_jacobian_sweep
+        Boost::boost
+    )
+    target_compile_options(vtsimnx_solver_cpp_test_fan_jacobian_sweep PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_test_fan_jacobian_sweep COMMAND vtsimnx_solver_cpp_test_fan_jacobian_sweep)
+
     # 2) parser (thermal branches / response_conduction)
     add_executable(vtsimnx_solver_cpp_test_parser_thermal_branches
         tests_cpp/test_parser_thermal_branches.cpp
@@ -140,6 +159,20 @@ if(VTSIMNX_BUILD_CPP_TESTS)
     )
     add_test(NAME vtsimnx_solver_cpp_test_parser_thermal_branches COMMAND vtsimnx_solver_cpp_test_parser_thermal_branches)
 
+    # 2b) parser (branches validation / enable / duplicate keys)
+    add_executable(vtsimnx_solver_cpp_test_parser_branches_validation
+        tests_cpp/test_parser_branches_validation.cpp
+        parser/branches_parser.cpp
+    )
+    target_link_libraries(vtsimnx_solver_cpp_test_parser_branches_validation
+        Boost::boost
+    )
+    target_compile_options(vtsimnx_solver_cpp_test_parser_branches_validation PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_test_parser_branches_validation COMMAND vtsimnx_solver_cpp_test_parser_branches_validation)
+
     # 3) parser (nodes.mode backward-compat: number -> string)
     add_executable(vtsimnx_solver_cpp_test_parser_nodes_mode
         tests_cpp/test_parser_nodes_mode.cpp
@@ -153,5 +186,171 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         -Wextra
     )
     add_test(NAME vtsimnx_solver_cpp_test_parser_nodes_mode COMMAND vtsimnx_solver_cpp_test_parser_nodes_mode)
+
+    # 3b) parser (nodes required fields)
+    add_executable(vtsimnx_solver_cpp_test_parser_nodes_required
+        tests_cpp/test_parser_nodes_required.cpp
+        parser/nodes_parser.cpp
+    )
+    target_link_libraries(vtsimnx_solver_cpp_test_parser_nodes_required
+        Boost::boost
+    )
+    target_compile_options(vtsimnx_solver_cpp_test_parser_nodes_required PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_test_parser_nodes_required COMMAND vtsimnx_solver_cpp_test_parser_nodes_required)
+
+    # 4) thermal linear utils (hash/pattern/row index map)
+    add_executable(vtsimnx_solver_cpp_test_thermal_linear_utils
+        tests_cpp/test_thermal_linear_utils.cpp
+    )
+    target_compile_options(vtsimnx_solver_cpp_test_thermal_linear_utils PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_test_thermal_linear_utils COMMAND vtsimnx_solver_cpp_test_thermal_linear_utils)
+
+    # 5) thermal direct cache behavior (coeffSig -> rhsOnly/fullBuild switching)
+    add_executable(vtsimnx_solver_cpp_test_thermal_direct_cache
+        tests_cpp/test_thermal_direct_cache.cpp
+        core/thermal/thermal_solver.cpp
+        core/thermal/thermal_solver_linear_direct.cpp
+        core/thermal/thermal_direct_internal.cpp
+        core/thermal/thermal_direct_topology.cpp
+        core/thermal/thermal_direct_rhs.cpp
+        core/thermal/thermal_direct_build.cpp
+        core/thermal/thermal_direct_solve.cpp
+        core/thermal/thermal_direct_postprocess.cpp
+        network/thermal_network.cpp
+    )
+    target_link_libraries(vtsimnx_solver_cpp_test_thermal_direct_cache
+        Boost::boost
+    )
+    target_compile_options(vtsimnx_solver_cpp_test_thermal_direct_cache PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_test_thermal_direct_cache COMMAND vtsimnx_solver_cpp_test_thermal_direct_cache)
+
+    # 6) pressure constraints (Evaluate residual/jacobian without running solver)
+    add_executable(vtsimnx_solver_cpp_test_pressure_constraints
+        tests_cpp/test_pressure_constraints.cpp
+        core/ventilation/pressure_constraints.cpp
+    )
+    target_link_libraries(vtsimnx_solver_cpp_test_pressure_constraints
+        Boost::boost
+        ceres
+    )
+    target_compile_options(vtsimnx_solver_cpp_test_pressure_constraints PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_test_pressure_constraints COMMAND vtsimnx_solver_cpp_test_pressure_constraints)
+
+    # 7) network: buildFromData idempotency (no accumulation on rebuild)
+    add_executable(vtsimnx_solver_cpp_test_network_rebuild
+        tests_cpp/test_network_rebuild.cpp
+        network/ventilation_network.cpp
+        network/thermal_network.cpp
+        core/ventilation/pressure_solver.cpp
+        core/ventilation/pressure_solver_ceres.cpp
+        core/ventilation/pressure_solver_fallback.cpp
+        core/ventilation/pressure_constraints.cpp
+        core/thermal/thermal_solver.cpp
+        core/thermal/thermal_solver_linear_direct.cpp
+        core/thermal/thermal_direct_internal.cpp
+        core/thermal/thermal_direct_topology.cpp
+        core/thermal/thermal_direct_rhs.cpp
+        core/thermal/thermal_direct_build.cpp
+        core/thermal/thermal_direct_solve.cpp
+        core/thermal/thermal_direct_postprocess.cpp
+    )
+    target_link_libraries(vtsimnx_solver_cpp_test_network_rebuild
+        Boost::boost
+        ceres
+    )
+    target_compile_options(vtsimnx_solver_cpp_test_network_rebuild PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_test_network_rebuild COMMAND vtsimnx_solver_cpp_test_network_rebuild)
+
+    # 8) acmodel: factory + logger basic behavior
+    add_executable(vtsimnx_solver_cpp_test_acmodel_core
+        tests_cpp/test_acmodel_core.cpp
+        ../acmodel/acmodel.cpp
+        ../acmodel/aircon_constants.cpp
+        ../acmodel/aircon_spec.cpp
+        ../acmodel/refrigerant_calculator.cpp
+        ../acmodel/criepi_model.cpp
+        ../acmodel/rac_model.cpp
+        ../acmodel/duct_central_model.cpp
+        ../acmodel/latent_evaluate_model.cpp
+        ${ARCHENV_SOURCES}
+    )
+    target_link_libraries(vtsimnx_solver_cpp_test_acmodel_core
+        Boost::boost
+    )
+    target_compile_options(vtsimnx_solver_cpp_test_acmodel_core PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_test_acmodel_core COMMAND vtsimnx_solver_cpp_test_acmodel_core)
+
+    # 9) aircon controller: ordering + on/off gating (mock model)
+    add_executable(vtsimnx_solver_cpp_test_aircon_controller
+        tests_cpp/test_aircon_controller.cpp
+        aircon/aircon_controller.cpp
+        network/thermal_network.cpp
+        core/thermal/thermal_solver.cpp
+        core/thermal/thermal_solver_linear_direct.cpp
+        core/thermal/thermal_direct_internal.cpp
+        core/thermal/thermal_direct_topology.cpp
+        core/thermal/thermal_direct_rhs.cpp
+        core/thermal/thermal_direct_build.cpp
+        core/thermal/thermal_direct_solve.cpp
+        core/thermal/thermal_direct_postprocess.cpp
+        ../acmodel/acmodel.cpp
+        ../acmodel/aircon_constants.cpp
+        ../acmodel/aircon_spec.cpp
+        ../acmodel/refrigerant_calculator.cpp
+        ../acmodel/criepi_model.cpp
+        ../acmodel/rac_model.cpp
+        ../acmodel/duct_central_model.cpp
+        ../acmodel/latent_evaluate_model.cpp
+        ${ARCHENV_SOURCES}
+    )
+    target_link_libraries(vtsimnx_solver_cpp_test_aircon_controller
+        Boost::boost
+    )
+    target_compile_options(vtsimnx_solver_cpp_test_aircon_controller PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_test_aircon_controller COMMAND vtsimnx_solver_cpp_test_aircon_controller)
+
+    # 10) app: minimal smoke test (runVtsimnxSolverApp end-to-end)
+    add_executable(vtsimnx_solver_cpp_test_app_smoke
+        tests_cpp/test_app_smoke.cpp
+        app/vtsimnx_app.cpp
+        simulation_runner.cpp
+        output/artifact_io.cpp
+        ${PARSER_SOURCES}
+        ${NETWORK_SOURCES}
+        ${CORE_SOURCES}
+        ${AIRCON_SOURCES}
+        ${ACMODEL_SOURCES}
+        ${ARCHENV_SOURCES}
+    )
+    target_link_libraries(vtsimnx_solver_cpp_test_app_smoke
+        Boost::boost
+        ceres
+    )
+    target_compile_options(vtsimnx_solver_cpp_test_app_smoke PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_test_app_smoke COMMAND vtsimnx_solver_cpp_test_app_smoke)
 endif()
 
