@@ -185,7 +185,7 @@ def run_calc(
     *,
     with_dataframes: bool = True,
     compress_request: bool = True,
-    timeout: float = 60.0,
+    timeout: float = 180.0,
     request_output_path: Optional[Union[str, Path]] = None,
 ) -> Union[Dict[str, Any], CalcRunResult]:
     # 互換: 設定をファイル（.json / .json.gz）で渡せるようにする
