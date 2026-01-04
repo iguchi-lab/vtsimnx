@@ -177,26 +177,22 @@ static uint64_t computeCoeffSignature(const Graph& graph,
     // advection の係数（|flow_rate|）は時刻で変わり得るため、該当辺のみ走査してハッシュ化
     for (auto e : topo.advectionEdges) {
         const auto& ep = graph[e];
-        Vertex sv = boost::source(e, graph);
-        Vertex tv = boost::target(e, graph);
-        h = fnv1a64_update(h, (static_cast<uint64_t>(static_cast<uint32_t>(sv)) << 32) ^
-                               static_cast<uint64_t>(static_cast<uint32_t>(tv)));
         double flowRate = ep.flow_rate;
         double coeff = 0.0;
         if (std::abs(flowRate) >= archenv::FLOW_RATE_MIN) {
             coeff = archenv::DENSITY_DRY_AIR * archenv::SPECIFIC_HEAT_AIR * std::abs(flowRate);
         }
-        h = hashDoubleBits(h, coeff);
+        // 微小な風量変動での再計算（35ms）を避けるため、係数を丸めてハッシュ化する
+        double roundedCoeff = std::round(coeff * 100.0) / 100.0;
+        h = hashDoubleBits(h, roundedCoeff);
     }
 
     // 固定温度行（set_node に紐づく aircon が on）の有無
-    // topo.airconBySetVertex は setVertex から aircon vertex を引けるので O(total aircon)。
     for (size_t setV = 0; setV < topo.airconBySetVertex.size(); ++setV) {
         if (topo.airconBySetVertex[setV].empty()) continue;
         bool anyOn = false;
         for (Vertex v_ac : topo.airconBySetVertex[setV]) {
-            const auto& nd = graph[v_ac];
-            if (nd.getTypeCode() == VertexProperties::TypeCode::Aircon && nd.on) {
+            if (graph[v_ac].on) {
                 anyOn = true;
                 break;
             }
@@ -207,12 +203,10 @@ static uint64_t computeCoeffSignature(const Graph& graph,
         }
     }
 
-    // aircon shoulder（aircon ノードが on のときだけ set_node 周辺の係数を行に混ぜる）
-    // on/off の変化だけハッシュに入れておく
+    // aircon shoulder の on/off
     for (auto v : topo.airconVertices) {
-        const auto& nd = graph[v];
         h = fnv1a64_update(h, static_cast<uint64_t>(static_cast<uint32_t>(v)));
-        h = fnv1a64_update(h, nd.on ? 1u : 0u);
+        h = fnv1a64_update(h, graph[v].on ? 1u : 0u);
     }
 
     return h;
@@ -262,12 +256,21 @@ static void buildRhsOnly(const Graph& graph,
         const double Tt = getTemp(tv);
         const double Q = HeatCalculation::calculateUnifiedHeat(Ts, Tt, ep); // src -> dst を正
 
-        residualByVertex[static_cast<size_t>(sv)] -= Q; // outflow
-        residualByVertex[static_cast<size_t>(tv)] += Q; // inflow
+        // ノード残差（片方向移流モデルを考慮）
+        if (ep.getTypeCode() == EdgeProperties::TypeCode::Advection) {
+            if (ep.flow_rate > 0) { // sv -> tv
+                residualByVertex[static_cast<size_t>(tv)] += Q;
+            } else if (ep.flow_rate < 0) { // tv -> sv
+                residualByVertex[static_cast<size_t>(sv)] -= Q;
+            }
+        } else {
+            residualByVertex[static_cast<size_t>(sv)] -= Q; // outflow
+            residualByVertex[static_cast<size_t>(tv)] += Q; // inflow
+        }
     }
 
     // 最後に、変数ノード（calc_t）について b を作る。
-    // b = -residual（ただし aircon ノードは set_node の残差を肩代わりする）
+    // A案: aircon ON のとき、aircon 行は set_node の残差を肩代わりする（set は固定温度行）
     for (size_t i = 0; i < n; ++i) {
         if (isFixedRow[i]) continue;
         Vertex nodeVertex = topo.parameterIndexToVertex[i];
@@ -277,7 +280,7 @@ static void buildRhsOnly(const Graph& graph,
         if (nodeData.getTypeCode() == VertexProperties::TypeCode::Aircon && nodeData.on) {
             Vertex setV = topo.airconSetVertex[static_cast<size_t>(nodeVertex)];
             if (setV != std::numeric_limits<Vertex>::max()) {
-                residual -= residualByVertex[static_cast<size_t>(setV)];
+                residual = residualByVertex[static_cast<size_t>(setV)];
             }
         }
 
@@ -388,10 +391,18 @@ void buildLinearSystem(
         if (isFixed) continue;
         
         // 熱バランス方程式: Σ(inflow) - Σ(outflow) = 0
+        // A案: aircon ON のとき、この行は set_node の収支=0 を表す（set は固定温度行）
+        Vertex balanceVertex = nodeVertex;
+        if (nodeData.getTypeCode() == VertexProperties::TypeCode::Aircon && nodeData.on) {
+            Vertex setV = airconSetVertex[static_cast<size_t>(nodeVertex)];
+            if (setV != std::numeric_limits<Vertex>::max()) {
+                balanceVertex = setV;
+            }
+        }
         double inflow = 0.0;
         double outflow = 0.0;
         
-        for (auto edge : incidentEdges[static_cast<size_t>(nodeVertex)]) {
+        for (auto edge : incidentEdges[static_cast<size_t>(balanceVertex)]) {
             Vertex sv = boost::source(edge, graph);
             Vertex tv = boost::target(edge, graph);
             const auto& eprop = graph[edge];
@@ -403,35 +414,111 @@ void buildLinearSystem(
             
             double dQdTs = 0.0, dQdTt = 0.0;
             
-            if (eprop.getTypeCode() == EdgeProperties::TypeCode::Conductance) {
-                dQdTs = eprop.conductance;
-                dQdTt = -eprop.conductance;
-            } else if (eprop.getTypeCode() == EdgeProperties::TypeCode::Advection) {
-                double flowRate = eprop.flow_rate;
-                if (std::abs(flowRate) >= archenv::FLOW_RATE_MIN) {
-                    double mDotCpAbs = archenv::DENSITY_DRY_AIR * archenv::SPECIFIC_HEAT_AIR * std::abs(flowRate);
-                    dQdTs = mDotCpAbs;
-                    dQdTt = -mDotCpAbs;
-                }
-            } else if (eprop.getTypeCode() == EdgeProperties::TypeCode::HeatGeneration) {
-                // heat_generation は Q=constant なので係数0、導関数0
-            }
-            
             double Ts = getTemp(sv);
             double Tt = getTemp(tv);
-            double Q = HeatCalculation::calculateUnifiedHeat(Ts, Tt, eprop);
+            double Q = 0.0;
+
+            if (eprop.getTypeCode() == EdgeProperties::TypeCode::ResponseConduction) {
+                // 応答係数: 両端で別の熱流を持つため、ノード側に応じて Q を切り替える
+                if (sv == nodeVertex) {
+                    const double a0 = eprop.resp_a_src.empty() ? 0.0 : eprop.resp_a_src[0];
+                    const double b0 = eprop.resp_b_src.empty() ? 0.0 : eprop.resp_b_src[0];
+                    dQdTs = a0;
+                    dQdTt = b0;
+
+                    // Q = a0*Ts + b0*Tt + history
+                    Q = a0 * Ts + b0 * Tt;
+                    for (size_t k = 1; k < eprop.resp_a_src.size(); ++k) {
+                        const size_t idx = k - 1;
+                        if (idx < eprop.hist_t_src.size()) Q += eprop.resp_a_src[k] * eprop.hist_t_src[idx];
+                    }
+                    for (size_t k = 1; k < eprop.resp_b_src.size(); ++k) {
+                        const size_t idx = k - 1;
+                        if (idx < eprop.hist_t_tgt.size()) Q += eprop.resp_b_src[k] * eprop.hist_t_tgt[idx];
+                    }
+                    for (size_t k = 0; k < eprop.resp_c_src.size(); ++k) {
+                        if (k < eprop.hist_q_src.size()) Q += eprop.resp_c_src[k] * eprop.hist_q_src[k];
+                    }
+                } else if (tv == nodeVertex) {
+                    const double a0 = eprop.resp_a_tgt.empty() ? 0.0 : eprop.resp_a_tgt[0];
+                    const double b0 = eprop.resp_b_tgt.empty() ? 0.0 : eprop.resp_b_tgt[0];
+                    // q_tgt(n) = a0*Tt + b0*Ts + ...
+                    dQdTs = b0;
+                    dQdTt = a0;
+
+                    Q = a0 * Tt + b0 * Ts;
+                    for (size_t k = 1; k < eprop.resp_a_tgt.size(); ++k) {
+                        const size_t idx = k - 1;
+                        if (idx < eprop.hist_t_tgt.size()) Q += eprop.resp_a_tgt[k] * eprop.hist_t_tgt[idx];
+                    }
+                    for (size_t k = 1; k < eprop.resp_b_tgt.size(); ++k) {
+                        const size_t idx = k - 1;
+                        if (idx < eprop.hist_t_src.size()) Q += eprop.resp_b_tgt[k] * eprop.hist_t_src[idx];
+                    }
+                    for (size_t k = 0; k < eprop.resp_c_tgt.size(); ++k) {
+                        if (k < eprop.hist_q_tgt.size()) Q += eprop.resp_c_tgt[k] * eprop.hist_q_tgt[k];
+                    }
+                }
+            } else {
+                if (eprop.getTypeCode() == EdgeProperties::TypeCode::Conductance) {
+                    dQdTs = eprop.conductance;
+                    dQdTt = -eprop.conductance;
+                } else if (eprop.getTypeCode() == EdgeProperties::TypeCode::Advection) {
+                    double flowRate = eprop.flow_rate;
+                    if (std::abs(flowRate) >= archenv::FLOW_RATE_MIN) {
+                        double mDotCp = archenv::DENSITY_DRY_AIR * archenv::SPECIFIC_HEAT_AIR * flowRate;
+                        // 片方向移流モデル：空気の流入先（ターゲット）ノードのみに熱収支を適用する
+                        if (flowRate > 0) { // sv -> tv
+                            if (tv == balanceVertex) {
+                                // 旧バージョン互換: エアコンノードへの流入熱量（還気）は、エアコンON時のみ0とする
+                                if (!(eprop.is_aircon_inflow && graph[tv].on)) {
+                                    dQdTs = mDotCp;
+                                    dQdTt = -mDotCp;
+                                } else {
+                                    dQdTs = 0.0; dQdTt = 0.0;
+                                }
+                            } else {
+                                dQdTs = 0.0; dQdTt = 0.0;
+                            }
+                        } else { // tv -> sv
+                            if (sv == balanceVertex) {
+                                // エアコン還気判定（逆流時）
+                                const auto& srcNode = graph[sv];
+                                if (!(srcNode.getTypeCode() == VertexProperties::TypeCode::Aircon && srcNode.on)) {
+                                    dQdTs = -mDotCp;
+                                    dQdTt = mDotCp;
+                                } else {
+                                    dQdTs = 0.0; dQdTt = 0.0;
+                                }
+                            } else {
+                                dQdTs = 0.0; dQdTt = 0.0;
+                            }
+                        }
+                    }
+                } else if (eprop.getTypeCode() == EdgeProperties::TypeCode::HeatGeneration) {
+                    // heat_generation は Q=constant なので係数0、導関数0
+                }
+                Q = HeatCalculation::calculateUnifiedHeat(Ts, Tt, eprop);
+            }
             
-            if (sv == nodeVertex) {
+            if (sv == balanceVertex) {
                 outflow += Q;
                 if (sIsVariable) addCoeffFast(i, sIdx, -dQdTs);
                 if (tIsVariable) addCoeffFast(i, tIdx, -dQdTt);
-            } else if (tv == nodeVertex) {
-                inflow += Q;
-                if (sIsVariable) addCoeffFast(i, sIdx, dQdTs);
-                if (tIsVariable) addCoeffFast(i, tIdx, dQdTt);
+            } else if (tv == balanceVertex) {
+                if (eprop.getTypeCode() == EdgeProperties::TypeCode::ResponseConduction) {
+                    // target側も outflow 扱い（壁体へ出ていく）
+                    outflow += Q;
+                    if (sIsVariable) addCoeffFast(i, sIdx, -dQdTs);
+                    if (tIsVariable) addCoeffFast(i, tIdx, -dQdTt);
+                } else {
+                    inflow += Q;
+                    if (sIsVariable) addCoeffFast(i, sIdx, dQdTs);
+                    if (tIsVariable) addCoeffFast(i, tIdx, dQdTt);
+                }
             }
         }
-        
+
         // エアコンノードのset_nodeの熱バランスを肩代わり
         if (nodeData.getTypeCode() == VertexProperties::TypeCode::Aircon && nodeData.on) {
             Vertex setV = airconSetVertex[static_cast<size_t>(nodeVertex)];
@@ -447,32 +534,78 @@ void buildLinearSystem(
                     bool sIsVar2 = (sIdx2 >= 0);
                     bool tIsVar2 = (tIdx2 >= 0);
                     
-                    double dQdTs2 = 0.0, dQdTt2 = 0.0;
-                    if (ep.getTypeCode() == EdgeProperties::TypeCode::Conductance) {
-                        dQdTs2 = ep.conductance;
-                        dQdTt2 = -ep.conductance;
-                    } else if (ep.getTypeCode() == EdgeProperties::TypeCode::Advection) {
-                        double flowRate = ep.flow_rate;
-                        if (std::abs(flowRate) >= archenv::FLOW_RATE_MIN) {
-                            double mDotCpAbs =
-                                archenv::DENSITY_DRY_AIR * archenv::SPECIFIC_HEAT_AIR * std::abs(flowRate);
-                            dQdTs2 = mDotCpAbs;
-                            dQdTt2 = -mDotCpAbs;
-                        }
-                    }
-                    
                     double Ts2 = getTemp(sv2);
                     double Tt2 = getTemp(tv2);
-                    double Q2 = HeatCalculation::calculateUnifiedHeat(Ts2, Tt2, ep);
+                    double dQdTs2 = 0.0, dQdTt2 = 0.0;
+                    double Q2 = 0.0;
+
+                    if (ep.getTypeCode() == EdgeProperties::TypeCode::ResponseConduction) {
+                        if (sv2 == setV) {
+                            const double a0 = ep.resp_a_src.empty() ? 0.0 : ep.resp_a_src[0];
+                            const double b0 = ep.resp_b_src.empty() ? 0.0 : ep.resp_b_src[0];
+                            dQdTs2 = a0;
+                            dQdTt2 = b0;
+                            Q2 = a0 * Ts2 + b0 * Tt2;
+                            for (size_t k = 1; k < ep.resp_a_src.size(); ++k) {
+                                const size_t idx = k - 1;
+                                if (idx < ep.hist_t_src.size()) Q2 += ep.resp_a_src[k] * ep.hist_t_src[idx];
+                            }
+                            for (size_t k = 1; k < ep.resp_b_src.size(); ++k) {
+                                const size_t idx = k - 1;
+                                if (idx < ep.hist_t_tgt.size()) Q2 += ep.resp_b_src[k] * ep.hist_t_tgt[idx];
+                            }
+                            for (size_t k = 0; k < ep.resp_c_src.size(); ++k) {
+                                if (k < ep.hist_q_src.size()) Q2 += ep.resp_c_src[k] * ep.hist_q_src[k];
+                            }
+                        } else if (tv2 == setV) {
+                            const double a0 = ep.resp_a_tgt.empty() ? 0.0 : ep.resp_a_tgt[0];
+                            const double b0 = ep.resp_b_tgt.empty() ? 0.0 : ep.resp_b_tgt[0];
+                            dQdTs2 = b0;
+                            dQdTt2 = a0;
+                            Q2 = a0 * Tt2 + b0 * Ts2;
+                            for (size_t k = 1; k < ep.resp_a_tgt.size(); ++k) {
+                                const size_t idx = k - 1;
+                                if (idx < ep.hist_t_tgt.size()) Q2 += ep.resp_a_tgt[k] * ep.hist_t_tgt[idx];
+                            }
+                            for (size_t k = 1; k < ep.resp_b_tgt.size(); ++k) {
+                                const size_t idx = k - 1;
+                                if (idx < ep.hist_t_src.size()) Q2 += ep.resp_b_tgt[k] * ep.hist_t_src[idx];
+                            }
+                            for (size_t k = 0; k < ep.resp_c_tgt.size(); ++k) {
+                                if (k < ep.hist_q_tgt.size()) Q2 += ep.resp_c_tgt[k] * ep.hist_q_tgt[k];
+                            }
+                        }
+                    } else {
+                        if (ep.getTypeCode() == EdgeProperties::TypeCode::Conductance) {
+                            dQdTs2 = ep.conductance;
+                            dQdTt2 = -ep.conductance;
+                        } else if (ep.getTypeCode() == EdgeProperties::TypeCode::Advection) {
+                            double flowRate = ep.flow_rate;
+                            if (std::abs(flowRate) >= archenv::FLOW_RATE_MIN) {
+                                double mDotCpAbs =
+                                    archenv::DENSITY_DRY_AIR * archenv::SPECIFIC_HEAT_AIR * std::abs(flowRate);
+                                dQdTs2 = mDotCpAbs;
+                                dQdTt2 = -mDotCpAbs;
+                            }
+                        }
+                        Q2 = HeatCalculation::calculateUnifiedHeat(Ts2, Tt2, ep);
+                    }
                     
                     if (sv2 == setV) {
                         setOut += Q2;
                         if (sIsVar2) addCoeffFast(i, sIdx2, dQdTs2);
                         if (tIsVar2) addCoeffFast(i, tIdx2, dQdTt2);
                     } else if (tv2 == setV) {
-                        setIn += Q2;
-                        if (sIsVar2) addCoeffFast(i, sIdx2, -dQdTs2);
-                        if (tIsVar2) addCoeffFast(i, tIdx2, -dQdTt2);
+                        if (ep.getTypeCode() == EdgeProperties::TypeCode::ResponseConduction) {
+                            // setV が target の場合も outflow 側として扱う（符号は source と同じ）
+                            setOut += Q2;
+                            if (sIsVar2) addCoeffFast(i, sIdx2, dQdTs2);
+                            if (tIsVar2) addCoeffFast(i, tIdx2, dQdTt2);
+                        } else {
+                            setIn += Q2;
+                            if (sIsVar2) addCoeffFast(i, sIdx2, -dQdTs2);
+                            if (tIsVar2) addCoeffFast(i, tIdx2, -dQdTt2);
+                        }
                     }
                 }
                 inflow += (setOut - setIn);
@@ -1046,8 +1179,6 @@ void solveTemperaturesLinearGS(
         tempsByVertex[static_cast<size_t>(v)] = graph[v].current_t;
     }
 
-    // (4) 対策: HeatRateMap(map<pair<string,string>,double>) を作らず、
-    // graph[edge].heat_rate を直接更新し、heatBalance は vertex index 配列で集計する。
     std::vector<double> heatBalanceByVertex(curV, 0.0);
     for (auto edge : boost::make_iterator_range(boost::edges(graph))) {
         Vertex sv = boost::source(edge, graph);
@@ -1056,23 +1187,42 @@ void solveTemperaturesLinearGS(
 
         const double Ts = tempsByVertex[static_cast<size_t>(sv)];
         const double Tt = tempsByVertex[static_cast<size_t>(tv)];
-        const double Q = HeatCalculation::calculateUnifiedHeat(Ts, Tt, eprop);
+        double Q = HeatCalculation::calculateUnifiedHeat(Ts, Tt, eprop);
 
-        // 個別ブランチの出力用（collectHeatRates が読む）
+        // 個別ブランチの出力用
+        if (eprop.getTypeCode() == EdgeProperties::TypeCode::Advection) {
+            // 旧バージョン互換: エアコンノードへの流入熱量（還気）は、エアコンON時のみ0とする
+            if (eprop.flow_rate > 0) { // sv -> tv
+                if (eprop.is_aircon_inflow && graph[tv].on) Q = 0.0;
+            } else if (eprop.flow_rate < 0) { // tv -> sv
+                const auto& srcNode = graph[sv];
+                if (srcNode.getTypeCode() == VertexProperties::TypeCode::Aircon && srcNode.on) Q = 0.0;
+            }
+        }
         graph[edge].heat_rate = Q;
 
-        // ノード収支（src -> dst を正）
-        heatBalanceByVertex[static_cast<size_t>(sv)] -= Q;
-        heatBalanceByVertex[static_cast<size_t>(tv)] += Q;
+        // ノード収支（片方向移流モデルを考慮）
+        if (eprop.getTypeCode() == EdgeProperties::TypeCode::Advection) {
+            if (eprop.flow_rate > 0) { // sv -> tv
+                heatBalanceByVertex[static_cast<size_t>(tv)] += Q;
+            } else if (eprop.flow_rate < 0) { // tv -> sv
+                heatBalanceByVertex[static_cast<size_t>(sv)] -= Q;
+            }
+        } else {
+            heatBalanceByVertex[static_cast<size_t>(sv)] -= Q;
+            heatBalanceByVertex[static_cast<size_t>(tv)] += Q;
+        }
     }
 
-    // --- エアコンによるバランス付け替え（string map を使わず vertex で処理） ---
+    // --- エアコンによるバランス付け替え（収束判定用） ---
+    // A案: aircon ON のとき、aircon 行は set_node の熱収支=0 を肩代わりしている。
+    // それに合わせて残差も aircon := set, set := 0 として評価する。
     for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
         const auto& nodeData = graph[v];
         if (nodeData.getTypeCode() == VertexProperties::TypeCode::Aircon && nodeData.on) {
             Vertex setV = g_topologyCache.airconSetVertex[static_cast<size_t>(v)];
             if (setV != std::numeric_limits<Vertex>::max()) {
-                heatBalanceByVertex[static_cast<size_t>(v)] = -heatBalanceByVertex[static_cast<size_t>(setV)];
+                heatBalanceByVertex[static_cast<size_t>(v)] = heatBalanceByVertex[static_cast<size_t>(setV)];
                 heatBalanceByVertex[static_cast<size_t>(setV)] = 0.0;
             }
         }
@@ -1103,6 +1253,8 @@ void solveTemperaturesLinearGS(
             << ", tol=" << std::scientific << std::setprecision(6) << constants.thermalTolerance
             << ", time=" << std::fixed << std::setprecision(3) << seconds << "s)";
         writeLog(logFile, oss.str());
+        // 上位（エアコン制御ループ等）が判断できるように状態として保持
+        network.setLastThermalConvergence(ok, rmseBalance, maxBalance, methodLabel);
     }
 }
 

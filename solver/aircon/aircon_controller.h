@@ -75,7 +75,11 @@ public:
     ~AirconController();
 
     // === 計算関数 ===
+    // エアコンの処理熱量（顕熱）を計算する。
+    // - 暖房/冷房どちらでも「処理熱量は +W（大きさ）」として扱う（COP推定/能力チェック用）
+    // - mode は "heating" / "cooling"（prepareRuntimeContext が決める）
     double calculateHeatCapacity(ThermalNetwork& thermalNetwork,
+                                 const std::string& mode,
                                  const std::string& inNode,
                                  const std::string& airconNode,
                                  const FlowRateMap& flowRates) const;
@@ -87,6 +91,10 @@ public:
         AirconControlResult result{false, nodeProps.on, ""};
         const std::string targetName = nodeProps.set_node.empty() ? nodeProps.key : nodeProps.set_node;
         if (nodeProps.current_mode == "OFF") {
+            if (nodeProps.on) {
+                result.stateChanged = true;
+                result.on = false;
+            }
             std::ostringstream oss;
             oss << "　" << targetName << " エアコン: モードOFFのため制御対象外"
                 << " (現在 " << currentTemp << "°C, 目標 " << targetTemp << "°C)";
@@ -94,12 +102,33 @@ public:
             return result;
         }
         bool shouldBeOn = false;
+        // NOTE:
+        // 熱ソルバ側で set_node を fixed-row(T=pre_temp) にするため、
+        // ONにした直後の反復では currentTemp が「ちょうど目標」になりやすい。
+        // ここで「目標になったから即OFF」をやると、外側ループで ON/OFF が交互になり収束しない。
+        // そのため、誤差帯(±tolerance)内では状態を維持（deadband）する。
+        const double diff = currentTemp - targetTemp;
+        const bool withinBand = (std::abs(diff) <= tolerance);
+
         if (nodeProps.current_mode == "HEATING") {
-            shouldBeOn = (currentTemp < targetTemp + tolerance);
+            // 暖房:
+            // - 目標未満（-tolより低い）ならON
+            // - 目標超過（+tolより高い）ならOFF
+            // - ±tol内なら現状態を維持（収束扱い）
+            if (withinBand) shouldBeOn = nodeProps.on;
+            else shouldBeOn = (diff < 0.0);
         } else if (nodeProps.current_mode == "COOLING") {
-            shouldBeOn = (currentTemp > targetTemp - tolerance);
+            // 冷房:
+            // - 目標超過（+tolより高い）ならON
+            // - 目標未満（-tolより低い）ならOFF
+            // - ±tol内なら現状態を維持（収束扱い）
+            if (withinBand) shouldBeOn = nodeProps.on;
+            else shouldBeOn = (diff > 0.0);
         } else if (nodeProps.current_mode == "AUTO") {
-            shouldBeOn = (currentTemp < targetTemp + tolerance || currentTemp > targetTemp - tolerance);
+            // AUTO:
+            // - ±tol内なら現状態を維持（収束扱い）
+            // - 外れたらON（方向は後段のoperationMode判定等に委ねる）
+            shouldBeOn = withinBand ? nodeProps.on : true;
         } else {
             throw std::runtime_error("エアコンのモードが不正です: " + nodeProps.current_mode);
         }

@@ -85,6 +85,10 @@ std::vector<EdgeProperties> parseVentilationBranches(const json& config, std::os
                 0.0,
                 branchPrefix + ".vol");
         }
+        // enable が無い場合は「有効」を既定とする（旧入力との互換性・直感に合わせる）
+        if (!branchJson.contains("enable")) {
+            branch.current_enabled = true;
+        }
         if (branchJson.contains("enable")) {
             const auto& ej = branchJson["enable"];
             if (ej.is_array()) {
@@ -178,6 +182,65 @@ std::vector<EdgeProperties> parseThermalBranches(const json& config, std::ostrea
         if (branchJson.contains("conductance"))  branch.conductance  = branchJson["conductance"].get<double>();
         if (branchJson.contains("area"))         branch.area         = branchJson["area"].get<double>();
 
+        // response_conduction 用係数（配列）
+        auto readNumberArray = [&](const json& obj, const char* key, std::vector<double>& out) {
+            if (!obj.contains(key)) return false;
+            const auto& v = obj[key];
+            if (!v.is_array()) {
+                throw std::runtime_error(branchPrefix + std::string(".") + key + " must be array<number>");
+            }
+            out.clear();
+            out.reserve(v.size());
+            for (size_t i2 = 0; i2 < v.size(); ++i2) {
+                if (!v[i2].is_number()) {
+                    throw std::runtime_error(branchPrefix + std::string(".") + key + " must be array<number>");
+                }
+                out.push_back(v[i2].get<double>());
+            }
+            return true;
+        };
+
+        if (branch.type == "response_conduction") {
+            // area は必須（係数は q''[W/m2] のため solver 側で A を掛けて q[W] にする）
+            if (!branchJson.contains("area") || !branchJson["area"].is_number()) {
+                throw std::runtime_error(branchPrefix + " response_conduction requires numeric 'area' (per m2 coefficients)");
+            }
+            branch.area = branchJson["area"].get<double>();
+            if (branch.area <= 0.0) {
+                throw std::runtime_error(branchPrefix + " response_conduction requires positive 'area'");
+            }
+
+            // 必須: a/b は少なくとも現在係数（len>=1）
+            const bool hasA1 = readNumberArray(branchJson, "resp_a_src", branch.resp_a_src);
+            const bool hasB1 = readNumberArray(branchJson, "resp_b_src", branch.resp_b_src);
+            const bool hasA2 = readNumberArray(branchJson, "resp_a_tgt", branch.resp_a_tgt);
+            const bool hasB2 = readNumberArray(branchJson, "resp_b_tgt", branch.resp_b_tgt);
+            // 任意
+            (void)readNumberArray(branchJson, "resp_c_src", branch.resp_c_src);
+            (void)readNumberArray(branchJson, "resp_c_tgt", branch.resp_c_tgt);
+
+            if (!hasA1 || !hasB1 || !hasA2 || !hasB2 ||
+                branch.resp_a_src.empty() || branch.resp_b_src.empty() ||
+                branch.resp_a_tgt.empty() || branch.resp_b_tgt.empty()) {
+                throw std::runtime_error(
+                    branchPrefix + " response_conduction requires non-empty resp_a_src/resp_b_src/resp_a_tgt/resp_b_tgt");
+            }
+
+            if (branch.resp_a_src.size() != branch.resp_b_src.size()) {
+                throw std::runtime_error(branchPrefix + " response_conduction requires resp_a_src and resp_b_src same length");
+            }
+            if (branch.resp_a_tgt.size() != branch.resp_b_tgt.size()) {
+                throw std::runtime_error(branchPrefix + " response_conduction requires resp_a_tgt and resp_b_tgt same length");
+            }
+            // 推奨（builder自動生成系）: len(c)=len(a)-1。手入力の簡略系として空は許容。
+            if (!branch.resp_c_src.empty() && branch.resp_c_src.size() != branch.resp_a_src.size() - 1) {
+                throw std::runtime_error(branchPrefix + " response_conduction resp_c_src length should be len(resp_a_src)-1 or empty");
+            }
+            if (!branch.resp_c_tgt.empty() && branch.resp_c_tgt.size() != branch.resp_a_tgt.size() - 1) {
+                throw std::runtime_error(branchPrefix + " response_conduction resp_c_tgt length should be len(resp_a_tgt)-1 or empty");
+            }
+        }
+
         // 時系列（配列/単一両対応）
         if (branchJson.contains("heat_generation")) {
             branch.current_heat_generation = parser_utils::readScalarOrSeries<double>(
@@ -206,6 +269,9 @@ std::vector<EdgeProperties> parseThermalBranches(const json& config, std::ostrea
             } else {
                 throw std::runtime_error("thermal_branches[" + std::to_string(index-1) + "].enable must be boolean or array<boolean>");
             }
+        } else {
+            // enable が無い場合は既定で有効
+            branch.current_enabled = true;
         }
 
         branches.push_back(std::move(branch));

@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <numeric>
 #include <cmath>
+#include <sstream>
+#include <iomanip>
 
 namespace acmodel {
 
@@ -59,6 +61,55 @@ CRIEPIModel::CRIEPIModel(const nlohmann::json& config) : AirconSpec(config) {
 
 CRIEPIModel::~CRIEPIModel() {
     // デストラクタ
+}
+
+std::string CRIEPIModel::getInitializationSummary() const {
+    // verbosity=1でも出せる「初期化の最終結果」だけを1行で返す
+    // - Pc / 係数（cooling/heating）
+    // - rtd の V_inner / V_outer（取得できる場合）
+    auto getDoubleSafe = [&](const char* top, const char* mode, const char* key, double fallback) -> double {
+        try {
+            if (!spec_.contains(top)) return fallback;
+            const auto& t = spec_.at(top);
+            if (!t.contains(mode)) return fallback;
+            const auto& m = t.at(mode);
+            if (!m.contains(key)) return fallback;
+            return m.at(key).get<double>();
+        } catch (...) {
+            return fallback;
+        }
+    };
+
+    const double Vc_in  = getDoubleSafe("V_inner", "cooling", "rtd", 0.0);
+    const double Vc_out = getDoubleSafe("V_outer", "cooling", "rtd", 0.0);
+    const double Vh_in  = getDoubleSafe("V_inner", "heating", "rtd", 0.0);
+    const double Vh_out = getDoubleSafe("V_outer", "heating", "rtd", 0.0);
+
+    auto coeffStr = [&](const std::string& mode) -> std::string {
+        auto it = coeffs_.find(mode);
+        if (it == coeffs_.end() || it->second.size() < 3) return "N/A";
+        std::ostringstream oss;
+        oss << "[" << std::fixed << std::setprecision(6)
+            << it->second[0] << "," << it->second[1] << "," << it->second[2] << "]";
+        return oss.str();
+    };
+    auto pcStr = [&](const std::string& mode) -> std::string {
+        auto it = Pc_.find(mode);
+        if (it == Pc_.end()) return "N/A";
+        std::ostringstream oss;
+        oss << std::fixed << std::setprecision(6) << it->second;
+        return oss.str();
+    };
+
+    std::ostringstream summary;
+    summary << "CRIEPI 初期化サマリ:"
+            << " cooling Pc=" << pcStr("cooling") << "kW coeff=" << coeffStr("cooling")
+            << " V_inner(rtd)=" << std::fixed << std::setprecision(6) << Vc_in
+            << " V_outer(rtd)=" << std::fixed << std::setprecision(6) << Vc_out
+            << " | heating Pc=" << pcStr("heating") << "kW coeff=" << coeffStr("heating")
+            << " V_inner(rtd)=" << std::fixed << std::setprecision(6) << Vh_in
+            << " V_outer(rtd)=" << std::fixed << std::setprecision(6) << Vh_out;
+    return summary.str();
 }
 
 void CRIEPIModel::prepareCRIEPIModel() {

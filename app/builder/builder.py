@@ -8,6 +8,7 @@ import json
 from .logger import get_logger
 from .parsers import parse_all
 from .surfaces import process_surfaces
+from .heat_sources import build_heat_generation_branches
 from .aircon import process_aircons
 from .thermal import process_capacities
 from .validate import validate_dict, validate_dict_with_warnings, validate_dict_with_warning_details
@@ -27,6 +28,9 @@ def build_config_with_warnings(
     add_capacity: bool = True,
     add_surface_solar: bool = True,
     add_surface_radiation: bool = True,
+    surface_layer_method: str = "rc",
+    response_method: str = "arx_rc",
+    response_terms: int | None = None,
 ) -> tuple[Dict[str, Any], list[str]]:
     """
     設定 raw_config を正規化・展開・検証して dict と warnings を返す。
@@ -37,6 +41,41 @@ def build_config_with_warnings(
     logger.info("設定データの読み込み開始")
     try:
         raw = deepcopy(raw_config)
+
+        # JSON から builder オプションを読み取る（関数引数が既定値のときだけ反映）
+        # 例:
+        #   "builder": { "surface_layer_method": "response" }
+        # 互換: トップレベルに "surface_layer_method" を置くのも許可
+        if surface_layer_method == "rc":
+            builder_opt = raw.get("builder")
+            if isinstance(builder_opt, dict):
+                v = builder_opt.get("surface_layer_method")
+                if isinstance(v, str) and v:
+                    surface_layer_method = v
+                rm = builder_opt.get("response_method")
+                if response_method == "arx_rc" and isinstance(rm, str) and rm:
+                    response_method = rm
+                rt = builder_opt.get("response_terms")
+                if response_terms is None and rt is not None:
+                    try:
+                        response_terms = int(rt)
+                    except Exception:
+                        raise ValueError(f"builder.response_terms must be int, got {rt!r}")
+            v2 = raw.get("surface_layer_method")
+            if isinstance(v2, str) and v2:
+                surface_layer_method = v2
+            # 互換: トップレベルでも受ける
+            if response_method == "arx_rc":
+                rm2 = raw.get("response_method")
+                if isinstance(rm2, str) and rm2:
+                    response_method = rm2
+            if response_terms is None:
+                rt2 = raw.get("response_terms")
+                if rt2 is not None:
+                    try:
+                        response_terms = int(rt2)
+                    except Exception:
+                        raise ValueError(f"response_terms must be int, got {rt2!r}")
 
         # 設定データの解析
         sim_config, node_config, ventilation_config, thermal_config, surface_config, aircon_config = parse_all(raw)
@@ -50,11 +89,24 @@ def build_config_with_warnings(
                 node_config=node_config,
                 add_solar=add_surface_solar,
                 add_radiation=add_surface_radiation,
+                layer_method=surface_layer_method,
+                time_step=float(sim_config["index"]["timestep"]),
+                response_method=response_method,
+                response_terms=response_terms,
             )
             node_config.extend(add_nodes)
             thermal_config.extend(add_tb)
         elif surface_config:
             logger.info("表面の処理をスキップします。")
+
+        # 発熱（heat_source）の処理
+        # - 対流分: void->room の heat_generation
+        # - 放射分: void->surface の heat_generation（面積按分; surfacesが無ければ void->room）
+        try:
+            thermal_config.extend(build_heat_generation_branches(raw_config=raw, surface_config=surface_config))
+        except Exception as e:
+            logger.exception("heat_source の処理に失敗しました: %s", e)
+            raise
 
         # 空調の処理
         if aircon_config and add_aircon:
@@ -121,6 +173,9 @@ def build_config_with_warning_details(
     add_capacity: bool = True,
     add_surface_solar: bool = True,
     add_surface_radiation: bool = True,
+    surface_layer_method: str = "rc",
+    response_method: str = "arx_rc",
+    response_terms: int | None = None,
 ) -> tuple[Dict[str, Any], list[str], list[dict]]:
     """
     設定 raw_config を正規化・展開・検証して dict と warnings（文字列/構造化）を返す。
@@ -128,7 +183,47 @@ def build_config_with_warning_details(
     logger.info("設定データの読み込み開始")
     raw = deepcopy(raw_config)
 
+    # JSON から builder オプションを読み取る（関数引数が既定値のときだけ反映）
+    if surface_layer_method == "rc":
+        builder_opt = raw.get("builder")
+        if isinstance(builder_opt, dict):
+            v = builder_opt.get("surface_layer_method")
+            if isinstance(v, str) and v:
+                surface_layer_method = v
+            rm = builder_opt.get("response_method")
+            if response_method == "arx_rc" and isinstance(rm, str) and rm:
+                response_method = rm
+            rt = builder_opt.get("response_terms")
+            if response_terms is None and rt is not None:
+                try:
+                    response_terms = int(rt)
+                except Exception:
+                    raise ValueError(f"builder.response_terms must be int, got {rt!r}")
+        v2 = raw.get("surface_layer_method")
+        if isinstance(v2, str) and v2:
+            surface_layer_method = v2
+        if response_method == "arx_rc":
+            rm2 = raw.get("response_method")
+            if isinstance(rm2, str) and rm2:
+                response_method = rm2
+        if response_terms is None:
+            rt2 = raw.get("response_terms")
+            if rt2 is not None:
+                try:
+                    response_terms = int(rt2)
+                except Exception:
+                    raise ValueError(f"response_terms must be int, got {rt2!r}")
+
+    logger.info("設定データのパース開始: keys=%d", len(raw) if isinstance(raw, dict) else -1)
     sim_config, node_config, ventilation_config, thermal_config, surface_config, aircon_config = parse_all(raw)
+    logger.info(
+        "設定データのパース完了: nodes=%d, vents=%d, thermals=%d, surfaces=%d, aircons=%d",
+        len(node_config) if node_config is not None else -1,
+        len(ventilation_config) if ventilation_config is not None else -1,
+        len(thermal_config) if thermal_config is not None else -1,
+        len(surface_config) if surface_config is not None else -1,
+        len(aircon_config) if aircon_config is not None else -1,
+    )
 
     if surface_config and add_surface:
         sim_length = int(sim_config["index"]["length"])
@@ -138,11 +233,22 @@ def build_config_with_warning_details(
             node_config=node_config,
             add_solar=add_surface_solar,
             add_radiation=add_surface_radiation,
+            layer_method=surface_layer_method,
+            time_step=float(sim_config["index"]["timestep"]),
+            response_method=response_method,
+            response_terms=response_terms,
         )
         node_config.extend(add_nodes)
         thermal_config.extend(add_tb)
     elif surface_config:
         logger.info("表面の処理をスキップします。")
+
+    # 発熱（heat_source）の処理
+    try:
+        thermal_config.extend(build_heat_generation_branches(raw_config=raw, surface_config=surface_config))
+    except Exception as e:
+        logger.exception("heat_source の処理に失敗しました: %s", e)
+        raise
 
     if aircon_config and add_aircon:
         add_nodes, add_ventilation_branches = process_aircons(aircon_config)
@@ -197,6 +303,9 @@ def build_config(
     add_capacity: bool = True,
     add_surface_solar: bool = True,
     add_surface_radiation: bool = True,
+    surface_layer_method: str = "rc",
+    response_method: str = "arx_rc",
+    response_terms: int | None = None,
 ) -> Dict[str, Any]:
     """
     設定 raw_config を正規化・展開・検証して dict を返す。
@@ -212,6 +321,9 @@ def build_config(
         add_capacity=add_capacity,
         add_surface_solar=add_surface_solar,
         add_surface_radiation=add_surface_radiation,
+        surface_layer_method=surface_layer_method,
+        response_method=response_method,
+        response_terms=response_terms,
     )
     return validated
 

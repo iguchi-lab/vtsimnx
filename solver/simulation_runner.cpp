@@ -141,13 +141,27 @@ static AirconStepResult runAirconControlAndAdjust(AirconController& airconContro
                                                   const std::string& meta) {
     AirconStepResult r;
     bool allAirconControlled = false;
+
+    // 1. 現在の温度でエアコン出力を決定し、各ノードの heat_source をリセットする
     {
+        auto& graph = thermalNetwork.getGraph();
+        for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+            graph[v].heat_source = 0.0;
+        }
+
         ScopedTimer timer(timings, "aircon_control", meta);
         allAirconControlled = airconController.controlAllAircons(
             thermalNetwork, constants.thermalTolerance, logs);
     }
+
+    // 2. エアコンが ON の場合、必要に応じて追加の処理（現状は行列側でA案として処理されるため、ここでの heat_source 設定は不要）
+    {
+        // A案（行列の行入れ替え）を採用するため、以前追加した heat_source への Gain 投入は削除します。
+    }
+
     if (!allAirconControlled) {
         r.allControlled = false;
+        r.shouldRecompute = true;
         return r;
     }
 
@@ -185,7 +199,16 @@ static void buildTimestepResult(const SimulationConstants& constants,
 
     if (constants.temperatureCalc) {
         convertDoublesToF32(timestepResult.temperature, thermalNetwork.collectTemperatureValues());
-        convertDoublesToF32(timestepResult.heatRate, thermalNetwork.collectHeatRateValues());
+        convertDoublesToF32(timestepResult.temperatureCapacity, thermalNetwork.collectTemperatureValuesCapacity());
+        convertDoublesToF32(timestepResult.temperatureLayer, thermalNetwork.collectTemperatureValuesLayer());
+        convertDoublesToF32(timestepResult.heatRateAdvection, thermalNetwork.collectHeatRateValuesAdvection());
+        convertDoublesToF32(timestepResult.heatRateHeatGeneration, thermalNetwork.collectHeatRateValuesHeatGeneration());
+        convertDoublesToF32(timestepResult.heatRateSolarGain, thermalNetwork.collectHeatRateValuesSolarGain());
+        convertDoublesToF32(timestepResult.heatRateNocturnalLoss, thermalNetwork.collectHeatRateValuesNocturnalLoss());
+        convertDoublesToF32(timestepResult.heatRateConvection, thermalNetwork.collectHeatRateValuesConvection());
+        convertDoublesToF32(timestepResult.heatRateConduction, thermalNetwork.collectHeatRateValuesConduction());
+        convertDoublesToF32(timestepResult.heatRateRadiation, thermalNetwork.collectHeatRateValuesRadiation());
+        convertDoublesToF32(timestepResult.heatRateCapacity, thermalNetwork.collectHeatRateValuesCapacity());
 
         convertDoublesToF32(timestepResult.airconSensibleHeat,
                             airconController.collectAirconDataValues(thermalNetwork, flowRates, "sensibleHeatCapacity"));
@@ -265,6 +288,10 @@ performCoupledCalculation(VentilationNetwork& ventNetwork,
 
         // 熱計算
         if (constants.temperatureCalc) {
+            // pressureCalc=false の場合でも fixed_flow 等で flow_rate が入るため、移流用に同期する
+            if (!constants.pressureCalc) {
+                thermalNetwork.syncFlowRatesFromVentilationNetwork(ventNetwork);
+            }
             std::unique_ptr<ScopedLogSection> thermalScope;
             if (logEnabled) thermalScope = std::make_unique<ScopedLogSection>(logs, "熱計算");
             {
@@ -329,9 +356,6 @@ void runSimulation(VentilationNetwork& ventNetwork,
     const bool logEnabled = (constants.logVerbosity > 0);
     int totalIterations = 0; // 総反復回数を記録
 
-    // エアコンの設定を適用
-    airconController.applyPreset(thermalNetwork, logs);
-
     // 連成計算の実行
     PressureMap     pressureMap;
     FlowRateMap     flowRates;
@@ -348,6 +372,11 @@ void runSimulation(VentilationNetwork& ventNetwork,
                 std::tie(pressureMap, flowRates, flowBalance) =
                     performCoupledCalculation(ventNetwork, thermalNetwork, constants, logs, totalIterations, timings, meta + ",iteration=" + std::to_string(iteration + 1));
             }
+            // pressureCalc=false の場合でも、aircon制御（処理熱量/風量/COP計算）が流量を参照できるように
+            // VentilationNetwork の確定 flow_rate（fixed_flow 等）から FlowRateMap を生成する。
+            if (!constants.pressureCalc) {
+                flowRates = ventNetwork.collectFlowRateMap();
+            }
 
             // エアコン制御ロジック（連成計算後）
             const auto airconRes = runAirconControlAndAdjust(
@@ -363,6 +392,23 @@ void runSimulation(VentilationNetwork& ventNetwork,
             if (airconRes.shouldRecompute) {
                 if (logEnabled) writeLog(logs, "エアコン制御の修正が行われました。再計算を実行します。");
                 continue;
+            }
+            // 収束判定:
+            // - aircon が安定していても、熱計算が未収束なら「収束しました」とは扱わない
+            const bool thermalOk = thermalNetwork.getLastThermalConverged();
+            if (!thermalOk) {
+                // 無限ループや「誤って収束扱い」を避けるため、未収束になった時点でエラー終了する
+                if (logEnabled) {
+                    std::ostringstream oss;
+                    oss << "　エラー: 熱計算が未収束のため停止します (method="
+                        << thermalNetwork.getLastThermalMethod()
+                        << ", RMSE=" << std::scientific << std::setprecision(6) << thermalNetwork.getLastThermalRmseBalance()
+                        << ", maxBalance=" << std::scientific << std::setprecision(6) << thermalNetwork.getLastThermalMaxBalance()
+                        << ", loop=" << (iteration + 1)
+                        << ")";
+                    writeLog(logs, oss.str());
+                }
+                throw std::runtime_error("Thermal solver did not converge: stopping to avoid infinite loop");
             }
             loopConverged = airconRes.allControlled;
         }

@@ -23,6 +23,7 @@ class VentilationBranchTypeEnum(str, Enum):
 class ThermalBranchTypeEnum(str, Enum):
     CONDUCTANCE = "conductance"
     HEAT_GENERATION = "heat_generation"
+    RESPONSE_CONDUCTION = "response_conduction"
 
 
 class IndexType(TypedDict):
@@ -112,5 +113,12 @@ class ThermalBranchType(TypedDict):
     u_value: Optional[float]
     area: Optional[float]
     heat_generation: Optional[np.ndarray]
+    # response_conduction 用（係数は配列）
+    resp_a_src: Optional[np.ndarray]
+    resp_b_src: Optional[np.ndarray]
+    resp_c_src: Optional[np.ndarray]
+    resp_a_tgt: Optional[np.ndarray]
+    resp_b_tgt: Optional[np.ndarray]
+    resp_c_tgt: Optional[np.ndarray]
 
 

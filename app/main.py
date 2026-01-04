@@ -25,9 +25,17 @@ from pathlib import Path
 import json
 import gzip
 import os
+import logging
+import uuid
+import tempfile
 from app.solver_runner import run_solver, force_log_verbosity
+from app.solver_runner import attach_builder_log_to_artifacts, write_artifact_manifest
 from app.builder import build_config_with_warning_details
 from app.builder.validate import ValidationError, ConfigFileError
+from app.builder.logger import use_builder_log_file
+
+# Uvicorn のロガー設定に追従して出す（traceback を残すため）
+logger = logging.getLogger(__name__)
 
 # API ルータ本体。OpenAPI のタイトルやバージョンをここで設定する。
 app = FastAPI(title="VTSimNX API", version="0.1.0")
@@ -131,6 +139,12 @@ def _artifact_file_from_key(manifest: Dict[str, Any], key: str) -> Tuple[str, st
             raise HTTPException(status_code=404, detail="log_file not available")
         return name, "text/plain"
 
+    if key == "builder_log":
+        name = out.get("builder_log_file")
+        if not isinstance(name, str) or not name:
+            raise HTTPException(status_code=404, detail="builder_log_file not available")
+        return name, "text/plain"
+
     if key == "manifest":
         return "manifest.json", "application/json"
 
@@ -188,19 +202,40 @@ def run_simulation(req: SimulationRequest):
         HTTPException(500): ソルバ実行や結果読み取りで例外が発生した場合に返す。
     """
     try:
+        # 1リクエスト=1 run_id を先に決める（builderログとsolver成果物を紐付けるため）
+        run_id = uuid.uuid4().hex
+
+        # builder ログは /tmp に一時出力（work/logs には出さない）。
+        # その後、solver の artifacts が確定したら artifacts 直下へコピーして manifest に載せ、元の一時ファイルは削除する。
+        tmp_dir = os.getenv("VTSIMNX_BUILDER_TMP_DIR") or tempfile.gettempdir()
+        builder_log_tmp = Path(tmp_dir) / f"vtsimnx.builder.{run_id}.log"
+
         # ユーザー入力（raw）を solver 用 config に変換（正規化/展開/検証）
-        built_config, warnings, warning_details = build_config_with_warning_details(req.config, output_path=None)
+        with use_builder_log_file(builder_log_tmp):
+            built_config, warnings, warning_details = build_config_with_warning_details(req.config, output_path=None)
 
         # API側でログ冗長度を統制（debug=falseなら常に1に落とす）
         # ※ build_config の後に適用することで、builder の未知キー削除で落ちないようにする
         force_log_verbosity(built_config, debug=req.debug, debug_verbosity=req.debug_verbosity, default_verbosity=1)
 
-        output = run_solver(built_config)
+        # manifest は builder_log を追記してから書きたいので、一旦書かずに返してもらう。
+        # テストでは run_solver を「引数1個のlambda」でモックしているので、kwargs が使えない場合はフォールバックする。
+        try:
+            output = run_solver(built_config, run_id=run_id, write_manifest=False)
+        except TypeError:
+            # モック想定（本番のsolverでここに落ちるのは基本的に想定しない）
+            output = run_solver(built_config)
+
+        # builderログを artifacts へ取り込み、manifest(output) に参照を追加
+        attach_builder_log_to_artifacts(output, builder_log_path=builder_log_tmp, artifact_filename="builder.log", delete_source=True)
+        write_artifact_manifest(output)
     except (ValidationError, ConfigFileError) as e:
         # 入力不正は 400
+        logger.info("validation/config error in /run: %s", e)
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         # エラー時は 500 を返す
+        logger.exception("internal error in /run")
         raise HTTPException(status_code=500, detail=str(e))
 
     return SimulationResponse(result=output, warnings=warnings, warning_details=warning_details)
@@ -211,9 +246,15 @@ def _run_simulation_core(*, raw_config: Dict[str, Any], debug: bool, debug_verbo
     /run と同じ経路で単発実行したいときの共通ロジック（CLI/テスト用）。
     FastAPI の依存注入や HTTP レイヤに依存しない。
     """
-    built_config, warnings, warning_details = build_config_with_warning_details(raw_config, output_path=None)
+    run_id = uuid.uuid4().hex
+    tmp_dir = os.getenv("VTSIMNX_BUILDER_TMP_DIR") or tempfile.gettempdir()
+    builder_log_tmp = Path(tmp_dir) / f"vtsimnx.builder.{run_id}.log"
+    with use_builder_log_file(builder_log_tmp):
+        built_config, warnings, warning_details = build_config_with_warning_details(raw_config, output_path=None)
     force_log_verbosity(built_config, debug=debug, debug_verbosity=debug_verbosity, default_verbosity=1)
-    output = run_solver(built_config)
+    output = run_solver(built_config, run_id=run_id, write_manifest=False)
+    attach_builder_log_to_artifacts(output, builder_log_path=builder_log_tmp, artifact_filename="builder.log", delete_source=True)
+    write_artifact_manifest(output)
     return SimulationResponse(result=output, warnings=warnings, warning_details=warning_details)
 
 @app.get("/artifacts/{artifact_dir}/manifest")
@@ -238,6 +279,8 @@ def list_artifact_files(artifact_dir: str):
         keys.extend(sorted([k for k, v in result_files.items() if isinstance(v, str) and v]))
     if isinstance(out, dict) and isinstance(out.get("log_file"), str) and out.get("log_file"):
         keys.append("log")
+    if isinstance(out, dict) and isinstance(out.get("builder_log_file"), str) and out.get("builder_log_file"):
+        keys.append("builder_log")
     keys.append("manifest")
     return {"artifact_dir": artifact_dir, "keys": keys}
 

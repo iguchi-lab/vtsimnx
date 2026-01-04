@@ -36,6 +36,13 @@ VENTILATION_BRANCH_TYPES: Dict[str, Dict[str, List[str]]] = {
 THERMAL_BRANCH_TYPES: Dict[str, Dict[str, List[str]]] = {
     ThermalBranchTypeEnum.CONDUCTANCE: {"required": ["conductance"], "optional": ["u_value", "area"]},
     ThermalBranchTypeEnum.HEAT_GENERATION: {"required": ["heat_generation"]},
+    ThermalBranchTypeEnum.RESPONSE_CONDUCTION: {
+        # NOTE:
+        # - 係数は「熱流密度 q'' [W/m2]」に対するもの（面積Aは solver 側で掛けて [W] にする前提）
+        # - よって area は必須
+        "required": ["area", "resp_a_src", "resp_b_src", "resp_a_tgt", "resp_b_tgt"],
+        "optional": ["resp_c_src", "resp_c_tgt"],
+    },
 }
 
 
@@ -180,6 +187,96 @@ def validate_branch_parameters(branch: Dict[str, Any], branch_types: Dict[str, D
         if param not in branch:
             errors.append(f"{context} {branch['key']} に'{param}'が指定されていません")
     return ValidationResult(len(errors) == 0, errors, [])
+
+
+def _as_float_list(value: Any, *, allow_empty: bool) -> List[float]:
+    if value is None:
+        return [] if allow_empty else None  # type: ignore[return-value]
+    if isinstance(value, (list, tuple, np.ndarray)):
+        seq = list(value)
+    else:
+        # scalar は許容しない（誤入力を早期検出）
+        return None  # type: ignore[return-value]
+    if (not allow_empty) and len(seq) == 0:
+        return None  # type: ignore[return-value]
+    out: List[float] = []
+    for x in seq:
+        try:
+            out.append(float(x))
+        except Exception:
+            return None  # type: ignore[return-value]
+    return out
+
+
+def _validate_response_conduction(branch: Dict[str, Any]) -> List[str]:
+    """
+    response_conduction の係数整合チェック。
+    想定している ARX 形式（src/tgtそれぞれ）:
+      q''(k) = sum_{j=0..m} a[j]*T_src(k-j) + sum_{j=0..m} b[j]*T_tgt(k-j) + sum_{i=0..n-1} c[i]*q''(k-1-i)
+
+    - a/b は同じ長さ（m+1）
+    - c は (m) と同じ次数が一般的だが、ここでは「aの長さ-1」と一致する場合のみ厳密チェックする。
+      （手入力の簡略系として c=[] も許容）
+    """
+    errors: List[str] = []
+    ctx = f"熱ブランチ {branch.get('key', '?')} (response_conduction)"
+
+    # area
+    area = branch.get("area")
+    try:
+        area_f = float(area)
+    except Exception:
+        errors.append(f"{ctx} の 'area' は数値である必要があります")
+        return errors
+    if area_f <= 0:
+        errors.append(f"{ctx} の 'area' は正である必要があります（per m2 係数のため）")
+    branch["area"] = area_f
+
+    # coefficients
+    a_src = _as_float_list(branch.get("resp_a_src"), allow_empty=False)
+    b_src = _as_float_list(branch.get("resp_b_src"), allow_empty=False)
+    a_tgt = _as_float_list(branch.get("resp_a_tgt"), allow_empty=False)
+    b_tgt = _as_float_list(branch.get("resp_b_tgt"), allow_empty=False)
+    c_src = _as_float_list(branch.get("resp_c_src"), allow_empty=True)
+    c_tgt = _as_float_list(branch.get("resp_c_tgt"), allow_empty=True)
+
+    if a_src is None:
+        errors.append(f"{ctx} の 'resp_a_src' は数値配列である必要があります")
+    if b_src is None:
+        errors.append(f"{ctx} の 'resp_b_src' は数値配列である必要があります")
+    if a_tgt is None:
+        errors.append(f"{ctx} の 'resp_a_tgt' は数値配列である必要があります")
+    if b_tgt is None:
+        errors.append(f"{ctx} の 'resp_b_tgt' は数値配列である必要があります")
+    if c_src is None:
+        errors.append(f"{ctx} の 'resp_c_src' は数値配列である必要があります（省略時は []）")
+    if c_tgt is None:
+        errors.append(f"{ctx} の 'resp_c_tgt' は数値配列である必要があります（省略時は []）")
+    if errors:
+        return errors
+
+    assert a_src is not None and b_src is not None and a_tgt is not None and b_tgt is not None
+    assert c_src is not None and c_tgt is not None
+
+    if len(a_src) != len(b_src):
+        errors.append(f"{ctx}: 'resp_a_src' と 'resp_b_src' の長さが一致しません")
+    if len(a_tgt) != len(b_tgt):
+        errors.append(f"{ctx}: 'resp_a_tgt' と 'resp_b_tgt' の長さが一致しません")
+
+    # c 次数の目安（builder自動生成系は len(c)=len(a)-1）
+    if len(c_src) not in (0, max(len(a_src) - 1, 0)):
+        errors.append(f"{ctx}: 'resp_c_src' の長さが不正です（推奨: len(resp_a_src)-1 または 0）")
+    if len(c_tgt) not in (0, max(len(a_tgt) - 1, 0)):
+        errors.append(f"{ctx}: 'resp_c_tgt' の長さが不正です（推奨: len(resp_a_tgt)-1 または 0）")
+
+    # 正規化（list[float] に揃える）
+    branch["resp_a_src"] = a_src
+    branch["resp_b_src"] = b_src
+    branch["resp_a_tgt"] = a_tgt
+    branch["resp_b_tgt"] = b_tgt
+    branch["resp_c_src"] = c_src
+    branch["resp_c_tgt"] = c_tgt
+    return errors
 
 
 def set_default_generation(branch: Dict[str, Any], sim_config: SimConfigType, field: str, calc_flag: str) -> None:
@@ -523,6 +620,9 @@ def validate_thermal_config(
         if not result.is_valid:
             errors.extend(result.errors)
             continue
+
+        if branch["type"] == ThermalBranchTypeEnum.RESPONSE_CONDUCTION:
+            errors.extend(_validate_response_conduction(branch))
 
     logger.info("thermal_configのバリデーションが完了しました。")
     return thermal_config, ValidationResult(len(errors) == 0, errors, warnings)

@@ -96,3 +96,49 @@ def test_unknown_fields_are_stripped(minimal_simulation):
     assert "unknown_x" not in out["ventilation_branches"][0]
 
 
+def test_response_conduction_requires_area(minimal_simulation):
+    cfg = {
+        "simulation": minimal_simulation,
+        "nodes": [{"key": "A", "t": 20.0}, {"key": "B", "t": 0.0}],
+        "ventilation_branches": [],
+        "thermal_branches": [
+            {
+                "key": "A->B",
+                "type": "response_conduction",
+                # area がない（per m2 係数のため必須）
+                "resp_a_src": [5.0],
+                "resp_b_src": [-5.0],
+                "resp_a_tgt": [5.0],
+                "resp_b_tgt": [-5.0],
+                "resp_c_src": [],
+                "resp_c_tgt": [],
+            }
+        ],
+    }
+    with pytest.raises(validate.ValidationError):
+        validate.validate_dict(cfg)
+
+
+def test_response_conduction_rejects_mismatched_coeff_lengths(minimal_simulation):
+    cfg = {
+        "simulation": minimal_simulation,
+        "nodes": [{"key": "A", "t": 20.0}, {"key": "B", "t": 0.0}],
+        "ventilation_branches": [],
+        "thermal_branches": [
+            {
+                "key": "A->B",
+                "type": "response_conduction",
+                "area": 10.0,
+                "resp_a_src": [5.0, 1.0],
+                "resp_b_src": [-5.0],  # 長さ不一致
+                "resp_a_tgt": [5.0],
+                "resp_b_tgt": [-5.0],
+                "resp_c_src": [],
+                "resp_c_tgt": [],
+            }
+        ],
+    }
+    with pytest.raises(validate.ValidationError):
+        validate.validate_dict(cfg)
+
+

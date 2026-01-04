@@ -13,8 +13,19 @@ struct TimestepResult {
     FlowBalanceMap flowBalanceMap;
 
     // 温度関連（temperatureCalcがtrueの場合のみ有効）
-    std::vector<float> temperature; // ノード温度（キー順は ThermalNetwork が提供）
-    std::vector<float> heatRate;    // 個別ブランチの熱流量データ（キー順は ThermalNetwork が提供）
+    // temperature は 3 系列に分けて出力する
+    std::vector<float> temperature;         // main: normal + aircon + unknown
+    std::vector<float> temperatureCapacity; // capacity
+    std::vector<float> temperatureLayer;    // layer
+    // heat_rate はカテゴリ別に出力する
+    std::vector<float> heatRateAdvection;
+    std::vector<float> heatRateHeatGeneration;
+    std::vector<float> heatRateSolarGain;
+    std::vector<float> heatRateNocturnalLoss;
+    std::vector<float> heatRateConvection;
+    std::vector<float> heatRateConduction;
+    std::vector<float> heatRateRadiation;
+    std::vector<float> heatRateCapacity;
     HeatBalanceMap heatBalanceMap;
 
     // エアコン関連（temperatureCalcがtrueの場合のみ有効）

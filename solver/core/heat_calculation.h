@@ -15,9 +15,11 @@ inline double calcAdvectionHeat(double sourceTemp, double targetTemp, const Edge
     double flowRate = edgeData.flow_rate; // m3/s
     if (std::abs(flowRate) < archenv::FLOW_RATE_MIN) return 0.0;
     
-    double mDotCpAbs = archenv::DENSITY_DRY_AIR * archenv::SPECIFIC_HEAT_AIR * std::abs(flowRate);
-    // 温度差ベース（有向）：source - target
-    return mDotCpAbs * (sourceTemp - targetTemp);
+    double mDotCp = archenv::DENSITY_DRY_AIR * archenv::SPECIFIC_HEAT_AIR * flowRate;
+    // 符号付き風量に基づいた熱移動量（source -> target 向きを正とする）
+    // flowRate > 0 のとき: mDotCpAbs * (sourceTemp - targetTemp)
+    // flowRate < 0 のとき: mDotCpAbs * (targetTemp - sourceTemp)
+    return mDotCp * (sourceTemp - targetTemp);
 }
 
 // 伝導熱流量計算（conductance）

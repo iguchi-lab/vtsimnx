@@ -12,6 +12,9 @@ from typing import Dict, Any, Optional
 from datetime import datetime, timezone
 import uuid
 import os
+import hashlib
+import tempfile
+import shutil
 
 # プロジェクトルート（このファイルの親の親）を基準にパスを解決する。
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -91,6 +94,46 @@ def write_artifact_manifest(output_data: Dict[str, Any]) -> Optional[Path]:
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
     return manifest_path
 
+def attach_builder_log_to_artifacts(
+    output_data: Dict[str, Any],
+    *,
+    builder_log_path: Path,
+    artifact_filename: str = "builder.log",
+    delete_source: bool = False,
+) -> Optional[Path]:
+    """
+    builder のログファイルを artifacts 配下にコピーし、output_data に参照キーを追加する。
+    - API の download は artifact_dir 直下しか許可していないため、サブディレクトリは使わない。
+
+    追加するキー:
+      output_data["builder_log_file"] = artifact_filename
+    """
+    if not builder_log_path or not isinstance(builder_log_path, Path):
+        return None
+    if not builder_log_path.exists() or not builder_log_path.is_file():
+        return None
+
+    work_dir = BASE_DIR / "work"
+    artifact_dir_path = _artifact_dir_from_output(work_dir, output_data)
+    if artifact_dir_path is None:
+        return None
+    artifact_dir_path.mkdir(parents=True, exist_ok=True)
+
+    dest = artifact_dir_path / artifact_filename
+    try:
+        shutil.copy2(builder_log_path, dest)
+    except Exception:
+        return None
+    finally:
+        if delete_source:
+            try:
+                builder_log_path.unlink()
+            except Exception:
+                pass
+
+    output_data["builder_log_file"] = artifact_filename
+    return dest
+
 
 def _invoke_solver(input_path: Path, output_path: Path, cwd: Path) -> None:
     """
@@ -114,7 +157,94 @@ def _invoke_solver(input_path: Path, output_path: Path, cwd: Path) -> None:
     if not output_path.exists():
         raise RuntimeError(f"solver did not produce output file: {output_path}")
 
-def run_solver(input_data: Dict[str, Any]) -> Dict[str, Any]:
+class _HashingWriter:
+    """
+    json.dump の出力をファイルへ書きつつ、同じバイト列でハッシュ（sha256）も計算する。
+    - 巨大JSONのためにメモリへ全体を保持しない
+    """
+    def __init__(self, f, h: "hashlib._Hash"):
+        self._f = f
+        self._h = h
+
+    def write(self, s: str) -> int:
+        b = s.encode("utf-8")
+        self._h.update(b)
+        return self._f.write(s)
+
+    def flush(self) -> None:
+        return self._f.flush()
+
+def _write_input_json(
+    input_data: Dict[str, Any],
+    *,
+    path: Path,
+    pretty: bool,
+    sort_keys: bool,
+) -> None:
+    """
+    solver 入力JSONを書き出す。
+    - デフォルトは compact（indentなし, separators指定）でサイズと parse 時間を削減
+    - pretty はデバッグ用（KEEP_RUN_FILES と併用されがち）
+    """
+    with path.open("w", encoding="utf-8") as f:
+        if pretty:
+            json.dump(input_data, f, ensure_ascii=False, indent=2, sort_keys=sort_keys)
+        else:
+            json.dump(input_data, f, ensure_ascii=False, separators=(",", ":"), sort_keys=sort_keys)
+
+def _get_cached_input_path(
+    work_dir: Path,
+    input_data: Dict[str, Any],
+    *,
+    pretty: bool,
+) -> Path:
+    """
+    入力JSONの内容に基づいてキャッシュファイルを返す（無ければ作成）。
+    - キャッシュを使うことで「同一入力の連続実行」で I/O と JSON parse の両方が効く
+    - ハッシュは json.dump の出力バイト列（UTF-8）に対して計算する
+    """
+    cache_dir = work_dir / "cache_inputs"
+    cache_dir.mkdir(parents=True, exist_ok=True)
+
+    # 一旦テンポラリへ書き、同時に sha256 を計算 → hash が確定したら cache に move
+    h = hashlib.sha256()
+    with tempfile.NamedTemporaryFile("w", encoding="utf-8", dir=str(work_dir), delete=False, prefix="input.cache.tmp.", suffix=".json") as tf:
+        tmp_path = Path(tf.name)
+        hw = _HashingWriter(tf, h)
+        if pretty:
+            json.dump(input_data, hw, ensure_ascii=False, indent=2, sort_keys=True)
+        else:
+            json.dump(input_data, hw, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+        tf.write("\n")
+        tf.flush()
+
+    digest = h.hexdigest()
+    cached = cache_dir / f"{digest}.json"
+
+    try:
+        if cached.exists():
+            # 既にあるなら tmp を捨てる
+            try:
+                tmp_path.unlink()
+            except Exception:
+                pass
+            return cached
+        tmp_path.replace(cached)
+        return cached
+    finally:
+        # replace が失敗した場合でも tmp が残る可能性があるのでベストエフォートで削除
+        if tmp_path.exists() and cached.exists():
+            try:
+                tmp_path.unlink()
+            except Exception:
+                pass
+
+def run_solver(
+    input_data: Dict[str, Any],
+    *,
+    run_id: Optional[str] = None,
+    write_manifest: bool = True,
+) -> Dict[str, Any]:
     """
     入力辞書を一時 JSON ファイルに書き出して C++ ソルバを実行し、
     生成された出力 JSON を辞書として返す。
@@ -140,15 +270,26 @@ def run_solver(input_data: Dict[str, Any]) -> Dict[str, Any]:
     # 並列実行安全性:
     # 同一 work_dir で input.json / output.json を共有すると、同時リクエストで上書き競合が起きる。
     # そのため、リクエストごとにユニークなファイル名を使う。
-    run_id = uuid.uuid4().hex
-    input_path = work_dir / f"input.{run_id}.json"
+    run_id = (run_id or uuid.uuid4().hex)
     output_path = work_dir / f"output.{run_id}.json"
 
-    # 入力を書き出し
-    with input_path.open("w", encoding="utf-8") as f:
-        json.dump(input_data, f, ensure_ascii=False, indent=2)
-
     keep_run_files = os.getenv("VTSIMNX_KEEP_RUN_FILES") is not None
+    pretty_input = os.getenv("VTSIMNX_PRETTY_INPUT") is not None
+    # KEEP_RUN_FILES のときは読みやすさ優先で pretty に寄せる（明示指定があればそちら優先）
+    if keep_run_files and os.getenv("VTSIMNX_PRETTY_INPUT") is None:
+        pretty_input = True
+
+    use_input_cache = os.getenv("VTSIMNX_INPUT_CACHE") is not None
+
+    # 入力を書き出し（またはキャッシュから取得）
+    cached_input = False
+    if use_input_cache:
+        input_path = _get_cached_input_path(work_dir, input_data, pretty=pretty_input)
+        cached_input = True
+    else:
+        input_path = work_dir / f"input.{run_id}.json"
+        _write_input_json(input_data, path=input_path, pretty=pretty_input, sort_keys=False)
+
     try:
         _invoke_solver(input_path, output_path, cwd=work_dir)
 
@@ -158,7 +299,8 @@ def run_solver(input_data: Dict[str, Any]) -> Dict[str, Any]:
         # デフォルトでは一時入出力を消して work/ 汚染を抑える（必要なら env で残せる）
         if not keep_run_files:
             try:
-                if input_path.exists():
+                # キャッシュ入力は消さない
+                if (not cached_input) and input_path.exists():
                     input_path.unlink()
             except Exception:
                 pass
@@ -169,10 +311,11 @@ def run_solver(input_data: Dict[str, Any]) -> Dict[str, Any]:
                 pass
 
     # artifact_dir 配下に manifest を残す（後続のダウンロードAPIで参照）
-    try:
-        write_artifact_manifest(output_data)
-    except Exception:
-        # manifest書き込み失敗は致命ではないので握りつぶす（ログ/運用で気づけるようにするなら後で改善）
-        pass
+    if write_manifest:
+        try:
+            write_artifact_manifest(output_data)
+        except Exception:
+            # manifest書き込み失敗は致命ではないので握りつぶす（ログ/運用で気づけるようにするなら後で改善）
+            pass
 
     return output_data

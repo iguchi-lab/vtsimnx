@@ -94,6 +94,10 @@ public:
     const std::vector<std::string>& getFlowRateKeys() const;
     std::vector<double> collectFlowRateValues() const;
 
+    // pressureCalc=false（固定流量など）の場合でも、aircon制御等が参照できるように
+    // (sourceKey,targetKey)->flow_rate の map を生成する。
+    FlowRateMap collectFlowRateMap() const;
+
 };
 
 

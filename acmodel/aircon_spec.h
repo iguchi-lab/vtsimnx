@@ -99,6 +99,12 @@ public:
     virtual nlohmann::json getModelParameters() const = 0;
 
     /**
+     * @brief モデル初期化の最終サマリ（verbosity=1 でも出したい要約）を返す
+     * @return サマリ文字列（空なら出力しない）
+     */
+    virtual std::string getInitializationSummary() const { return ""; }
+
+    /**
      * @brief 仕様データのバリデーションを行う
      * @return バリデーション結果（成功: true, 失敗: false）
      */

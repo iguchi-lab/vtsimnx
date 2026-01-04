@@ -90,6 +90,14 @@ void AirconController::initializeModels(ThermalNetwork& thermalNetwork,
             writeLog(logs,
                      "　エアコンモデル初期化完了: " + node.key +
                          " (タイプ: " + node.model + ")");
+            // verbosity=1 でも、初期化の「最終サマリ（係数等）」だけは出す
+            // （詳細ログは acmodel::setLogVerbosity により verbosity>=2 のときのみ）
+            if (auto* m = getModel(node.key)) {
+                const std::string s = m->getInitializationSummary();
+                if (!s.empty()) {
+                    writeLog(logs, std::string("　　[acmodel] ") + s);
+                }
+            }
         } catch (const std::exception& e) {
             writeLog(logs,
                      "　エラー: エアコンモデル初期化に失敗" + node.key + " - " + e.what());
@@ -120,6 +128,7 @@ static inline bool tryGetTempFromThermalNetwork(const ThermalNetwork& thermalNet
 } // namespace
 
 double AirconController::calculateHeatCapacity(ThermalNetwork& thermalNetwork,
+                                               const std::string& mode,
                                                const std::string& inNode,
                                                const std::string& airconNode,
                                                const FlowRateMap& flowRates) const {
@@ -139,8 +148,17 @@ double AirconController::calculateHeatCapacity(ThermalNetwork& thermalNetwork,
         return 0.0;
     }
 
-    double deltaT = inletTemp - outletTemp;
-    double heatCapacity = kAirDensity * kAirSpecificHeat * std::abs(flowRate) * deltaT;
+    // 処理熱量は「暖房/冷房どちらでも +W（大きさ）」として扱う。
+    // - cooling: 入口(室)が高く、出口(吹出)が低いほど +（除熱）
+    // - heating: 入口(室)が低く、出口(吹出)が高いほど +（加熱）
+    double deltaT = 0.0;
+    if (mode == "heating") {
+        deltaT = outletTemp - inletTemp;
+    } else {
+        // "cooling" もしくは不明値は cooling 扱い（安全側：符号が反転してCOP推定を壊さない）
+        deltaT = inletTemp - outletTemp;
+    }
+    double heatCapacity = kAirDensity * kAirSpecificHeat * std::abs(flowRate) * std::abs(deltaT);
     return clampHeatCapacity(heatCapacity);
 }
 
@@ -177,7 +195,6 @@ AirconController::RuntimeContext AirconController::prepareRuntimeContext(
     const FlowRateMap& flowRates) const {
     RuntimeContext context{};
     context.validData = validateAirconData(airconKey, thermalNetwork, nodeProps);
-    context.heatCapacity = calculateHeatCapacity(thermalNetwork, nodeProps.in_node, nodeProps.key, flowRates);
     context.airFlowRate = std::abs(getFlowRate(flowRates, nodeProps.in_node, nodeProps.key));
 
     auto mode = nodeProps.current_mode;
@@ -185,6 +202,8 @@ AirconController::RuntimeContext AirconController::prepareRuntimeContext(
         mode = (context.validData.indoorTemp > context.validData.airconTemp) ? "COOLING" : "HEATING";
     }
     context.operationMode = (mode == "HEATING") ? "heating" : "cooling";
+    context.heatCapacity = calculateHeatCapacity(thermalNetwork, context.operationMode,
+                                                 nodeProps.in_node, nodeProps.key, flowRates);
     return context;
 }
 
@@ -192,8 +211,6 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
                                          double tolerance,
                                          std::ostream& logFile) const {
     bool allControlled = true;
-    auto& graph = thermalNetwork.getGraph();
-    const auto& keyToVertex = thermalNetwork.getKeyToVertex();
 
     for (const auto& [airconKey, _] : airconModels) {
         auto& nodeProps = thermalNetwork.getNode(airconKey);
@@ -212,12 +229,22 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
         if (result.stateChanged) {
             allControlled = false;
             nodeProps.on = result.on;
-            if (!nodeProps.set_node.empty()) {
-                auto nodeIt = keyToVertex.find(nodeProps.set_node);
-                if (nodeIt != keyToVertex.end()) {
-                    graph[nodeIt->second].calc_t = !result.on;
-                }
-            }
+            // NOTE:
+            // set_node の calc_t を ON/OFF で切り替えると、
+            // 熱ソルバ側の「固定温度行（fixed row）」の適用条件（= set_node が未知数）を満たさず、
+            // エアコンON直後に未収束/バランス超過になりやすい。
+            //
+            // setpoint 制御は thermal_solver_linear_direct.cpp の fixed row ロジックで行うため、
+            // ここでは set_node.calc_t を変更しない。
+            //
+            // NOTE(将来拡張の忘備録):
+            // 現状は「エアコンOFFでも送風（=in->aircon / aircon->out の換気流量）は入力の ventilation_branches に従う」
+            // という前提で、aircon の ON/OFF と換気枝の enable/vol を自動連動していない。
+            // もし「OFFなら送風も停止（流量=0）」を実現したくなった場合は、
+            // - 入力JSON側で ventilation_branches.enable を時系列で制御する
+            //   もしくは
+            // - solver側で nodeProps.on と換気枝 current_enabled/flow_rate を連動させる
+            // といった対応が必要になる。
         }
     }
 
@@ -325,7 +352,9 @@ std::vector<double> AirconController::collectAirconDataValues(ThermalNetwork& th
             } else if (dataType == "flow") {
                 values[i] = std::abs(getFlowRate(flowRates, nodeProps.in_node, nodeProps.key));
             } else if (dataType == "sensibleHeatCapacity") {
-                values[i] = calculateHeatCapacity(thermalNetwork, nodeProps.in_node, nodeProps.key, flowRates);
+                // ON/OFFに関わらず「現在の運転モード（AUTO含む）に基づく処理熱量」を返す
+                auto context = prepareRuntimeContext(airconKey, thermalNetwork, nodeProps, flowRates);
+                values[i] = context.heatCapacity;
             } else if (dataType == "latentHeatCapacity") {
                 values[i] = 0.0; // 潜熱は現状モデル化していない
             }
@@ -432,6 +461,25 @@ std::vector<double> AirconController::calculateCOPValues(ThermalNetwork& thermal
             input.V_inner = context.airFlowRate;
             input.V_outer = kDefaultOuterFlowRate;
             auto result = model->estimateCOP(context.operationMode, input);
+            // verbosity>=2 のときは、acmodel 側の詳細ログも出す
+            if (logVerbosity_ >= 2) {
+                for (const auto& msg : result.logMessages) {
+                    writeLog(logs, msg);
+                }
+            }
+            // verbosity=1 でも「最終結果（数値）」だけは毎回1行で残す（デバッグしやすくする）
+            // 失敗時も、入力条件と "COP=N/A" を残して原因追跡しやすくする。
+            {
+                std::ostringstream detail;
+                detail << "　　エアコンCOP計算: " << airconKey
+                       << " [" << context.operationMode << "]"
+                       << " 処理=" << std::fixed << std::setprecision(2) << context.heatCapacity << "W"
+                       << " 風量=" << context.airFlowRate << "m³/s"
+                       << " 外気=" << context.validData.outdoorTemp << "°C"
+                       << " 室内=" << context.validData.indoorTemp << "°C"
+                       << " COP=" << (result.valid ? std::to_string(result.COP) : std::string("N/A"));
+                writeLog(logs, detail.str());
+            }
             if (!result.valid) {
                 throw std::runtime_error("COP推定に失敗しました");
             }

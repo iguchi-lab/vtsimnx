@@ -162,3 +162,37 @@ def test_run_solver_keep_run_files_env_keeps_input_output(tmp_path, monkeypatch)
     assert seen["inp"].exists()
     assert seen["out"].exists()
 
+
+def test_run_solver_input_cache_reuses_same_input_file_and_does_not_delete(tmp_path, monkeypatch):
+    monkeypatch.setattr(sr, "BASE_DIR", tmp_path)
+    monkeypatch.delenv("VTSIMNX_KEEP_RUN_FILES", raising=False)
+    monkeypatch.setenv("VTSIMNX_INPUT_CACHE", "1")
+
+    work = tmp_path / "work"
+    work.mkdir(exist_ok=True)
+
+    seen = []
+
+    def fake_invoke(input_path: Path, output_path: Path, cwd: Path) -> None:
+        seen.append(input_path)
+        output_path.write_text('{"status":"ok","artifact_dir":"x","log_file":"solver.log","result_files":{}}', encoding="utf-8")
+
+    monkeypatch.setattr(sr, "_invoke_solver", fake_invoke)
+
+    inp = {
+        "simulation": {
+            "index": {"start": "2000-01-01T00:00:00", "end": "2000-01-01T00:00:00", "timestep": 60, "length": 1},
+            "tolerance": {"ventilation": 1e-3, "thermal": 1e-3, "convergence": 1e-6},
+            "calc_flag": {"p": False, "t": False, "x": False, "c": False},
+            "log": {"verbosity": 0},
+        }
+    }
+
+    _ = sr.run_solver(inp)
+    _ = sr.run_solver(inp)
+
+    assert len(seen) == 2
+    assert seen[0] == seen[1]
+    # キャッシュ入力は残る
+    assert seen[0].exists()
+

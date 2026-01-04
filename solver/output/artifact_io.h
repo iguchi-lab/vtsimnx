@@ -16,8 +16,19 @@ namespace ArtifactIO {
 struct OutputSchema {
     std::vector<std::string> pressureKeys;
     std::vector<std::string> flowRateKeys;
-    std::vector<std::string> temperatureKeys;
-    std::vector<std::string> heatRateKeys;
+    // 温度は 3 系列に分けて出力する
+    std::vector<std::string> temperatureKeys;         // main: normal + aircon + unknown
+    std::vector<std::string> temperatureKeysCapacity; // capacity
+    std::vector<std::string> temperatureKeysLayer;    // layer
+    // heat_rate はカテゴリ別に出力する
+    std::vector<std::string> heatRateKeysAdvection;
+    std::vector<std::string> heatRateKeysHeatGeneration;
+    std::vector<std::string> heatRateKeysSolarGain;
+    std::vector<std::string> heatRateKeysNocturnalLoss;
+    std::vector<std::string> heatRateKeysConvection;
+    std::vector<std::string> heatRateKeysConduction;
+    std::vector<std::string> heatRateKeysRadiation;
+    std::vector<std::string> heatRateKeysCapacity;
 
     std::vector<std::string> airconSensibleHeatKeys;
     std::vector<std::string> airconLatentHeatKeys;

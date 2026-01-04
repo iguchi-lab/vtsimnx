@@ -113,16 +113,45 @@ target_compile_options(vtsimnx_solver PRIVATE
 option(VTSIMNX_BUILD_CPP_TESTS "Build C++ unit tests for solver" ON)
 if(VTSIMNX_BUILD_CPP_TESTS)
     enable_testing()
-    add_executable(vtsimnx_solver_cpp_tests
+    # 1) flow math
+    add_executable(vtsimnx_solver_cpp_test_flow_math
         tests_cpp/test_flow_math.cpp
     )
-    target_link_libraries(vtsimnx_solver_cpp_tests
+    target_link_libraries(vtsimnx_solver_cpp_test_flow_math
         Boost::boost
     )
-    target_compile_options(vtsimnx_solver_cpp_tests PRIVATE
+    target_compile_options(vtsimnx_solver_cpp_test_flow_math PRIVATE
         -Wall
         -Wextra
     )
-    add_test(NAME vtsimnx_solver_cpp_tests COMMAND vtsimnx_solver_cpp_tests)
+    add_test(NAME vtsimnx_solver_cpp_test_flow_math COMMAND vtsimnx_solver_cpp_test_flow_math)
+
+    # 2) parser (thermal branches / response_conduction)
+    add_executable(vtsimnx_solver_cpp_test_parser_thermal_branches
+        tests_cpp/test_parser_thermal_branches.cpp
+        parser/branches_parser.cpp
+    )
+    target_link_libraries(vtsimnx_solver_cpp_test_parser_thermal_branches
+        Boost::boost
+    )
+    target_compile_options(vtsimnx_solver_cpp_test_parser_thermal_branches PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_test_parser_thermal_branches COMMAND vtsimnx_solver_cpp_test_parser_thermal_branches)
+
+    # 3) parser (nodes.mode backward-compat: number -> string)
+    add_executable(vtsimnx_solver_cpp_test_parser_nodes_mode
+        tests_cpp/test_parser_nodes_mode.cpp
+        parser/nodes_parser.cpp
+    )
+    target_link_libraries(vtsimnx_solver_cpp_test_parser_nodes_mode
+        Boost::boost
+    )
+    target_compile_options(vtsimnx_solver_cpp_test_parser_nodes_mode PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_test_parser_nodes_mode COMMAND vtsimnx_solver_cpp_test_parser_nodes_mode)
 endif()
 

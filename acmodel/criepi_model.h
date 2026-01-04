@@ -38,6 +38,7 @@ public:
     bool isValidOperatingCondition(double outdoor_temp, double indoor_temp) const override;
     std::string getModelName() const override;
     nlohmann::json getModelParameters() const override;
+    std::string getInitializationSummary() const override;
 
 private:
     // CRIEPIモデル用定数

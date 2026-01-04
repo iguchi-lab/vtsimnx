@@ -107,6 +107,7 @@ struct EdgeProperties {
         Advection,
         Conductance,
         HeatGeneration,
+        ResponseConduction,
     };
 
     std::string key;
@@ -133,9 +134,44 @@ struct EdgeProperties {
     double eta = 0.0;
     double flow_rate = 0.0;
     double heat_rate = 0.0; // 熱流量
+    bool is_aircon_inflow = false; // エアコンノードへの流入（還気）ブランチか？
     double conductance = 0.0;
     std::vector<double> heat_generation;
     double current_heat_generation;
+
+    // -----------------------------------------------------------------
+    // 応答係数（CTF/応答係数法）用: 両端表面の熱流を別々に表現する二端子要素
+    //
+    // 定義（source側熱流、target側熱流）:
+    //   q_src(n) = a_src[0]*Tsrc(n) + b_src[0]*Ttgt(n)
+    //            + Σ_{k>=1} a_src[k]*Tsrc(n-k)
+    //            + Σ_{k>=1} b_src[k]*Ttgt(n-k)
+    //            + Σ_{k>=1} c_src[k]*q_src(n-k)
+    //
+    //   q_tgt(n) = a_tgt[0]*Ttgt(n) + b_tgt[0]*Tsrc(n)
+    //            + Σ_{k>=1} a_tgt[k]*Ttgt(n-k)
+    //            + Σ_{k>=1} b_tgt[k]*Tsrc(n-k)
+    //            + Σ_{k>=1} c_tgt[k]*q_tgt(n-k)
+    //
+    // ※ c_* は「遅れ1」からの係数列（c_[0] が q(n-1) に掛かる）として格納する。
+    // ※ 履歴はエッジ内に保持し、温度計算後にシフト更新する（初期値は両端の初期温度で埋める）。
+    // -----------------------------------------------------------------
+    std::vector<double> resp_a_src; // Tsrc の係数列（a_src[0] が現在）
+    std::vector<double> resp_b_src; // Ttgt の係数列（b_src[0] が現在）
+    std::vector<double> resp_c_src; // q_src の遅れ係数列（c_src[0] が q(n-1)）
+    std::vector<double> resp_a_tgt; // Ttgt の係数列（a_tgt[0] が現在）
+    std::vector<double> resp_b_tgt; // Tsrc の係数列（b_tgt[0] が現在）
+    std::vector<double> resp_c_tgt; // q_tgt の遅れ係数列（c_tgt[0] が q(n-1)）
+
+    // 履歴（遅れ1..）
+    bool response_initialized = false;
+    std::vector<double> hist_t_src; // [0]=Tsrc(n-1), [1]=Tsrc(n-2)...
+    std::vector<double> hist_t_tgt; // [0]=Ttgt(n-1), [1]=Ttgt(n-2)...
+    std::vector<double> hist_q_src; // [0]=q_src(n-1)...
+    std::vector<double> hist_q_tgt; // [0]=q_tgt(n-1)...
+
+    double current_q_src = 0.0; // 直近に評価した source側熱流
+    double current_q_tgt = 0.0; // 直近に評価した target側熱流
 
     // type（文字列）の比較をホットパスから外すためのキャッシュ
     mutable TypeCode type_code = TypeCode::Unknown;
@@ -157,6 +193,7 @@ struct EdgeProperties {
         if (type == "advection") type_code = TypeCode::Advection;
         else if (type == "conductance") type_code = TypeCode::Conductance;
         else if (type == "heat_generation") type_code = TypeCode::HeatGeneration;
+        else if (type == "response_conduction") type_code = TypeCode::ResponseConduction;
         else type_code = TypeCode::Unknown;
         return type_code;
     }

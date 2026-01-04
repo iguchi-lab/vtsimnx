@@ -70,7 +70,9 @@ void VentilationNetwork::buildFromData(const std::vector<VertexProperties>& allN
                                        const SimulationConstants& simConstants,
                                        std::ostream& logs) {
 
-    if (simConstants.pressureCalc) {
+    // pressureCalc=false でも、熱計算（移流）で換気ブランチの fixed_flow 等が必要になるため
+    // 換気回路網自体は構築しておく（圧力は解かない）。
+    if (simConstants.pressureCalc || simConstants.temperatureCalc) {
         writeLog(logs, "  換気回路網を作成中...");
         int verbosity = simConstants.logVerbosity;
         if (verbosity < 0) verbosity = 1;
@@ -100,6 +102,19 @@ void VentilationNetwork::buildFromData(const std::vector<VertexProperties>& allN
         // 換気ブランチを追加
         for (const auto& edge : ventilationBranches) {
             addEdge(edge);
+        }
+
+        // pressureCalc=false の場合でも、熱計算（移流）で流量が必要になる。
+        // - fixed_flow はもちろん確定値
+        // - type 未指定でも vol が与えられている枝（例: builder が出す「換気量固定」や aircon の送風）も
+        //   「固定流量」とみなし、flow_rate を vol から設定する
+        if (!simConstants.pressureCalc) {
+            for (auto e : boost::make_iterator_range(boost::edges(graph))) {
+                auto& ep = graph[e];
+                if (ep.type == "fixed_flow" || !ep.vol.empty()) {
+                    ep.flow_rate = ep.current_enabled ? ep.current_vol : 0.0;
+                }
+            }
         }
     }
 
@@ -218,13 +233,31 @@ void VentilationNetwork::updateFlowRatesInGraph(const FlowRateMap& flowRates) {
 
 const std::vector<std::string>& VentilationNetwork::getPressureKeys() const {
     if (!pressureCacheInitialized) {
+        // directedS のため in_degree が使えない（in-edge リストを持たない）ので、
+        // 全エッジを 1 回走査して「接続のある頂点」をマーキングする。
+        std::vector<uint8_t> connected;
+        connected.assign(boost::num_vertices(graph), 0);
+        for (auto e : boost::make_iterator_range(boost::edges(graph))) {
+            const Vertex sv = boost::source(e, graph);
+            const Vertex tv = boost::target(e, graph);
+            connected[static_cast<size_t>(sv)] = 1;
+            connected[static_cast<size_t>(tv)] = 1;
+        }
+
         // PressureMap は std::map でキーが昇順になるため、同じ順序（key昇順）で固定する。
-        // ただし出力対象は calc_p=true のノードに限定する（従来の圧力mapと合わせる）。
+        // 出力対象は「換気回路網で接続されているノード」のみに限定する（孤立ノードは除外）。
         std::vector<std::pair<std::string, Vertex>> items;
         items.reserve(boost::num_vertices(graph));
         for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
             const auto& nd = graph[v];
-            if (nd.calc_p) {
+            // 出力対象は normal + aircon + unknown のみ（capacity/layer は出力しない）
+            const auto tc = nd.getTypeCode();
+            if (tc == VertexProperties::TypeCode::Capacity) continue;
+            if (tc == VertexProperties::TypeCode::Layer) continue;
+            // 換気回路網で孤立しているノード（接続ブランチ無し）は出力しない
+            // （圧力は換気回路網の結果として意味があるノードだけを出す）
+            if (static_cast<size_t>(v) < connected.size() &&
+                connected[static_cast<size_t>(v)] != 0) {
                 items.emplace_back(nd.key, v);
             }
         }
@@ -298,6 +331,18 @@ std::vector<double> VentilationNetwork::collectFlowRateValues() const {
     return values;
 }
 
+FlowRateMap VentilationNetwork::collectFlowRateMap() const {
+    FlowRateMap out;
+    // edge direction（source->target）に対して flow_rate を格納する
+    for (auto e : boost::make_iterator_range(boost::edges(graph))) {
+        const Vertex sv = boost::source(e, graph);
+        const Vertex tv = boost::target(e, graph);
+        const auto& ep = graph[e];
+        out[{graph[sv].key, graph[tv].key}] = ep.flow_rate;
+    }
+    return out;
+}
+
 // 圧力と風量を同時に更新
 void VentilationNetwork::updateCalculationResults(const PressureMap& pressureMap, const FlowRateMap& flowRates) {
     // 圧力を更新
@@ -319,6 +364,12 @@ void VentilationNetwork::updatePropertiesForTimestep(const std::vector<VertexPro
         graph[v].updateForTimestep(static_cast<int>(timestep));
     }
     for (auto e : boost::make_iterator_range(boost::edges(graph))) {
-        graph[e].updateForTimestep(static_cast<int>(timestep));
+        auto& ep = graph[e];
+        ep.updateForTimestep(static_cast<int>(timestep));
+        // pressure を解かない場合でも、fixed_flow および vol 指定枝は確定値なので flow_rate を追従させる
+        // （type 未指定の「換気量固定」/ aircon 送風なども含む）
+        if (ep.type == "fixed_flow" || !ep.vol.empty()) {
+            ep.flow_rate = ep.current_enabled ? ep.current_vol : 0.0;
+        }
     }
 }
