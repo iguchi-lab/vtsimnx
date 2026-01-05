@@ -22,9 +22,9 @@ def read_csv(fn: Union[str, Path]) -> pd.DataFrame:
 
 def index(freq: str, length: int) -> pd.DatetimeIndex:
     """
-    開始時刻 2026-01-01 00:00:00 から、秒数 length の範囲を freq 間隔で生成した DatetimeIndex を返す。
+    開始時刻 2026-01-01 01:00:00 から、秒数 length の範囲を freq 間隔で生成した DatetimeIndex を返す。
     """
-    start = datetime(2026, 1, 1, 0, 0, 0)
+    start = datetime(2026, 1, 1, 1, 0, 0)
     end = start + timedelta(seconds=length - 1)
     return pd.date_range(start=start, end=end, freq=freq)
 
