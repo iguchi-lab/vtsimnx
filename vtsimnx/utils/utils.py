@@ -64,6 +64,7 @@ def read_hasp(fn: Union[str, Path]) -> pd.DataFrame:
     """
     HASP 形式（1 日あたり 7 行、各行 72 文字×24 時間の 3 桁数値）の気象データを読み込み、
     列 ['t_ex','h_ex','i_b','i_d','n_r','w_d','w_s'] を持つ DataFrame を返す。
+    12/31 24:00 のデータを 1/1 0:00 に移動し、1/1 0:00～12/31 23:00 の8760点とする。
 
     単位変換:
       - 外気温: (value - 500) / 10  [℃]
@@ -101,5 +102,7 @@ def read_hasp(fn: Union[str, Path]) -> pd.DataFrame:
     # 0:無風, 1:NNE, 2:NE, 3:ENE, 4:E, 5:ESE, 6:SE, 7:SSE, 8:S,
     # 9:SSW, 10:SW, 11:WSW, 12:W, 13:WNW, 14:NW, 15:NNW, 16:N
     df["風速"] = df["風速"] / 10
-    df.index = index('1h', 365 * 24 * 3600)
+    # 12/31 24:00 を先頭(1/1 0:00)へ移動
+    df = pd.concat([df.tail(1), df.iloc[:-1]], ignore_index=True)
+    df.index = pd.date_range(start=datetime(2026, 1, 1, 0, 0, 0), periods=365 * 24, freq="1h")
     return df
