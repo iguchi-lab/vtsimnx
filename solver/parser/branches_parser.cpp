@@ -133,6 +133,22 @@ std::vector<EdgeProperties> parseVentilationBranches(const json& config, std::os
                 0.0,
                 branchPrefix + ".vol");
         }
+        if (branchJson.contains("humidity_generation")) {
+            branch.current_humidity_generation = parser_utils::readScalarOrSeries<double>(
+                branchJson["humidity_generation"],
+                branch.humidity_generation,
+                static_cast<size_t>(timestep),
+                0.0,
+                branchPrefix + ".humidity_generation");
+        }
+        if (branchJson.contains("dust_generation")) {
+            branch.current_dust_generation = parser_utils::readScalarOrSeries<double>(
+                branchJson["dust_generation"],
+                branch.dust_generation,
+                static_cast<size_t>(timestep),
+                0.0,
+                branchPrefix + ".dust_generation");
+        }
         parseEnableField(branchJson, branch.enabled, branch.current_enabled, timestep, branchPrefix);
 
         branches.push_back(std::move(branch));

@@ -65,6 +65,8 @@ struct OutputFiles {
     std::ofstream& thermalTemperatureFile;
     std::ofstream& thermalTemperatureCapacityFile;
     std::ofstream& thermalTemperatureLayerFile;
+    std::ofstream& humidityXFile;
+    std::ofstream& concentrationCFile;
     std::ofstream& thermalHeatRateAdvectionFile;
     std::ofstream& thermalHeatRateHeatGenerationFile;
     std::ofstream& thermalHeatRateSolarGainFile;
@@ -89,6 +91,8 @@ static void initializeSchemaIfNeeded(ArtifactIO::OutputSchema& schema,
     schema.temperatureKeys = thermalNetwork.getTemperatureKeys();
     schema.temperatureKeysCapacity = thermalNetwork.getTemperatureKeysCapacity();
     schema.temperatureKeysLayer = thermalNetwork.getTemperatureKeysLayer();
+    schema.humidityKeys = thermalNetwork.getHumidityKeys();
+    schema.concentrationKeys = thermalNetwork.getConcentrationKeys();
     schema.heatRateKeysAdvection = thermalNetwork.getHeatRateKeysAdvection();
     schema.heatRateKeysHeatGeneration = thermalNetwork.getHeatRateKeysHeatGeneration();
     schema.heatRateKeysSolarGain = thermalNetwork.getHeatRateKeysSolarGain();
@@ -286,12 +290,13 @@ static bool runSimulationLoop(const InputData& inputData,
                     true);
             }
 
-            // エアコンの初期設定（初回のみ）
-            if (timestepIndex == 0) {
-                airconController.applyPreset(thermalNetwork, logs);
-            }
+            // 各タイムステップの先頭では、まずエアコンをOFFで開始する。
+            // これにより「非運転時に設定温度を超過していれば暖房しない /
+            // 非運転時に設定温度未満なら暖房する」という判定を毎ステップで行える。
+            airconController.applyPreset(thermalNetwork, logs);
 
-            if (timestepIndex > 0) {
+            {
+                // 各ステップの先頭で、当該インデックスの時変プロパティを反映する
                 if (verboseStepLog) writeLog(logs, " 時変プロパティ更新中...");
                 ScopedTimer timer(timings, "parse_timestep_data", stepMeta);
                 const auto topoStart =
@@ -321,7 +326,7 @@ static bool runSimulationLoop(const InputData& inputData,
             }
 
             TimestepResult timestepResult;
-            if (simConstants.pressureCalc || simConstants.temperatureCalc) {
+            if (simConstants.pressureCalc || simConstants.temperatureCalc || simConstants.humidityCalc || simConstants.concentrationCalc) {
                 ScopedTimer timer(timings, "runSimulation", stepMeta);
                 runSimulation(ventNetwork, thermalNetwork, airconController, simConstants, timestepResult, logs, timings, stepMeta);
             }
@@ -358,6 +363,8 @@ static bool runSimulationLoop(const InputData& inputData,
                 ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalTemperatureFile, timestepResult.temperature, schema.temperatureKeys.size());
                 ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalTemperatureCapacityFile, timestepResult.temperatureCapacity, schema.temperatureKeysCapacity.size());
                 ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalTemperatureLayerFile, timestepResult.temperatureLayer, schema.temperatureKeysLayer.size());
+                ArtifactIO::writeFloat32ArrayBinary(outFiles.humidityXFile, timestepResult.humidityX, schema.humidityKeys.size());
+                ArtifactIO::writeFloat32ArrayBinary(outFiles.concentrationCFile, timestepResult.concentrationC, schema.concentrationKeys.size());
                 ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalHeatRateAdvectionFile, timestepResult.heatRateAdvection, schema.heatRateKeysAdvection.size());
                 ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalHeatRateHeatGenerationFile, timestepResult.heatRateHeatGeneration, schema.heatRateKeysHeatGeneration.size());
                 ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalHeatRateSolarGainFile, timestepResult.heatRateSolarGain, schema.heatRateKeysSolarGain.size());
@@ -378,6 +385,8 @@ static bool runSimulationLoop(const InputData& inputData,
                     outFiles.thermalTemperatureFile.flush();
                     outFiles.thermalTemperatureCapacityFile.flush();
                     outFiles.thermalTemperatureLayerFile.flush();
+                    outFiles.humidityXFile.flush();
+                    outFiles.concentrationCFile.flush();
                     outFiles.thermalHeatRateAdvectionFile.flush();
                     outFiles.thermalHeatRateHeatGenerationFile.flush();
                     outFiles.thermalHeatRateSolarGainFile.flush();
@@ -399,6 +408,8 @@ static bool runSimulationLoop(const InputData& inputData,
         outFiles.thermalTemperatureFile.flush();
         outFiles.thermalTemperatureCapacityFile.flush();
         outFiles.thermalTemperatureLayerFile.flush();
+        outFiles.humidityXFile.flush();
+        outFiles.concentrationCFile.flush();
         outFiles.thermalHeatRateAdvectionFile.flush();
         outFiles.thermalHeatRateHeatGenerationFile.flush();
         outFiles.thermalHeatRateSolarGainFile.flush();
@@ -569,6 +580,8 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
     const std::string thermalTemperatureBinName = "thermal.temperature.f32.bin";
     const std::string thermalTemperatureCapacityBinName = "thermal.temperature.capacity.f32.bin";
     const std::string thermalTemperatureLayerBinName = "thermal.temperature.layer.f32.bin";
+    const std::string humidityXBinName = "humidity.x.f32.bin";
+    const std::string concentrationCBinName = "concentration.c.f32.bin";
     const std::string thermalHeatRateAdvectionBinName = "thermal.heat_rate.advection.f32.bin";
     const std::string thermalHeatRateHeatGenerationBinName = "thermal.heat_rate.heat_generation.f32.bin";
     const std::string thermalHeatRateSolarGainBinName = "thermal.heat_rate.solar_gain.f32.bin";
@@ -587,6 +600,8 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
     const std::filesystem::path thermalTemperatureBinPath = artifactDirPath / thermalTemperatureBinName;
     const std::filesystem::path thermalTemperatureCapacityBinPath = artifactDirPath / thermalTemperatureCapacityBinName;
     const std::filesystem::path thermalTemperatureLayerBinPath = artifactDirPath / thermalTemperatureLayerBinName;
+    const std::filesystem::path humidityXBinPath = artifactDirPath / humidityXBinName;
+    const std::filesystem::path concentrationCBinPath = artifactDirPath / concentrationCBinName;
     const std::filesystem::path thermalHeatRateAdvectionBinPath = artifactDirPath / thermalHeatRateAdvectionBinName;
     const std::filesystem::path thermalHeatRateHeatGenerationBinPath = artifactDirPath / thermalHeatRateHeatGenerationBinName;
     const std::filesystem::path thermalHeatRateSolarGainBinPath = artifactDirPath / thermalHeatRateSolarGainBinName;
@@ -629,6 +644,16 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
     std::ofstream thermalTemperatureLayerFile(thermalTemperatureLayerBinPath, std::ios::out | std::ios::binary | std::ios::trunc);
     if (!thermalTemperatureLayerFile.is_open()) {
         std::cerr << "エラー: 結果ファイルを開けません: " << thermalTemperatureLayerBinPath << "\n";
+        return 1;
+    }
+    std::ofstream humidityXFile(humidityXBinPath, std::ios::out | std::ios::binary | std::ios::trunc);
+    if (!humidityXFile.is_open()) {
+        std::cerr << "エラー: 結果ファイルを開けません: " << humidityXBinPath << "\n";
+        return 1;
+    }
+    std::ofstream concentrationCFile(concentrationCBinPath, std::ios::out | std::ios::binary | std::ios::trunc);
+    if (!concentrationCFile.is_open()) {
+        std::cerr << "エラー: 結果ファイルを開けません: " << concentrationCBinPath << "\n";
         return 1;
     }
     std::ofstream thermalHeatRateAdvectionFile(thermalHeatRateAdvectionBinPath, std::ios::out | std::ios::binary | std::ios::trunc);
@@ -700,6 +725,8 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
     std::vector<char> thermalTemperatureBuf(kFileBufferBytes);
     std::vector<char> thermalTemperatureCapacityBuf(kFileBufferBytes);
     std::vector<char> thermalTemperatureLayerBuf(kFileBufferBytes);
+    std::vector<char> humidityXBuf(kFileBufferBytes);
+    std::vector<char> concentrationCBuf(kFileBufferBytes);
     std::vector<char> thermalHeatRateAdvectionBuf(kFileBufferBytes);
     std::vector<char> thermalHeatRateHeatGenerationBuf(kFileBufferBytes);
     std::vector<char> thermalHeatRateSolarGainBuf(kFileBufferBytes);
@@ -718,6 +745,8 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
     thermalTemperatureFile.rdbuf()->pubsetbuf(thermalTemperatureBuf.data(), static_cast<std::streamsize>(thermalTemperatureBuf.size()));
     thermalTemperatureCapacityFile.rdbuf()->pubsetbuf(thermalTemperatureCapacityBuf.data(), static_cast<std::streamsize>(thermalTemperatureCapacityBuf.size()));
     thermalTemperatureLayerFile.rdbuf()->pubsetbuf(thermalTemperatureLayerBuf.data(), static_cast<std::streamsize>(thermalTemperatureLayerBuf.size()));
+    humidityXFile.rdbuf()->pubsetbuf(humidityXBuf.data(), static_cast<std::streamsize>(humidityXBuf.size()));
+    concentrationCFile.rdbuf()->pubsetbuf(concentrationCBuf.data(), static_cast<std::streamsize>(concentrationCBuf.size()));
     thermalHeatRateAdvectionFile.rdbuf()->pubsetbuf(thermalHeatRateAdvectionBuf.data(), static_cast<std::streamsize>(thermalHeatRateAdvectionBuf.size()));
     thermalHeatRateHeatGenerationFile.rdbuf()->pubsetbuf(thermalHeatRateHeatGenerationBuf.data(), static_cast<std::streamsize>(thermalHeatRateHeatGenerationBuf.size()));
     thermalHeatRateSolarGainFile.rdbuf()->pubsetbuf(thermalHeatRateSolarGainBuf.data(), static_cast<std::streamsize>(thermalHeatRateSolarGainBuf.size()));
@@ -758,6 +787,8 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
         thermalTemperatureFile,
         thermalTemperatureCapacityFile,
         thermalTemperatureLayerFile,
+        humidityXFile,
+        concentrationCFile,
         thermalHeatRateAdvectionFile,
         thermalHeatRateHeatGenerationFile,
         thermalHeatRateSolarGainFile,
@@ -799,6 +830,8 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
     thermalTemperatureFile.close();
     thermalTemperatureLayerFile.close();
     thermalTemperatureCapacityFile.close();
+    humidityXFile.close();
+    concentrationCFile.close();
     ventFlowRateFile.close();
     ventPressureFile.close();
     logFile.close();
@@ -811,6 +844,8 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
             {"thermal_temperature", thermalTemperatureBinName},
             {"thermal_temperature_capacity", thermalTemperatureCapacityBinName},
             {"thermal_temperature_layer", thermalTemperatureLayerBinName},
+            {"humidity_x", humidityXBinName},
+            {"concentration_c", concentrationCBinName},
             {"thermal_heat_rate_advection", thermalHeatRateAdvectionBinName},
             {"thermal_heat_rate_heat_generation", thermalHeatRateHeatGenerationBinName},
             {"thermal_heat_rate_solar_gain", thermalHeatRateSolarGainBinName},

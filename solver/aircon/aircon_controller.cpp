@@ -52,20 +52,16 @@ inline double clampHeatCapacity(double value) {
     return value;
 }
 
-static inline acmodel::InputData buildAcmodelInput(const std::string& operationMode,
+static inline acmodel::InputData buildAcmodelInput(const std::string& /*operationMode*/,
                                                    const AirconValidationData& validData,
                                                    double heatCapacity,
                                                    double airFlowRate) {
     acmodel::InputData input;
     input.T_ex = validData.outdoorTemp;
     input.T_in = validData.indoorTemp;
-    if (operationMode == "heating") {
-        input.X_ex = archenv::jis::X_H_EX;
-        input.X_in = archenv::jis::X_H_IN;
-    } else {
-        input.X_ex = archenv::jis::X_C_EX;
-        input.X_in = archenv::jis::X_C_IN;
-    }
+    // 湿度（絶対湿度）は呼び出し側で「欠損時の警告 + JISフォールバック」を行う
+    input.X_ex = validData.outdoorX;
+    input.X_in = validData.indoorX;
     input.Q = heatCapacity;
     input.Q_S = heatCapacity;
     input.Q_L = 0.0;
@@ -222,6 +218,17 @@ AirconValidationData AirconController::validateAirconData(const std::string& air
     } else {
         data.setTemp = data.indoorTemp;
     }
+
+    // 湿度（絶対湿度）: thermalNetwork の current_x を参照する
+    auto getX = [&](const std::string& nodeName) -> double {
+        if (nodeName.empty()) return 0.0;
+        const auto& keyToV = thermalNetwork.getKeyToVertex();
+        auto it = keyToV.find(nodeName);
+        if (it == keyToV.end()) return 0.0;
+        return thermalNetwork.getGraph()[it->second].current_x;
+    };
+    data.outdoorX = getX(nodeProps.outside_node);
+    data.indoorX = getX(nodeProps.in_node);
     return data;
 }
 
@@ -422,8 +429,33 @@ std::vector<double> AirconController::calculatePowerValues(ThermalNetwork& therm
             if (!model) {
                 throw std::runtime_error("初期化済みモデルがありません");
             }
-            const acmodel::InputData input =
+            acmodel::InputData input =
                 buildAcmodelInput(context.operationMode, context.validData, context.heatCapacity, context.airFlowRate);
+
+            // 湿度（絶対湿度）: 欠損時は警告 + JIS固定値にフォールバック
+            const bool heating = (context.operationMode == "heating");
+            bool usedFallbackEx = false;
+            bool usedFallbackIn = false;
+            if (!(input.X_ex > 0.0)) {
+                usedFallbackEx = true;
+                input.X_ex = heating ? archenv::jis::X_H_EX : archenv::jis::X_C_EX;
+            }
+            if (!(input.X_in > 0.0)) {
+                usedFallbackIn = true;
+                input.X_in = heating ? archenv::jis::X_H_IN : archenv::jis::X_C_IN;
+            }
+            if (logVerbosity_ >= 1 && (usedFallbackEx || usedFallbackIn)) {
+                std::ostringstream warn;
+                warn << "　　[WARN] エアコン湿度入力が不足のためJIS条件で補完: " << airconKey
+                     << " [" << context.operationMode << "]";
+                if (usedFallbackIn) {
+                    warn << " in_node=" << nodeProps.in_node << " X_in=JIS";
+                }
+                if (usedFallbackEx) {
+                    warn << " outside_node=" << nodeProps.outside_node << " X_ex=JIS";
+                }
+                writeLog(logs, warn.str());
+            }
             auto result = model->estimateCOP(context.operationMode, input);
             if (logVerbosity_ >= 2) {
                 for (const auto& msg : result.logMessages) {
@@ -471,8 +503,33 @@ std::vector<double> AirconController::calculateCOPValues(ThermalNetwork& thermal
             if (!model) {
                 throw std::runtime_error("初期化済みモデルがありません");
             }
-            const acmodel::InputData input =
+            acmodel::InputData input =
                 buildAcmodelInput(context.operationMode, context.validData, context.heatCapacity, context.airFlowRate);
+
+            // 湿度（絶対湿度）: 欠損時は警告 + JIS固定値にフォールバック
+            const bool heating = (context.operationMode == "heating");
+            bool usedFallbackEx = false;
+            bool usedFallbackIn = false;
+            if (!(input.X_ex > 0.0)) {
+                usedFallbackEx = true;
+                input.X_ex = heating ? archenv::jis::X_H_EX : archenv::jis::X_C_EX;
+            }
+            if (!(input.X_in > 0.0)) {
+                usedFallbackIn = true;
+                input.X_in = heating ? archenv::jis::X_H_IN : archenv::jis::X_C_IN;
+            }
+            if (logVerbosity_ >= 1 && (usedFallbackEx || usedFallbackIn)) {
+                std::ostringstream warn;
+                warn << "　　[WARN] エアコン湿度入力が不足のためJIS条件で補完: " << airconKey
+                     << " [" << context.operationMode << "]";
+                if (usedFallbackIn) {
+                    warn << " in_node=" << nodeProps.in_node << " X_in=JIS";
+                }
+                if (usedFallbackEx) {
+                    warn << " outside_node=" << nodeProps.outside_node << " X_ex=JIS";
+                }
+                writeLog(logs, warn.str());
+            }
             auto result = model->estimateCOP(context.operationMode, input);
             // verbosity>=2 のときは、acmodel 側の詳細ログも出す
             if (logVerbosity_ >= 2) {

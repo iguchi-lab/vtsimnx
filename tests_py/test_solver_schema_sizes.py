@@ -49,6 +49,8 @@ def test_schema_and_bin_sizes_match(tmp_path):
         "thermal_temperature": "thermal_temperature",
         "thermal_temperature_capacity": "thermal_temperature_capacity",
         "thermal_temperature_layer": "thermal_temperature_layer",
+        "humidity_x": "humidity_x",
+        "concentration_c": "concentration_c",
         "thermal_heat_rate_advection": "thermal_heat_rate_advection",
         "thermal_heat_rate_heat_generation": "thermal_heat_rate_heat_generation",
         "thermal_heat_rate_solar_gain": "thermal_heat_rate_solar_gain",

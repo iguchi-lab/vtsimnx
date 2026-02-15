@@ -9,6 +9,7 @@ from .logger import get_logger
 from .parsers import parse_all
 from .surfaces import process_surfaces
 from .heat_sources import build_heat_generation_branches
+from .moisture import build_humidity_generation_vents
 from .aircon import process_aircons
 from .thermal import process_capacities
 from .validate import validate_dict, validate_dict_with_warnings, validate_dict_with_warning_details
@@ -23,11 +24,12 @@ def build_config_with_warnings(
     raw_config: Dict[str, Any],
     # output_path を指定しない場合はファイルを出力しない（容量節約）
     output_path: Optional[str] = None,
-    add_surface: bool = True,
-    add_aircon: bool = True,
-    add_capacity: bool = True,
-    add_surface_solar: bool = True,
-    add_surface_radiation: bool = True,
+    add_surface: bool | None = None,
+    add_aircon: bool | None = None,
+    add_capacity: bool | None = None,
+    add_surface_solar: bool | None = None,
+    add_surface_nocturnal: bool | None = None,
+    add_surface_radiation: bool | None = None,
     surface_layer_method: str = "rc",
     response_method: str = "arx_rc",
     response_terms: int | None = None,
@@ -42,12 +44,54 @@ def build_config_with_warnings(
     try:
         raw = deepcopy(raw_config)
 
+        # builder の ON/OFF オプションは raw_config["builder"] でも指定できる。
+        # API など外部から明示指定された引数（None 以外）が最優先。
+        builder_opt = raw.get("builder")
+        if isinstance(builder_opt, dict):
+            def _pick_bool(name: str) -> bool | None:
+                v = builder_opt.get(name)
+                return v if isinstance(v, bool) else None
+
+            if add_surface is None:
+                add_surface = _pick_bool("add_surface")
+            if add_aircon is None:
+                add_aircon = _pick_bool("add_aircon")
+            if add_capacity is None:
+                add_capacity = _pick_bool("add_capacity")
+            if add_surface_solar is None:
+                add_surface_solar = _pick_bool("add_surface_solar")
+            if add_surface_nocturnal is None:
+                add_surface_nocturnal = _pick_bool("add_surface_nocturnal")
+            if add_surface_radiation is None:
+                add_surface_radiation = _pick_bool("add_surface_radiation")
+
+        # 互換: トップレベルに置くのも許可（builder より優先度は低い）
+        if add_surface is None and isinstance(raw.get("add_surface"), bool):
+            add_surface = raw.get("add_surface")
+        if add_aircon is None and isinstance(raw.get("add_aircon"), bool):
+            add_aircon = raw.get("add_aircon")
+        if add_capacity is None and isinstance(raw.get("add_capacity"), bool):
+            add_capacity = raw.get("add_capacity")
+        if add_surface_solar is None and isinstance(raw.get("add_surface_solar"), bool):
+            add_surface_solar = raw.get("add_surface_solar")
+        if add_surface_nocturnal is None and isinstance(raw.get("add_surface_nocturnal"), bool):
+            add_surface_nocturnal = raw.get("add_surface_nocturnal")
+        if add_surface_radiation is None and isinstance(raw.get("add_surface_radiation"), bool):
+            add_surface_radiation = raw.get("add_surface_radiation")
+
+        # 最終デフォルト（従来互換: 指定が無ければ全て True）
+        add_surface = True if add_surface is None else bool(add_surface)
+        add_aircon = True if add_aircon is None else bool(add_aircon)
+        add_capacity = True if add_capacity is None else bool(add_capacity)
+        add_surface_solar = True if add_surface_solar is None else bool(add_surface_solar)
+        add_surface_nocturnal = True if add_surface_nocturnal is None else bool(add_surface_nocturnal)
+        add_surface_radiation = True if add_surface_radiation is None else bool(add_surface_radiation)
+
         # JSON から builder オプションを読み取る（関数引数が既定値のときだけ反映）
         # 例:
         #   "builder": { "surface_layer_method": "response" }
         # 互換: トップレベルに "surface_layer_method" を置くのも許可
         if surface_layer_method == "rc":
-            builder_opt = raw.get("builder")
             if isinstance(builder_opt, dict):
                 v = builder_opt.get("surface_layer_method")
                 if isinstance(v, str) and v:
@@ -88,6 +132,7 @@ def build_config_with_warnings(
                 sim_length,
                 node_config=node_config,
                 add_solar=add_surface_solar,
+                add_nocturnal=add_surface_nocturnal,
                 add_radiation=add_surface_radiation,
                 layer_method=surface_layer_method,
                 time_step=float(sim_config["index"]["timestep"]),
@@ -106,6 +151,21 @@ def build_config_with_warnings(
             thermal_config.extend(build_heat_generation_branches(raw_config=raw, surface_config=surface_config))
         except Exception as e:
             logger.exception("heat_source の処理に失敗しました: %s", e)
+            raise
+
+        # 発湿（humidity_source）の処理
+        # - 換気ブランチに humidity_generation を付与して solver 側に渡す（空気移動は vol=0.0）
+        try:
+            add_vents, rooms = build_humidity_generation_vents(raw_config=raw)
+            if add_vents:
+                ventilation_config.extend(add_vents)
+                # 発湿が指定された室は、calc_x を自動でON（ユーザーが忘れても湿気計算を有効化できる）
+                room_set = set(str(r) for r in rooms)
+                for node in node_config:
+                    if isinstance(node, dict) and str(node.get("key", "")) in room_set:
+                        node["calc_x"] = True
+        except Exception as e:
+            logger.exception("humidity_source の処理に失敗しました: %s", e)
             raise
 
         # 空調の処理
@@ -168,11 +228,12 @@ def build_config_with_warning_details(
     raw_config: Dict[str, Any],
     # output_path を指定しない場合はファイルを出力しない（容量節約）
     output_path: Optional[str] = None,
-    add_surface: bool = True,
-    add_aircon: bool = True,
-    add_capacity: bool = True,
-    add_surface_solar: bool = True,
-    add_surface_radiation: bool = True,
+    add_surface: bool | None = None,
+    add_aircon: bool | None = None,
+    add_capacity: bool | None = None,
+    add_surface_solar: bool | None = None,
+    add_surface_nocturnal: bool | None = None,
+    add_surface_radiation: bool | None = None,
     surface_layer_method: str = "rc",
     response_method: str = "arx_rc",
     response_terms: int | None = None,
@@ -183,9 +244,51 @@ def build_config_with_warning_details(
     logger.info("設定データの読み込み開始")
     raw = deepcopy(raw_config)
 
+    # builder の ON/OFF オプションは raw_config["builder"] でも指定できる。
+    # API など外部から明示指定された引数（None 以外）が最優先。
+    builder_opt = raw.get("builder")
+    if isinstance(builder_opt, dict):
+        def _pick_bool(name: str) -> bool | None:
+            v = builder_opt.get(name)
+            return v if isinstance(v, bool) else None
+
+        if add_surface is None:
+            add_surface = _pick_bool("add_surface")
+        if add_aircon is None:
+            add_aircon = _pick_bool("add_aircon")
+        if add_capacity is None:
+            add_capacity = _pick_bool("add_capacity")
+        if add_surface_solar is None:
+            add_surface_solar = _pick_bool("add_surface_solar")
+        if add_surface_nocturnal is None:
+            add_surface_nocturnal = _pick_bool("add_surface_nocturnal")
+        if add_surface_radiation is None:
+            add_surface_radiation = _pick_bool("add_surface_radiation")
+
+    # 互換: トップレベルに置くのも許可（builder より優先度は低い）
+    if add_surface is None and isinstance(raw.get("add_surface"), bool):
+        add_surface = raw.get("add_surface")
+    if add_aircon is None and isinstance(raw.get("add_aircon"), bool):
+        add_aircon = raw.get("add_aircon")
+    if add_capacity is None and isinstance(raw.get("add_capacity"), bool):
+        add_capacity = raw.get("add_capacity")
+    if add_surface_solar is None and isinstance(raw.get("add_surface_solar"), bool):
+        add_surface_solar = raw.get("add_surface_solar")
+    if add_surface_nocturnal is None and isinstance(raw.get("add_surface_nocturnal"), bool):
+        add_surface_nocturnal = raw.get("add_surface_nocturnal")
+    if add_surface_radiation is None and isinstance(raw.get("add_surface_radiation"), bool):
+        add_surface_radiation = raw.get("add_surface_radiation")
+
+    # 最終デフォルト（従来互換: 指定が無ければ全て True）
+    add_surface = True if add_surface is None else bool(add_surface)
+    add_aircon = True if add_aircon is None else bool(add_aircon)
+    add_capacity = True if add_capacity is None else bool(add_capacity)
+    add_surface_solar = True if add_surface_solar is None else bool(add_surface_solar)
+    add_surface_nocturnal = True if add_surface_nocturnal is None else bool(add_surface_nocturnal)
+    add_surface_radiation = True if add_surface_radiation is None else bool(add_surface_radiation)
+
     # JSON から builder オプションを読み取る（関数引数が既定値のときだけ反映）
     if surface_layer_method == "rc":
-        builder_opt = raw.get("builder")
         if isinstance(builder_opt, dict):
             v = builder_opt.get("surface_layer_method")
             if isinstance(v, str) and v:
@@ -232,6 +335,7 @@ def build_config_with_warning_details(
             sim_length,
             node_config=node_config,
             add_solar=add_surface_solar,
+            add_nocturnal=add_surface_nocturnal,
             add_radiation=add_surface_radiation,
             layer_method=surface_layer_method,
             time_step=float(sim_config["index"]["timestep"]),
@@ -298,11 +402,12 @@ def build_config(
     raw_config: Dict[str, Any],
     # output_path を指定しない場合はファイルを出力しない（容量節約）
     output_path: Optional[str] = None,
-    add_surface: bool = True,
-    add_aircon: bool = True,
-    add_capacity: bool = True,
-    add_surface_solar: bool = True,
-    add_surface_radiation: bool = True,
+    add_surface: bool | None = None,
+    add_aircon: bool | None = None,
+    add_capacity: bool | None = None,
+    add_surface_solar: bool | None = None,
+    add_surface_nocturnal: bool | None = None,
+    add_surface_radiation: bool | None = None,
     surface_layer_method: str = "rc",
     response_method: str = "arx_rc",
     response_terms: int | None = None,
@@ -320,6 +425,7 @@ def build_config(
         add_aircon=add_aircon,
         add_capacity=add_capacity,
         add_surface_solar=add_surface_solar,
+        add_surface_nocturnal=add_surface_nocturnal,
         add_surface_radiation=add_surface_radiation,
         surface_layer_method=surface_layer_method,
         response_method=response_method,

@@ -2,6 +2,8 @@
 #include "network/ventilation_network.h"
 #include "network/thermal_network.h"
 #include "aircon/aircon_controller.h"
+#include "transport/humidity_solver.h"
+#include "transport/concentration_solver.h"
 #include "utils/utils.h"
 
 #include <sstream>
@@ -130,6 +132,13 @@ struct CoupledDelta {
     double temperatureChange = 0.0;  // [K]
 };
 
+// 連成計算（pressure/thermal）1回分の「確定データ」をまとめる
+struct CoupledStepData {
+    PressureMap pressureMap;
+    FlowRateMap flowRates;
+    FlowBalanceMap flowBalance;
+};
+
 static inline CoupledDelta computeCoupledDelta(const SimulationConstants& constants,
                                                VentilationNetwork& ventNetwork,
                                                ThermalNetwork& thermalNetwork,
@@ -240,12 +249,29 @@ static void buildTimestepResult(const SimulationConstants& constants,
                             airconController.calculateCOPValues(thermalNetwork, flowRates, logs));
     }
 
+    if (constants.humidityCalc) {
+        convertDoublesToF32(timestepResult.humidityX, thermalNetwork.collectHumidityValues());
+    }
+    if (constants.concentrationCalc) {
+        convertDoublesToF32(timestepResult.concentrationC, thermalNetwork.collectConcentrationValues());
+    }
+
     timestepResultOut = std::move(timestepResult);
 }
 
 } // namespace
 
-// 換気・熱計算の「1回分」を実行する（runSimulation 側で収束反復を制御する）
+// 内部: 連成計算 1 回分の結果を struct で返す（前方宣言）
+static CoupledStepData
+performCoupledStepCalculation(VentilationNetwork& ventNetwork,
+                              ThermalNetwork& thermalNetwork,
+                              const SimulationConstants& constants,
+                              std::ostream& logs,
+                              int& totalIterations,
+                              TimingList& timings,
+                              const std::string& meta);
+
+// 換気・熱計算の連成を行う関数（公開API互換: tuple を返す）
 std::tuple<PressureMap, FlowRateMap, FlowBalanceMap>
 performCoupledCalculation(VentilationNetwork& ventNetwork,
                           ThermalNetwork& thermalNetwork,
@@ -254,11 +280,23 @@ performCoupledCalculation(VentilationNetwork& ventNetwork,
                           int& totalIterations,
                           TimingList& timings,
                           const std::string& meta) {
+    CoupledStepData step = performCoupledStepCalculation(
+        ventNetwork, thermalNetwork, constants, logs, totalIterations, timings, meta);
+    return {step.pressureMap, step.flowRates, step.flowBalance};
+}
+
+// 換気・熱計算の「1回分」を実行する（runSimulation 側で収束反復を制御する）
+static CoupledStepData
+performCoupledStepCalculation(VentilationNetwork& ventNetwork,
+                              ThermalNetwork& thermalNetwork,
+                              const SimulationConstants& constants,
+                              std::ostream& logs,
+                              int& totalIterations,
+                              TimingList& timings,
+                              const std::string& meta) {
     (void)totalIterations; // runSimulation 側で反復回数を管理する
     const bool logEnabled = (constants.logVerbosity > 0);
-    PressureMap     pressureMap;
-    FlowRateMap     flowRates;
-    FlowBalanceMap  flowBalance;
+    CoupledStepData step;
 
         // 換気計算
         if (constants.pressureCalc) {
@@ -266,10 +304,10 @@ performCoupledCalculation(VentilationNetwork& ventNetwork,
             if (logEnabled) pressureScope = std::make_unique<ScopedLogSection>(logs, "圧力計算");
             {
                 ScopedTimer timer(timings, "pressure_solve_iteration", meta);
-                std::tie(pressureMap, flowRates, flowBalance) =
+                std::tie(step.pressureMap, step.flowRates, step.flowBalance) =
                     ventNetwork.calculatePressure(constants, logs);
             }
-            ventNetwork.updateCalculationResults(pressureMap, flowRates);
+            ventNetwork.updateCalculationResults(step.pressureMap, step.flowRates);
 
         // runSimulation 側の1回目チェックと同じ条件で止めたいので、ここでは totalIterations を見ない
         // （未収束フラグは solve 後に network 側に保持される）
@@ -297,7 +335,7 @@ performCoupledCalculation(VentilationNetwork& ventNetwork,
             }
         }
 
-    return {pressureMap, flowRates, flowBalance};
+    return step;
 }
 
 void runSimulation(VentilationNetwork& ventNetwork,
@@ -312,10 +350,8 @@ void runSimulation(VentilationNetwork& ventNetwork,
     const bool logEnabled = (constants.logVerbosity > 0);
     int totalIterations = 0; // 総反復回数を記録
 
-    // 連成計算の実行
-    PressureMap     pressureMap;
-    FlowRateMap     flowRates;
-    FlowBalanceMap  flowBalance;
+    // 連成計算の実行（1回分の結果をまとめて保持）
+    CoupledStepData step;
 
     for (auto iteration = 0; iteration < static_cast<int>(constants.maxInnerIteration); iteration++) {
         std::string loopLabel = "圧力-温度連成計算-エアコン制御ループ " +
@@ -347,11 +383,11 @@ void runSimulation(VentilationNetwork& ventNetwork,
                             "圧力-熱計算 連成反復 " + std::to_string(coupledIter) + ":");
                     }
 
-            {
-                ScopedTimer timer(timings, "performCoupledCalculation", meta + ",iteration=" + std::to_string(iteration + 1));
-                std::tie(pressureMap, flowRates, flowBalance) =
-                            performCoupledCalculation(ventNetwork, thermalNetwork, constants, logs, totalIterations, timings,
-                                                      meta + ",iteration=" + std::to_string(iteration + 1));
+                    {
+                        ScopedTimer timer(timings, "performCoupledCalculation",
+                                          meta + ",iteration=" + std::to_string(iteration + 1));
+                        step = performCoupledStepCalculation(ventNetwork, thermalNetwork, constants, logs, totalIterations, timings,
+                                                             meta + ",iteration=" + std::to_string(iteration + 1));
                     }
 
                     // 1回目で pressure が未収束なら停止（従来と同じ）
@@ -400,8 +436,14 @@ void runSimulation(VentilationNetwork& ventNetwork,
             // pressureCalc=false の場合でも、aircon制御（処理熱量/風量/COP計算）が流量を参照できるように
             // VentilationNetwork の確定 flow_rate（fixed_flow 等）から FlowRateMap を生成する。
             if (!constants.pressureCalc) {
-                flowRates = ventNetwork.collectFlowRateMap();
+                step.flowRates = ventNetwork.collectFlowRateMap();
             }
+
+            // 湿度（絶対湿度）更新：
+            // - 「換気＋熱」が落ち着いた（この反復での flowRates/温度が確定した）後に更新する
+            // - その結果（current_x）を、後段のエアコン制御（潜熱/除湿の将来拡張）で参照できるようにする
+            transport::updateHumidityIfEnabled(constants, ventNetwork, thermalNetwork, step.flowRates, logs, timings,
+                                               meta + ",iteration=" + std::to_string(iteration + 1));
 
             // エアコン制御ロジック（連成計算後）
             const auto airconRes = runAirconControlAndAdjust(
@@ -409,7 +451,7 @@ void runSimulation(VentilationNetwork& ventNetwork,
                 thermalNetwork,
                 ventNetwork,
                 constants,
-                flowRates,
+                step.flowRates,
                 logs,
                 totalIterations,
                 timings,
@@ -447,8 +489,11 @@ void runSimulation(VentilationNetwork& ventNetwork,
         }
     }
 
+    // 濃度（c）更新：エアコン制御が完了した後でOK（エアコン制御には影響しない想定）
+    transport::updateConcentrationIfEnabled(constants, ventNetwork, thermalNetwork, logs, timings, meta);
+
     // 1タイムステップ分の結果を構築（呼び出し側で即座に書き出す想定）
-    buildTimestepResult(constants, ventNetwork, thermalNetwork, airconController, flowRates, logs, timestepResultOut);
+    buildTimestepResult(constants, ventNetwork, thermalNetwork, airconController, step.flowRates, logs, timestepResultOut);
 
     if (logEnabled) {
         writeLog(logs,

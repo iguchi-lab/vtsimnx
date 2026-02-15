@@ -31,6 +31,9 @@ struct AirconValidationData {
     double indoorTemp;
     double airconTemp;
     double setTemp;
+    // 湿度（絶対湿度）: calc_flag.x が有効な場合に使用（無効時は0でよい）
+    double outdoorX = 0.0;
+    double indoorX = 0.0;
 };
 
 /**

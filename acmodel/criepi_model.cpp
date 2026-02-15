@@ -429,7 +429,10 @@ COPResult CRIEPIModel::estimateCoolingCOP(const InputData& inputdata) {
                                " (Q=" + std::to_string(Q) + "kW)");
     
     // 反復計算でCOPを求める
-    double COP = 5.0; // 初期値
+    // ここで使っている式系は、飽和回避でT_evpを確定した後は
+    // 「1/COP に対して有理式」になり、閉形式でCOPが解ける（反復不要）。
+    // ただし数値的に不安定/不正（分母<=0など）の場合は従来の反復にフォールバックする。
+    double COP = 0.0;
     const int max_iterations = 100;
     const double tolerance = 1e-3;
     
@@ -442,23 +445,53 @@ COPResult CRIEPIModel::estimateCoolingCOP(const InputData& inputdata) {
     acmodel::log("　　　T_evp: " + std::to_string(T_evp));
     T_evp = avoidOverSaturation(T_evp, inputdata.X_in);
     acmodel::log("　　　T_evp adjusted: " + std::to_string(T_evp));
-    
-    for (int i = 0; i < max_iterations; i++) {
-        double T_cnd = T_ex_adjusted + ((Q * 1000.0) + (Q * 1000.0) / COP) / (M_cnd * ae::air_specific_heat(inputdata.X_ex));
-        double Refrigeration_COP = coeff_R * (T_evp + 273.15) / (T_cnd - T_evp);
-        double calc_COP = Refrigeration_COP * Q / (Q + Pc * Refrigeration_COP);
-        
-        if (std::abs(calc_COP - COP) < tolerance) {
-            break;
-        }
-        COP = calc_COP;
-        
-        if (i == max_iterations - 1) {
-            calculationLogs_.push_back("　　　警告: 反復計算が収束しませんでした");
+
+    // ---- 閉形式解（cooling） ----
+    // 定義:
+    //   T_cnd = T_ex + C*(1 + 1/COP)
+    //   Refrigeration_COP = A / ( (T_cnd - T_evp) ) = A / (D + C/COP)
+    //   COP = Refrigeration_COP * Q / (Q + Pc * Refrigeration_COP)
+    // からCOPを消去すると
+    //   COP = Q * (A - C) / (Q*D + A*Pc)
+    // になる（A,C,DはCOPに依存しない定数）。
+    const double cp_ex = ae::air_specific_heat(inputdata.X_ex);
+    const double Q_w = Q * 1000.0;                  // W
+    const double C = Q_w / (M_cnd * cp_ex);         // [°C] 相当
+    const double B = T_ex_adjusted - T_evp;         // [°C]
+    const double D = B + C;                         // [°C]
+    const double A = coeff_R * (T_evp + 273.15);    // [K]相当
+    const double denom = (Q * D) + (A * Pc);
+    const double numer = Q * (A - C);
+
+    bool solved = false;
+    if (std::isfinite(denom) && std::abs(denom) > 1e-12 && std::isfinite(numer)) {
+        double COP_closed = numer / denom;
+        if (std::isfinite(COP_closed) && COP_closed > 0.0) {
+            COP = COP_closed;
+            solved = true;
+            calculationLogs_.push_back("　　　閉形式で計算: COP=" + std::to_string(COP));
         }
     }
-    
-    calculationLogs_.push_back("　　　反復計算完了: COP=" + std::to_string(COP));
+
+    // フォールバック（従来の固定点反復）
+    if (!solved) {
+        COP = 5.0; // 初期値
+        for (int i = 0; i < max_iterations; i++) {
+            double T_cnd = T_ex_adjusted + (Q_w + Q_w / COP) / (M_cnd * cp_ex);
+            double Refrigeration_COP = coeff_R * (T_evp + 273.15) / (T_cnd - T_evp);
+            double calc_COP = Refrigeration_COP * Q / (Q + Pc * Refrigeration_COP);
+
+            if (std::abs(calc_COP - COP) < tolerance) {
+                break;
+            }
+            COP = calc_COP;
+
+            if (i == max_iterations - 1) {
+                calculationLogs_.push_back("　　　警告: 反復計算が収束しませんでした");
+            }
+        }
+        calculationLogs_.push_back("　　　反復計算完了(フォールバック): COP=" + std::to_string(COP));
+    }
     
     if (COP > 0) {
         result.COP = COP;
@@ -519,33 +552,73 @@ COPResult CRIEPIModel::estimateHeatingCOP(const InputData& inputdata) {
                                " (Q=" + std::to_string(Q) + "kW)");
     
     // 反復計算でCOPを求める
-    double COP = 5.0; // 初期値
+    double COP = 0.0;
     const int max_iterations = 100;
     const double tolerance = 1e-3;
     
     double M_evp = (1 - PythonConstants::BYPASS_FACTOR) * ae::air_density(T_ex_adjusted) * V_outer;
     double M_cnd = (1 - PythonConstants::BYPASS_FACTOR) * ae::air_density(inputdata.T_in) * V_inner;
     
-    double T_cnd = inputdata.T_in + (Q * 1000.0) / (M_cnd * ae::air_specific_heat(inputdata.X_in));
-    
-    for (int i = 0; i < max_iterations; i++) {
-        double T_evp = T_ex_adjusted - ((Q * 1000.0) - (Q * 1000.0) / COP) / (M_evp * ae::air_specific_heat(inputdata.X_ex));
-        T_evp = avoidOverSaturation(T_evp, inputdata.X_ex);
-        
-        double Refrigeration_COP = coeff_R * (T_cnd + 273.15) / (T_cnd - T_evp);
-        double calc_COP = Refrigeration_COP * Q / (Q + Pc * Refrigeration_COP);
-        
-        if (std::abs(calc_COP - COP) < tolerance) {
-            break;
-        }
-        COP = calc_COP;
-        
-        if (i == max_iterations - 1) {
-            calculationLogs_.push_back("　　　警告: 反復計算が収束しませんでした");
+    const double cp_in = ae::air_specific_heat(inputdata.X_in);
+    const double cp_ex = ae::air_specific_heat(inputdata.X_ex);
+    const double Q_w = Q * 1000.0; // W
+    double T_cnd = inputdata.T_in + Q_w / (M_cnd * cp_in);
+
+    // ---- まずは閉形式解を試す（heating）----
+    //   T_evp_raw = T_ex - E*(1 - 1/COP) = T_ex - E + E/COP
+    //   Refrigeration_COP = A / (T_cnd - T_evp_raw) = A / (B - E/COP)
+    //   COP = Refrigeration_COP * Q / (Q + Pc*Refrigeration_COP)
+    // から
+    //   COP = Q * (A + E) / (Q*B + A*Pc)
+    // が得られる。
+    const double E = Q_w / (M_evp * cp_ex);            // [°C]相当
+    const double A = coeff_R * (T_cnd + 273.15);       // [K]相当
+    const double B = (T_cnd - T_ex_adjusted + E);      // [°C]
+    const double denom = (Q * B) + (A * Pc);
+    const double numer = Q * (A + E);
+
+    bool solved = false;
+    if (std::isfinite(denom) && std::abs(denom) > 1e-12 && std::isfinite(numer)) {
+        double COP_closed = numer / denom;
+        if (std::isfinite(COP_closed) && COP_closed > 0.0) {
+            // 閉形式解で得たCOPからT_evpを計算し、飽和回避が不要ならそのまま採用
+            double T_evp_raw = T_ex_adjusted - E + (E / COP_closed);
+            double T_evp_adj = avoidOverSaturation(T_evp_raw, inputdata.X_ex);
+            if (std::abs(T_evp_adj - T_evp_raw) < 1e-9) {
+                COP = COP_closed;
+                solved = true;
+                calculationLogs_.push_back("　　　閉形式で計算: COP=" + std::to_string(COP));
+            }
         }
     }
-    
-    calculationLogs_.push_back("　　　反復計算完了: COP=" + std::to_string(COP));
+
+    // 飽和回避が絡む場合は、従来通り反復（ただし初期値は閉形式解を優先）
+    if (!solved) {
+        COP = 5.0;
+        if (std::isfinite(numer) && std::isfinite(denom) && std::abs(denom) > 1e-12) {
+            double COP0 = numer / denom;
+            if (std::isfinite(COP0) && COP0 > 0.0) COP = COP0;
+        }
+
+        for (int i = 0; i < max_iterations; i++) {
+            double T_evp = T_ex_adjusted - (Q_w - Q_w / COP) / (M_evp * cp_ex);
+            T_evp = avoidOverSaturation(T_evp, inputdata.X_ex);
+
+            double Refrigeration_COP = coeff_R * (T_cnd + 273.15) / (T_cnd - T_evp);
+            double calc_COP = Refrigeration_COP * Q / (Q + Pc * Refrigeration_COP);
+
+            if (std::abs(calc_COP - COP) < tolerance) {
+                break;
+            }
+            COP = calc_COP;
+
+            if (i == max_iterations - 1) {
+                calculationLogs_.push_back("　　　警告: 反復計算が収束しませんでした");
+            }
+        }
+
+        calculationLogs_.push_back("　　　反復計算完了(フォールバック): COP=" + std::to_string(COP));
+    }
     
     if (COP > 0) {
         result.COP = COP;

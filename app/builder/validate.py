@@ -533,6 +533,9 @@ def validate_ventilation_config(
         # 付加情報
         branch["h_from"] = branch.get("h_from", 0.0)
         branch["h_to"] = branch.get("h_to", 0.0)
+        # 発湿/発塵（必要時はデフォルトゼロを入れて solver 側の分岐を減らす）
+        set_default_generation(branch, sim_config, "humidity_generation", "x")
+        set_default_generation(branch, sim_config, "dust_generation", "c")
         # set_default_generation(branch, sim_config, "eta", "c")  # 必要に応じて
 
     logger.info("ventilation_configのバリデーションが完了しました。")

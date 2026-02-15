@@ -100,6 +100,9 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
         if (nodeJson.contains("c")) {
             node.current_c = readSeries("c", node.c, 0.0);
         }
+        if (nodeJson.contains("beta")) {
+            node.current_beta = readSeries("beta", node.beta, 0.0);
+        }
         if (nodeJson.contains("pre_temp")) {
             node.current_pre_temp = readSeries("pre_temp", node.pre_temp, node.current_pre_temp);
         }

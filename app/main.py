@@ -171,6 +171,14 @@ class SimulationRequest(BaseModel):
     config: Dict[str, Any]
     debug: bool = False
     debug_verbosity: int = 2
+    # builder オプション（APIから制御）
+    # None の場合は raw_config["builder"]（または builder 側既定値）に従う
+    add_surface: Optional[bool] = None
+    add_aircon: Optional[bool] = None
+    add_capacity: Optional[bool] = None
+    add_surface_solar: Optional[bool] = None
+    add_surface_nocturnal: Optional[bool] = None
+    add_surface_radiation: Optional[bool] = None
 
 class SimulationResponse(BaseModel):
     """
@@ -212,7 +220,16 @@ def run_simulation(req: SimulationRequest):
 
         # ユーザー入力（raw）を solver 用 config に変換（正規化/展開/検証）
         with use_builder_log_file(builder_log_tmp):
-            built_config, warnings, warning_details = build_config_with_warning_details(req.config, output_path=None)
+            built_config, warnings, warning_details = build_config_with_warning_details(
+                req.config,
+                output_path=None,
+                add_surface=req.add_surface,
+                add_aircon=req.add_aircon,
+                add_capacity=req.add_capacity,
+                add_surface_solar=req.add_surface_solar,
+                add_surface_nocturnal=req.add_surface_nocturnal,
+                add_surface_radiation=req.add_surface_radiation,
+            )
 
         # API側でログ冗長度を統制（debug=falseなら常に1に落とす）
         # ※ build_config の後に適用することで、builder の未知キー削除で落ちないようにする
@@ -241,7 +258,18 @@ def run_simulation(req: SimulationRequest):
     return SimulationResponse(result=output, warnings=warnings, warning_details=warning_details)
 
 
-def _run_simulation_core(*, raw_config: Dict[str, Any], debug: bool, debug_verbosity: int) -> SimulationResponse:
+def _run_simulation_core(
+    *,
+    raw_config: Dict[str, Any],
+    debug: bool,
+    debug_verbosity: int,
+    add_surface: Optional[bool] = None,
+    add_aircon: Optional[bool] = None,
+    add_capacity: Optional[bool] = None,
+    add_surface_solar: Optional[bool] = None,
+    add_surface_nocturnal: Optional[bool] = None,
+    add_surface_radiation: Optional[bool] = None,
+) -> SimulationResponse:
     """
     /run と同じ経路で単発実行したいときの共通ロジック（CLI/テスト用）。
     FastAPI の依存注入や HTTP レイヤに依存しない。
@@ -250,7 +278,16 @@ def _run_simulation_core(*, raw_config: Dict[str, Any], debug: bool, debug_verbo
     tmp_dir = os.getenv("VTSIMNX_BUILDER_TMP_DIR") or tempfile.gettempdir()
     builder_log_tmp = Path(tmp_dir) / f"vtsimnx.builder.{run_id}.log"
     with use_builder_log_file(builder_log_tmp):
-        built_config, warnings, warning_details = build_config_with_warning_details(raw_config, output_path=None)
+        built_config, warnings, warning_details = build_config_with_warning_details(
+            raw_config,
+            output_path=None,
+            add_surface=add_surface,
+            add_aircon=add_aircon,
+            add_capacity=add_capacity,
+            add_surface_solar=add_surface_solar,
+            add_surface_nocturnal=add_surface_nocturnal,
+            add_surface_radiation=add_surface_radiation,
+        )
     force_log_verbosity(built_config, debug=debug, debug_verbosity=debug_verbosity, default_verbosity=1)
     output = run_solver(built_config, run_id=run_id, write_manifest=False)
     attach_builder_log_to_artifacts(output, builder_log_path=builder_log_tmp, artifact_filename="builder.log", delete_source=True)

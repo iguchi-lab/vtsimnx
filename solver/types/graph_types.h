@@ -45,6 +45,9 @@ struct VertexProperties {
     double current_x;
     std::vector<double> c;
     double current_c;
+    // 濃度の沈着率 [1/s]（濃度計算用）
+    std::vector<double> beta;
+    double current_beta = 0.0;
     double heat_source = 0.0;
     std::vector<double> pre_temp;
     double current_pre_temp = 20.0;
@@ -67,6 +70,9 @@ struct VertexProperties {
         }
         if (!c.empty() && static_cast<size_t>(timestep) < c.size()) {
             current_c = c[timestep];
+        }
+        if (!beta.empty() && static_cast<size_t>(timestep) < beta.size()) {
+            current_beta = beta[timestep];
         }
         if (!pre_temp.empty() && static_cast<size_t>(timestep) < pre_temp.size()) {
             current_pre_temp = pre_temp[timestep];
@@ -139,6 +145,13 @@ struct EdgeProperties {
     std::vector<double> heat_generation;
     double current_heat_generation;
 
+    // 換気に伴う発湿/発塵（将来拡張）
+    // - vol=0 の "void->room" 枝などに与えることで「空気移動なしの生成項」として扱える
+    std::vector<double> humidity_generation;
+    double current_humidity_generation = 0.0;
+    std::vector<double> dust_generation;
+    double current_dust_generation = 0.0;
+
     // -----------------------------------------------------------------
     // 応答係数（CTF/応答係数法）用: 両端表面の熱流を別々に表現する二端子要素
     //
@@ -185,6 +198,12 @@ struct EdgeProperties {
         }
         if (!heat_generation.empty() && static_cast<size_t>(timestep) < heat_generation.size()) {
             current_heat_generation = heat_generation[timestep];
+        }
+        if (!humidity_generation.empty() && static_cast<size_t>(timestep) < humidity_generation.size()) {
+            current_humidity_generation = humidity_generation[timestep];
+        }
+        if (!dust_generation.empty() && static_cast<size_t>(timestep) < dust_generation.size()) {
+            current_dust_generation = dust_generation[timestep];
         }
     }
 

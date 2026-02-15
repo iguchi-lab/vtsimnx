@@ -84,6 +84,12 @@ void ThermalNetwork::buildFromData(const std::vector<VertexProperties>& allNodes
     temperatureKeysOrderedCapacity.clear();
     temperatureVerticesOrderedLayer.clear();
     temperatureKeysOrderedLayer.clear();
+    humidityCacheInitialized = false;
+    humidityVerticesOrdered.clear();
+    humidityKeysOrdered.clear();
+    concentrationCacheInitialized = false;
+    concentrationVerticesOrdered.clear();
+    concentrationKeysOrdered.clear();
     heatRateCacheInitialized = false;
     heatRateEdgesOrderedAdvection.clear();
     heatRateKeysOrderedAdvection.clear();
@@ -104,15 +110,17 @@ void ThermalNetwork::buildFromData(const std::vector<VertexProperties>& allNodes
     advectionEdgeCacheInitialized = false;
     advectionEdgeByVertexPair.clear();
 
-    if (simConstants.temperatureCalc) {
+    if (simConstants.temperatureCalc || simConstants.humidityCalc || simConstants.concentrationCalc) {
         writeLog(logs, "  熱回路網を作成中...");
         int verbosity = simConstants.logVerbosity;
         if (verbosity < 0) verbosity = 1;
         // 熱ブランチの両端ノードを収集
         std::set<std::string> allNodeKeys;
-        for (const auto& edge : thermalBranches) {
-            allNodeKeys.insert(edge.source);
-            allNodeKeys.insert(edge.target);
+        if (simConstants.temperatureCalc) {
+            for (const auto& edge : thermalBranches) {
+                allNodeKeys.insert(edge.source);
+                allNodeKeys.insert(edge.target);
+            }
         }
         // 換気ブランチの両端ノードも対象に含める
         for (const auto& edge : ventilationBranches) {
@@ -136,62 +144,66 @@ void ThermalNetwork::buildFromData(const std::vector<VertexProperties>& allNodes
             }
         }
 
-        // 熱ブランチを追加
-        for (const auto& edge : thermalBranches) {
-            addEdge(edge);
+        // 熱ブランチを追加（温度計算が有効な場合のみ）
+        if (simConstants.temperatureCalc) {
+            for (const auto& edge : thermalBranches) {
+                addEdge(edge);
+            }
         }
 
-        // response_conduction の履歴初期化（両端の初期温度で埋める）
-        // - parseNodes(..., timestep=0) 済みなので current_t が入っている前提
-        for (auto e : boost::make_iterator_range(boost::edges(graph))) {
-            auto& ep = graph[e];
-            if (ep.getTypeCode() != EdgeProperties::TypeCode::ResponseConduction) continue;
-            const Vertex sv = boost::source(e, graph);
-            const Vertex tv = boost::target(e, graph);
-            const double Ts0 = graph[sv].current_t;
-            const double Tt0 = graph[tv].current_t;
+        if (simConstants.temperatureCalc) {
+            // response_conduction の履歴初期化（両端の初期温度で埋める）
+            // - parseNodes(..., timestep=0) 済みなので current_t が入っている前提
+            for (auto e : boost::make_iterator_range(boost::edges(graph))) {
+                auto& ep = graph[e];
+                if (ep.getTypeCode() != EdgeProperties::TypeCode::ResponseConduction) continue;
+                const Vertex sv = boost::source(e, graph);
+                const Vertex tv = boost::target(e, graph);
+                const double Ts0 = graph[sv].current_t;
+                const double Tt0 = graph[tv].current_t;
 
-            const size_t tSrcLag = (ep.resp_a_src.size() > 0 ? ep.resp_a_src.size() - 1 : 0);
-            const size_t tTgtLag = (ep.resp_a_tgt.size() > 0 ? ep.resp_a_tgt.size() - 1 : 0);
-            // b係数の遅れも同じ長さを要求するのが自然だが、入力の自由度を保つため max を採用
-            const size_t tLagMax = std::max({tSrcLag, tTgtLag,
-                                             (ep.resp_b_src.size() > 0 ? ep.resp_b_src.size() - 1 : 0),
-                                             (ep.resp_b_tgt.size() > 0 ? ep.resp_b_tgt.size() - 1 : 0)});
+                const size_t tSrcLag = (ep.resp_a_src.size() > 0 ? ep.resp_a_src.size() - 1 : 0);
+                const size_t tTgtLag = (ep.resp_a_tgt.size() > 0 ? ep.resp_a_tgt.size() - 1 : 0);
+                // b係数の遅れも同じ長さを要求するのが自然だが、入力の自由度を保つため max を採用
+                const size_t tLagMax = std::max({tSrcLag, tTgtLag,
+                                                 (ep.resp_b_src.size() > 0 ? ep.resp_b_src.size() - 1 : 0),
+                                                 (ep.resp_b_tgt.size() > 0 ? ep.resp_b_tgt.size() - 1 : 0)});
 
-            ep.hist_t_src.assign(tLagMax, Ts0);
-            ep.hist_t_tgt.assign(tLagMax, Tt0);
-            ep.hist_q_src.assign(ep.resp_c_src.size(), 0.0);
-            ep.hist_q_tgt.assign(ep.resp_c_tgt.size(), 0.0);
-            ep.current_q_src = 0.0;
-            ep.current_q_tgt = 0.0;
-            ep.response_initialized = true;
-        }
-
-        // 換気ブランチに対応する移流熱ブランチを作成・追加
-        for (const auto& ventEdge : ventilationBranches) {
-            EdgeProperties advectionEdge;
-            advectionEdge.key = "advection_" + ventEdge.key;
-            advectionEdge.unique_id = "advection_" + ventEdge.unique_id;
-            advectionEdge.type = "advection";
-            advectionEdge.source = ventEdge.source;
-            advectionEdge.target = ventEdge.target;
-            advectionEdge.flow_rate = 0.0; // 初期値
-            advectionEdge.comment = "換気ブランチ " + ventEdge.key + " に対応する移流熱ブランチ";
-
-            // エアコンノードへの流入（還気）判定を事前に行う
-            auto itT = keyToVertex.find(ventEdge.target);
-            if (itT != keyToVertex.end()) {
-                if (graph[itT->second].type == "aircon") {
-                    advectionEdge.is_aircon_inflow = true;
-                }
+                ep.hist_t_src.assign(tLagMax, Ts0);
+                ep.hist_t_tgt.assign(tLagMax, Tt0);
+                ep.hist_q_src.assign(ep.resp_c_src.size(), 0.0);
+                ep.hist_q_tgt.assign(ep.resp_c_tgt.size(), 0.0);
+                ep.current_q_src = 0.0;
+                ep.current_q_tgt = 0.0;
+                ep.response_initialized = true;
             }
 
-            addEdge(advectionEdge);
-        }
-        if (!ventilationBranches.empty() && verbosity >= 2) {
-            std::ostringstream oss;
-            oss << "    換気ブランチに対応する移流熱ブランチを " << ventilationBranches.size() << " 個作成しました";
-            writeLog(logs, oss.str());
+            // 換気ブランチに対応する移流熱ブランチを作成・追加
+            for (const auto& ventEdge : ventilationBranches) {
+                EdgeProperties advectionEdge;
+                advectionEdge.key = "advection_" + ventEdge.key;
+                advectionEdge.unique_id = "advection_" + ventEdge.unique_id;
+                advectionEdge.type = "advection";
+                advectionEdge.source = ventEdge.source;
+                advectionEdge.target = ventEdge.target;
+                advectionEdge.flow_rate = 0.0; // 初期値
+                advectionEdge.comment = "換気ブランチ " + ventEdge.key + " に対応する移流熱ブランチ";
+
+                // エアコンノードへの流入（還気）判定を事前に行う
+                auto itT = keyToVertex.find(ventEdge.target);
+                if (itT != keyToVertex.end()) {
+                    if (graph[itT->second].type == "aircon") {
+                        advectionEdge.is_aircon_inflow = true;
+                    }
+                }
+
+                addEdge(advectionEdge);
+            }
+            if (!ventilationBranches.empty() && verbosity >= 2) {
+                std::ostringstream oss;
+                oss << "    換気ブランチに対応する移流熱ブランチを " << ventilationBranches.size() << " 個作成しました";
+                writeLog(logs, oss.str());
+            }
         }
     }
 
@@ -371,6 +383,76 @@ std::vector<double> ThermalNetwork::collectTemperatureValuesLayer() const {
     values.resize(temperatureVerticesOrderedLayer.size());
     for (size_t i = 0; i < temperatureVerticesOrderedLayer.size(); ++i) {
         values[i] = graph[temperatureVerticesOrderedLayer[i]].current_t;
+    }
+    return values;
+}
+
+const std::vector<std::string>& ThermalNetwork::getHumidityKeys() const {
+    if (!humidityCacheInitialized) {
+        std::vector<std::pair<std::string, Vertex>> items;
+        items.reserve(boost::num_vertices(graph) / 4 + 1);
+        for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+            const auto& nd = graph[v];
+            if (!nd.calc_x) continue;
+            items.emplace_back(nd.key, v);
+        }
+        std::sort(items.begin(), items.end(),
+                  [](const auto& a, const auto& b) { return a.first < b.first; });
+        humidityVerticesOrdered.clear();
+        humidityKeysOrdered.clear();
+        humidityVerticesOrdered.reserve(items.size());
+        humidityKeysOrdered.reserve(items.size());
+        for (const auto& kv : items) {
+            humidityKeysOrdered.push_back(kv.first);
+            humidityVerticesOrdered.push_back(kv.second);
+        }
+        humidityCacheInitialized = true;
+    }
+    return humidityKeysOrdered;
+}
+
+std::vector<double> ThermalNetwork::collectHumidityValues() const {
+    const auto& keys = getHumidityKeys();
+    (void)keys;
+    std::vector<double> values;
+    values.resize(humidityVerticesOrdered.size());
+    for (size_t i = 0; i < humidityVerticesOrdered.size(); ++i) {
+        values[i] = graph[humidityVerticesOrdered[i]].current_x;
+    }
+    return values;
+}
+
+const std::vector<std::string>& ThermalNetwork::getConcentrationKeys() const {
+    if (!concentrationCacheInitialized) {
+        std::vector<std::pair<std::string, Vertex>> items;
+        items.reserve(boost::num_vertices(graph) / 4 + 1);
+        for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+            const auto& nd = graph[v];
+            if (!nd.calc_c) continue;
+            items.emplace_back(nd.key, v);
+        }
+        std::sort(items.begin(), items.end(),
+                  [](const auto& a, const auto& b) { return a.first < b.first; });
+        concentrationVerticesOrdered.clear();
+        concentrationKeysOrdered.clear();
+        concentrationVerticesOrdered.reserve(items.size());
+        concentrationKeysOrdered.reserve(items.size());
+        for (const auto& kv : items) {
+            concentrationKeysOrdered.push_back(kv.first);
+            concentrationVerticesOrdered.push_back(kv.second);
+        }
+        concentrationCacheInitialized = true;
+    }
+    return concentrationKeysOrdered;
+}
+
+std::vector<double> ThermalNetwork::collectConcentrationValues() const {
+    const auto& keys = getConcentrationKeys();
+    (void)keys;
+    std::vector<double> values;
+    values.resize(concentrationVerticesOrdered.size());
+    for (size_t i = 0; i < concentrationVerticesOrdered.size(); ++i) {
+        values[i] = graph[concentrationVerticesOrdered[i]].current_c;
     }
     return values;
 }

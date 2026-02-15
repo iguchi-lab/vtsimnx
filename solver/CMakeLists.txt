@@ -65,6 +65,8 @@ set(ARCHENV_SOURCES
 set(MAIN_SOURCES
     vtsimnx_solver.cpp
     simulation_runner.cpp
+    transport/humidity_solver.cpp
+    transport/concentration_solver.cpp
     app/vtsimnx_app.cpp
     output/artifact_io.cpp
 )
@@ -248,6 +250,26 @@ if(VTSIMNX_BUILD_CPP_TESTS)
     )
     add_test(NAME vtsimnx_solver_cpp_test_pressure_constraints COMMAND vtsimnx_solver_cpp_test_pressure_constraints)
 
+    # 6b) ventilation network: parallel branches should keep per-branch flow_rate (no aggregation copy)
+    add_executable(vtsimnx_solver_cpp_test_vent_parallel_branch_flow_rates
+        tests_cpp/test_vent_parallel_branch_flow_rates.cpp
+        network/ventilation_network.cpp
+        core/ventilation/pressure_solver.cpp
+        core/ventilation/pressure_solver_ceres.cpp
+        core/ventilation/pressure_solver_fallback.cpp
+        core/ventilation/pressure_constraints.cpp
+    )
+    target_link_libraries(vtsimnx_solver_cpp_test_vent_parallel_branch_flow_rates
+        Boost::boost
+        ceres
+    )
+    target_compile_options(vtsimnx_solver_cpp_test_vent_parallel_branch_flow_rates PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_test_vent_parallel_branch_flow_rates
+             COMMAND vtsimnx_solver_cpp_test_vent_parallel_branch_flow_rates)
+
     # 7) network: buildFromData idempotency (no accumulation on rebuild)
     add_executable(vtsimnx_solver_cpp_test_network_rebuild
         tests_cpp/test_network_rebuild.cpp
@@ -275,6 +297,37 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         -Wextra
     )
     add_test(NAME vtsimnx_solver_cpp_test_network_rebuild COMMAND vtsimnx_solver_cpp_test_network_rebuild)
+
+    # 7b) transport: humidity(x) + concentration(c) 1-step update
+    add_executable(vtsimnx_solver_cpp_test_transport_humidity_concentration
+        tests_cpp/test_transport_humidity_concentration.cpp
+        transport/humidity_solver.cpp
+        transport/concentration_solver.cpp
+        network/ventilation_network.cpp
+        network/thermal_network.cpp
+        core/ventilation/pressure_solver.cpp
+        core/ventilation/pressure_solver_ceres.cpp
+        core/ventilation/pressure_solver_fallback.cpp
+        core/ventilation/pressure_constraints.cpp
+        core/thermal/thermal_solver.cpp
+        core/thermal/thermal_solver_linear_direct.cpp
+        core/thermal/thermal_direct_internal.cpp
+        core/thermal/thermal_direct_topology.cpp
+        core/thermal/thermal_direct_rhs.cpp
+        core/thermal/thermal_direct_build.cpp
+        core/thermal/thermal_direct_solve.cpp
+        core/thermal/thermal_direct_postprocess.cpp
+    )
+    target_link_libraries(vtsimnx_solver_cpp_test_transport_humidity_concentration
+        Boost::boost
+        ceres
+    )
+    target_compile_options(vtsimnx_solver_cpp_test_transport_humidity_concentration PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_test_transport_humidity_concentration
+             COMMAND vtsimnx_solver_cpp_test_transport_humidity_concentration)
 
     # 8) acmodel: factory + logger basic behavior
     add_executable(vtsimnx_solver_cpp_test_acmodel_core
@@ -336,6 +389,8 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         app/vtsimnx_app.cpp
         simulation_runner.cpp
         output/artifact_io.cpp
+        transport/humidity_solver.cpp
+        transport/concentration_solver.cpp
         ${PARSER_SOURCES}
         ${NETWORK_SOURCES}
         ${CORE_SOURCES}

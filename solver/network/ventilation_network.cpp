@@ -83,7 +83,7 @@ void VentilationNetwork::buildFromData(const std::vector<VertexProperties>& allN
 
     // pressureCalc=false でも、熱計算（移流）で換気ブランチの fixed_flow 等が必要になるため
     // 換気回路網自体は構築しておく（圧力は解かない）。
-    if (simConstants.pressureCalc || simConstants.temperatureCalc) {
+    if (simConstants.pressureCalc || simConstants.temperatureCalc || simConstants.humidityCalc || simConstants.concentrationCalc) {
         writeLog(logs, "  換気回路網を作成中...");
         int verbosity = simConstants.logVerbosity;
         if (verbosity < 0) verbosity = 1;
@@ -180,22 +180,11 @@ VentilationNetwork::calculatePressure(const SimulationConstants& constants, std:
 
 // 流量マップからグラフを一括更新
 void VentilationNetwork::updateFlowRatesInGraph(const FlowRateMap& flowRates) {
-    // 外部I/Fは (string,string)->double の map だが、内部更新は vertex index に落として O(E) 化する
-    std::unordered_map<std::uint64_t, double> flowByVertexPair;
-    flowByVertexPair.reserve(flowRates.size() * 2 + 1);
-    for (const auto& kv : flowRates) {
-        const auto& srcKey = kv.first.first;
-        const auto& dstKey = kv.first.second;
-        auto itS = keyToVertex.find(srcKey);
-        auto itT = keyToVertex.find(dstKey);
-        if (itS == keyToVertex.end() || itT == keyToVertex.end()) continue;
-        const Vertex sv = itS->second;
-        const Vertex tv = itT->second;
-        const std::uint64_t packed =
-            (static_cast<std::uint64_t>(static_cast<std::uint32_t>(sv)) << 32) |
-            static_cast<std::uint64_t>(static_cast<std::uint32_t>(tv));
-        flowByVertexPair[packed] = kv.second;
-    }
+    // NOTE:
+    // `flowRates` はノードペア（source,target）ごとの合計流量（並列枝は合算）を持つ。
+    // これをそのまま各ブランチへ配ると「並列枝が同じ流量になってしまう」ため、
+    // ブランチ（エッジ）ごとに差圧から流量を再計算して graph[edge].flow_rate を更新する。
+    (void)flowRates;
 
     auto edge_range = boost::edges(graph);
     for (auto edge : boost::make_iterator_range(edge_range)) {
@@ -203,42 +192,26 @@ void VentilationNetwork::updateFlowRatesInGraph(const FlowRateMap& flowRates) {
         Vertex targetVertex = boost::target(edge, graph);
         const auto& sourceNode = graph[sourceVertex];
         const auto& targetNode = graph[targetVertex];
-        const auto& edgeData   = graph[edge];
+        auto& edgeData = graph[edge];
 
         double flow = 0.0;
-        bool flowResolved = false;
-
-        const std::uint64_t fwd =
-            (static_cast<std::uint64_t>(static_cast<std::uint32_t>(sourceVertex)) << 32) |
-            static_cast<std::uint64_t>(static_cast<std::uint32_t>(targetVertex));
-        auto itF = flowByVertexPair.find(fwd);
-        if (itF != flowByVertexPair.end()) {
-            flow = itF->second;
-            flowResolved = true;
+        if (!edgeData.current_enabled) {
+            flow = 0.0;
+        } else if (edgeData.type == "fixed_flow" || !edgeData.vol.empty()) {
+            // 固定流量（type=fixed_flow）や vol 指定はそのまま
+            flow = edgeData.current_vol;
         } else {
-            const std::uint64_t rev =
-                (static_cast<std::uint64_t>(static_cast<std::uint32_t>(targetVertex)) << 32) |
-                static_cast<std::uint64_t>(static_cast<std::uint32_t>(sourceVertex));
-            auto itR = flowByVertexPair.find(rev);
-            if (itR != flowByVertexPair.end()) {
-                flow = -itR->second;
-                flowResolved = true;
-            }
-        }
+            const double rho_source = calculateDensity(sourceNode.current_t);
+            const double rho_target = calculateDensity(targetNode.current_t);
+            const double source_total_pressure = sourceNode.current_p - rho_source * archenv::GRAVITY * edgeData.h_from;
+            const double target_total_pressure = targetNode.current_p - rho_target * archenv::GRAVITY * edgeData.h_to;
+            const double dp = source_total_pressure - target_total_pressure;
 
-        if (!flowResolved) {
-            double rho_source = calculateDensity(sourceNode.current_t);
-            double rho_target = calculateDensity(targetNode.current_t);
-
-            double source_total_pressure = sourceNode.current_p - rho_source * 9.81 * edgeData.h_from;
-            double target_total_pressure = targetNode.current_p - rho_target * 9.81 * edgeData.h_to;
-            double dp = source_total_pressure - target_total_pressure;
-
-            double recomputed = FlowCalculation::calculateUnifiedFlow(dp, edgeData);
+            const double recomputed = FlowCalculation::calculateUnifiedFlow(dp, edgeData);
             flow = std::isfinite(recomputed) ? recomputed : 0.0;
         }
 
-        graph[edge].flow_rate = flow;
+        edgeData.flow_rate = flow;
     }
 }
 

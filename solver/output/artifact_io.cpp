@@ -33,6 +33,8 @@ nlohmann::json schemaToJson(long length, long timestepSec, const OutputSchema& s
         {"thermal_temperature", {{"keys", s.temperatureKeys}}},
         {"thermal_temperature_capacity", {{"keys", s.temperatureKeysCapacity}}},
         {"thermal_temperature_layer", {{"keys", s.temperatureKeysLayer}}},
+        {"humidity_x", {{"keys", s.humidityKeys}}},
+        {"concentration_c", {{"keys", s.concentrationKeys}}},
         {"thermal_heat_rate_advection", {{"keys", s.heatRateKeysAdvection}}},
         {"thermal_heat_rate_heat_generation", {{"keys", s.heatRateKeysHeatGeneration}}},
         {"thermal_heat_rate_solar_gain", {{"keys", s.heatRateKeysSolarGain}}},

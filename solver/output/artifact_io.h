@@ -20,6 +20,10 @@ struct OutputSchema {
     std::vector<std::string> temperatureKeys;         // main: normal + aircon + unknown
     std::vector<std::string> temperatureKeysCapacity; // capacity
     std::vector<std::string> temperatureKeysLayer;    // layer
+    // 湿度（絶対湿度 x）
+    std::vector<std::string> humidityKeys;
+    // 濃度（c）
+    std::vector<std::string> concentrationKeys;
     // heat_rate はカテゴリ別に出力する
     std::vector<std::string> heatRateKeysAdvection;
     std::vector<std::string> heatRateKeysHeatGeneration;

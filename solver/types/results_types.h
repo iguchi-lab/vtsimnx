@@ -17,6 +17,12 @@ struct TimestepResult {
     std::vector<float> temperature;         // main: normal + aircon + unknown
     std::vector<float> temperatureCapacity; // capacity
     std::vector<float> temperatureLayer;    // layer
+    // 湿度（絶対湿度 x）: calc_flag.x が true の場合に有効
+    // 出力キー順は ThermalNetwork が提供（schema.humidity_x）
+    std::vector<float> humidityX;
+    // 濃度（c）: calc_flag.c が true の場合に有効
+    // 出力キー順は ThermalNetwork が提供（schema.concentration_c）
+    std::vector<float> concentrationC;
     // heat_rate はカテゴリ別に出力する
     std::vector<float> heatRateAdvection;
     std::vector<float> heatRateHeatGeneration;
