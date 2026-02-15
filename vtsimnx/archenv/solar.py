@@ -440,7 +440,7 @@ def solar_gain_by_angles(
     水平面拡散日射量: pd.Series | None = None,
     名前: str = "任意面",
     use_astro: bool = False,
-    time_alignment: str = "center",
+    time_alignment: str = "timestamp",
     timestamp_ref: str = "start",
     min_sun_alt_deg: float = 0.0,
     日射モード: str = "all",
