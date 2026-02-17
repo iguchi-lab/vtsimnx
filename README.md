@@ -37,7 +37,9 @@ python run.py
 補足:
 - `vt.schedule` にスケジュール一式（aircon/vol/sensible_heat）をまとめています
 - `vt.materials` は材料物性テーブル（dict）です
+- ドキュメント一覧は `docs/README.md` を参照してください
 - 日射計算 API (`solar_gain_by_angles` / `solar_gain_by_angles_with_shade`) の使い方は `docs/solar_usage.md` を参照してください
+- 風圧/夜間放射/快適性 API (`make_wind` / `nocturnal_gain_by_angles` / `calc_PMV` など) の使い方は `docs/archenv_comfort_nocturnal_wind_usage.md` を参照してください
 
 APIサーバーを使用する場合は、環境変数 `VTSIMNX_API_URL` を設定してください（例: `VTSIMNX_API_URL=http://localhost:8000`）。未設定の場合、`run.py` は入力生成のみ行い `run_calc` をスキップします。
 
