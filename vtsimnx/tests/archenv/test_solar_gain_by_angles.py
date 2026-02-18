@@ -16,7 +16,7 @@ def test_solar_gain_by_angles_vertical_diffuse_parts_do_not_depend_on_azimuth():
         経度=139.0,
         法線面直達日射量=s_ib,
         水平面拡散日射量=s_id,
-        名前="南面",
+        return_details=True,
     )
     east = vt.solar_gain_by_angles(
         方位角=-90.0,
@@ -25,16 +25,16 @@ def test_solar_gain_by_angles_vertical_diffuse_parts_do_not_depend_on_azimuth():
         経度=139.0,
         法線面直達日射量=s_ib,
         水平面拡散日射量=s_id,
-        名前="東面",
+        return_details=True,
     )
 
     np.testing.assert_allclose(
-        south["水平面拡散日射量の拡散成分（南面）"].to_numpy(),
-        east["水平面拡散日射量の拡散成分（東面）"].to_numpy(),
+        south["水平面拡散日射量の拡散成分"].to_numpy(),
+        east["水平面拡散日射量の拡散成分"].to_numpy(),
     )
     np.testing.assert_allclose(
-        south["水平面拡散日射量の反射成分（南面）"].to_numpy(),
-        east["水平面拡散日射量の反射成分（東面）"].to_numpy(),
+        south["水平面拡散日射量の反射成分"].to_numpy(),
+        east["水平面拡散日射量の反射成分"].to_numpy(),
     )
 
 

@@ -1,6 +1,6 @@
 # `vtsimnx.archenv.solar` 使い方ガイド
 
-`solar.py` は、主に次の2ステップを扱います。
+`solar` 関連モジュールは、主に次の2ステップを扱います。
 
 1. 太陽位置（高度・方位）を求める
 2. 日射データ（全天/直達/拡散）から、任意面や窓への日射熱取得量を求める
@@ -55,9 +55,12 @@
   - `太陽方位角 az`（astropy由来）  
     ※ `solar_gain_by_angles` 内では本モジュール系 `AZs` に変換されます
 
-### `sep_direct_diffuse(s_ig, s_hs, min_sun_alt_deg=0.0)`
+### `sep_direct_diffuse(s_ig, s_hs, min_sun_alt_deg=0.0)`（下位ユーティリティ）
 
 全天日射量（GHI）と太陽高度から Erbs 法で直散分離します。
+
+- 定義場所: `vtsimnx.archenv.solar_separation`
+- 通常利用では `solar_gain_by_angles` が内部で呼ぶため、直接呼ばないことも多いです
 
 - 入力:
   - `s_ig`: GHI
@@ -77,12 +80,11 @@
     1. `全天日射量` のみ（内部で Erbs 分離）
     2. `全天日射量 + 法線面直達日射量`（`Id` を復元）
     3. `法線面直達日射量 + 水平面拡散日射量`（そのまま使用）
-  - そのほか: `日射モード`, `use_astro`, `time_alignment`, `timestamp_ref`
+  - そのほか: `glass`, `return_details`, `日射モード`, `use_astro`, `time_alignment`, `timestamp_ref`
 - 出力:
-  - 壁面: `日射熱取得量（{名前}）`
-  - ガラス面: `日射熱取得量（{名前}ガラス）`
-  - 直達/拡散/反射の内訳列
-  - デバッグ用の `Ib`, `Id`, `hs`, `AZs`
+  - 既定: `日射熱取得量` の `Series` を返す
+  - `return_details=True` のとき `DataFrame` を返し、`入射角cos`、直達/拡散/反射、`Ib/Id/hs/AZs` を含む
+  - `glass=False` は壁面、`glass=True` はガラスを対象に内訳を作る
 
 ### `solar_gain_by_angles_with_shade(...)`
 
@@ -105,8 +107,8 @@
   - 直達のみ `日向率(1-η)` を掛ける（`η`: 被影率）
   - 複数ポリゴンは重なりを二重計上しない（和集合面積）
 - 追加出力列:
-  - `被影率η（{名前}）`
-  - `日向率(1-η)（{名前}）`
+  - 既定: `日射熱取得量` の `Series`
+  - `return_details=True` のとき `被影率η`, `日向率(1-η)` を含む詳細 `DataFrame`
 
 ---
 
@@ -129,10 +131,10 @@ out = vt.solar_gain_by_angles(
     経度=139.0,
     法線面直達日射量=s_ib,
     水平面拡散日射量=s_id,
-    名前="南面",
+    glass=False,  # 壁面
 )
 
-print(out["日射熱取得量（南面）"].head())
+print(out["日射熱取得量"].head())
 ```
 
 ### 3-2. 全天日射量のみ（内部で直散分離）
@@ -150,7 +152,6 @@ out = vt.solar_gain_by_angles(
     緯度=35.0,
     経度=139.0,
     全天日射量=s_ig,
-    名前="東面",
 )
 ```
 
@@ -182,10 +183,11 @@ out = vt.solar_gain_by_angles_with_shade(
     経度=139.0,
     法線面直達日射量=s_ib,
     水平面拡散日射量=s_id,
-    名前="南面窓",
+    glass=True,  # ガラス面を対象にする
+    return_details=True,
 )
 
-print(out[["被影率η（南面窓）", "日向率(1-η)（南面窓）"]].head())
+print(out[["被影率η", "日向率(1-η)"]].head())
 ```
 
 ---

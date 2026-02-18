@@ -14,7 +14,7 @@ def test_solar_gain_by_angles_use_astro_runs():
         経度=140.0,
         全天日射量=s_ig,
         use_astro=True,
-        名前="南面",
+        return_details=True,
     )
 
     assert "太陽方位角 AZs" in out.columns
