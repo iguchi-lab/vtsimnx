@@ -13,7 +13,7 @@ rn = lambda t, h: (94.21 + 39.06 * np.sqrt(e(t, h) / 100) \
 
 def nocturnal_gain_by_angles(
     *,
-    傾斜角: float,
+    tilt_deg: float,
     t_out: pd.Series | None = None,
     rh_out: pd.Series | None = None,
     rn_horizontal: pd.Series | None = None,
@@ -26,7 +26,7 @@ def nocturnal_gain_by_angles(
       - t_out + rh_out: rn(t,h) から水平面の夜間放射量を推算
       - rn_horizontal: 水平面の夜間放射量 [Wh/m2] を直接与える
 
-    傾斜角:
+    tilt_deg:
       0=水平上向き, 90=鉛直
 
     モデル:
@@ -45,7 +45,7 @@ def nocturnal_gain_by_angles(
             raise TypeError("nocturnal_gain_by_angles: t_out/rh_out または rn_horizontal を指定してください。")
         rn_horizontal = MJ_to_Wh(rn(t_out, rh_out))
 
-    beta = np.radians(float(傾斜角))
+    beta = np.radians(float(tilt_deg))
     f_sky = (1.0 + float(np.cos(beta))) / 2.0
 
     s_nocturnal = (rn_horizontal * f_sky).rename("夜間放射量")

@@ -16,14 +16,14 @@ def main() -> None:
 
     def _gain(az: float, tilt: float, *, glass: bool = False, diffuse_only: bool = False) -> pd.DataFrame:
         return vt.solar_gain_by_angles(
-            方位角=az,
-            傾斜角=tilt,
-            緯度=lat,
-            経度=lon,
+            azimuth_deg=az,
+            tilt_deg=tilt,
+            lat_deg=lat,
+            lon_deg=lon,
             dni=s_ib,
             dhi=s_id,
             glass=glass,
-            日射モード="diffuse_only" if diffuse_only else "all",
+            solar_mode="diffuse_only" if diffuse_only else "all",
             return_details=True,
         )
 

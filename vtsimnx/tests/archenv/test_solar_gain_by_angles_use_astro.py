@@ -8,10 +8,10 @@ def test_solar_gain_by_angles_use_astro_runs():
     s_ig = pd.Series([200.0, 200.0], index=idx)
 
     out = vt.solar_gain_by_angles(
-        方位角=0.0,
-        傾斜角=90.0,
-        緯度=36.0,
-        経度=140.0,
+        azimuth_deg=0.0,
+        tilt_deg=90.0,
+        lat_deg=36.0,
+        lon_deg=140.0,
         ghi=s_ig,
         use_astro=True,
         return_details=True,

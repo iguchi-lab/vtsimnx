@@ -16,8 +16,8 @@
   - `-90` = 東
   - `+90` = 西
   - `±180` = 北
-- 面方位角 `方位角` も同じ座標系
-- 面傾斜角 `傾斜角`
+- 面方位角 `azimuth_deg` も同じ座標系
+- 面傾斜角 `tilt_deg`
   - `0` = 水平上向き
   - `90` = 鉛直
 - 日射の基本量
@@ -74,13 +74,26 @@
 
 任意の面（方位角・傾斜角）の日射熱取得量を計算する基本APIです。
 
+代表的な引数（主要部）:
+
+```python
+solar_gain_by_angles(
+    *,
+    azimuth_deg, tilt_deg, lat_deg=..., lon_deg=...,
+    ghi=None, dni=None, dhi=None,
+    glass=False, return_details=False,
+    use_astro=False, time_alignment="timestamp", timestamp_ref="start",
+    min_sun_alt_deg=0.0, solar_mode="all",
+)
+```
+
 - 主な入力:
-  - 幾何: `方位角`, `傾斜角`, `緯度`, `経度`
+  - 幾何: `azimuth_deg`, `tilt_deg`, `lat_deg`, `lon_deg`
   - 日射（次のいずれか）
     1. `ghi` のみ（内部で Erbs 分離）
     2. `ghi + dni`（`Id` を復元）
     3. `dni + dhi`（そのまま使用）
-  - そのほか: `glass`, `return_details`, `日射モード`, `use_astro`, `time_alignment`, `timestamp_ref`
+  - そのほか: `glass`, `return_details`, `solar_mode`, `use_astro`, `time_alignment`, `timestamp_ref`
 - 出力:
   - 既定: `日射熱取得量` の `Series` を返す
   - `return_details=True` のとき `DataFrame` を返し、`入射角cos`、直達/拡散/反射、`Ib/Id/hs/AZs` を含む
@@ -90,12 +103,27 @@
 
 `solar_gain_by_angles` に窓シェードの幾何遮蔽（直達のみ低減）を加えた拡張APIです。
 
+代表的な引数（主要部）:
+
+```python
+solar_gain_by_angles_with_shade(
+    *,
+    azimuth_deg, tilt_deg, window_width, window_height, shade_coords,
+    shade_origin_mode="window_center",
+    lat_deg=..., lon_deg=...,
+    ghi=None, dni=None, dhi=None,
+    glass=False, return_details=False,
+    use_astro=False, time_alignment="timestamp", timestamp_ref="start",
+    min_sun_alt_deg=0.0, solar_mode="all",
+)
+```
+
 - 追加入力:
-  - `窓幅`, `窓高さ`
-  - `シェード座標`
+  - `window_width`, `window_height`
+  - `shade_coords`
     - 単一ポリゴン: `[(x, y, z), ...]`
     - 複数ポリゴン: `[[(x, y, z), ...], ...]`
-  - `シェード座標基準`
+  - `shade_origin_mode`
     - `"window_center"`: 窓中心基準
     - `"window_top_center"`: 窓上端中央基準
 - シェード座標の意味（窓ローカル座標）
@@ -114,6 +142,16 @@
 
 ## 3. よく使う例
 
+最初に用語だけ整理:
+
+- `ghi` (Global Horizontal Irradiance): 水平面全天日射量
+- `dni` (Direct Normal Irradiance): 法線面直達日射量
+- `dhi` (Diffuse Horizontal Irradiance): 水平面拡散日射量
+
+HASP 等の気象データを使う場合は、典型的に  
+`ghi = df["水平面全天日射量"]`、`dni = df["直達日射量"]`、`dhi = df["水平面拡散日射量"]`  
+のように対応付けて渡します（データに `ghi` がない場合は `dni + dhi` で使う運用でも可）。
+
 ### 3-1. 基本（DNI + DHI を直接与える）
 
 ```python
@@ -121,37 +159,37 @@ import pandas as pd
 import vtsimnx as vt
 
 idx = pd.date_range("2026-06-21 12:00:00", periods=24, freq="1h")
-s_ib = pd.Series(800.0, index=idx)  # DNI
-s_id = pd.Series(100.0, index=idx)  # DHI
+s_dni = pd.Series(800.0, index=idx)  # dni: 法線面直達日射量
+s_dhi = pd.Series(100.0, index=idx)  # dhi: 水平面拡散日射量
 
 out = vt.solar_gain_by_angles(
-    方位角=0.0,        # 南面
-    傾斜角=90.0,       # 鉛直
-    緯度=35.0,
-    経度=139.0,
-    dni=s_ib,
-    dhi=s_id,
+    azimuth_deg=0.0,   # 南面
+    tilt_deg=90.0,     # 鉛直
+    lat_deg=35.0,
+    lon_deg=139.0,
+    dni=s_dni,
+    dhi=s_dhi,
     glass=False,  # 壁面
 )
 
-print(out["日射熱取得量"].head())
+print(out.head())
 ```
 
-### 3-2. 全天日射量のみ（内部で直散分離）
+### 3-2. `ghi` のみ（内部で直散分離）
 
 ```python
 import pandas as pd
 import vtsimnx as vt
 
 idx = pd.date_range("2026-06-21 06:00:00", periods=12, freq="1h")
-s_ig = pd.Series(300.0, index=idx)  # GHI
+s_ghi = pd.Series(300.0, index=idx)  # ghi: 水平面全天日射量
 
 out = vt.solar_gain_by_angles(
-    方位角=-90.0,      # 東面
-    傾斜角=90.0,
-    緯度=35.0,
-    経度=139.0,
-    ghi=s_ig,
+    azimuth_deg=-90.0,  # 東面
+    tilt_deg=90.0,
+    lat_deg=35.0,
+    lon_deg=139.0,
+    ghi=s_ghi,
 )
 ```
 
@@ -162,8 +200,8 @@ import pandas as pd
 import vtsimnx as vt
 
 idx = pd.date_range("2026-06-21 09:00:00", periods=8, freq="1h")
-s_ib = pd.Series(700.0, index=idx)
-s_id = pd.Series(120.0, index=idx)
+s_dni = pd.Series(700.0, index=idx)  # dni
+s_dhi = pd.Series(120.0, index=idx)  # dhi
 
 shade_polys = [
     # 庇（上側）
@@ -173,16 +211,16 @@ shade_polys = [
 ]
 
 out = vt.solar_gain_by_angles_with_shade(
-    方位角=0.0,
-    傾斜角=90.0,
-    窓幅=2.0,
-    窓高さ=2.0,
-    シェード座標=shade_polys,
-    シェード座標基準="window_center",
-    緯度=35.0,
-    経度=139.0,
-    dni=s_ib,
-    dhi=s_id,
+    azimuth_deg=0.0,
+    tilt_deg=90.0,
+    window_width=2.0,
+    window_height=2.0,
+    shade_coords=shade_polys,
+    shade_origin_mode="window_center",
+    lat_deg=35.0,
+    lon_deg=139.0,
+    dni=s_dni,
+    dhi=s_dhi,
     glass=True,  # ガラス面を対象にする
     return_details=True,
 )
@@ -196,7 +234,8 @@ print(out[["被影率η", "日向率(1-η)"]].head())
 
 - `DatetimeIndex` は日射データと同じインデックスを使う
 - `time_alignment="center"` を使う場合は `timestamp_ref`（`"start"`/`"end"`）を意識する
-- `日射モード="diffuse_only"` は、直達を0扱いにしたいケース（周辺遮蔽を別途見たい場合など）に便利
+- `solar_mode="diffuse_only"` は、直達を0扱いにしたいケース（周辺遮蔽を別途見たい場合など）に便利
 - `solar_gain_by_angles_with_shade` のシェード幾何は窓ローカル座標で統一する
 - 影計算は幾何学ベースのため、詳細形状が複雑な場合はポリゴン分割して与えると扱いやすい
+- 日射データの引数は `ghi` / `dni` / `dhi` を使う（旧日本語名は廃止）
 

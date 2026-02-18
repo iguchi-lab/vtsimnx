@@ -10,19 +10,19 @@ def test_solar_gain_by_angles_vertical_diffuse_parts_do_not_depend_on_azimuth():
     s_id = pd.Series([100.0, 100.0], index=idx)
 
     south = vt.solar_gain_by_angles(
-        方位角=0.0,
-        傾斜角=90.0,
-        緯度=35.0,
-        経度=139.0,
+        azimuth_deg=0.0,
+        tilt_deg=90.0,
+        lat_deg=35.0,
+        lon_deg=139.0,
         dni=s_ib,
         dhi=s_id,
         return_details=True,
     )
     east = vt.solar_gain_by_angles(
-        方位角=-90.0,
-        傾斜角=90.0,
-        緯度=35.0,
-        経度=139.0,
+        azimuth_deg=-90.0,
+        tilt_deg=90.0,
+        lat_deg=35.0,
+        lon_deg=139.0,
         dni=s_ib,
         dhi=s_id,
         return_details=True,

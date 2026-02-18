@@ -60,7 +60,7 @@ print(p["E"].head())
 
 ### 関数
 
-- `nocturnal_gain_by_angles(傾斜角, t_out=None, rh_out=None, rn_horizontal=None, return_details=False)`
+- `nocturnal_gain_by_angles(tilt_deg, t_out=None, rh_out=None, rn_horizontal=None, return_details=False)`
 
 ### 何をするか
 
@@ -81,7 +81,7 @@ print(p["E"].head())
 
 ### 幾何の扱い
 
-- `傾斜角`: `0=水平上向き, 90=鉛直`
+- `tilt_deg`: `0=水平上向き, 90=鉛直`
 - view factor  
   `F_sky = (1 + cos(beta)) / 2`
 - 面の夜間放射量  
@@ -117,7 +117,7 @@ t = pd.Series(5.0, index=idx)    # 外気温 [degC]
 rh = pd.Series(70.0, index=idx)  # 相対湿度 [%]
 
 out = vt.nocturnal_gain_by_angles(
-    傾斜角=90.0,
+    tilt_deg=90.0,
     t_out=t,
     rh_out=rh,
     return_details=True,
@@ -135,7 +135,7 @@ idx = pd.date_range("2026-01-01 00:00:00", periods=24, freq="1h")
 rn_h = pd.Series(40.0, index=idx)  # [Wh/m2]
 
 out = vt.nocturnal_gain_by_angles(
-    傾斜角=30.0,
+    tilt_deg=30.0,
     rn_horizontal=rn_h,
     return_details=True,
 )

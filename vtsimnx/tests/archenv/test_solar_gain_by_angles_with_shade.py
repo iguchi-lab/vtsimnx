@@ -10,13 +10,13 @@ def test_solar_gain_by_angles_with_shade_default_returns_series():
     s_id = pd.Series([100.0, 100.0], index=idx)
 
     out = vt.solar_gain_by_angles_with_shade(
-        方位角=0.0,
-        傾斜角=90.0,
-        窓幅=2.0,
-        窓高さ=2.0,
-        シェード座標=[(-5.0, 5.0, 0.0), (5.0, 5.0, 0.0), (5.0, -5.0, 0.0), (-5.0, -5.0, 0.0)],
-        緯度=35.0,
-        経度=139.0,
+        azimuth_deg=0.0,
+        tilt_deg=90.0,
+        window_width=2.0,
+        window_height=2.0,
+        shade_coords=[(-5.0, 5.0, 0.0), (5.0, 5.0, 0.0), (5.0, -5.0, 0.0), (-5.0, -5.0, 0.0)],
+        lat_deg=35.0,
+        lon_deg=139.0,
         dni=s_ib,
         dhi=s_id,
     )
@@ -31,23 +31,23 @@ def test_solar_gain_by_angles_with_shade_no_overlap_matches_base():
     s_id = pd.Series([100.0, 100.0], index=idx)
 
     base = vt.solar_gain_by_angles(
-        方位角=0.0,
-        傾斜角=90.0,
-        緯度=35.0,
-        経度=139.0,
+        azimuth_deg=0.0,
+        tilt_deg=90.0,
+        lat_deg=35.0,
+        lon_deg=139.0,
         dni=s_ib,
         dhi=s_id,
         return_details=True,
     )
     shaded = vt.solar_gain_by_angles_with_shade(
-        方位角=0.0,
-        傾斜角=90.0,
-        窓幅=2.0,
-        窓高さ=2.0,
+        azimuth_deg=0.0,
+        tilt_deg=90.0,
+        window_width=2.0,
+        window_height=2.0,
         # 窓から十分離した位置にシェードを置く（重ならない）
-        シェード座標=[(10.0, 10.0, 1.0), (11.0, 10.0, 1.0), (11.0, 9.0, 1.0), (10.0, 9.0, 1.0)],
-        緯度=35.0,
-        経度=139.0,
+        shade_coords=[(10.0, 10.0, 1.0), (11.0, 10.0, 1.0), (11.0, 9.0, 1.0), (10.0, 9.0, 1.0)],
+        lat_deg=35.0,
+        lon_deg=139.0,
         dni=s_ib,
         dhi=s_id,
         return_details=True,
@@ -74,14 +74,14 @@ def test_solar_gain_by_angles_with_shade_full_cover_zeroes_direct():
     s_id = pd.Series([100.0, 100.0], index=idx)
 
     out = vt.solar_gain_by_angles_with_shade(
-        方位角=0.0,
-        傾斜角=90.0,
-        窓幅=2.0,
-        窓高さ=2.0,
+        azimuth_deg=0.0,
+        tilt_deg=90.0,
+        window_width=2.0,
+        window_height=2.0,
         # 窓全体を覆う大きなポリゴン（窓面 z=0）
-        シェード座標=[(-5.0, 5.0, 0.0), (5.0, 5.0, 0.0), (5.0, -5.0, 0.0), (-5.0, -5.0, 0.0)],
-        緯度=35.0,
-        経度=139.0,
+        shade_coords=[(-5.0, 5.0, 0.0), (5.0, 5.0, 0.0), (5.0, -5.0, 0.0), (-5.0, -5.0, 0.0)],
+        lat_deg=35.0,
+        lon_deg=139.0,
         dni=s_ib,
         dhi=s_id,
         glass=True,
@@ -104,17 +104,17 @@ def test_solar_gain_by_angles_with_shade_accepts_multiple_polygons():
     s_id = pd.Series([100.0, 100.0], index=idx)
 
     out = vt.solar_gain_by_angles_with_shade(
-        方位角=0.0,
-        傾斜角=90.0,
-        窓幅=2.0,
-        窓高さ=2.0,
+        azimuth_deg=0.0,
+        tilt_deg=90.0,
+        window_width=2.0,
+        window_height=2.0,
         # 左半分 + 右半分を別ポリゴンで覆う（重なりなし）
-        シェード座標=[
+        shade_coords=[
             [(-1.0, 1.0, 0.0), (0.0, 1.0, 0.0), (0.0, -1.0, 0.0), (-1.0, -1.0, 0.0)],
             [(0.0, 1.0, 0.0), (1.0, 1.0, 0.0), (1.0, -1.0, 0.0), (0.0, -1.0, 0.0)],
         ],
-        緯度=35.0,
-        経度=139.0,
+        lat_deg=35.0,
+        lon_deg=139.0,
         dni=s_ib,
         dhi=s_id,
         return_details=True,
@@ -131,18 +131,18 @@ def test_solar_gain_by_angles_with_shade_overlapping_polygons_not_double_counted
     s_id = pd.Series([100.0, 100.0], index=idx)
 
     out = vt.solar_gain_by_angles_with_shade(
-        方位角=0.0,
-        傾斜角=90.0,
-        窓幅=2.0,
-        窓高さ=2.0,
+        azimuth_deg=0.0,
+        tilt_deg=90.0,
+        window_width=2.0,
+        window_height=2.0,
         # 2つのポリゴンは重なっており、単純和なら 1.5 になるが、
         # 和集合では窓全面(=1.0)で打ち止め
-        シェード座標=[
+        shade_coords=[
             [(-1.0, 1.0, 0.0), (0.5, 1.0, 0.0), (0.5, -1.0, 0.0), (-1.0, -1.0, 0.0)],
             [(-0.5, 1.0, 0.0), (1.0, 1.0, 0.0), (1.0, -1.0, 0.0), (-0.5, -1.0, 0.0)],
         ],
-        緯度=35.0,
-        経度=139.0,
+        lat_deg=35.0,
+        lon_deg=139.0,
         dni=s_ib,
         dhi=s_id,
         return_details=True,

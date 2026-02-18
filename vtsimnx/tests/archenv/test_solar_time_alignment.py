@@ -10,9 +10,9 @@ def test_make_solar_time_alignment_invalid():
     s_ig = pd.Series([200.0, 200.0], index=idx, name="水平面全天日射量")
 
     with pytest.raises(ValueError):
-        _ = vt.solar_gain_by_angles(方位角=0.0, 傾斜角=90.0, ghi=s_ig, time_alignment="bad")
+        _ = vt.solar_gain_by_angles(azimuth_deg=0.0, tilt_deg=90.0, ghi=s_ig, time_alignment="bad")
     with pytest.raises(ValueError):
-        _ = vt.solar_gain_by_angles(方位角=0.0, 傾斜角=90.0, ghi=s_ig, timestamp_ref="bad")
+        _ = vt.solar_gain_by_angles(azimuth_deg=0.0, tilt_deg=90.0, ghi=s_ig, timestamp_ref="bad")
 
 
 def test_make_solar_time_alignment_modes_run():
@@ -20,10 +20,10 @@ def test_make_solar_time_alignment_modes_run():
     s_ig = pd.Series([200.0, 200.0], index=idx, name="水平面全天日射量")
 
     # index=区間開始想定（従来互換）
-    _ = vt.solar_gain_by_angles(方位角=0.0, 傾斜角=90.0, ghi=s_ig, time_alignment="center", timestamp_ref="start")
+    _ = vt.solar_gain_by_angles(azimuth_deg=0.0, tilt_deg=90.0, ghi=s_ig, time_alignment="center", timestamp_ref="start")
     # index=区間終了想定（質問のケース）
-    _ = vt.solar_gain_by_angles(方位角=0.0, 傾斜角=90.0, ghi=s_ig, time_alignment="center", timestamp_ref="end")
+    _ = vt.solar_gain_by_angles(azimuth_deg=0.0, tilt_deg=90.0, ghi=s_ig, time_alignment="center", timestamp_ref="end")
     # インデックスそのものを使う（td=0）
-    _ = vt.solar_gain_by_angles(方位角=0.0, 傾斜角=90.0, ghi=s_ig, time_alignment="timestamp", timestamp_ref="start")
+    _ = vt.solar_gain_by_angles(azimuth_deg=0.0, tilt_deg=90.0, ghi=s_ig, time_alignment="timestamp", timestamp_ref="start")
 
 

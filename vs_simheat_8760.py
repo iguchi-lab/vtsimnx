@@ -10,10 +10,10 @@ s_id = df_i["水平面拡散日射量"]
 
 def _gain(name: str, az: float, tilt: float):
     return vt.solar_gain_by_angles(
-        方位角=az,
-        傾斜角=tilt,
-        緯度=36.0,
-        経度=140.0,
+        azimuth_deg=az,
+        tilt_deg=tilt,
+        lat_deg=36.0,
+        lon_deg=140.0,
         dni=s_ib,
         dhi=s_id,
         use_astro=True,
@@ -26,21 +26,21 @@ west = _gain("西面", 90.0, 90.0)
 north = _gain("北面", 180.0, 90.0)
 horiz = _gain("水平面", 0.0, 0.0)
 diffuse = vt.solar_gain_by_angles(
-    方位角=0.0,
-    傾斜角=90.0,
-    緯度=36.0,
-    経度=140.0,
+    azimuth_deg=0.0,
+    tilt_deg=90.0,
+    lat_deg=36.0,
+    lon_deg=140.0,
     dni=s_ib,
     dhi=s_id,
     use_astro=True,
-    日射モード="diffuse_only",
+    solar_mode="diffuse_only",
     return_details=True,
 )
-east_g = vt.solar_gain_by_angles(方位角=-90.0, 傾斜角=90.0, 緯度=36.0, 経度=140.0, dni=s_ib, dhi=s_id, use_astro=True, glass=True, return_details=True)
-south_g = vt.solar_gain_by_angles(方位角=0.0, 傾斜角=90.0, 緯度=36.0, 経度=140.0, dni=s_ib, dhi=s_id, use_astro=True, glass=True, return_details=True)
-west_g = vt.solar_gain_by_angles(方位角=90.0, 傾斜角=90.0, 緯度=36.0, 経度=140.0, dni=s_ib, dhi=s_id, use_astro=True, glass=True, return_details=True)
-north_g = vt.solar_gain_by_angles(方位角=180.0, 傾斜角=90.0, 緯度=36.0, 経度=140.0, dni=s_ib, dhi=s_id, use_astro=True, glass=True, return_details=True)
-horiz_g = vt.solar_gain_by_angles(方位角=0.0, 傾斜角=0.0, 緯度=36.0, 経度=140.0, dni=s_ib, dhi=s_id, use_astro=True, glass=True, return_details=True)
+east_g = vt.solar_gain_by_angles(azimuth_deg=-90.0, tilt_deg=90.0, lat_deg=36.0, lon_deg=140.0, dni=s_ib, dhi=s_id, use_astro=True, glass=True, return_details=True)
+south_g = vt.solar_gain_by_angles(azimuth_deg=0.0, tilt_deg=90.0, lat_deg=36.0, lon_deg=140.0, dni=s_ib, dhi=s_id, use_astro=True, glass=True, return_details=True)
+west_g = vt.solar_gain_by_angles(azimuth_deg=90.0, tilt_deg=90.0, lat_deg=36.0, lon_deg=140.0, dni=s_ib, dhi=s_id, use_astro=True, glass=True, return_details=True)
+north_g = vt.solar_gain_by_angles(azimuth_deg=180.0, tilt_deg=90.0, lat_deg=36.0, lon_deg=140.0, dni=s_ib, dhi=s_id, use_astro=True, glass=True, return_details=True)
+horiz_g = vt.solar_gain_by_angles(azimuth_deg=0.0, tilt_deg=0.0, lat_deg=36.0, lon_deg=140.0, dni=s_ib, dhi=s_id, use_astro=True, glass=True, return_details=True)
 
 solar = pd.concat(
     [
@@ -61,7 +61,7 @@ solar["日射熱取得量（拡散）"] = (
     diffuse["日射熱取得量"]
 )
 nocturnal = vt.nocturnal_gain_by_angles(
-    傾斜角=90.0,
+    tilt_deg=90.0,
     rn_horizontal=df_i["夜間放射量"] if "夜間放射量" in df_i.columns else None,
     t_out=df_i["外気温"] if "外気温" in df_i.columns else None,
     rh_out=df_i["外気相対湿度"] if "外気相対湿度" in df_i.columns else None,

@@ -9,10 +9,10 @@ def test_solar_gain_by_angles_default_returns_series():
     s_ig = pd.Series([200.0, 200.0], index=idx)
 
     out = vt.solar_gain_by_angles(
-        方位角=0.0,
-        傾斜角=90.0,
-        緯度=35.0,
-        経度=139.0,
+        azimuth_deg=0.0,
+        tilt_deg=90.0,
+        lat_deg=35.0,
+        lon_deg=139.0,
         ghi=s_ig,
     )
 
@@ -25,10 +25,10 @@ def test_solar_gain_by_angles_accepts_ig_only():
     s_ig = pd.Series([200.0, 200.0], index=idx)
 
     out = vt.solar_gain_by_angles(
-        方位角=0.0,
-        傾斜角=90.0,
-        緯度=35.0,
-        経度=139.0,
+        azimuth_deg=0.0,
+        tilt_deg=90.0,
+        lat_deg=35.0,
+        lon_deg=139.0,
         ghi=s_ig,
         return_details=True,
     )
@@ -43,10 +43,10 @@ def test_solar_gain_by_angles_accepts_ig_and_ib_restores_id_nonnegative():
     s_ib = pd.Series([500.0, 500.0], index=idx)  # わざと過大
 
     out = vt.solar_gain_by_angles(
-        方位角=0.0,
-        傾斜角=90.0,
-        緯度=35.0,
-        経度=139.0,
+        azimuth_deg=0.0,
+        tilt_deg=90.0,
+        lat_deg=35.0,
+        lon_deg=139.0,
         ghi=s_ig,
         dni=s_ib,
         return_details=True,
@@ -62,10 +62,10 @@ def test_solar_gain_by_angles_accepts_ib_and_id():
     s_id = pd.Series([100.0, 100.0], index=idx)
 
     out = vt.solar_gain_by_angles(
-        方位角=0.0,
-        傾斜角=90.0,
-        緯度=35.0,
-        経度=139.0,
+        azimuth_deg=0.0,
+        tilt_deg=90.0,
+        lat_deg=35.0,
+        lon_deg=139.0,
         dni=s_ib,
         dhi=s_id,
         return_details=True,
@@ -83,13 +83,13 @@ def test_solar_gain_by_angles_diffuse_only_zeroes_direct_terms():
     s_id = pd.Series([100.0, 100.0], index=idx)
 
     out = vt.solar_gain_by_angles(
-        方位角=0.0,
-        傾斜角=90.0,
-        緯度=35.0,
-        経度=139.0,
+        azimuth_deg=0.0,
+        tilt_deg=90.0,
+        lat_deg=35.0,
+        lon_deg=139.0,
         dni=s_ib,
         dhi=s_id,
-        日射モード="diffuse_only",
+        solar_mode="diffuse_only",
         return_details=True,
     )
 
@@ -114,10 +114,10 @@ def test_solar_gain_by_angles_horizontal_equals_ghi():
     s_id = pd.Series([100.0, 100.0], index=idx)
 
     out = vt.solar_gain_by_angles(
-        方位角=0.0,
-        傾斜角=0.0,
-        緯度=35.0,
-        経度=139.0,
+        azimuth_deg=0.0,
+        tilt_deg=0.0,
+        lat_deg=35.0,
+        lon_deg=139.0,
         dni=s_ib,
         dhi=s_id,
         return_details=True,

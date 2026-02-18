@@ -77,9 +77,9 @@ def _apply_shade_to_direct_components(out: pd.DataFrame, sunlit: pd.Series) -> p
 def _solar_gain_by_angles_from_solar_df(
     df_solar: pd.DataFrame,
     *,
-    方位角: float,
-    傾斜角: float,
-    日射モード: str = "all",
+    azimuth_deg: float,
+    tilt_deg: float,
+    solar_mode: str = "all",
     albedo: float = 0.1,
     glass_tau_diffuse: float = 0.808,
 ) -> pd.DataFrame:
@@ -107,8 +107,8 @@ def _solar_gain_by_angles_from_solar_df(
       既存の E/S/W/N の結果との整合のため、拡散/反射は「垂直面(=0.5)」を基準に
       傾斜角に応じて view factor でスケールする簡易モデルを採用する。
     """
-    if 日射モード not in ("all", "diffuse_only"):
-        raise ValueError(f"日射モード must be 'all' or 'diffuse_only', got {日射モード!r}")
+    if solar_mode not in ("all", "diffuse_only"):
+        raise ValueError(f"solar_mode must be 'all' or 'diffuse_only', got {solar_mode!r}")
     required = [
         "法線面直達日射量 Ib",
         "水平面拡散日射量 Id",
@@ -126,8 +126,8 @@ def _solar_gain_by_angles_from_solar_df(
     cos_hs = df_solar["太陽高度の余弦 cos_hs"].astype("float64")
     azs = df_solar["太陽方位角 AZs"].astype("float64")
 
-    beta = np.radians(float(傾斜角))
-    gamma = float(方位角)
+    beta = np.radians(float(tilt_deg))
+    gamma = float(azimuth_deg)
 
     # 入射角の余弦 cos(theta)
     # cosθ = sin(hs)*cosβ + cos(hs)*sinβ*cos(AZs-γ)
@@ -139,7 +139,7 @@ def _solar_gain_by_angles_from_solar_df(
 
     # 直達（面上）
     ib_surf = ib * cos_theta
-    if 日射モード == "diffuse_only":
+    if solar_mode == "diffuse_only":
         ib_surf = ib_surf * 0.0
 
     # 拡散/反射（等方モデル + 地面反射の簡易モデル）
@@ -151,7 +151,7 @@ def _solar_gain_by_angles_from_solar_df(
     f_sky = (1.0 + float(np.cos(beta))) / 2.0
     f_gnd = (1.0 - float(np.cos(beta))) / 2.0
     id_d = id_ * f_sky
-    ib_for_ref = ib if 日射モード == "all" else (ib * 0.0)
+    ib_for_ref = ib if solar_mode == "all" else (ib * 0.0)
     ghi = id_ + ib_for_ref * np.maximum(sin_hs, 0.0)
     id_r = ghi * float(albedo) * f_gnd
 
@@ -159,7 +159,7 @@ def _solar_gain_by_angles_from_solar_df(
 
     # ガラス（直達はeta(cosθ)で角度補正、拡散/反射は一定透過率）
     ib_glass = ib_surf * eta(cos_theta)
-    if 日射モード == "diffuse_only":
+    if solar_mode == "diffuse_only":
         ib_glass = ib_glass * 0.0
     id_d_g = id_d * float(glass_tau_diffuse)
     id_r_g = id_r * float(glass_tau_diffuse)
@@ -185,8 +185,8 @@ def _solar_base(
     ghi: pd.Series | None,
     dni: pd.Series | None,
     dhi: pd.Series | None,
-    緯度: float,
-    経度: float,
+    lat_deg: float,
+    lon_deg: float,
     use_astro: bool,
     time_alignment: str,
     timestamp_ref: str,
@@ -221,7 +221,7 @@ def _solar_base(
 
     # 太陽位置
     if use_astro:
-        df_a = astro_sun_loc(idx, lat=緯度, lon=経度, td=td)
+        df_a = astro_sun_loc(idx, lat=lat_deg, lon=lon_deg, td=td)
         az = df_a["太陽方位角 az"]
         AZs = ((az - 180.0 + 180.0) % 360.0) - 180.0
         df_sun = pd.DataFrame(index=df_a.index)
@@ -232,7 +232,7 @@ def _solar_base(
         df_sun["太陽方位角の正弦 sin_AZs"] = np.sin(np.radians(AZs))
         df_sun["太陽方位角の余弦 cos_AZs"] = np.cos(np.radians(AZs))
     else:
-        df_sun = sun_loc(idx, lat=緯度, lon=経度, td=td)
+        df_sun = sun_loc(idx, lat=lat_deg, lon=lon_deg, td=td)
 
     # Ib/Id の決定
     if dni is not None and dhi is not None:
@@ -280,10 +280,10 @@ def _solar_base(
 
 def solar_gain_by_angles(
     *,
-    方位角: float,
-    傾斜角: float,
-    緯度: float = 36.00,
-    経度: float = 140.00,
+    azimuth_deg: float,
+    tilt_deg: float,
+    lat_deg: float = 36.00,
+    lon_deg: float = 140.00,
     ghi: pd.Series | None = None,
     dni: pd.Series | None = None,
     dhi: pd.Series | None = None,
@@ -293,12 +293,16 @@ def solar_gain_by_angles(
     time_alignment: str = "timestamp",
     timestamp_ref: str = "start",
     min_sun_alt_deg: float = 0.0,
-    日射モード: str = "all",
+    solar_mode: str = "all",
     albedo: float = 0.1,
     glass_tau_diffuse: float = 0.808,
 ) -> pd.DataFrame | pd.Series:
     """
     任意の緯度/経度/方位角/傾斜角で、壁面またはガラス面の日射熱取得量を返す。
+    引数名は英字に統一:
+      - azimuth_deg(旧: 方位角), tilt_deg(旧: 傾斜角)
+      - lat_deg(旧: 緯度), lon_deg(旧: 経度)
+      - solar_mode(旧: 日射モード)
 
     入力（日射）の指定は以下のいずれか:
       - ghi のみ（Erbs 直散分離）
@@ -313,7 +317,7 @@ def solar_gain_by_angles(
       - False: 日射熱取得量のみ（Series）を返す（既定）
       - True : 詳細列 + 基礎列（Ib/Id/hs/AZs）をDataFrameで返す
 
-    日射モード:
+    solar_mode:
       - "all": 直達 + 拡散 + 反射
       - "diffuse_only": 日陰などを想定し、直達は 0 扱い（反射は拡散由来のみ）
     """
@@ -321,8 +325,8 @@ def solar_gain_by_angles(
         ghi=ghi,
         dni=dni,
         dhi=dhi,
-        緯度=float(緯度),
-        経度=float(経度),
+        lat_deg=float(lat_deg),
+        lon_deg=float(lon_deg),
         use_astro=bool(use_astro),
         time_alignment=time_alignment,
         timestamp_ref=timestamp_ref,
@@ -330,9 +334,9 @@ def solar_gain_by_angles(
     )
     out = _solar_gain_by_angles_from_solar_df(
         df_min,
-        方位角=方位角,
-        傾斜角=傾斜角,
-        日射モード=日射モード,
+        azimuth_deg=azimuth_deg,
+        tilt_deg=tilt_deg,
+        solar_mode=solar_mode,
         albedo=albedo,
         glass_tau_diffuse=glass_tau_diffuse,
     )
@@ -346,14 +350,14 @@ def solar_gain_by_angles(
 
 def solar_gain_by_angles_with_shade(
     *,
-    方位角: float,
-    傾斜角: float,
-    窓幅: float,
-    窓高さ: float,
-    シェード座標,
-    シェード座標基準: str = "window_center",
-    緯度: float = 36.00,
-    経度: float = 140.00,
+    azimuth_deg: float,
+    tilt_deg: float,
+    window_width: float,
+    window_height: float,
+    shade_coords,
+    shade_origin_mode: str = "window_center",
+    lat_deg: float = 36.00,
+    lon_deg: float = 140.00,
     ghi: pd.Series | None = None,
     dni: pd.Series | None = None,
     dhi: pd.Series | None = None,
@@ -363,12 +367,15 @@ def solar_gain_by_angles_with_shade(
     time_alignment: str = "timestamp",
     timestamp_ref: str = "start",
     min_sun_alt_deg: float = 0.0,
-    日射モード: str = "all",
+    solar_mode: str = "all",
     albedo: float = 0.1,
     glass_tau_diffuse: float = 0.808,
 ) -> pd.DataFrame | pd.Series:
     """
     solar_gain_by_angles に、窓とシェード形状を考慮した直達遮蔽を加えた版。
+    引数名は英字に統一:
+      - window_width/window_height(旧: 窓幅/窓高さ)
+      - shade_coords/shade_origin_mode(旧: シェード座標/シェード座標基準)
 
     - 拡散/反射の計算は solar_gain_by_angles と同一。
     - 直達のみ、窓の被影率 η により (1-η) を掛ける。
@@ -381,29 +388,29 @@ def solar_gain_by_angles_with_shade(
       - True : 詳細列 + 基礎列（Ib/Id/hs/AZs）をDataFrameで返す
 
 
-    シェード座標:
+    shade_coords:
       - 単一ポリゴン: list[(x, y, z), ...]（3点以上）
       - 複数ポリゴン: list[list[(x, y, z), ...], ...]
       - 窓ローカル座標 [m]:
           x: 右正, y: 上正, z: 外向き法線方向正（窓面は z=0）
-      - シェード座標基準:
+      - shade_origin_mode:
           "window_center": 窓中心基準
           "window_top_center": 窓上端中央基準
     """
-    if 日射モード not in ("all", "diffuse_only"):
-        raise ValueError(f"日射モード must be 'all' or 'diffuse_only', got {日射モード!r}")
+    if solar_mode not in ("all", "diffuse_only"):
+        raise ValueError(f"solar_mode must be 'all' or 'diffuse_only', got {solar_mode!r}")
 
-    w = float(窓幅)
-    h = float(窓高さ)
+    w = float(window_width)
+    h = float(window_height)
     if w <= 0.0 or h <= 0.0:
-        raise ValueError(f"窓幅/窓高さ must be > 0, got {(窓幅, 窓高さ)}")
+        raise ValueError(f"window_width/window_height must be > 0, got {(window_width, window_height)}")
 
     df_min = _solar_base(
         ghi=ghi,
         dni=dni,
         dhi=dhi,
-        緯度=float(緯度),
-        経度=float(経度),
+        lat_deg=float(lat_deg),
+        lon_deg=float(lon_deg),
         use_astro=bool(use_astro),
         time_alignment=time_alignment,
         timestamp_ref=timestamp_ref,
@@ -411,16 +418,16 @@ def solar_gain_by_angles_with_shade(
     )
 
     shade_polys_center = _convert_shade_coords_to_window_center(
-        シェード座標,
+        shade_coords,
         window_height=h,
-        origin_mode=シェード座標基準,
+        origin_mode=shade_origin_mode,
     )
 
     eta_shade = _shade_ratio_on_window(
         azs_deg=df_min["太陽方位角 AZs"].astype("float64"),
         hs_deg=df_min["太陽高度 hs"].astype("float64"),
-        surface_az_deg=float(方位角),
-        surface_tilt_deg=float(傾斜角),
+        surface_az_deg=float(azimuth_deg),
+        surface_tilt_deg=float(tilt_deg),
         window_width=w,
         window_height=h,
         shade_polygons_xyz=shade_polys_center,
@@ -429,9 +436,9 @@ def solar_gain_by_angles_with_shade(
 
     out = _solar_gain_by_angles_from_solar_df(
         df_min,
-        方位角=方位角,
-        傾斜角=傾斜角,
-        日射モード=日射モード,
+        azimuth_deg=azimuth_deg,
+        tilt_deg=tilt_deg,
+        solar_mode=solar_mode,
         albedo=albedo,
         glass_tau_diffuse=glass_tau_diffuse,
     )
