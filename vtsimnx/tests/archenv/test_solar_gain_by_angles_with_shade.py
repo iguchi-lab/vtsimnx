@@ -191,3 +191,43 @@ def test_solar_gain_by_angles_with_shade_top_center_origin_matches_center_origin
 
     np.testing.assert_allclose(out_center["被影率η"].to_numpy(), out_top["被影率η"].to_numpy(), atol=1e-9)
     np.testing.assert_allclose(out_center["日向率(1-η)"].to_numpy(), out_top["日向率(1-η)"].to_numpy(), atol=1e-9)
+
+
+def test_solar_gain_by_angles_with_shade_auto_reorders_crossed_quad_vertices():
+    idx = pd.date_range("2026-06-21 12:00:00", periods=1, freq="1h")
+    s_ib = pd.Series([800.0], index=idx)
+    s_id = pd.Series([100.0], index=idx)
+
+    # 同じ四角形を、輪郭順(ABCD) と 交差順(ABDC) で与える
+    A = (-1.0, 1.0, 0.0)
+    B = (1.0, 1.0, 0.0)
+    C = (1.0, -1.0, 0.0)
+    D = (-1.0, -1.0, 0.0)
+
+    out_ordered = vt.solar_gain_by_angles_with_shade(
+        azimuth_deg=0.0,
+        tilt_deg=90.0,
+        window_width=2.0,
+        window_height=2.0,
+        shade_coords=[A, B, C, D],
+        lat_deg=35.0,
+        lon_deg=139.0,
+        dni=s_ib,
+        dhi=s_id,
+        return_details=True,
+    )
+    out_crossed = vt.solar_gain_by_angles_with_shade(
+        azimuth_deg=0.0,
+        tilt_deg=90.0,
+        window_width=2.0,
+        window_height=2.0,
+        shade_coords=[A, B, D, C],
+        lat_deg=35.0,
+        lon_deg=139.0,
+        dni=s_ib,
+        dhi=s_id,
+        return_details=True,
+    )
+
+    np.testing.assert_allclose(out_ordered["被影率η"].to_numpy(), out_crossed["被影率η"].to_numpy(), atol=1e-9)
+    np.testing.assert_allclose(out_ordered["日向率(1-η)"].to_numpy(), out_crossed["日向率(1-η)"].to_numpy(), atol=1e-9)

@@ -135,8 +135,26 @@ def _normalize_shade_polygons(
             if not isinstance(p, (list, tuple)) or len(p) != 3:
                 raise ValueError("シェード頂点は (x, y, z) の3要素で指定してください。")
             verts.append((float(p[0]), float(p[1]), float(p[2])))
+
+        # 頂点順が自己交差（例: 四角形の ABDC）なら、
+        # 窓面内の x-y に対して重心角ソートで自動補正する。
+        # ※ 凸多角形を想定した補正。複雑な凹形状は入力側で輪郭順を推奨。
+        if _is_self_intersecting_polygon_xy(verts):
+            verts = _sort_vertices_by_centroid_angle_xy(verts)
+
         out.append(verts)
     return out
+
+
+def _sort_vertices_by_centroid_angle_xy(
+    poly_xyz: list[tuple[float, float, float]],
+) -> list[tuple[float, float, float]]:
+    """x-y 平面で重心角ソートして頂点順を作り直す（時計/反時計は不問）。"""
+    if len(poly_xyz) < 3:
+        return poly_xyz
+    cx = float(sum(p[0] for p in poly_xyz) / len(poly_xyz))
+    cy = float(sum(p[1] for p in poly_xyz) / len(poly_xyz))
+    return sorted(poly_xyz, key=lambda p: float(np.arctan2(p[1] - cy, p[0] - cx)))
 
 
 def _segment_intersection_point(
@@ -167,6 +185,30 @@ def _segment_intersection_point(
         y = ay + float(t) * (by - ay)
         return float(x), float(y)
     return None
+
+
+def _is_self_intersecting_polygon_xy(
+    poly_xyz: list[tuple[float, float, float]],
+    eps: float = 1e-12,
+) -> bool:
+    """x-y へ射影した多角形の自己交差判定（隣接辺の共有頂点は除外）。"""
+    n = len(poly_xyz)
+    if n < 4:
+        return False
+    pts = [(float(p[0]), float(p[1])) for p in poly_xyz]
+    for i in range(n):
+        a = pts[i]
+        b = pts[(i + 1) % n]
+        for j in range(i + 1, n):
+            # 同一辺 or 隣接辺はスキップ
+            if j == i or j == (i + 1) % n or (j + 1) % n == i:
+                continue
+            c = pts[j]
+            d = pts[(j + 1) % n]
+            p = _segment_intersection_point(a, b, c, d, eps=eps)
+            if p is not None:
+                return True
+    return False
 
 
 def _poly_y_intervals_at_x(
