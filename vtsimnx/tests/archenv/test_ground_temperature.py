@@ -54,3 +54,44 @@ def test_ground_temperature_by_depth_solar_term_raises_shallow_temperature():
 
     assert float(heated.mean()) > float(base.mean())
 
+
+def test_ground_temperature_by_depth_spinup_reduces_initial_transient():
+    idx = pd.date_range("2026-01-01 00:00:00", periods=24, freq="1h")
+    t_out = pd.Series(10.0, index=idx)
+
+    no_spinup = vt.ground_temperature_by_depth(
+        depth_m=1.0,
+        t_out=t_out,
+        deep_layer_depth_m=10.0,
+        deep_layer_temp_c=10.0,
+        init_temp_c=0.0,
+    )
+    with_spinup = vt.ground_temperature_by_depth(
+        depth_m=1.0,
+        t_out=t_out,
+        deep_layer_depth_m=10.0,
+        deep_layer_temp_c=10.0,
+        init_temp_c=0.0,
+        spinup=True,
+        spinup_cycles=5,
+    )
+
+    assert abs(float(with_spinup.iloc[0]) - 10.0) < abs(float(no_spinup.iloc[0]) - 10.0)
+
+
+def test_ground_temperature_by_depth_spinup_cycle_validation():
+    idx = pd.date_range("2026-01-01 00:00:00", periods=24, freq="1h")
+    t_out = pd.Series(10.0, index=idx)
+
+    try:
+        _ = vt.ground_temperature_by_depth(
+            depth_m=1.0,
+            t_out=t_out,
+            spinup=True,
+            spinup_cycles=1,
+        )
+    except ValueError as e:
+        assert "spinup_cycles" in str(e)
+    else:
+        raise AssertionError("Expected ValueError when spinup=True and spinup_cycles=1")
+

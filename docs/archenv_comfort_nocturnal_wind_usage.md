@@ -165,6 +165,8 @@ out = vt.nocturnal_gain_by_angles(
 - `deep_layer_temp_c`: 不易層温度 [degC]（既定 `10.0`）
 - `thermal_conductivity_w_mk`: 熱伝導率 [W/m/K]
 - `volumetric_heat_capacity_j_m3k`: 体積熱容量 [J/m3/K]
+- `spinup`: 助走モード（既定 `False`）
+- `spinup_cycles`: 助走の繰り返し回数（既定 `5`）
 
 ### 境界条件（地表等価温度）
 
@@ -181,6 +183,12 @@ out = vt.nocturnal_gain_by_angles(
   - `地盤温度_0.100m` のような列を持つ `DataFrame`
 - `return_details=True`:
   - `地表等価温度` を先頭列として追加
+
+助走モード（`spinup=True`）:
+
+- 入力気象（例: 1年）を `spinup_cycles` 回繰り返して内部計算する
+- 戻り値は最終周期（1周期分）だけ返す
+- 初期条件依存の過渡を減らしたい場合に有効
 
 ### 例
 
@@ -204,6 +212,8 @@ tg = vt.ground_temperature_by_depth(
     volumetric_heat_capacity_j_m3k=2.2e6,
     solar_to_surface_temp_coeff=0.003,
     nocturnal_to_surface_temp_coeff=0.003,
+    spinup=True,
+    spinup_cycles=5,
     return_details=True,
 )
 print(tg.head())
@@ -214,6 +224,7 @@ print(tg.head())
 - `t_out` / `solar_horizontal` / `nocturnal_horizontal` は同じ `DatetimeIndex` を使う
 - 時間間隔は等間隔である必要がある
 - 係数 `solar_to_surface_temp_coeff`, `nocturnal_to_surface_temp_coeff` はモデル同定で調整する
+- 年周期データでは `spinup=True` を使うと深部温度の初期過渡を抑えやすい
 
 ---
 

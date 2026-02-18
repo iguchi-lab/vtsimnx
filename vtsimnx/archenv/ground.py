@@ -86,6 +86,8 @@ def ground_temperature_by_depth(
     model_depth_m: float | None = None,
     n_grid: int = 121,
     init_temp_c: float | None = None,
+    spinup: bool = False,
+    spinup_cycles: int = 5,
     return_details: bool = False,
 ) -> pd.Series | pd.DataFrame:
     """
@@ -107,6 +109,8 @@ def ground_temperature_by_depth(
       - 熱容量は体積熱容量 [J/m3/K] を指定する。
       - depth_m がスカラーのとき既定戻り値は Series、複数深さは DataFrame。
       - return_details=True で `地表等価温度` 列を含む DataFrame を返す。
+      - spinup=True のとき、同じ入力気象を `spinup_cycles` 回繰り返して計算し、
+        最終周期（1 周期分）のみを返す。
     """
     depths = _as_depth_array(depth_m)
     idx = _ensure_aligned_index(t_out, solar_horizontal, nocturnal_horizontal)
@@ -120,6 +124,8 @@ def ground_temperature_by_depth(
         raise ValueError("volumetric_heat_capacity_j_m3k must be > 0.")
     if n_grid < 3:
         raise ValueError("n_grid must be >= 3.")
+    if spinup and spinup_cycles < 2:
+        raise ValueError("spinup_cycles must be >= 2 when spinup=True.")
 
     z_max = float(np.max(depths))
     domain_depth = float(model_depth_m) if model_depth_m is not None else max(z_max, float(deep_layer_depth_m))
@@ -147,14 +153,23 @@ def ground_temperature_by_depth(
     upper = np.full(n_inner - 1, -fo, dtype="float64")
     c_prime, denom = _prepare_thomas(lower, diag, upper)
 
-    t_arr = np.empty((len(idx), int(n_grid)), dtype="float64")
-    t0 = float(ts.iloc[0] if init_temp_c is None else init_temp_c)
+    ts_np_cycle = ts.to_numpy(dtype="float64")
+    if spinup:
+        ts_np = np.tile(ts_np_cycle, int(spinup_cycles))
+    else:
+        ts_np = ts_np_cycle
+
+    n_total = int(ts_np.size)
+    n_out = len(idx)
+    out_start = n_total - n_out
+
+    t_arr = np.empty((n_total, int(n_grid)), dtype="float64")
+    t0 = float(ts_np[0] if init_temp_c is None else init_temp_c)
     t_arr[0, :] = np.linspace(t0, float(deep_layer_temp_c), int(n_grid))
-    t_arr[0, 0] = float(ts.iloc[0])
+    t_arr[0, 0] = float(ts_np[0])
     t_arr[0, -1] = float(deep_layer_temp_c)
 
-    ts_np = ts.to_numpy(dtype="float64")
-    for n in range(1, len(idx)):
+    for n in range(1, n_total):
         prev = t_arr[n - 1]
         rhs = prev[1:-1].copy()
         rhs[0] += fo * ts_np[n]
@@ -165,16 +180,17 @@ def ground_temperature_by_depth(
         t_arr[n, -1] = float(deep_layer_temp_c)
         t_arr[n, 1:-1] = inner
 
-    target = np.empty((len(idx), len(depths)), dtype="float64")
-    for i in range(len(idx)):
-        target[i, :] = np.interp(depths, z, t_arr[i, :])
+    target = np.empty((n_out, len(depths)), dtype="float64")
+    for i in range(n_out):
+        target[i, :] = np.interp(depths, z, t_arr[out_start + i, :])
+    ts_out = pd.Series(ts_np[out_start:], index=idx, dtype="float64")
 
     if len(depths) == 1:
         s = pd.Series(target[:, 0], index=idx, name="地盤温度")
         if not return_details:
             return s
         out = pd.DataFrame(index=idx)
-        out["地表等価温度"] = ts
+        out["地表等価温度"] = ts_out
         out["地盤温度"] = s
         return out
 
@@ -183,7 +199,7 @@ def ground_temperature_by_depth(
         out[f"地盤温度_{d:.3f}m"] = target[:, j]
     if not return_details:
         return out
-    out.insert(0, "地表等価温度", ts)
+    out.insert(0, "地表等価温度", ts_out)
     return out
 
 
