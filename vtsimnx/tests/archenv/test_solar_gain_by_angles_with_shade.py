@@ -231,3 +231,25 @@ def test_solar_gain_by_angles_with_shade_auto_reorders_crossed_quad_vertices():
 
     np.testing.assert_allclose(out_ordered["被影率η"].to_numpy(), out_crossed["被影率η"].to_numpy(), atol=1e-9)
     np.testing.assert_allclose(out_ordered["日向率(1-η)"].to_numpy(), out_crossed["日向率(1-η)"].to_numpy(), atol=1e-9)
+
+
+def test_solar_gain_by_angles_with_shade_eta_zero_when_sun_below_horizon():
+    idx = pd.DatetimeIndex(["2026-01-01 00:00:00"])
+    s_ib = pd.Series([800.0], index=idx)  # あえて夜間でも値を入れる
+    s_id = pd.Series([100.0], index=idx)
+
+    out = vt.solar_gain_by_angles_with_shade(
+        azimuth_deg=0.0,
+        tilt_deg=90.0,
+        window_width=1.65,
+        window_height=1.95,
+        shade_coords=[(-1.0, 1.0, 0.5), (1.0, 1.0, 0.5), (1.0, 0.8, 0.5), (-1.0, 0.8, 0.5)],
+        lat_deg=35.0,
+        lon_deg=139.0,
+        dni=s_ib,
+        dhi=s_id,
+        return_details=True,
+    )
+
+    assert float(out.iloc[0, 9]) <= 0.0  # 太陽高度 hs
+    assert np.isclose(float(out.iloc[0, 5]), 0.0, atol=1e-12)  # 被影率η

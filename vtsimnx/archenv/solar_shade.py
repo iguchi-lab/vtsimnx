@@ -357,7 +357,8 @@ def _shade_ratio_on_window(
     v = v / np.linalg.norm(v)
 
     az = np.radians(azs_deg.to_numpy(dtype="float64"))
-    hs = np.radians(hs_deg.to_numpy(dtype="float64"))
+    hs_deg_arr = hs_deg.to_numpy(dtype="float64")
+    hs = np.radians(hs_deg_arr)
     s_e = -np.cos(hs) * np.sin(az)
     s_n = -np.cos(hs) * np.cos(az)
     s_u = np.sin(hs)
@@ -375,6 +376,10 @@ def _shade_ratio_on_window(
 
     eta_arr = np.zeros(len(azs_deg), dtype="float64")
     for i in range(len(eta_arr)):
+        # 夜間は被影率を 0 とする（直達日射自体がないため）
+        if hs_deg_arr[i] <= 0.0:
+            eta_arr[i] = 0.0
+            continue
         if sn[i] <= 1e-9:
             eta_arr[i] = 0.0
             continue

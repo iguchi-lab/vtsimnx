@@ -10,11 +10,12 @@
   - `solar_gain_by_angles_with_shade`
   - 座標系（AZs）と入力パターン
 
-## 2. 風圧・夜間放射・快適性
+## 2. 風圧・夜間放射・地盤温度・快適性
 
 - `archenv_comfort_nocturnal_wind_usage.md`
   - `make_wind`
   - `nocturnal_gain_by_angles`
+  - `ground_temperature_by_depth`
   - `calc_PMV` / `calc_PPD`
   - `calc_fungal_index`
 

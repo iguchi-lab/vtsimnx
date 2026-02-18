@@ -9,6 +9,7 @@ from .nocturnal import nocturnal_gain_by_angles
 from .solar import (
     sun_loc, astro_sun_loc, solar_gain_by_angles, solar_gain_by_angles_with_shade,
 )
+from .ground import ground_temperature_by_depth
 from .comfort import (
     calc_R, calc_C, calc_RC, calc_PMV, calc_PPD, calc_fungal_index,
 )
@@ -24,6 +25,8 @@ __all__ = [
     "nocturnal_gain_by_angles",
     # 日射
     "sun_loc", "astro_sun_loc", "solar_gain_by_angles", "solar_gain_by_angles_with_shade",
+    # 地盤温度
+    "ground_temperature_by_depth",
     # 快適性・カビ
     "calc_R", "calc_C", "calc_RC", "calc_PMV", "calc_PPD", "calc_fungal_index",
 ]

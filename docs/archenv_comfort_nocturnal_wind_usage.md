@@ -1,9 +1,10 @@
-# `vtsimnx.archenv`（comfort / nocturnal / wind）使い方ガイド
+# `vtsimnx.archenv`（comfort / nocturnal / ground / wind）使い方ガイド
 
 このドキュメントは、次の関数の実務的な使い方をまとめたものです。
 
 - 風圧: `make_wind`（`wind.py`）
 - 夜間放射: `nocturnal_gain_by_angles`（`nocturnal.py`）
+- 地盤温度: `ground_temperature_by_depth`（`ground.py`）
 - 快適性: `calc_PMV`, `calc_PPD`, `calc_fungal_index`（`comfort.py`）
 
 ---
@@ -143,7 +144,80 @@ out = vt.nocturnal_gain_by_angles(
 
 ---
 
-## 3. 快適性（`calc_PMV`, `calc_PPD`）
+## 3. 地盤温度（`ground_temperature_by_depth`）
+
+### 関数
+
+- `ground_temperature_by_depth(depth_m, t_out, solar_horizontal=None, nocturnal_horizontal=None, ...)`
+
+### 何をするか
+
+不易層条件（深さ・温度）と気象時系列から、任意深さの地盤温度を 1 次元熱伝導で推定します。  
+地盤物性（熱伝導率・体積熱容量）を引数で指定できます。
+
+### 主な入力
+
+- `depth_m`: 取得したい深さ [m]（単一値または配列）
+- `t_out`: 外気温 `Series`（必須）
+- `solar_horizontal`: 水平面日射量 `Series`（任意）
+- `nocturnal_horizontal`: 水平面夜間放射量 `Series`（任意）
+- `deep_layer_depth_m`: 不易層深さ [m]（既定 `10.0`）
+- `deep_layer_temp_c`: 不易層温度 [degC]（既定 `10.0`）
+- `thermal_conductivity_w_mk`: 熱伝導率 [W/m/K]
+- `volumetric_heat_capacity_j_m3k`: 体積熱容量 [J/m3/K]
+
+### 境界条件（地表等価温度）
+
+`Ts = t_out + a_solar * solar_horizontal - a_noct * nocturnal_horizontal`
+
+- `a_solar` = `solar_to_surface_temp_coeff`
+- `a_noct` = `nocturnal_to_surface_temp_coeff`
+
+### 出力
+
+- `depth_m` が単一 + `return_details=False`（既定）:
+  - `地盤温度` の `Series`
+- `depth_m` が複数:
+  - `地盤温度_0.100m` のような列を持つ `DataFrame`
+- `return_details=True`:
+  - `地表等価温度` を先頭列として追加
+
+### 例
+
+```python
+import pandas as pd
+import vtsimnx as vt
+
+idx = pd.date_range("2026-01-01 00:00:00", periods=24 * 7, freq="1h")
+t_out = pd.Series(8.0, index=idx)
+solar_h = pd.Series(150.0, index=idx)
+rn_h = pd.Series(40.0, index=idx)
+
+tg = vt.ground_temperature_by_depth(
+    depth_m=[0.1, 1.0, 3.0],
+    t_out=t_out,
+    solar_horizontal=solar_h,
+    nocturnal_horizontal=rn_h,
+    deep_layer_depth_m=10.0,
+    deep_layer_temp_c=10.0,
+    thermal_conductivity_w_mk=1.5,
+    volumetric_heat_capacity_j_m3k=2.2e6,
+    solar_to_surface_temp_coeff=0.003,
+    nocturnal_to_surface_temp_coeff=0.003,
+    return_details=True,
+)
+print(tg.head())
+```
+
+### 注意
+
+- `t_out` / `solar_horizontal` / `nocturnal_horizontal` は同じ `DatetimeIndex` を使う
+- 時間間隔は等間隔である必要がある
+- 係数 `solar_to_surface_temp_coeff`, `nocturnal_to_surface_temp_coeff` はモデル同定で調整する
+
+---
+
+## 4. 快適性（`calc_PMV`, `calc_PPD`）
 
 ### 関数
 
@@ -182,7 +256,7 @@ print(pmv, ppd)
 
 ---
 
-## 4. カビ指標（`calc_fungal_index`）
+## 5. カビ指標（`calc_fungal_index`）
 
 ### 関数
 
@@ -213,10 +287,11 @@ print(fi)
 
 ---
 
-## 5. どの関数を使うべきか（目安）
+## 6. どの関数を使うべきか（目安）
 
 - 風圧境界条件を作る: `make_wind`
 - 傾斜面ごとの夜間放射を作る: `nocturnal_gain_by_angles`
+- 地盤温度境界条件を作る: `ground_temperature_by_depth`
 - 室内快適性の評価: `calc_PMV`, `calc_PPD`
 - カビ発生リスクの相対指標: `calc_fungal_index`
 

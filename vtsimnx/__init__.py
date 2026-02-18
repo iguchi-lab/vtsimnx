@@ -1,6 +1,7 @@
 from .archenv import (
     sun_loc, make_wind, nocturnal_gain_by_angles,
     solar_gain_by_angles, solar_gain_by_angles_with_shade,
+    ground_temperature_by_depth,
     calc_PMV, calc_PPD, calc_fungal_index,
 )
 
@@ -20,6 +21,7 @@ __all__ = [
     # archenv
     "sun_loc", "make_wind", "nocturnal_gain_by_angles",
     "solar_gain_by_angles", "solar_gain_by_angles_with_shade",
+    "ground_temperature_by_depth",
     "calc_PMV", "calc_PPD", "calc_fungal_index",
     # utils
     "read_json", "read_csv", "index", "read_hasp",
