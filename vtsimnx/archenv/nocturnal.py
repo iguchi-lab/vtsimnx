@@ -17,8 +17,8 @@ def nocturnal_gain_by_angles(
     外気温: pd.Series | None = None,
     外気相対湿度: pd.Series | None = None,
     夜間放射量_水平: pd.Series | None = None,
-    名前: str = "任意面",
-) -> pd.DataFrame:
+    return_details: bool = False,
+) -> pd.DataFrame | pd.Series:
     """
     傾斜角だけ指定して、その面の夜間放射量（長波放射）を返す。
 
@@ -35,6 +35,10 @@ def nocturnal_gain_by_angles(
         (F_sky = (1+cosβ)/2)
       で水平面の夜間放射量をスケールする。
       （β=0 → 1.0, β=90 → 0.5）
+
+    return_details:
+      - False: 夜間放射量のみ（Series）を返す（既定）
+      - True : `夜間放射量_水平` を含む DataFrame を返す
     """
     if 夜間放射量_水平 is None:
         if 外気温 is None or 外気相対湿度 is None:
@@ -44,9 +48,13 @@ def nocturnal_gain_by_angles(
     beta = np.radians(float(傾斜角))
     f_sky = (1.0 + float(np.cos(beta))) / 2.0
 
+    s_nocturnal = (夜間放射量_水平 * f_sky).rename("夜間放射量")
+    if not return_details:
+        return s_nocturnal
+
     out = pd.DataFrame(index=夜間放射量_水平.index)
     out["夜間放射量_水平"] = 夜間放射量_水平
-    out[f"夜間放射量（{名前}）"] = 夜間放射量_水平 * f_sky
+    out["夜間放射量"] = s_nocturnal
     return out
 
 __all__ = ["rn", "nocturnal_gain_by_angles"]

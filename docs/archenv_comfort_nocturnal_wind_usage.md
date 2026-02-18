@@ -60,7 +60,7 @@ print(p["E"].head())
 
 ### 関数
 
-- `nocturnal_gain_by_angles(傾斜角, 外気温=None, 外気相対湿度=None, 夜間放射量_水平=None, 名前="任意面")`
+- `nocturnal_gain_by_angles(傾斜角, 外気温=None, 外気相対湿度=None, 夜間放射量_水平=None, return_details=False)`
 
 ### 何をするか
 
@@ -89,8 +89,22 @@ print(p["E"].head())
 
 ### 出力
 
-- `夜間放射量_水平`
-- `夜間放射量（{名前}）`
+- 既定: `夜間放射量` の `Series`
+- `return_details=True`:
+  - `夜間放射量_水平`
+  - `夜間放射量`
+
+戻り値モード（イメージ）:
+
+```text
+return_details=False (既定)
+  -> Series: 夜間放射量
+
+return_details=True
+  -> DataFrame:
+       - 夜間放射量_水平
+       - 夜間放射量
+```
 
 ### 例（温湿度から推算）
 
@@ -106,7 +120,7 @@ out = vt.nocturnal_gain_by_angles(
     傾斜角=90.0,
     外気温=t,
     外気相対湿度=rh,
-    名前="南面",
+    return_details=True,
 )
 print(out.head())
 ```
@@ -123,7 +137,7 @@ rn_h = pd.Series(40.0, index=idx)  # [Wh/m2]
 out = vt.nocturnal_gain_by_angles(
     傾斜角=30.0,
     夜間放射量_水平=rn_h,
-    名前="屋根面",
+    return_details=True,
 )
 ```
 
