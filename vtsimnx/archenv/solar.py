@@ -182,9 +182,9 @@ def _solar_gain_by_angles_from_solar_df(
 
 def _solar_base(
     *,
-    全天日射量: pd.Series | None,
-    法線面直達日射量: pd.Series | None,
-    水平面拡散日射量: pd.Series | None,
+    ghi: pd.Series | None,
+    dni: pd.Series | None,
+    dhi: pd.Series | None,
     緯度: float,
     経度: float,
     use_astro: bool,
@@ -203,10 +203,10 @@ def _solar_base(
         raise ValueError(f"min_sun_alt_deg must be in [0, 90], got {min_sun_alt_deg!r}")
 
     # 入力の組み合わせチェック
-    if 全天日射量 is None and not (法線面直達日射量 is not None and 水平面拡散日射量 is not None):
-        raise TypeError("solar_gain_by_angles: 全天日射量 か、(法線面直達日射量 and 水平面拡散日射量) を指定してください。")
+    if ghi is None and not (dni is not None and dhi is not None):
+        raise TypeError("solar_gain_by_angles: ghi または (dni and dhi) を指定してください。")
 
-    idx = (全天日射量.index if 全天日射量 is not None else 法線面直達日射量.index)  # type: ignore[union-attr]
+    idx = (ghi.index if ghi is not None else dni.index)  # type: ignore[union-attr]
 
     def _auto_td_from_index(idx_: pd.DatetimeIndex) -> float:
         if time_alignment == "timestamp":
@@ -235,25 +235,25 @@ def _solar_base(
         df_sun = sun_loc(idx, lat=緯度, lon=経度, td=td)
 
     # Ib/Id の決定
-    if 法線面直達日射量 is not None and 水平面拡散日射量 is not None:
-        ib = 法線面直達日射量.astype("float64")
-        id_ = 水平面拡散日射量.astype("float64")
+    if dni is not None and dhi is not None:
+        ib = dni.astype("float64")
+        id_ = dhi.astype("float64")
         df_min = pd.DataFrame(index=idx)
         df_min["法線面直達日射量 Ib"] = ib
         df_min["水平面拡散日射量 Id"] = id_
         return pd.concat([df_min, df_sun], axis=1)
 
-    if 全天日射量 is None:
-        raise TypeError("solar_gain_by_angles: 全天日射量 がありません。")
+    if ghi is None:
+        raise TypeError("solar_gain_by_angles: ghi がありません。")
 
-    ig = 全天日射量.astype("float64")
+    ig = ghi.astype("float64")
     sin_hs = df_sun["太陽高度の正弦 sin_hs"].astype("float64")
     hs = df_sun["太陽高度 hs"].astype("float64")
     day = (hs > float(min_sun_alt_deg)) & (sin_hs > 0)
 
     # (A) IG + Ib で与えられた場合: Id = IG - Ib*sin(hs) を復元（Ibは上限で丸める）
-    if 法線面直達日射量 is not None:
-        ib_in = 法線面直達日射量.astype("float64")
+    if dni is not None:
+        ib_in = dni.astype("float64")
         ib_used = pd.Series(0.0, index=idx)
         id_used = pd.Series(0.0, index=idx)
         if day.any():
@@ -284,9 +284,9 @@ def solar_gain_by_angles(
     傾斜角: float,
     緯度: float = 36.00,
     経度: float = 140.00,
-    全天日射量: pd.Series | None = None,
-    法線面直達日射量: pd.Series | None = None,
-    水平面拡散日射量: pd.Series | None = None,
+    ghi: pd.Series | None = None,
+    dni: pd.Series | None = None,
+    dhi: pd.Series | None = None,
     glass: bool = False,
     return_details: bool = False,
     use_astro: bool = False,
@@ -301,9 +301,9 @@ def solar_gain_by_angles(
     任意の緯度/経度/方位角/傾斜角で、壁面またはガラス面の日射熱取得量を返す。
 
     入力（日射）の指定は以下のいずれか:
-      - 全天日射量のみ（Erbs 直散分離）
-      - 全天日射量 + 法線面直達日射量（Id を復元）
-      - 法線面直達日射量 + 水平面拡散日射量（そのまま使用）
+      - ghi のみ（Erbs 直散分離）
+      - ghi + dni（Id を復元）
+      - dni + dhi（そのまま使用）
 
     glass:
       - False: 壁面の日射熱取得量を返す（既定）
@@ -318,9 +318,9 @@ def solar_gain_by_angles(
       - "diffuse_only": 日陰などを想定し、直達は 0 扱い（反射は拡散由来のみ）
     """
     df_min = _solar_base(
-        全天日射量=全天日射量,
-        法線面直達日射量=法線面直達日射量,
-        水平面拡散日射量=水平面拡散日射量,
+        ghi=ghi,
+        dni=dni,
+        dhi=dhi,
         緯度=float(緯度),
         経度=float(経度),
         use_astro=bool(use_astro),
@@ -354,9 +354,9 @@ def solar_gain_by_angles_with_shade(
     シェード座標基準: str = "window_center",
     緯度: float = 36.00,
     経度: float = 140.00,
-    全天日射量: pd.Series | None = None,
-    法線面直達日射量: pd.Series | None = None,
-    水平面拡散日射量: pd.Series | None = None,
+    ghi: pd.Series | None = None,
+    dni: pd.Series | None = None,
+    dhi: pd.Series | None = None,
     glass: bool = False,
     return_details: bool = False,
     use_astro: bool = False,
@@ -399,9 +399,9 @@ def solar_gain_by_angles_with_shade(
         raise ValueError(f"窓幅/窓高さ must be > 0, got {(窓幅, 窓高さ)}")
 
     df_min = _solar_base(
-        全天日射量=全天日射量,
-        法線面直達日射量=法線面直達日射量,
-        水平面拡散日射量=水平面拡散日射量,
+        ghi=ghi,
+        dni=dni,
+        dhi=dhi,
         緯度=float(緯度),
         経度=float(経度),
         use_astro=bool(use_astro),

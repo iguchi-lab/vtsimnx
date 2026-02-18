@@ -14,38 +14,48 @@ def main() -> None:
     s_ib = df_i["直達日射量"]
     s_id = df_i["水平面拡散日射量"]
 
-    def _gain(name: str, az: float, tilt: float) -> pd.DataFrame:
+    def _gain(az: float, tilt: float, *, glass: bool = False, diffuse_only: bool = False) -> pd.DataFrame:
         return vt.solar_gain_by_angles(
             方位角=az,
             傾斜角=tilt,
             緯度=lat,
             経度=lon,
-            法線面直達日射量=s_ib,
-            水平面拡散日射量=s_id,
-            名前=name,
+            dni=s_ib,
+            dhi=s_id,
+            glass=glass,
+            日射モード="diffuse_only" if diffuse_only else "all",
+            return_details=True,
         )
 
-    east = _gain("東面", -90.0, 90.0)
-    south = _gain("南面", 0.0, 90.0)
-    west = _gain("西面", 90.0, 90.0)
-    north = _gain("北面", 180.0, 90.0)
-    horiz = _gain("水平面", 0.0, 0.0)
-    diffuse = _gain("拡散", 0.0, 90.0)
+    east = _gain(-90.0, 90.0)
+    south = _gain(0.0, 90.0)
+    west = _gain(90.0, 90.0)
+    north = _gain(180.0, 90.0)
+    horiz = _gain(0.0, 0.0)
+    east_g = _gain(-90.0, 90.0, glass=True)
+    south_g = _gain(0.0, 90.0, glass=True)
+    west_g = _gain(90.0, 90.0, glass=True)
+    north_g = _gain(180.0, 90.0, glass=True)
+    horiz_g = _gain(0.0, 0.0, glass=True)
+    diffuse = _gain(0.0, 90.0, diffuse_only=True)
 
     solar = pd.concat(
         [
-            east[["日射熱取得量（東面）", "日射熱取得量（東面ガラス）"]],
-            south[["日射熱取得量（南面）", "日射熱取得量（南面ガラス）"]],
-            west[["日射熱取得量（西面）", "日射熱取得量（西面ガラス）"]],
-            north[["日射熱取得量（北面）", "日射熱取得量（北面ガラス）"]],
-            horiz[["日射熱取得量（水平面）", "日射熱取得量（水平面ガラス）"]],
+            east[["日射熱取得量"]].rename(columns={"日射熱取得量": "日射熱取得量（東面）"}),
+            south[["日射熱取得量"]].rename(columns={"日射熱取得量": "日射熱取得量（南面）"}),
+            west[["日射熱取得量"]].rename(columns={"日射熱取得量": "日射熱取得量（西面）"}),
+            north[["日射熱取得量"]].rename(columns={"日射熱取得量": "日射熱取得量（北面）"}),
+            horiz[["日射熱取得量"]].rename(columns={"日射熱取得量": "日射熱取得量（水平面）"}),
+            east_g[["日射熱取得量"]].rename(columns={"日射熱取得量": "日射熱取得量（東面ガラス）"}),
+            south_g[["日射熱取得量"]].rename(columns={"日射熱取得量": "日射熱取得量（南面ガラス）"}),
+            west_g[["日射熱取得量"]].rename(columns={"日射熱取得量": "日射熱取得量（西面ガラス）"}),
+            north_g[["日射熱取得量"]].rename(columns={"日射熱取得量": "日射熱取得量（北面ガラス）"}),
+            horiz_g[["日射熱取得量"]].rename(columns={"日射熱取得量": "日射熱取得量（水平面ガラス）"}),
         ],
         axis=1,
     )
     # 旧: 日射熱取得量（拡散）= 拡散成分 + 反射成分（直達なし）
-    solar["日射熱取得量（拡散）"] = (
-        diffuse["水平面拡散日射量の拡散成分（拡散）"] + diffuse["水平面拡散日射量の反射成分（拡散）"]
-    )
+    solar["日射熱取得量（拡散）"] = diffuse["日射熱取得量"]
 
     room_volume = {
         '床下':         13.08,

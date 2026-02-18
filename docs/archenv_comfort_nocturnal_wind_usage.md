@@ -60,23 +60,23 @@ print(p["E"].head())
 
 ### 関数
 
-- `nocturnal_gain_by_angles(傾斜角, 外気温=None, 外気相対湿度=None, 夜間放射量_水平=None, return_details=False)`
+- `nocturnal_gain_by_angles(傾斜角, t_out=None, rh_out=None, rn_horizontal=None, return_details=False)`
 
 ### 何をするか
 
 任意面（傾斜角指定）の夜間放射量を返します。  
 水平面夜間放射を
 
-- 外気温・外気相対湿度から推算する
+- `t_out`・`rh_out` から推算する
 - 直接与える
 
 のどちらにも対応しています。
 
 ### 入力パターン（どちらか）
 
-1. `外気温` + `外気相対湿度`
+1. `t_out` + `rh_out`
    - 内部で `rn(t,h)` を使って水平面夜間放射を推算
-2. `夜間放射量_水平`
+2. `rn_horizontal`
    - 水平面夜間放射 `[Wh/m2]` を直接使用
 
 ### 幾何の扱い
@@ -85,13 +85,13 @@ print(p["E"].head())
 - view factor  
   `F_sky = (1 + cos(beta)) / 2`
 - 面の夜間放射量  
-  `夜間放射量（面） = 夜間放射量_水平 * F_sky`
+  `夜間放射量（面） = rn_horizontal * F_sky`
 
 ### 出力
 
 - 既定: `夜間放射量` の `Series`
 - `return_details=True`:
-  - `夜間放射量_水平`
+  - `夜間放射量_水平`（= 入力 `rn_horizontal`）
   - `夜間放射量`
 
 戻り値モード（イメージ）:
@@ -118,8 +118,8 @@ rh = pd.Series(70.0, index=idx)  # 相対湿度 [%]
 
 out = vt.nocturnal_gain_by_angles(
     傾斜角=90.0,
-    外気温=t,
-    外気相対湿度=rh,
+    t_out=t,
+    rh_out=rh,
     return_details=True,
 )
 print(out.head())
@@ -136,7 +136,7 @@ rn_h = pd.Series(40.0, index=idx)  # [Wh/m2]
 
 out = vt.nocturnal_gain_by_angles(
     傾斜角=30.0,
-    夜間放射量_水平=rn_h,
+    rn_horizontal=rn_h,
     return_details=True,
 )
 ```

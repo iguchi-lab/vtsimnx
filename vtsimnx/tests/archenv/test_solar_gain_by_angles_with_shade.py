@@ -17,8 +17,8 @@ def test_solar_gain_by_angles_with_shade_default_returns_series():
         シェード座標=[(-5.0, 5.0, 0.0), (5.0, 5.0, 0.0), (5.0, -5.0, 0.0), (-5.0, -5.0, 0.0)],
         緯度=35.0,
         経度=139.0,
-        法線面直達日射量=s_ib,
-        水平面拡散日射量=s_id,
+        dni=s_ib,
+        dhi=s_id,
     )
 
     assert isinstance(out, pd.Series)
@@ -35,8 +35,8 @@ def test_solar_gain_by_angles_with_shade_no_overlap_matches_base():
         傾斜角=90.0,
         緯度=35.0,
         経度=139.0,
-        法線面直達日射量=s_ib,
-        水平面拡散日射量=s_id,
+        dni=s_ib,
+        dhi=s_id,
         return_details=True,
     )
     shaded = vt.solar_gain_by_angles_with_shade(
@@ -48,8 +48,8 @@ def test_solar_gain_by_angles_with_shade_no_overlap_matches_base():
         シェード座標=[(10.0, 10.0, 1.0), (11.0, 10.0, 1.0), (11.0, 9.0, 1.0), (10.0, 9.0, 1.0)],
         緯度=35.0,
         経度=139.0,
-        法線面直達日射量=s_ib,
-        水平面拡散日射量=s_id,
+        dni=s_ib,
+        dhi=s_id,
         return_details=True,
     )
 
@@ -82,8 +82,8 @@ def test_solar_gain_by_angles_with_shade_full_cover_zeroes_direct():
         シェード座標=[(-5.0, 5.0, 0.0), (5.0, 5.0, 0.0), (5.0, -5.0, 0.0), (-5.0, -5.0, 0.0)],
         緯度=35.0,
         経度=139.0,
-        法線面直達日射量=s_ib,
-        水平面拡散日射量=s_id,
+        dni=s_ib,
+        dhi=s_id,
         glass=True,
         return_details=True,
     )
@@ -115,8 +115,8 @@ def test_solar_gain_by_angles_with_shade_accepts_multiple_polygons():
         ],
         緯度=35.0,
         経度=139.0,
-        法線面直達日射量=s_ib,
-        水平面拡散日射量=s_id,
+        dni=s_ib,
+        dhi=s_id,
         return_details=True,
     )
 
@@ -143,8 +143,8 @@ def test_solar_gain_by_angles_with_shade_overlapping_polygons_not_double_counted
         ],
         緯度=35.0,
         経度=139.0,
-        法線面直達日射量=s_ib,
-        水平面拡散日射量=s_id,
+        dni=s_ib,
+        dhi=s_id,
         return_details=True,
     )
 

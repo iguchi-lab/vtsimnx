@@ -14,8 +14,8 @@ def test_solar_gain_by_angles_vertical_diffuse_parts_do_not_depend_on_azimuth():
         傾斜角=90.0,
         緯度=35.0,
         経度=139.0,
-        法線面直達日射量=s_ib,
-        水平面拡散日射量=s_id,
+        dni=s_ib,
+        dhi=s_id,
         return_details=True,
     )
     east = vt.solar_gain_by_angles(
@@ -23,8 +23,8 @@ def test_solar_gain_by_angles_vertical_diffuse_parts_do_not_depend_on_azimuth():
         傾斜角=90.0,
         緯度=35.0,
         経度=139.0,
-        法線面直達日射量=s_ib,
-        水平面拡散日射量=s_id,
+        dni=s_ib,
+        dhi=s_id,
         return_details=True,
     )
 

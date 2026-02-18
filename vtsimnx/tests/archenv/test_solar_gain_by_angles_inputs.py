@@ -13,7 +13,7 @@ def test_solar_gain_by_angles_default_returns_series():
         傾斜角=90.0,
         緯度=35.0,
         経度=139.0,
-        全天日射量=s_ig,
+        ghi=s_ig,
     )
 
     assert isinstance(out, pd.Series)
@@ -29,7 +29,7 @@ def test_solar_gain_by_angles_accepts_ig_only():
         傾斜角=90.0,
         緯度=35.0,
         経度=139.0,
-        全天日射量=s_ig,
+        ghi=s_ig,
         return_details=True,
     )
 
@@ -47,8 +47,8 @@ def test_solar_gain_by_angles_accepts_ig_and_ib_restores_id_nonnegative():
         傾斜角=90.0,
         緯度=35.0,
         経度=139.0,
-        全天日射量=s_ig,
-        法線面直達日射量=s_ib,
+        ghi=s_ig,
+        dni=s_ib,
         return_details=True,
     )
 
@@ -66,8 +66,8 @@ def test_solar_gain_by_angles_accepts_ib_and_id():
         傾斜角=90.0,
         緯度=35.0,
         経度=139.0,
-        法線面直達日射量=s_ib,
-        水平面拡散日射量=s_id,
+        dni=s_ib,
+        dhi=s_id,
         return_details=True,
     )
 
@@ -87,8 +87,8 @@ def test_solar_gain_by_angles_diffuse_only_zeroes_direct_terms():
         傾斜角=90.0,
         緯度=35.0,
         経度=139.0,
-        法線面直達日射量=s_ib,
-        水平面拡散日射量=s_id,
+        dni=s_ib,
+        dhi=s_id,
         日射モード="diffuse_only",
         return_details=True,
     )
@@ -118,8 +118,8 @@ def test_solar_gain_by_angles_horizontal_equals_ghi():
         傾斜角=0.0,
         緯度=35.0,
         経度=139.0,
-        法線面直達日射量=s_ib,
-        水平面拡散日射量=s_id,
+        dni=s_ib,
+        dhi=s_id,
         return_details=True,
     )
 

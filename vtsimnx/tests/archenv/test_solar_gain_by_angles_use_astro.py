@@ -12,7 +12,7 @@ def test_solar_gain_by_angles_use_astro_runs():
         傾斜角=90.0,
         緯度=36.0,
         経度=140.0,
-        全天日射量=s_ig,
+        ghi=s_ig,
         use_astro=True,
         return_details=True,
     )

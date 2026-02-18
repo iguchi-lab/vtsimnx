@@ -21,9 +21,9 @@
   - `0` = 水平上向き
   - `90` = 鉛直
 - 日射の基本量
-  - `全天日射量`（GHI）: 水平面全天日射量
-  - `法線面直達日射量`（DNI）
-  - `水平面拡散日射量`（DHI）
+  - `ghi`（GHI）: 水平面全天日射量
+  - `dni`（DNI）: 法線面直達日射量
+  - `dhi`（DHI）: 水平面拡散日射量
 
 ---
 
@@ -77,9 +77,9 @@
 - 主な入力:
   - 幾何: `方位角`, `傾斜角`, `緯度`, `経度`
   - 日射（次のいずれか）
-    1. `全天日射量` のみ（内部で Erbs 分離）
-    2. `全天日射量 + 法線面直達日射量`（`Id` を復元）
-    3. `法線面直達日射量 + 水平面拡散日射量`（そのまま使用）
+    1. `ghi` のみ（内部で Erbs 分離）
+    2. `ghi + dni`（`Id` を復元）
+    3. `dni + dhi`（そのまま使用）
   - そのほか: `glass`, `return_details`, `日射モード`, `use_astro`, `time_alignment`, `timestamp_ref`
 - 出力:
   - 既定: `日射熱取得量` の `Series` を返す
@@ -129,8 +129,8 @@ out = vt.solar_gain_by_angles(
     傾斜角=90.0,       # 鉛直
     緯度=35.0,
     経度=139.0,
-    法線面直達日射量=s_ib,
-    水平面拡散日射量=s_id,
+    dni=s_ib,
+    dhi=s_id,
     glass=False,  # 壁面
 )
 
@@ -151,7 +151,7 @@ out = vt.solar_gain_by_angles(
     傾斜角=90.0,
     緯度=35.0,
     経度=139.0,
-    全天日射量=s_ig,
+    ghi=s_ig,
 )
 ```
 
@@ -181,8 +181,8 @@ out = vt.solar_gain_by_angles_with_shade(
     シェード座標基準="window_center",
     緯度=35.0,
     経度=139.0,
-    法線面直達日射量=s_ib,
-    水平面拡散日射量=s_id,
+    dni=s_ib,
+    dhi=s_id,
     glass=True,  # ガラス面を対象にする
     return_details=True,
 )
