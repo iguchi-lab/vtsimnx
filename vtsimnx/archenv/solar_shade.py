@@ -16,7 +16,8 @@ def _to_window_local_2d(
         return float(x), float(y)
     if origin_mode == "window_top_center":
         # 上端中央基準: y=0 が窓上端、下向きが負。
-        return float(x), float(y) - float(window_height) / 2.0
+        # 窓中心基準へは +H/2 シフト（上端 +H/2、中心 0 になる）
+        return float(x), float(y) + float(window_height) / 2.0
     raise ValueError(f"shade_origin_mode must be 'window_center' or 'window_top_center', got {origin_mode!r}")
 
 

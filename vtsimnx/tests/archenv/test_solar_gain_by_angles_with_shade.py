@@ -150,3 +150,44 @@ def test_solar_gain_by_angles_with_shade_overlapping_polygons_not_double_counted
 
     assert np.allclose(out["被影率η"].to_numpy(), 1.0, atol=1e-9)
     assert np.allclose(out["日向率(1-η)"].to_numpy(), 0.0, atol=1e-9)
+
+
+def test_solar_gain_by_angles_with_shade_top_center_origin_matches_center_origin():
+    idx = pd.date_range("2026-06-21 12:00:00", periods=2, freq="1h")
+    s_ib = pd.Series([800.0, 800.0], index=idx)
+    s_id = pd.Series([100.0, 100.0], index=idx)
+
+    # 窓中心基準のポリゴン（窓上端付近の細い庇）
+    shade_center = [(-1.0, 1.0, 0.5), (1.0, 1.0, 0.5), (1.0, 0.8, 0.5), (-1.0, 0.8, 0.5)]
+    # 窓上端中央基準へ座標変換（y_top = y_center - H/2, H=2.0）
+    shade_top_center = [(-1.0, 0.0, 0.5), (1.0, 0.0, 0.5), (1.0, -0.2, 0.5), (-1.0, -0.2, 0.5)]
+
+    out_center = vt.solar_gain_by_angles_with_shade(
+        azimuth_deg=0.0,
+        tilt_deg=90.0,
+        window_width=2.0,
+        window_height=2.0,
+        shade_coords=shade_center,
+        shade_origin_mode="window_center",
+        lat_deg=35.0,
+        lon_deg=139.0,
+        dni=s_ib,
+        dhi=s_id,
+        return_details=True,
+    )
+    out_top = vt.solar_gain_by_angles_with_shade(
+        azimuth_deg=0.0,
+        tilt_deg=90.0,
+        window_width=2.0,
+        window_height=2.0,
+        shade_coords=shade_top_center,
+        shade_origin_mode="window_top_center",
+        lat_deg=35.0,
+        lon_deg=139.0,
+        dni=s_ib,
+        dhi=s_id,
+        return_details=True,
+    )
+
+    np.testing.assert_allclose(out_center["被影率η"].to_numpy(), out_top["被影率η"].to_numpy(), atol=1e-9)
+    np.testing.assert_allclose(out_center["日向率(1-η)"].to_numpy(), out_top["日向率(1-η)"].to_numpy(), atol=1e-9)
