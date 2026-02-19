@@ -10,7 +10,7 @@ from .common import holiday, make_8760_by_holiday
 # 命名を他モジュール（*_profiles）と揃えるため、vent_profiles を本体にする。
 vent_profiles = {
     "LD": {"平日": [], "休日": []},
-    "寝室": {"平日": [], "休日": []},
+    "浴室": {"平日": [], "休日": []},
     "1階トイレ": {"平日": [], "休日": []},
 }
 
@@ -28,14 +28,14 @@ vent_profiles["LD"]["休日"] = (
               0.500,  0.000,  0.000,  0.000,  0.000,  0.000]) * 300 / 3600
 ).tolist()
 
-vent_profiles["寝室"]["平日"] = (
+vent_profiles["浴室"]["平日"] = (
     np.array([0.000,  0.000,  0.000,  0.000,  0.000,  0.000,
               0.000,  0.000,  0.000,  0.000,  0.000,  0.000,
               0.000,  0.000,  0.000,  0.000,  0.000,  0.000,
               0.000,  0.000,  0.000,  0.500,  0.250,  0.100]) * 100 / 3600
 ).tolist()
 
-vent_profiles["寝室"]["休日"] = (
+vent_profiles["浴室"]["休日"] = (
     np.array([0.000,  0.000,  0.000,  0.000,  0.000,  0.000,
               0.000,  0.000,  0.000,  0.000,  0.000,  0.000,
               0.000,  0.000,  0.000,  0.000,  0.000,  0.750,
@@ -63,7 +63,7 @@ def build_vol_schedule(*, holiday_days=holiday):
     """
     return {
         "LD": make_8760_by_holiday(holiday_days, vent_profiles["LD"]["平日"], vent_profiles["LD"]["休日"], default=0.0),
-        "寝室": make_8760_by_holiday(holiday_days, vent_profiles["寝室"]["平日"], vent_profiles["寝室"]["休日"], default=0.0),
+        "浴室": make_8760_by_holiday(holiday_days, vent_profiles["浴室"]["平日"], vent_profiles["浴室"]["休日"], default=0.0),
         "1階トイレ": make_8760_by_holiday(holiday_days, vent_profiles["1階トイレ"]["平日"], vent_profiles["1階トイレ"]["休日"], default=0.0),
     }
 
