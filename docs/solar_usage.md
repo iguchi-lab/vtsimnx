@@ -93,6 +93,11 @@ solar_gain_by_angles(
     1. `ghi` のみ（内部で Erbs 分離）
     2. `ghi + dni`（`Id` を復元）
     3. `dni + dhi`（そのまま使用）
+  - 入力分岐の判定ルール（実装準拠）
+    - `dni` と `dhi` が両方ある場合: それらを優先して使用（Erbs は使わない）
+    - `dni` があり `dhi` がない場合: `ghi` から `dhi = ghi - dni*sin(hs)` を復元
+    - `ghi` のみの場合: Erbs で `dni/dhi` を推定
+    - `ghi + dhi`（`dni` なし）は、`ghi` のみ扱いとなり Erbs 分離に入る
   - そのほか: `glass`, `return_details`, `solar_mode`, `use_astro`, `time_alignment`, `timestamp_ref`
 - 出力:
   - 既定: `日射熱取得量` の `Series` を返す
