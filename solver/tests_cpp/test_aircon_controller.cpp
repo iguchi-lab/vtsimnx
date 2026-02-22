@@ -140,6 +140,16 @@ int main() {
         expectTrue(calls == 1, "estimateCOP called only for ON aircon (cop)");
     }
 
+    // sensibleHeatCapacity も OFF は 0、ON のみ正値になること
+    {
+        auto sensible = controller.collectAirconDataValues(thermal, flowRates, "sensibleHeatCapacity");
+        expectTrue(sensible.size() == 2, "sensible heat size");
+        if (sensible.size() == 2) {
+            expectNear(sensible[0], 0.0, 0.0, "A sensible heat=0 when off");
+            expectTrue(sensible[1] > 0.0, "B sensible heat > 0 when on");
+        }
+    }
+
     if (g_failures == 0) {
         std::cout << "[OK] all tests passed\n";
         return 0;

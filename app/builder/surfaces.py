@@ -21,6 +21,7 @@ SURFACE_PAIR = {
 DEFAULT_ALPHA_I = 4.4   # 室内側表面の対流熱伝達率
 DEFAULT_ALPHA_O = 20.3  # 室外側表面の対流熱伝達率
 DEFAULT_ALPHA_R = 4.7   # 放射熱伝達率
+DEFAULT_ETA_LW = 0.9    # 長波放射の吸収率（室内放射回路）
 
 
 def _scalar_initial_temperature(value):
@@ -561,17 +562,20 @@ def process_glass_solar(surface: dict, surfaces: list, sim_length: int) -> list:
     return thermal_branches
 
 
-def process_radiation(node: str, surfaces: list) -> list:
+def process_radiation(node: str, surface_nodes: list[tuple[str, float]]) -> list:
     thermal_branches: list = []
-    surface_nodes = [f"{get_node_prefix(s)[2]}_s" for s in surfaces]
-    sum_area = sum([s["area"] for s in surfaces])
+    if len(surface_nodes) < 2:
+        return thermal_branches
+    sum_area = float(sum(a for _, a in surface_nodes))
+    if sum_area <= 0.0:
+        return thermal_branches
 
     for i, node1 in enumerate(surface_nodes):
         for j, node2 in enumerate(surface_nodes[i + 1 :], start=i + 1):
-            branch_key = f"{node1}->{node2}"
-            area1 = surfaces[i]["area"]
-            area2 = surfaces[j]["area"]
-            conductance = DEFAULT_ALPHA_R * area1 * area2 / sum_area
+            node1_key, area1 = node1
+            node2_key, area2 = node2
+            branch_key = f"{node1_key}->{node2_key}"
+            conductance = DEFAULT_ALPHA_R * DEFAULT_ETA_LW * area1 * area2 / sum_area
             logger.info(f"　室内放射熱ブランチ【{branch_key}】を追加します。")
             thermal_branches.append(
                 {"key": branch_key, "conductance": conductance, "subtype": "radiation"}
@@ -587,6 +591,7 @@ def process_surfaces(
     add_solar: bool = True,
     add_nocturnal: bool = True,
     add_radiation: bool = True,
+    radiation_exclude_glass: bool = False,
     layer_method: str = "rc",
     time_step: float | None = None,
     response_method: str = "arx_rc",
@@ -663,14 +668,32 @@ def process_surfaces(
     # 室内放射
     if add_radiation:
         logger.info("室内放射の解析を開始します。")
-        for node in {s["key"].split(CHAIN_DELIMITER)[0] for s in surface_data}:
-            # 同一室（start_node 一致）の面のみを対象にする（startswith は前方一致バグの元）
-            surfaces = [
-                s
-                for s in surface_data
-                if str(s.get("key", "")).split(CHAIN_DELIMITER, 1)[0] == node
-            ]
-            thermal_branches.extend(process_radiation(node, surfaces))
+        # 基準室（start側）ごとに、その室に接する全表面（start/end の両側）を放射対象として集約する。
+        # これにより「X->LD」のような surface でも LD 側表面ノードを LD 室の放射ネットワークへ含められる。
+        start_nodes = {str(s.get("key", "")).split(CHAIN_DELIMITER, 1)[0] for s in surface_data}
+        for node in start_nodes:
+            node_area_map: dict[str, float] = {}
+            for s in surface_data:
+                if radiation_exclude_glass and str(s.get("part", "")).lower() == "glass":
+                    continue
+                try:
+                    start_node, end_node, i_prefix, o_prefix = get_node_prefix(s)
+                except Exception:
+                    continue
+                try:
+                    area = float(s.get("area", 0.0))
+                except Exception:
+                    continue
+                if area <= 0.0:
+                    continue
+                if str(start_node) == node:
+                    key_i = f"{i_prefix}_s"
+                    node_area_map[key_i] = node_area_map.get(key_i, 0.0) + area
+                if str(end_node) == node:
+                    key_o = f"{o_prefix}_s"
+                    node_area_map[key_o] = node_area_map.get(key_o, 0.0) + area
+            node_surfaces = list(node_area_map.items())
+            thermal_branches.extend(process_radiation(node, node_surfaces))
         logger.info("室内放射の解析が完了しました。")
     else:
         logger.info("室内放射の解析をスキップします。")

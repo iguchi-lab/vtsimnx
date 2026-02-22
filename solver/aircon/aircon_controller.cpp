@@ -398,7 +398,11 @@ std::vector<double> AirconController::collectAirconDataValues(ThermalNetwork& th
             } else if (dataType == "flow") {
                 values[i] = std::abs(getFlowRate(flowRates, nodeProps.in_node, nodeProps.key));
             } else if (dataType == "sensibleHeatCapacity") {
-                // ON/OFFに関わらず「現在の運転モード（AUTO含む）に基づく処理熱量」を返す
+                // 処理熱量は「実機出力」として扱うため、OFF時は 0 を返す。
+                if (!nodeProps.on) {
+                    values[i] = 0.0;
+                    continue;
+                }
                 auto context = prepareRuntimeContext(airconKey, thermalNetwork, nodeProps, flowRates);
                 values[i] = context.heatCapacity;
             } else if (dataType == "latentHeatCapacity") {

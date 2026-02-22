@@ -89,6 +89,7 @@ builder が期待するトップレベルは概ね以下です:
     "add_surface_solar": true,
     "add_surface_nocturnal": true,
     "add_surface_radiation": true,
+    "add_surface_radiation_exclude_glass": false,
     "add_aircon": true,
     "add_capacity": true
   }
@@ -101,6 +102,7 @@ builder が期待するトップレベルは概ね以下です:
 - `add_surface_solar`: `surfaces` の日射処理を行うか（`add_surface=true` のときに有効）
 - `add_surface_nocturnal`: `surfaces` の夜間放射（長波放射）処理を行うか（`add_surface=true` のときに有効）
 - `add_surface_radiation`: `surfaces` の室内放射処理を行うか（`add_surface=true` のときに有効）
+- `add_surface_radiation_exclude_glass`: 室内放射対象から `part="glass"` を除外するか（`add_surface_radiation=true` のときに有効、既定 `false`）
 - `add_aircon`: `aircon` の展開を行うか
 - `add_capacity`: `thermal_mass` から熱容量ノード/ブランチを生成するか
 
@@ -278,6 +280,7 @@ builder の raw_config では `key` 記法（`A->B` / `->外部` 等）から `s
 - **対流成分**: `void->{room}` の `heat_generation`（\[W]）として追加
 - **放射成分**: その room に属する `surfaces` がある場合は `void->{surface_node}` へ **面積按分**して追加  
   （`surfaces` が無い場合は `void->{room}` へまとめて追加）
+  - 各表面への放射配分には長波吸収率（`epsilon` を優先、互換で `eta` も可。既定 `0.9`）を掛ける
 
 例:
 

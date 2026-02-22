@@ -111,3 +111,75 @@ def test_builder_can_disable_nocturnal_loss_generation_and_be_overridden_by_args
     assert any(b.get("subtype") == "nocturnal_loss" for b in out2.get("thermal_branches", []))
 
 
+def test_builder_can_exclude_glass_from_indoor_radiation():
+    raw = {
+        "builder": {
+            "add_surface": True,
+            "add_surface_radiation": True,
+        },
+        "simulation": {
+            "index": {"start": "2000-01-01T00:00:00", "end": "2000-01-01T00:00:00", "timestep": 60, "length": 1},
+            "tolerance": {"ventilation": 1e-6, "thermal": 1e-6, "convergence": 1e-6},
+            "calc_flag": {"p": False, "t": False, "x": False, "c": False},
+        },
+        "nodes": [{"key": "室内", "t": 22.0}, {"key": "外部1", "t": 5.0}, {"key": "外部2", "t": 5.0}],
+        "ventilation_branches": [],
+        "thermal_branches": [],
+        "surfaces": [
+            {"key": "室内->外部1", "part": "wall", "area": 2.0, "u_value": 1.0},
+            {"key": "室内->外部2", "part": "glass", "area": 2.0, "u_value": 2.0},
+        ],
+    }
+
+    out_include = build_config(
+        raw,
+        output_path=None,
+        add_aircon=False,
+        add_capacity=False,
+        add_surface_radiation=True,
+        add_surface_radiation_exclude_glass=False,
+    )
+    rad_include = [b for b in out_include.get("thermal_branches", []) if b.get("subtype") == "radiation"]
+    assert any("glass" in str(b.get("key", "")) for b in rad_include)
+
+    out_exclude = build_config(
+        raw,
+        output_path=None,
+        add_aircon=False,
+        add_capacity=False,
+        add_surface_radiation=True,
+        add_surface_radiation_exclude_glass=True,
+    )
+    rad_exclude = [b for b in out_exclude.get("thermal_branches", []) if b.get("subtype") == "radiation"]
+    assert len(rad_exclude) == 0
+
+
+def test_indoor_radiation_includes_target_side_surface_nodes():
+    # 室内放射は「基準室に接する全表面（start/end両側）」を対象にする。
+    # つまり B->A の surface でも A 側表面ノードは A 室の放射回路へ入る。
+    raw = {
+        "simulation": {
+            "index": {"start": "2000-01-01T00:00:00", "end": "2000-01-01T00:00:00", "timestep": 60, "length": 1},
+            "tolerance": {"ventilation": 1e-6, "thermal": 1e-6, "convergence": 1e-6},
+            "calc_flag": {"p": False, "t": False, "x": False, "c": False},
+        },
+        "nodes": [{"key": "A", "t": 22.0}, {"key": "B", "t": 22.0}, {"key": "外部", "t": 5.0}],
+        "ventilation_branches": [],
+        "thermal_branches": [],
+        "surfaces": [
+            {"key": "A->外部", "part": "wall", "area": 10.0, "u_value": 1.0},
+            {"key": "B->A", "part": "wall", "area": 5.0, "u_value": 1.0},
+        ],
+    }
+
+    out = build_config(
+        raw,
+        output_path=None,
+        add_aircon=False,
+        add_capacity=False,
+        add_surface=True,
+        add_surface_radiation=True,
+    )
+
+    rad_keys = [str(b.get("key", "")) for b in out.get("thermal_branches", []) if b.get("subtype") == "radiation"]
+    assert any("A-外部_wall_s" in k and "A-B_wall_s" in k for k in rad_keys)

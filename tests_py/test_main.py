@@ -140,3 +140,24 @@ def test_run_returns_warning_details_for_unknown_fields():
     assert any(d.get("code") == "unknown_field_stripped" and d.get("field") == "unknown_field"
                for d in body["warning_details"])
 
+
+def test_run_returns_structured_400_on_validation_error():
+    # builder 側で入力不正が起きた場合、APIは code/message/hint を含む 400 を返す
+    import app.main as main_mod
+
+    original = main_mod.build_config_with_warning_details
+
+    def _raise_validation_error(*_args, **_kwargs):
+        raise main_mod.ValidationError("熱ブランチ A->B の'target'のノード 'B' が存在しません")
+
+    main_mod.build_config_with_warning_details = _raise_validation_error
+    try:
+        resp = client.post("/run", json={"config": {}})
+    finally:
+        main_mod.build_config_with_warning_details = original
+
+    assert resp.status_code == 400
+    body = resp.json()
+    assert body["detail"]["code"] == "invalid_config"
+    assert "存在しません" in body["detail"]["message"]
+    assert "nodes" in body["detail"]["hint"]

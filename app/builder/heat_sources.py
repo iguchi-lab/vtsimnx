@@ -6,7 +6,7 @@ import numpy as np
 
 from .logger import get_logger
 from .utils import convert_to_json_compatible
-from .surfaces import get_node_prefix
+from .surfaces import DEFAULT_ETA_LW, get_node_prefix
 from .validate import ConfigFileError
 
 logger = get_logger(__name__)
@@ -84,12 +84,12 @@ def _series_summary(v: Any) -> str:
     return f"scalar[{v}]"
 
 
-def _room_surfaces(surface_config: List[Dict[str, Any]], room: str) -> List[Tuple[str, float]]:
+def _room_surfaces(surface_config: List[Dict[str, Any]], room: str) -> List[Tuple[str, float, float]]:
     """
     対象 room の「室内側表面ノード」一覧を返す。
-    戻り値: [(surface_node_key, area), ...]
+    戻り値: [(surface_node_key, area, eta_lw), ...]
     """
-    out: List[Tuple[str, float]] = []
+    out: List[Tuple[str, float, float]] = []
     for s in surface_config or []:
         if not isinstance(s, dict):
             continue
@@ -106,7 +106,10 @@ def _room_surfaces(surface_config: List[Dict[str, Any]], room: str) -> List[Tupl
             continue
         if a <= 0.0:
             continue
-        out.append((f"{i_prefix}_s", a))
+        # 長波放射の吸収率は epsilon を優先（互換で eta も許容）
+        eta_lw = _as_float(s.get("epsilon", s.get("eta")), field="epsilon", default=DEFAULT_ETA_LW)
+        assert eta_lw is not None
+        out.append((f"{i_prefix}_s", a, float(eta_lw)))
     return out
 
 
@@ -174,7 +177,7 @@ def build_heat_generation_branches(
         # 放射分: 対象室の表面へ面積按分（surfaces が無ければ室へ）
         surfaces = _room_surfaces(surface_config, room)
         if surfaces:
-            sum_area = sum(a for _k, a in surfaces)
+            sum_area = sum(a for _k, a, _eta in surfaces)
             if sum_area <= 0.0:
                 surfaces = []
         if (isinstance(q_rad, list) and any(x != 0.0 for x in q_rad)) or (not isinstance(q_rad, list) and q_rad != 0.0):
@@ -196,26 +199,28 @@ def build_heat_generation_branches(
                     }
                 )
             else:
-                for surf_node, area in surfaces:
+                for surf_node, area, eta_lw in surfaces:
                     frac = area / sum_area
                     branch_key = f"void->{surf_node}"
+                    q_abs = _scale(q_rad, frac * eta_lw)
                     logger.info(
-                        "　発熱(放射)熱ブランチ【%s】を追加します: src=void tgt=%s room=%s key=%s rate=%s area=%.6g/%.6g frac=%.6g",
+                        "　発熱(放射)熱ブランチ【%s】を追加します: src=void tgt=%s room=%s key=%s rate=%s area=%.6g/%.6g frac=%.6g eta=%.6g",
                         branch_key,
                         surf_node,
                         room,
                         key,
-                        _series_summary(q_rad),
+                        _series_summary(q_abs),
                         area,
                         sum_area,
                         frac,
+                        eta_lw,
                     )
                     branches.append(
                         {
                             "key": branch_key,
-                            "heat_generation": _scale(q_rad, frac),
+                            "heat_generation": q_abs,
                             "subtype": "internal_radiation",
-                            "comment": f"{key} (area_fraction={frac:.6g})",
+                            "comment": f"{key} (area_fraction={frac:.6g}, eta={eta_lw:.6g})",
                         }
                     )
 

@@ -108,7 +108,7 @@ void ThermalNetwork::buildFromData(const std::vector<VertexProperties>& allNodes
     heatRateEdgesOrderedCapacity.clear();
     heatRateKeysOrderedCapacity.clear();
     advectionEdgeCacheInitialized = false;
-    advectionEdgeByVertexPair.clear();
+    advectionEdgesByVertexPair.clear();
 
     if (simConstants.temperatureCalc || simConstants.humidityCalc || simConstants.concentrationCalc) {
         writeLog(logs, "  熱回路網を作成中...");
@@ -222,8 +222,8 @@ void ThermalNetwork::syncFlowRatesFromVentilationNetwork(const VentilationNetwor
 
     // 熱回路網側の移流エッジ（source/target vertex pair）キャッシュを構築（初回のみ）
     if (!advectionEdgeCacheInitialized) {
-        advectionEdgeByVertexPair.clear();
-        advectionEdgeByVertexPair.reserve(boost::num_edges(graph));
+        advectionEdgesByVertexPair.clear();
+        advectionEdgesByVertexPair.reserve(boost::num_edges(graph));
         for (auto e : boost::make_iterator_range(boost::edges(graph))) {
             const auto& ep = graph[e];
             if (ep.getTypeCode() != EdgeProperties::TypeCode::Advection) continue;
@@ -232,12 +232,15 @@ void ThermalNetwork::syncFlowRatesFromVentilationNetwork(const VentilationNetwor
             const std::uint64_t key =
                 (static_cast<std::uint64_t>(static_cast<std::uint32_t>(sv)) << 32) |
                 static_cast<std::uint64_t>(static_cast<std::uint32_t>(tv));
-            advectionEdgeByVertexPair.emplace(key, e);
+            advectionEdgesByVertexPair[key].push_back(e);
         }
         advectionEdgeCacheInitialized = true;
     }
 
     // 換気エッジを走査し、対応する移流エッジに風量をコピー
+    // - 同一 source/target の重複枝は、出現順で 1 対 1 に対応づける
+    std::unordered_map<std::uint64_t, size_t> nextIndexByPair;
+    nextIndexByPair.reserve(advectionEdgesByVertexPair.size());
     auto vent_edge_range = boost::edges(ventGraph);
     for (auto vent_edge : boost::make_iterator_range(vent_edge_range)) {
         const auto& ventEp = ventGraph[vent_edge];
@@ -250,9 +253,11 @@ void ThermalNetwork::syncFlowRatesFromVentilationNetwork(const VentilationNetwor
         const std::uint64_t key =
             (static_cast<std::uint64_t>(static_cast<std::uint32_t>(sv)) << 32) |
             static_cast<std::uint64_t>(static_cast<std::uint32_t>(tv));
-        auto it = advectionEdgeByVertexPair.find(key);
-        if (it == advectionEdgeByVertexPair.end()) continue;
-        graph[it->second].flow_rate = ventEp.flow_rate;
+        auto it = advectionEdgesByVertexPair.find(key);
+        if (it == advectionEdgesByVertexPair.end() || it->second.empty()) continue;
+        const size_t idx = nextIndexByPair[key]++;
+        if (idx >= it->second.size()) continue;
+        graph[it->second[idx]].flow_rate = ventEp.flow_rate;
     }
 }
 

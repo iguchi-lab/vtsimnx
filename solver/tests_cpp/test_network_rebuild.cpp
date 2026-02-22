@@ -2,6 +2,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <algorithm>
 #include <vector>
 
 #include "network/thermal_network.h"
@@ -34,6 +35,23 @@ EdgeProperties makeVentEdge(const std::string& key, const std::string& s, const 
     e.current_enabled = true;
     e.current_vol = 1.0;
     e.vol = {1.0};
+    return e;
+}
+
+EdgeProperties makeVentEdgeWithVol(const std::string& key,
+                                   const std::string& uniqueId,
+                                   const std::string& s,
+                                   const std::string& t,
+                                   double vol) {
+    EdgeProperties e{};
+    e.key = key;
+    e.unique_id = uniqueId;
+    e.type = "fixed_flow";
+    e.source = s;
+    e.target = t;
+    e.current_enabled = true;
+    e.current_vol = vol;
+    e.vol = {vol};
     return e;
 }
 
@@ -94,6 +112,37 @@ int main() {
         expectTrue(n1 == 2, "thermal: first build expected 2 nodes");
         expectTrue(e1 == 2, "thermal: first build expected 2 edges (conduction + advection)");
         expectTrue(n2 == 2 && e2 == 2, "thermal: rebuild should not accumulate");
+    }
+
+    // ThermalNetwork: duplicate source/target advection edges should each receive flow_rate
+    {
+        const std::vector<EdgeProperties> ventEdgesDup = {
+            makeVentEdgeWithVol("A->B(1)", "A->B(1)", "A", "B", 1.0),
+            makeVentEdgeWithVol("A->B(2)", "A->B(2)", "A", "B", 2.0),
+        };
+        const std::vector<EdgeProperties> thEdgesEmpty = {};
+
+        VentilationNetwork ventNet;
+        ThermalNetwork thermalNet;
+        ventNet.buildFromData(nodes, ventEdgesDup, constants, logs);
+        thermalNet.buildFromData(nodes, thEdgesEmpty, ventEdgesDup, constants, logs);
+        thermalNet.syncFlowRatesFromVentilationNetwork(ventNet);
+
+        std::vector<double> duplicatedPairFlows;
+        for (auto e : boost::make_iterator_range(boost::edges(thermalNet.getGraph()))) {
+            const auto& ep = thermalNet.getGraph()[e];
+            if (ep.getTypeCode() != EdgeProperties::TypeCode::Advection) continue;
+            if (ep.source == "A" && ep.target == "B") {
+                duplicatedPairFlows.push_back(ep.flow_rate);
+            }
+        }
+
+        expectTrue(duplicatedPairFlows.size() == 2, "thermal: duplicate A->B advection edges should exist");
+        std::sort(duplicatedPairFlows.begin(), duplicatedPairFlows.end());
+        expectTrue(std::abs(duplicatedPairFlows[0] - 1.0) < 1e-12,
+                   "thermal: first duplicate A->B advection edge should keep its own flow_rate");
+        expectTrue(std::abs(duplicatedPairFlows[1] - 2.0) < 1e-12,
+                   "thermal: second duplicate A->B advection edge should keep its own flow_rate");
     }
 
     std::cout << "[OK] all tests passed\n";

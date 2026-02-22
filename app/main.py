@@ -161,6 +161,22 @@ def _artifact_file_from_key(manifest: Dict[str, Any], key: str) -> Tuple[str, st
         return name, "text/plain"
     return name, "application/octet-stream"
 
+def _build_bad_request_detail(e: Exception) -> Dict[str, Any]:
+    """
+    入力不正(400)のレスポンス本文を構造化して返す。
+    クライアントが機械的に扱えるよう code/message を固定化する。
+    """
+    message = str(e)
+    detail: Dict[str, Any] = {
+        "code": "invalid_config",
+        "message": message,
+    }
+
+    # 典型的なノード参照ミスには修正ヒントを添える
+    if "ノード" in message and "存在しません" in message:
+        detail["hint"] = "nodes に参照先ノードを追加するか、参照先の key を既存ノード名に合わせてください。"
+    return detail
+
 class SimulationRequest(BaseModel):
     """
     ソルバに渡す入力設定を表すデータモデル。
@@ -179,6 +195,7 @@ class SimulationRequest(BaseModel):
     add_surface_solar: Optional[bool] = None
     add_surface_nocturnal: Optional[bool] = None
     add_surface_radiation: Optional[bool] = None
+    add_surface_radiation_exclude_glass: Optional[bool] = None
 
 class SimulationResponse(BaseModel):
     """
@@ -229,6 +246,7 @@ def run_simulation(req: SimulationRequest):
                 add_surface_solar=req.add_surface_solar,
                 add_surface_nocturnal=req.add_surface_nocturnal,
                 add_surface_radiation=req.add_surface_radiation,
+                add_surface_radiation_exclude_glass=req.add_surface_radiation_exclude_glass,
             )
 
         # API側でログ冗長度を統制（debug=falseなら常に1に落とす）
@@ -249,7 +267,7 @@ def run_simulation(req: SimulationRequest):
     except (ValidationError, ConfigFileError) as e:
         # 入力不正は 400
         logger.info("validation/config error in /run: %s", e)
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=_build_bad_request_detail(e))
     except Exception as e:
         # エラー時は 500 を返す
         logger.exception("internal error in /run")
@@ -269,6 +287,7 @@ def _run_simulation_core(
     add_surface_solar: Optional[bool] = None,
     add_surface_nocturnal: Optional[bool] = None,
     add_surface_radiation: Optional[bool] = None,
+    add_surface_radiation_exclude_glass: Optional[bool] = None,
 ) -> SimulationResponse:
     """
     /run と同じ経路で単発実行したいときの共通ロジック（CLI/テスト用）。
@@ -287,6 +306,7 @@ def _run_simulation_core(
             add_surface_solar=add_surface_solar,
             add_surface_nocturnal=add_surface_nocturnal,
             add_surface_radiation=add_surface_radiation,
+            add_surface_radiation_exclude_glass=add_surface_radiation_exclude_glass,
         )
     force_log_verbosity(built_config, debug=debug, debug_verbosity=debug_verbosity, default_verbosity=1)
     output = run_solver(built_config, run_id=run_id, write_manifest=False)

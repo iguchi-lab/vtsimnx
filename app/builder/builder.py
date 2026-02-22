@@ -30,6 +30,7 @@ def build_config_with_warnings(
     add_surface_solar: bool | None = None,
     add_surface_nocturnal: bool | None = None,
     add_surface_radiation: bool | None = None,
+    add_surface_radiation_exclude_glass: bool | None = None,
     surface_layer_method: str = "rc",
     response_method: str = "arx_rc",
     response_terms: int | None = None,
@@ -39,6 +40,7 @@ def build_config_with_warnings(
     output_path を None にするとファイル出力しない。
     add_surface / add_aircon / add_capacity で各処理の有無を制御できる。
     add_surface_solar / add_surface_radiation で表面の日射・室内放射処理を個別に制御できる。
+    add_surface_radiation_exclude_glass で室内放射対象からガラス面を除外できる。
     """
     logger.info("設定データの読み込み開始")
     try:
@@ -64,6 +66,8 @@ def build_config_with_warnings(
                 add_surface_nocturnal = _pick_bool("add_surface_nocturnal")
             if add_surface_radiation is None:
                 add_surface_radiation = _pick_bool("add_surface_radiation")
+            if add_surface_radiation_exclude_glass is None:
+                add_surface_radiation_exclude_glass = _pick_bool("add_surface_radiation_exclude_glass")
 
         # 互換: トップレベルに置くのも許可（builder より優先度は低い）
         if add_surface is None and isinstance(raw.get("add_surface"), bool):
@@ -78,6 +82,8 @@ def build_config_with_warnings(
             add_surface_nocturnal = raw.get("add_surface_nocturnal")
         if add_surface_radiation is None and isinstance(raw.get("add_surface_radiation"), bool):
             add_surface_radiation = raw.get("add_surface_radiation")
+        if add_surface_radiation_exclude_glass is None and isinstance(raw.get("add_surface_radiation_exclude_glass"), bool):
+            add_surface_radiation_exclude_glass = raw.get("add_surface_radiation_exclude_glass")
 
         # 最終デフォルト（従来互換: 指定が無ければ全て True）
         add_surface = True if add_surface is None else bool(add_surface)
@@ -86,6 +92,9 @@ def build_config_with_warnings(
         add_surface_solar = True if add_surface_solar is None else bool(add_surface_solar)
         add_surface_nocturnal = True if add_surface_nocturnal is None else bool(add_surface_nocturnal)
         add_surface_radiation = True if add_surface_radiation is None else bool(add_surface_radiation)
+        add_surface_radiation_exclude_glass = (
+            False if add_surface_radiation_exclude_glass is None else bool(add_surface_radiation_exclude_glass)
+        )
 
         # JSON から builder オプションを読み取る（関数引数が既定値のときだけ反映）
         # 例:
@@ -134,6 +143,7 @@ def build_config_with_warnings(
                 add_solar=add_surface_solar,
                 add_nocturnal=add_surface_nocturnal,
                 add_radiation=add_surface_radiation,
+                radiation_exclude_glass=add_surface_radiation_exclude_glass,
                 layer_method=surface_layer_method,
                 time_step=float(sim_config["index"]["timestep"]),
                 response_method=response_method,
@@ -234,6 +244,7 @@ def build_config_with_warning_details(
     add_surface_solar: bool | None = None,
     add_surface_nocturnal: bool | None = None,
     add_surface_radiation: bool | None = None,
+    add_surface_radiation_exclude_glass: bool | None = None,
     surface_layer_method: str = "rc",
     response_method: str = "arx_rc",
     response_terms: int | None = None,
@@ -264,6 +275,8 @@ def build_config_with_warning_details(
             add_surface_nocturnal = _pick_bool("add_surface_nocturnal")
         if add_surface_radiation is None:
             add_surface_radiation = _pick_bool("add_surface_radiation")
+        if add_surface_radiation_exclude_glass is None:
+            add_surface_radiation_exclude_glass = _pick_bool("add_surface_radiation_exclude_glass")
 
     # 互換: トップレベルに置くのも許可（builder より優先度は低い）
     if add_surface is None and isinstance(raw.get("add_surface"), bool):
@@ -278,6 +291,8 @@ def build_config_with_warning_details(
         add_surface_nocturnal = raw.get("add_surface_nocturnal")
     if add_surface_radiation is None and isinstance(raw.get("add_surface_radiation"), bool):
         add_surface_radiation = raw.get("add_surface_radiation")
+    if add_surface_radiation_exclude_glass is None and isinstance(raw.get("add_surface_radiation_exclude_glass"), bool):
+        add_surface_radiation_exclude_glass = raw.get("add_surface_radiation_exclude_glass")
 
     # 最終デフォルト（従来互換: 指定が無ければ全て True）
     add_surface = True if add_surface is None else bool(add_surface)
@@ -286,6 +301,9 @@ def build_config_with_warning_details(
     add_surface_solar = True if add_surface_solar is None else bool(add_surface_solar)
     add_surface_nocturnal = True if add_surface_nocturnal is None else bool(add_surface_nocturnal)
     add_surface_radiation = True if add_surface_radiation is None else bool(add_surface_radiation)
+    add_surface_radiation_exclude_glass = (
+        False if add_surface_radiation_exclude_glass is None else bool(add_surface_radiation_exclude_glass)
+    )
 
     # JSON から builder オプションを読み取る（関数引数が既定値のときだけ反映）
     if surface_layer_method == "rc":
@@ -337,6 +355,7 @@ def build_config_with_warning_details(
             add_solar=add_surface_solar,
             add_nocturnal=add_surface_nocturnal,
             add_radiation=add_surface_radiation,
+            radiation_exclude_glass=add_surface_radiation_exclude_glass,
             layer_method=surface_layer_method,
             time_step=float(sim_config["index"]["timestep"]),
             response_method=response_method,
@@ -408,6 +427,7 @@ def build_config(
     add_surface_solar: bool | None = None,
     add_surface_nocturnal: bool | None = None,
     add_surface_radiation: bool | None = None,
+    add_surface_radiation_exclude_glass: bool | None = None,
     surface_layer_method: str = "rc",
     response_method: str = "arx_rc",
     response_terms: int | None = None,
@@ -417,6 +437,7 @@ def build_config(
     output_path を None にするとファイル出力しない。
     add_surface / add_aircon / add_capacity で各処理の有無を制御できる。
     add_surface_solar / add_surface_radiation で表面の日射・室内放射処理を個別に制御できる。
+    add_surface_radiation_exclude_glass で室内放射対象からガラス面を除外できる。
     """
     validated, _warnings = build_config_with_warnings(
         raw_config,
@@ -427,6 +448,7 @@ def build_config(
         add_surface_solar=add_surface_solar,
         add_surface_nocturnal=add_surface_nocturnal,
         add_surface_radiation=add_surface_radiation,
+        add_surface_radiation_exclude_glass=add_surface_radiation_exclude_glass,
         surface_layer_method=surface_layer_method,
         response_method=response_method,
         response_terms=response_terms,

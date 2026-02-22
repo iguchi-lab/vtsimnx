@@ -66,8 +66,9 @@ private:
 
     // 換気→熱の移流エッジ同期用キャッシュ（graph が不変な前提で構築は1回）
     // key: (sourceVertex<<32 | targetVertex)
+    // value: 同一 source/target を持つ移流エッジ群（重複ペア対応）
     mutable bool advectionEdgeCacheInitialized = false;
-    mutable std::unordered_map<std::uint64_t, Edge> advectionEdgeByVertexPair;
+    mutable std::unordered_map<std::uint64_t, std::vector<Edge>> advectionEdgesByVertexPair;
 
 public:
     // ノード・エッジ操作

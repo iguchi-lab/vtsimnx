@@ -33,7 +33,7 @@ void postprocessAndReport(ThermalNetwork& network,
                 heatBalance[static_cast<size_t>(tv)] += Q;
             } else {
                 if (graph[sv].getTypeCode() == VertexProperties::TypeCode::Aircon && graph[sv].on) Q = 0.0;
-                heatBalance[static_cast<size_t>(sv)] -= Q;
+                heatBalance[static_cast<size_t>(sv)] += Q;
             }
             ep.heat_rate = Q;
         } else {

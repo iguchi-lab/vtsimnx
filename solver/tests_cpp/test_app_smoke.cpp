@@ -122,7 +122,7 @@ int main() {
             {"timestep", 1},
             {"length", 2}}},
           {"tolerance", {{"ventilation", 1e-3}, {"thermal", 1e-3}, {"convergence", 1e-3}}},
-          {"calc_flag", {{"p", false}, {"t", false}, {"x", false}, {"c", false}}}}},
+          {"calc_flag", {{"p", false}, {"t", true}, {"x", false}, {"c", false}}}}},
         {"nodes",
          json::array({
              {
@@ -133,6 +133,7 @@ int main() {
              {
                  {"key", "room"},
                  {"type", "normal"},
+                 {"calc_t", true},
                  {"t", 22.0},
              },
              {
@@ -162,7 +163,23 @@ int main() {
              },
          })},
         {"ventilation_branches", json::array()},
-        {"thermal_branches", json::array()},
+        {"thermal_branches",
+         json::array({
+             {
+                 {"key", "outside_to_room"},
+                 {"type", "conductance"},
+                 {"source", "outside"},
+                 {"target", "room"},
+                 {"conductance", 1.0},
+             },
+             {
+                 {"key", "room_to_ac1"},
+                 {"type", "conductance"},
+                 {"source", "room"},
+                 {"target", "ac1"},
+                 {"conductance", 1.0},
+             },
+         })},
     };
     {
         std::ofstream ofs(inputPath2, std::ios::out | std::ios::binary | std::ios::trunc);
@@ -184,7 +201,9 @@ int main() {
             expectTrue(fs::exists(logPath2), "solver.log exists for output2");
             if (fs::exists(logPath2)) {
                 const std::string logText = readAll(logPath2);
+                const size_t modelInitCount = countOccurrences(logText, "エアコンモデル初期化完了");
                 const size_t initCount = countOccurrences(logText, "エアコン設定（初期化）");
+                expectTrue(modelInitCount == 1, "aircon model initializes once");
                 expectTrue(initCount == 2, "applyPreset log appears once per timestep (2 times)");
             }
         }
