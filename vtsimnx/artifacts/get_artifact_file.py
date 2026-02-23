@@ -10,6 +10,14 @@ import requests
 from ._schema import extract_result_files, series_columns
 
 
+def _candidate_relpaths(filename: str) -> List[str]:
+    relpaths = [filename]
+    if not filename.startswith("artifacts/"):
+        relpaths.append(f"artifacts/{filename}")
+    # 順序維持で重複除去
+    return list(dict.fromkeys(relpaths))
+
+
 def _get_bytes(base_url: str, artifact_dir: str, relpath: str, timeout: float) -> bytes:
     url = base_url.rstrip("/") + f"/work/{artifact_dir}/{relpath.lstrip('/')}"
     resp = requests.get(url, timeout=timeout)
@@ -24,11 +32,19 @@ def _get_bytes_fallback(base_url: str, artifact_dir: str, relpaths: List[str], t
             return _get_bytes(base_url, artifact_dir, p, timeout=timeout)
         except Exception as e:
             last_exc = e
-    raise last_exc  # type: ignore[misc]
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("no candidate path provided")
 
 
 def _load_json_bytes(raw: bytes) -> Dict[str, Any]:
-    return json.loads(raw.decode("utf-8"))
+    try:
+        obj = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as e:
+        raise ValueError(f"invalid json bytes: {e}") from e
+    if not isinstance(obj, dict):
+        raise TypeError(f"expected JSON object, got {type(obj).__name__}")
+    return obj
 
 
 def _get_json_fallback(
@@ -39,10 +55,7 @@ def _get_json_fallback(
     timeout: float,
 ) -> Dict[str, Any]:
     raw = _get_bytes_fallback(base_url, artifact_dir, relpaths, timeout=timeout)
-    obj = _load_json_bytes(raw)
-    if not isinstance(obj, dict):
-        raise TypeError(f"expected JSON object, got {type(obj).__name__}")
-    return obj
+    return _load_json_bytes(raw)
 
 
 def _infer_index_spec_from_manifest(manifest: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -84,20 +97,15 @@ def _get_artifact_bytes_with_used_path(
     timeout: float,
 ) -> tuple[bytes, str]:
     # まずは指定されたパスで取得（ダメなら artifacts/ 配下も試す）
-    data: Optional[bytes] = None
-    tried: List[str] = []
     last_exc: Optional[Exception] = None
-    for rel in [filename, f"artifacts/{filename}" if not filename.startswith("artifacts/") else filename]:
-        if rel in tried:
-            continue
-        tried.append(rel)
+    for rel in _candidate_relpaths(filename):
         try:
-            data = _get_bytes(base_url, artifact_dir, rel, timeout=timeout)
-            return data, rel
+            return _get_bytes(base_url, artifact_dir, rel, timeout=timeout), rel
         except Exception as e:
             last_exc = e
-            data = None
-    raise last_exc  # type: ignore[misc]
+    if last_exc is not None:
+        raise last_exc
+    raise RuntimeError("no candidate path provided")
 
 
 def get_artifact_bytes(
@@ -204,7 +212,7 @@ def get_artifact_file(
     if isinstance(index_spec, dict):
         try:
             _apply_time_index_inplace(df, index_spec, expected_length=T)
-        except Exception:
+        except (TypeError, ValueError):
             # index付与に失敗してもDataFrame自体は返す
             pass
     return df
