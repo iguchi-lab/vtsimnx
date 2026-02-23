@@ -12,8 +12,20 @@ from vtsimnx.artifacts._schema import extract_result_files, series_columns
 
 
 def _load_json(path: Path) -> Dict[str, Any]:
-    with path.open("r", encoding="utf-8") as f:
-        return json.load(f)
+    try:
+        with path.open("r", encoding="utf-8") as f:
+            return json.load(f)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"JSONの解析に失敗しました: {path}") from e
+    except OSError as e:
+        raise OSError(f"ファイルの読み込みに失敗しました: {path}") from e
+
+
+def _find_first_existing(candidates: List[Path], *, kind: str) -> Path:
+    found = next((p for p in candidates if p.exists()), None)
+    if found is None:
+        raise FileNotFoundError(f"{kind} が見つかりません: {', '.join(str(p) for p in candidates)}")
+    return found
 
 
 def _read_f32le_timestep_major(bin_path: Path, T: int, N: int) -> np.ndarray:
@@ -49,12 +61,8 @@ def main() -> int:
     # schema/manifest は配置ゆれがあるため artifacts/直下 or artifact_dir直下を許容
     manifest_candidates = [artifacts_dir / "manifest.json", artifact_dir / "manifest.json"]
     schema_candidates = [artifacts_dir / "schema.json", artifact_dir / "schema.json"]
-    manifest_path = next((p for p in manifest_candidates if p.exists()), None)
-    schema_path = next((p for p in schema_candidates if p.exists()), None)
-    if manifest_path is None:
-        raise FileNotFoundError(f"manifest.json が見つかりません: {', '.join(str(p) for p in manifest_candidates)}")
-    if schema_path is None:
-        raise FileNotFoundError(f"schema.json が見つかりません: {', '.join(str(p) for p in schema_candidates)}")
+    manifest_path = _find_first_existing(manifest_candidates, kind="manifest.json")
+    schema_path = _find_first_existing(schema_candidates, kind="schema.json")
 
     manifest = _load_json(manifest_path)
     schema = _load_json(schema_path)
@@ -79,9 +87,7 @@ def main() -> int:
     for series_name, bin_name in pairs:
         # バイナリも artifacts/直下 or artifact_dir直下を許容
         bin_candidates = [artifacts_dir / bin_name, artifact_dir / bin_name]
-        bin_path = next((p for p in bin_candidates if p.exists()), None)
-        if bin_path is None:
-            raise FileNotFoundError(f"バイナリが見つかりません: {', '.join(str(p) for p in bin_candidates)}")
+        bin_path = _find_first_existing(bin_candidates, kind="バイナリ")
 
         cols = series_columns(schema, series_name)
         N = len(cols)
@@ -91,7 +97,10 @@ def main() -> int:
 
         csv_name = bin_name[: -len(".f32.bin")] + ".csv"
         out_path = artifacts_dir / csv_name
-        df.to_csv(out_path, index=False)
+        try:
+            df.to_csv(out_path, index=False)
+        except OSError as e:
+            raise OSError(f"CSVの書き込みに失敗しました: {out_path}") from e
         print(f"OK: {bin_name} -> {out_path.name} (shape={arr.shape})")
 
     return 0
