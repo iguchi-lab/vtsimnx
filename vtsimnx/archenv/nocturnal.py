@@ -40,10 +40,24 @@ def nocturnal_gain_by_angles(
       - False: 夜間放射量のみ（Series）を返す（既定）
       - True : `夜間放射量_水平` を含む DataFrame を返す
     """
+    if not (0.0 <= float(tilt_deg) <= 180.0):
+        raise ValueError("nocturnal_gain_by_angles: tilt_deg must be in [0, 180].")
+
     if rn_horizontal is None:
         if t_out is None or rh_out is None:
             raise TypeError("nocturnal_gain_by_angles: t_out/rh_out または rn_horizontal を指定してください。")
+        if not isinstance(t_out, pd.Series) or not isinstance(rh_out, pd.Series):
+            raise TypeError("nocturnal_gain_by_angles: t_out と rh_out は pandas.Series で指定してください。")
+        if not t_out.index.equals(rh_out.index):
+            raise ValueError("nocturnal_gain_by_angles: rh_out index must match t_out index.")
+        if not isinstance(t_out.index, pd.DatetimeIndex):
+            raise TypeError("nocturnal_gain_by_angles: t_out index must be DatetimeIndex.")
         rn_horizontal = MJ_to_Wh(rn(t_out, rh_out))
+    else:
+        if not isinstance(rn_horizontal, pd.Series):
+            raise TypeError("nocturnal_gain_by_angles: rn_horizontal は pandas.Series で指定してください。")
+        if not isinstance(rn_horizontal.index, pd.DatetimeIndex):
+            raise TypeError("nocturnal_gain_by_angles: rn_horizontal index must be DatetimeIndex.")
 
     beta = np.radians(float(tilt_deg))
     f_sky = (1.0 + float(np.cos(beta))) / 2.0
