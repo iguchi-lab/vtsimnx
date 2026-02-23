@@ -38,6 +38,7 @@ python run.py
 - `vt.schedule` にスケジュール一式（aircon/vol/sensible_heat）をまとめています
 - `vt.materials` は材料物性テーブル（dict）です
 - ドキュメント一覧は `docs/README.md` を参照してください
+- 建築環境工学の基礎解説は `docs/building_environment_engineering_basics.md` を参照してください
 - 日射計算 API (`solar_gain_by_angles` / `solar_gain_by_angles_with_shade`) の使い方は `docs/solar_usage.md` を参照してください
 - 風圧/夜間放射/快適性 API (`make_wind` / `nocturnal_gain_by_angles` / `calc_PMV` など) の使い方は `docs/archenv_comfort_nocturnal_wind_usage.md` を参照してください
 
