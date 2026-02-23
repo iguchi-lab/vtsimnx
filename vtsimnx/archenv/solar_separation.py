@@ -22,14 +22,21 @@ def Id(IG, kt):
     """
     IG_arr = _as_array(IG)
     kt_arr = _as_array(kt)
-    s_Id = np.zeros(len(kt_arr))
-    for i, k in enumerate(kt_arr):
-        if   k <= 0.22:                 s_Id[i] = IG_arr[i] * (1 - 0.09 * k)
-        elif (0.22 < k) & (k <= 0.80):  s_Id[i] = IG_arr[i] * (0.9511 -  0.1604 * k \
-                                                                  +  4.388  * np.power(k, 2) \
-                                                                  - 16.638  * np.power(k, 3) \
-                                                                  + 12.336  * np.power(k, 4))
-        elif 0.80 < k:                  s_Id[i] = 0.365 * IG_arr[i]
+    s_Id = np.zeros(len(kt_arr), dtype="float64")
+    m1 = kt_arr <= 0.22
+    m2 = (0.22 < kt_arr) & (kt_arr <= 0.80)
+    m3 = 0.80 < kt_arr
+
+    s_Id[m1] = IG_arr[m1] * (1 - 0.09 * kt_arr[m1])
+    k2 = kt_arr[m2]
+    s_Id[m2] = IG_arr[m2] * (
+        0.9511
+        - 0.1604 * k2
+        + 4.388 * np.power(k2, 2)
+        - 16.638 * np.power(k2, 3)
+        + 12.336 * np.power(k2, 4)
+    )
+    s_Id[m3] = 0.365 * IG_arr[m3]
     return s_Id
 
 
@@ -43,22 +50,14 @@ def Ib(IG, Id, alt, min_alt_deg: float = 0.0):
     IG_arr  = _as_array(IG)
     Id_arr  = _as_array(Id)
     alt_arr = _as_array(alt)
-    s_Ib = np.zeros(len(Id_arr))
-    for i, idv in enumerate(Id_arr):
-        alt_i = float(alt_arr[i])
-        if alt_i <= float(min_alt_deg):
-            s_Ib[i] = 0.0
-            continue
-        s = np.sin(np.radians(alt_i))
-        # 数値的に極小な sin での発散を避ける
-        if s <= 0.0:
-            s_Ib[i] = 0.0
-            continue
+    s_Ib = np.zeros(len(Id_arr), dtype="float64")
+    sin_alt = np.sin(np.radians(alt_arr))
+    valid = (alt_arr > float(min_alt_deg)) & (sin_alt > 0.0)
+    s_Ib[valid] = (IG_arr[valid] - Id_arr[valid]) / sin_alt[valid]
 
-        s_Ib[i] = (IG_arr[i] - idv) / s
-        # 低高度での異常値対策（既存互換）
-        if (alt_i < 10.0) & (s_Ib[i] > IG_arr[i]):
-            s_Ib[i] = IG_arr[i]
+    # 低高度での異常値対策（既存互換）
+    cap = valid & (alt_arr < 10.0) & (s_Ib > IG_arr)
+    s_Ib[cap] = IG_arr[cap]
     return s_Ib
 
 
