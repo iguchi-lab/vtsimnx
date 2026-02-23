@@ -1,0 +1,19 @@
+---
+description: Keep this repository synced with GitHub after file changes
+alwaysApply: true
+---
+
+# Git Sync Workflow
+
+When files are changed in this repository, always guide the user through Git sync steps.
+
+- Check `git status -sb` first and summarize what changed.
+- Suggest a safe staging scope (avoid accidental large artifacts).
+- Use this commit flow unless the user asks otherwise:
+  - `git add <paths>`
+  - `git commit -m "<message>"`
+  - `git push`
+- If branch/remote tracking is unclear, verify with:
+  - `git branch -vv`
+  - `git remote -v`
+- Before destructive cleanup actions, ask for explicit confirmation.
