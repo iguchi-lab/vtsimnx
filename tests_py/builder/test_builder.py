@@ -183,3 +183,32 @@ def test_indoor_radiation_includes_target_side_surface_nodes():
 
     rad_keys = [str(b.get("key", "")) for b in out.get("thermal_branches", []) if b.get("subtype") == "radiation"]
     assert any("A-外部_wall_s" in k and "A-B_wall_s" in k for k in rad_keys)
+
+
+def test_glass_solar_distribution_includes_target_side_surface_nodes():
+    raw = {
+        "simulation": {
+            "index": {"start": "2000-01-01T00:00:00", "end": "2000-01-01T00:00:00", "timestep": 60, "length": 1},
+            "tolerance": {"ventilation": 1e-6, "thermal": 1e-6, "convergence": 1e-6},
+            "calc_flag": {"p": False, "t": False, "x": False, "c": False},
+        },
+        "nodes": [{"key": "LD", "t": 22.0}, {"key": "ホール", "t": 22.0}, {"key": "外部", "t": 5.0}],
+        "ventilation_branches": [],
+        "thermal_branches": [],
+        "surfaces": [
+            {"key": "LD->外部", "part": "glass", "area": 2.0, "u_value": 2.0, "solar": [100.0]},
+            {"key": "ホール->LD", "part": "wall", "area": 4.0, "u_value": 1.0, "eta": 1.0},
+            {"key": "LD->外部", "part": "floor", "area": 4.0, "u_value": 1.0, "eta": 1.0},
+        ],
+    }
+
+    out = build_config(
+        raw,
+        output_path=None,
+        add_aircon=False,
+        add_capacity=False,
+        add_surface=True,
+        add_surface_solar=True,
+    )
+    solar_keys = [str(b.get("key", "")) for b in out.get("thermal_branches", []) if b.get("subtype") == "solar_gain"]
+    assert any("void->LD-ホール_wall_s" in k for k in solar_keys)

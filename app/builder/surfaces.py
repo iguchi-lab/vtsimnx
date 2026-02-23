@@ -493,15 +493,25 @@ def process_glass_solar(surface: dict, surfaces: list, sim_length: int) -> list:
     # - startswith だと "Room1" と "Room10" のような前方一致で誤って混ざるため、
     #   CHAIN_DELIMITER で分割した先頭ノードの「完全一致」で判定する。
     node = str(surface["key"]).split(CHAIN_DELIMITER, 1)[0]
-    surfaces_of_target_node = [
-        s
-        for s in surfaces
-        if str(s.get("key", "")).split(CHAIN_DELIMITER, 1)[0] == node
-    ]
-    area_ceiling = sum([s["area"] for s in surfaces_of_target_node if s["part"] == "ceiling"])
-    area_wall = sum([s["area"] for s in surfaces_of_target_node if s["part"] == "wall"])
+    # 基準室 node に接する表面（start/end 両側）を収集する。
+    # これにより "X->LD" のような面でも LD 側表面ノードを配分対象に含められる。
+    room_side_surfaces: list[tuple[dict, str, str]] = []
+    for s in surfaces:
+        try:
+            start_node, end_node, i_prefix, o_prefix = get_node_prefix(s)
+        except Exception:
+            continue
+        part_start = str(s.get("part", ""))
+        part_end = SURFACE_PAIR.get(part_start)
+        if str(start_node) == node:
+            room_side_surfaces.append((s, f"{i_prefix}_s", part_start))
+        if str(end_node) == node and str(end_node) != str(start_node) and part_end is not None:
+            room_side_surfaces.append((s, f"{o_prefix}_s", part_end))
+
+    area_ceiling = sum([float(s.get("area", 0.0)) for s, _node_key, part in room_side_surfaces if part == "ceiling"])
+    area_wall = sum([float(s.get("area", 0.0)) for s, _node_key, part in room_side_surfaces if part == "wall"])
     area_ceiling_wall = area_ceiling + area_wall
-    area_floor = sum([s["area"] for s in surfaces_of_target_node if s["part"] == "floor"])
+    area_floor = sum([float(s.get("area", 0.0)) for s, _node_key, part in room_side_surfaces if part == "floor"])
 
     # ガラス透過日射の配分:
     # - 床/床以外（壁・天井）: eta の代わりに SCR を掛けて表面ノードへ投入
@@ -520,23 +530,23 @@ def process_glass_solar(surface: dict, surfaces: list, sim_length: int) -> list:
     heat_generation_ceiling_wall = ensure_timeseries(heat_generation_ceiling_wall, sim_length)
     heat_generation_space        = ensure_timeseries(heat_generation_space,        sim_length)
 
-    for s in surfaces_of_target_node:
-        _, _, i_prefix, _ = get_node_prefix(s)
-        branch_key = f"void->{i_prefix}_s"
+    for s, room_node_key, part in room_side_surfaces:
+        branch_key = f"void->{room_node_key}"
         # 室内側の各面での「日射吸収」を表すため、受け側表面の eta を掛ける
         # （外壁日射の process_wall_solar と同様の扱い）
         eta_abs = float(s.get("eta", 0.8))
-        if s["part"] == "floor":
+        area = float(s.get("area", 0.0))
+        if part == "floor":
             if area_floor <= 0:
                 continue
             heat_generation = (
-                np.array(heat_generation_floor) * eta_abs * s["area"] / area_floor
+                np.array(heat_generation_floor) * eta_abs * area / area_floor
             ).tolist()
-        elif s["part"] == "ceiling" or s["part"] == "wall":
+        elif part == "ceiling" or part == "wall":
             if area_ceiling_wall <= 0:
                 continue
             heat_generation = (
-                np.array(heat_generation_ceiling_wall) * eta_abs * s["area"] / area_ceiling_wall
+                np.array(heat_generation_ceiling_wall) * eta_abs * area / area_ceiling_wall
             ).tolist()
         else:
             continue
@@ -689,7 +699,7 @@ def process_surfaces(
                 if str(start_node) == node:
                     key_i = f"{i_prefix}_s"
                     node_area_map[key_i] = node_area_map.get(key_i, 0.0) + area
-                if str(end_node) == node:
+                if str(end_node) == node and str(end_node) != str(start_node):
                     key_o = f"{o_prefix}_s"
                     node_area_map[key_o] = node_area_map.get(key_o, 0.0) + area
             node_surfaces = list(node_area_map.items())

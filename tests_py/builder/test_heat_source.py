@@ -62,3 +62,35 @@ def test_heat_source_radiation_distributes_to_surfaces_when_available():
     assert all(str(b.get("key", "")).startswith("void->") for b in hs)
 
 
+def test_heat_source_radiation_includes_target_side_surface_nodes():
+    raw = {
+        "simulation": {
+            "index": {
+                "start": "2025-01-01T00:00:00Z",
+                "end": "2025-01-01T00:00:00Z",
+                "timestep": 60,
+                "length": 1,
+            },
+            "tolerance": {"ventilation": 1e-6, "thermal": 1e-6, "convergence": 1e-6},
+        },
+        "nodes": [
+            {"key": "LD", "t": 20.0, "calc_t": True},
+            {"key": "ホール", "t": 20.0, "calc_t": True},
+            {"key": "外部", "t": 5.0, "calc_t": False},
+        ],
+        "ventilation_branches": [],
+        "thermal_branches": [],
+        "surfaces": [
+            {"key": "ホール->LD", "part": "wall", "area": 5.0, "u_value": 1.0},
+            {"key": "LD->外部", "part": "wall", "area": 5.0, "u_value": 1.0},
+        ],
+        "heat_source": [
+            {"key": "LD_人体", "room": "LD", "generation_rate": 300.0, "convection": 0.0, "radiation": 1.0}
+        ],
+    }
+
+    built, _warnings, _details = build_config_with_warning_details(raw, output_path=None)
+    tb = built.get("thermal_branches") or []
+    hs = [b for b in tb if b.get("type") == "heat_generation" and str(b.get("subtype")) == "internal_radiation"]
+    assert any("void->LD-ホール_wall_s" in str(b.get("key", "")) for b in hs)
+
