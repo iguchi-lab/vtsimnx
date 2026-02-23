@@ -8,6 +8,7 @@
 """
 
 from .common import (
+    HOURS_PER_DAY,
     holiday,
     make_8760_by_holiday,
     make_8760_data,
@@ -162,6 +163,33 @@ _PRE_TMP_PROFILES = {
 }
 
 
+def _validate_aircon_profiles():
+    expected_modes = {AC_MODE_STOP, AC_MODE_HEATING, AC_MODE_COOLING, AC_MODE_AUTO}
+
+    for room, by_season in ac_mode_profiles.items():
+        for season, by_day in by_season.items():
+            for day_type in ("平日", "休日"):
+                prof = by_day[day_type]
+                if len(prof) != HOURS_PER_DAY:
+                    raise ValueError(
+                        f"ac_mode_profiles[{room}][{season}][{day_type}] length must be {HOURS_PER_DAY}, got {len(prof)}"
+                    )
+                invalid = [v for v in prof if v not in expected_modes]
+                if invalid:
+                    raise ValueError(
+                        f"ac_mode_profiles[{room}][{season}][{day_type}] contains invalid mode values: {sorted(set(invalid))}"
+                    )
+
+    for room, by_season in pre_tmp_profiles.items():
+        for season, by_day in by_season.items():
+            for day_type in ("平日", "休日"):
+                prof = by_day[day_type]
+                if len(prof) != HOURS_PER_DAY:
+                    raise ValueError(
+                        f"pre_tmp_profiles[{room}][{season}][{day_type}] length must be {HOURS_PER_DAY}, got {len(prof)}"
+                    )
+
+
 def build_ac_mode(*, holiday_days=holiday):
     """
     地域×部屋の空調モード（8760）を生成する。
@@ -169,10 +197,10 @@ def build_ac_mode(*, holiday_days=holiday):
     """
     out = {}
     for region, period in _REGIONS.items():
-        rooms = {}
-        for room, (w_h, h_h, w_c, h_c, default) in _AC_MODE_PROFILES.items():
-            rooms[room] = make_8760_data(period, holiday_days, w_h, h_h, w_c, h_c, default)
-        out[region] = rooms
+        out[region] = {
+            room: make_8760_data(period, holiday_days, w_h, h_h, w_c, h_c, default)
+            for room, (w_h, h_h, w_c, h_c, default) in _AC_MODE_PROFILES.items()
+        }
     return out
 
 
@@ -183,13 +211,14 @@ def build_pre_tmp(*, holiday_days=holiday):
     """
     out = {}
     for region, period in _REGIONS.items():
-        rooms = {}
-        for room, (w_h, h_h, w_c, h_c, default) in _PRE_TMP_PROFILES.items():
-            rooms[room] = make_8760_data(period, holiday_days, w_h, h_h, w_c, h_c, default)
-        out[region] = rooms
+        out[region] = {
+            room: make_8760_data(period, holiday_days, w_h, h_h, w_c, h_c, default)
+            for room, (w_h, h_h, w_c, h_c, default) in _PRE_TMP_PROFILES.items()
+        }
     return out
 
 
+_validate_aircon_profiles()
 ac_mode = build_ac_mode()
 pre_tmp = build_pre_tmp()
 
