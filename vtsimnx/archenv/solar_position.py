@@ -1,10 +1,12 @@
-import datetime
 import warnings
 
 import numpy as np
 import pandas as pd
 
 from .archenv import _az_deg_from_sin_cos, _alt_deg_from_sin
+
+
+_COS_HS_EPS = 1e-12
 
 
 # 太陽位置の計算に用いる基本式
@@ -33,6 +35,13 @@ sin_AZs = lambda dd, tdt, c_h   : cos(dd) * sin(tdt) / c_h
 cos_AZs = lambda s_h, L, dd, c_h: (s_h * sin(L) - sin(dd)) / (c_h * cos(L))
 
 
+def _build_time_columns(idx: pd.DatetimeIndex, td: float) -> tuple[pd.Series, pd.Series]:
+    """sun_loc 用の N（日通し）と H（小数時）を構築する。"""
+    n = pd.Series(idx.dayofyear.astype("float64") + 0.5, index=idx, name="元日からの通し日数 N")
+    h = pd.Series(idx.hour.astype("float64") + idx.minute.astype("float64") / 60.0 + float(td), index=idx, name="時刻 H")
+    return n, h
+
+
 def sun_loc(idx, lat = 36.00, lon = 140.00, td = -0.5):
     """太陽位置を簡易式で算出（赤緯/均時差/時角から）
     idx: DatetimeIndex
@@ -40,17 +49,9 @@ def sun_loc(idx, lat = 36.00, lon = 140.00, td = -0.5):
     td: ローカル時刻微調整 [h]
     """
     df = pd.DataFrame(index=idx)
-    # 元日からの通し日数（正午寄せ）
-    df['元日からの通し日数 N'] = [
-        (i - datetime.datetime(i.year, 1, 1)).days + 1.5
-        for i in idx
-    ]
-    # 小数時間（時＋分/60）に微調整 td を加える
-    df['時刻 H'] = (
-        idx.strftime("%H").astype('float64')
-        + idx.strftime("%M").astype('float64') / 60
-        + td
-    )
+    n, h = _build_time_columns(idx, td)
+    df["元日からの通し日数 N"] = n
+    df["時刻 H"] = h
     # 太陽の基本角
     df['太陽の赤緯 delta_d'] = delta_d(df['元日からの通し日数 N'])
     df['太陽の均時差 e_d']   = e_d(df['元日からの通し日数 N'])
@@ -70,8 +71,7 @@ def sun_loc(idx, lat = 36.00, lon = 140.00, td = -0.5):
 
     # 太陽方位角
     # cos_hs が極小だと分母が不安定になるので、近傍は方位角が定義できない前提で丸め込む
-    eps = 1e-12
-    safe_cos_hs = np.where(df['太陽高度の余弦 cos_hs'] < eps, np.nan, df['太陽高度の余弦 cos_hs'])
+    safe_cos_hs = np.where(df['太陽高度の余弦 cos_hs'] < _COS_HS_EPS, np.nan, df['太陽高度の余弦 cos_hs'])
     df['太陽方位角の正弦 sin_AZs'] = sin_AZs(
         df['太陽の赤緯 delta_d'], df['太陽の時角 T_d_t'], safe_cos_hs
     )
