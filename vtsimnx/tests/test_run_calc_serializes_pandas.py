@@ -62,3 +62,47 @@ def test_run_calc_serializes_pandas_series():
         server.server_close()
 
 
+def test_run_calc_does_not_mutate_input_config():
+    server = HTTPServer(("127.0.0.1", 0), _Handler)
+    port = server.server_address[1]
+    t = threading.Thread(target=server.serve_forever, daemon=True)
+    t.start()
+
+    try:
+        base_url = f"http://127.0.0.1:{port}"
+        idx = pd.date_range("2025-01-01 01:00:00", periods=3, freq="1h")
+        cfg = {
+            "simulation": {"index": idx},
+            "nodes": [{"key": "外部", "t": pd.Series([1.0, 2.0, None])}],
+        }
+
+        _ = vt.run_calc(base_url, cfg, output_path=None, with_dataframes=False, compress_request=False)
+
+        # run_calc 実行後も、呼び出し側の simulation.index は DatetimeIndex のまま
+        assert isinstance(cfg["simulation"]["index"], pd.DatetimeIndex)
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_run_calc_default_does_not_write_output_file(tmp_path, monkeypatch):
+    server = HTTPServer(("127.0.0.1", 0), _Handler)
+    port = server.server_address[1]
+    t = threading.Thread(target=server.serve_forever, daemon=True)
+    t.start()
+
+    try:
+        monkeypatch.chdir(tmp_path)
+        base_url = f"http://127.0.0.1:{port}"
+        cfg = {
+            "simulation": {"index": pd.date_range("2025-01-01 01:00:00", periods=3, freq="1h")},
+            "nodes": [{"key": "外部", "t": pd.Series([1.0, 2.0, None])}],
+        }
+
+        _ = vt.run_calc(base_url, cfg, with_dataframes=False, compress_request=False)
+        assert not (tmp_path / "calc_result.json").exists()
+    finally:
+        server.shutdown()
+        server.server_close()
+
+

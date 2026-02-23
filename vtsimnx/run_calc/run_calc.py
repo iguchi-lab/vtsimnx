@@ -1,4 +1,5 @@
 import json
+import copy
 from dataclasses import dataclass, field
 from datetime import date, datetime
 from pathlib import Path
@@ -89,13 +90,21 @@ class CalcRunResult:
         try:
             # 遅延import（import順の循環を避ける）
             from vtsimnx.artifacts.get_artifact_file import get_artifact_file
+        except ImportError as e:
+            self.errors["__log__"] = f"ImportError: {e}"
+            return None
 
+        try:
             raw = get_artifact_file(self.base_url, self.artifact_dir, log_file)
             if isinstance(raw, (bytes, bytearray)):
                 self._log_text = bytes(raw).decode("utf-8", errors="replace")
                 return self._log_text
-        except Exception as e:
+            self.errors["__log__"] = f"TypeError: expected bytes, got {type(raw).__name__}"
+        except (TypeError, ValueError, OSError) as e:
             self.errors["__log__"] = f"{type(e).__name__}: {e}"
+        except Exception as e:
+            # 通信系など実行時依存の失敗は「取得失敗」として扱う
+            self.errors["__log__"] = f"RuntimeError: {type(e).__name__}: {e}"
 
         return None
 
@@ -118,7 +127,11 @@ class CalcRunResult:
             # 遅延import（import順の循環を避ける）
             from vtsimnx.artifacts.get_artifact_file import get_artifact_file, get_artifact_bytes
             from vtsimnx.artifacts._schema import series_columns
+        except ImportError as e:
+            self.errors[series_name] = f"ImportError: {e}"
+            return None
 
+        try:
             # schema.json は複数系列で共通なのでキャッシュする（GET回数削減）
             if self._schema is None:
                 raw_schema = get_artifact_file(self.base_url, self.artifact_dir, "schema.json")
@@ -158,14 +171,16 @@ class CalcRunResult:
                 if idx is not None:
                     df.index = idx
                     df.index.name = "time"
-            except Exception as e:
+            except (TypeError, ValueError) as e:
                 # 取得自体は成功させたいので、index付与の失敗は errors に記録して続行
                 self.errors["__index__"] = f"{type(e).__name__}: {e}"
 
             self._dataframes[series_name] = df
             return df
-        except Exception as e:
+        except (TypeError, ValueError, json.JSONDecodeError) as e:
             self.errors[series_name] = f"{type(e).__name__}: {e}"
+        except Exception as e:
+            self.errors[series_name] = f"RuntimeError: {type(e).__name__}: {e}"
 
         return None
 
@@ -181,7 +196,7 @@ class CalcRunResult:
 def run_calc(
     base_url: str,
     config_json: Union[Dict[str, Any], str, Path],
-    output_path: Optional[str] = "calc_result.json",
+    output_path: Optional[str] = None,
     *,
     with_dataframes: bool = True,
     compress_request: bool = True,
@@ -196,6 +211,9 @@ def run_calc(
         config_json = read_json(config_json)  # type: ignore[assignment]
         if not isinstance(config_json, dict):
             raise TypeError(f"config_json must be dict (or json file path), got {type(config_json).__name__}")
+
+    # 呼び出し側の辞書を破壊しないようにコピーしてから正規化する
+    config_json = copy.deepcopy(config_json)  # type: ignore[assignment]
 
     # pandas.Series などを含む場合でも送れるよう、JSON互換へ正規化
     _normalize_simulation_index_inplace(config_json)
@@ -237,19 +255,3 @@ def run_calc(
         result_files=result_files,
         config=config_json,
     )
-
-if __name__ == "__main__":
-    config_json = {
-        "simulation": {
-            "length": 8760,
-            "timestep": 3600,
-        }
-    }
-    base_url = "http://localhost:8000"
-    calced = run_calc(base_url, config_json, with_dataframes=True)
-    if isinstance(calced, CalcRunResult):
-        print(calced.output)
-        print("df_vent_flow:", None if calced.df_vent_flow is None else calced.df_vent_flow.shape)
-        print("df_vent_pressure:", None if calced.df_vent_pressure is None else calced.df_vent_pressure.shape)
-    else:
-        print(calced)
