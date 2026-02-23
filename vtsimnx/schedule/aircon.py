@@ -4,7 +4,7 @@
 - 暖冷房期間(period_1..8)
 - 休日フラグ(holiday)
 - 8760生成関数(make_8760_data / make_8760_by_holiday)
-- 空調モード(ac_mode) / 設定温度(pre_tmp)
+- 空調モード(ac_mode) / 設定温度(pre_tmp) / 設定湿度(pre_rh)
 """
 
 from .common import (
@@ -81,6 +81,15 @@ pre_tmp_profiles = {
     "寝室": {"暖房": {"平日": [], "休日": []}, "冷房": {"平日": [], "休日": []}},
     "子供室1": {"暖房": {"平日": [], "休日": []}, "冷房": {"平日": [], "休日": []}},
     "子供室2": {"暖房": {"平日": [], "休日": []}, "冷房": {"平日": [], "休日": []}},
+}
+
+# 相対湿度の設定値[%]
+# 既定は全時間 60% とする（必要に応じて room/season/day_type ごとに差し替え可能）
+rh_profiles = {
+    "LD": {"暖房": {"平日": [60.0] * 24, "休日": [60.0] * 24}, "冷房": {"平日": [60.0] * 24, "休日": [60.0] * 24}},
+    "寝室": {"暖房": {"平日": [60.0] * 24, "休日": [60.0] * 24}, "冷房": {"平日": [60.0] * 24, "休日": [60.0] * 24}},
+    "子供室1": {"暖房": {"平日": [60.0] * 24, "休日": [60.0] * 24}, "冷房": {"平日": [60.0] * 24, "休日": [60.0] * 24}},
+    "子供室2": {"暖房": {"平日": [60.0] * 24, "休日": [60.0] * 24}, "冷房": {"平日": [60.0] * 24, "休日": [60.0] * 24}},
 }
 
 # 主たる居室の設定温度
@@ -163,6 +172,14 @@ _PRE_TMP_PROFILES = {
 }
 
 
+_PRE_RH_PROFILES = {
+    "LD": (rh_profiles["LD"]["暖房"]["平日"], rh_profiles["LD"]["暖房"]["休日"], rh_profiles["LD"]["冷房"]["平日"], rh_profiles["LD"]["冷房"]["休日"], 60.0),
+    "寝室": (rh_profiles["寝室"]["暖房"]["平日"], rh_profiles["寝室"]["暖房"]["休日"], rh_profiles["寝室"]["冷房"]["平日"], rh_profiles["寝室"]["冷房"]["休日"], 60.0),
+    "子供室1": (rh_profiles["子供室1"]["暖房"]["平日"], rh_profiles["子供室1"]["暖房"]["休日"], rh_profiles["子供室1"]["冷房"]["平日"], rh_profiles["子供室1"]["冷房"]["休日"], 60.0),
+    "子供室2": (rh_profiles["子供室2"]["暖房"]["平日"], rh_profiles["子供室2"]["暖房"]["休日"], rh_profiles["子供室2"]["冷房"]["平日"], rh_profiles["子供室2"]["冷房"]["休日"], 60.0),
+}
+
+
 def _validate_aircon_profiles():
     expected_modes = {AC_MODE_STOP, AC_MODE_HEATING, AC_MODE_COOLING, AC_MODE_AUTO}
 
@@ -187,6 +204,15 @@ def _validate_aircon_profiles():
                 if len(prof) != HOURS_PER_DAY:
                     raise ValueError(
                         f"pre_tmp_profiles[{room}][{season}][{day_type}] length must be {HOURS_PER_DAY}, got {len(prof)}"
+                    )
+
+    for room, by_season in rh_profiles.items():
+        for season, by_day in by_season.items():
+            for day_type in ("平日", "休日"):
+                prof = by_day[day_type]
+                if len(prof) != HOURS_PER_DAY:
+                    raise ValueError(
+                        f"rh_profiles[{room}][{season}][{day_type}] length must be {HOURS_PER_DAY}, got {len(prof)}"
                     )
 
 
@@ -218,9 +244,24 @@ def build_pre_tmp(*, holiday_days=holiday):
     return out
 
 
+def build_pre_rh(*, holiday_days=holiday):
+    """
+    地域×部屋の設定湿度（8760）を生成する。
+    戻り値の構造は pre_tmp / ac_mode と同一。
+    """
+    out = {}
+    for region, period in _REGIONS.items():
+        out[region] = {
+            room: make_8760_data(period, holiday_days, w_h, h_h, w_c, h_c, default)
+            for room, (w_h, h_h, w_c, h_c, default) in _PRE_RH_PROFILES.items()
+        }
+    return out
+
+
 _validate_aircon_profiles()
 ac_mode = build_ac_mode()
 pre_tmp = build_pre_tmp()
+pre_rh = build_pre_rh()
 
 
 __all__ = [
@@ -232,11 +273,13 @@ __all__ = [
     # profiles
     "ac_mode",
     "pre_tmp",
+    "pre_rh",
     # functions / outputs
     "make_8760_data",
     "make_8760_by_holiday",
     "build_ac_mode",
     "build_pre_tmp",
+    "build_pre_rh",
 ]
 
 

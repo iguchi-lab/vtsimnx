@@ -12,7 +12,7 @@ from .utils.utils import (
 # materials（辞書）
 from .materials import materials as materials
 from . import schedule as schedule
-from .schedule import make_8760_data, ac_mode, pre_tmp, vol, sensible_heat
+from .schedule import make_8760_data, ac_mode, pre_tmp, pre_rh, vol, sensible_heat
 
 from .run_calc import run_calc
 from .artifacts import get_artifact_file
@@ -29,7 +29,7 @@ __all__ = [
     "materials",
     "schedule",
     # schedule (compat)
-    "make_8760_data", "ac_mode", "pre_tmp", "vol",
+    "make_8760_data", "ac_mode", "pre_tmp", "pre_rh", "vol",
     "sensible_heat",
     # run_calc
     "run_calc",

@@ -7,6 +7,7 @@ from ..schedule import (
     build_sensible_heat_schedule,
     ac_mode,
     pre_tmp,
+    pre_rh,
     vol,
     sensible_heat,
 )
@@ -24,7 +25,7 @@ __all__ = [
     "build_vol_schedule",
     "build_sensible_heat_schedule",
     "sensible_heat",
-    "ac_mode", "pre_tmp", "vol",
+    "ac_mode", "pre_tmp", "pre_rh", "vol",
     # utils
     "read_csv", "index", "encode", "read_json", "read_hasp",
     # jsonable

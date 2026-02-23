@@ -67,4 +67,18 @@ def test_schedule_aircon_match_legacy_make_8760_data():
         assert vt.schedule.build_pre_tmp()[region][room] == legacy
         assert len(vt.schedule.pre_tmp[region][room]) == 8760
 
+    # pre_rh
+    for room, prof in aircon_mod.rh_profiles.items():
+        legacy = vt.schedule.make_8760_data(
+            period,
+            holiday_days,
+            prof["暖房"]["平日"],
+            prof["暖房"]["休日"],
+            prof["冷房"]["平日"],
+            prof["冷房"]["休日"],
+            60.0,
+        )
+        assert vt.schedule.build_pre_rh()[region][room] == legacy
+        assert len(vt.schedule.pre_rh[region][room]) == 8760
+
 
