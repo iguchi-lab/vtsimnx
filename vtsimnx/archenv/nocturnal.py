@@ -6,9 +6,9 @@ import numpy as np
 from .archenv import e, T, MJ_to_Wh, Sigma
 
 
-# 夜間放射 MJ/m2
-rn = lambda t, h: (94.21 + 39.06 * np.sqrt(e(t, h) / 100) \
-                   - 0.85 * Sigma * np.power(T(t), 4)) * 4.187 / 1000
+def rn(t, h):
+    """夜間放射量 [MJ/m2] を推算する。"""
+    return (94.21 + 39.06 * np.sqrt(e(t, h) / 100) - 0.85 * Sigma * np.power(T(t), 4)) * 4.187 / 1000
 
 
 def nocturnal_gain_by_angles(

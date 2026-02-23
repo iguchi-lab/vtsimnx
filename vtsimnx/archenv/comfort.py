@@ -5,9 +5,19 @@ import numpy as np
 from .archenv import e
 
 
-calc_R  = lambda f_cl, t_cl, t_r:               3.96e-8 * f_cl * (math.pow(t_cl + 273, 4) - math.pow(t_r + 273, 4))
-calc_C  = lambda f_cl, h_c, t_cl, t_a:          f_cl * h_c * (t_cl - t_a)
-calc_RC = lambda f_cl, h_c, t_cl, t_a, t_r:     calc_R(f_cl, t_cl, t_r) + calc_C(f_cl, h_c, t_cl, t_a)
+def calc_R(f_cl, t_cl, t_r):
+    """放射熱伝達項。"""
+    return 3.96e-8 * f_cl * (math.pow(t_cl + 273, 4) - math.pow(t_r + 273, 4))
+
+
+def calc_C(f_cl, h_c, t_cl, t_a):
+    """対流熱伝達項。"""
+    return f_cl * h_c * (t_cl - t_a)
+
+
+def calc_RC(f_cl, h_c, t_cl, t_a, t_r):
+    """放射＋対流の合算項。"""
+    return calc_R(f_cl, t_cl, t_r) + calc_C(f_cl, h_c, t_cl, t_a)
 
 
 def _validate_pmv_inputs(Met, W, Clo, h_a, v_a):

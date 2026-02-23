@@ -1,6 +1,14 @@
 import pytest
 
 import vtsimnx as vt
+from vtsimnx.archenv import calc_C, calc_R, calc_RC
+
+
+def test_calc_rc_components_consistency():
+    r = calc_R(1.0, 25.0, 20.0)
+    c = calc_C(1.0, 3.0, 25.0, 20.0)
+    rc = calc_RC(1.0, 3.0, 25.0, 20.0, 20.0)
+    assert rc == pytest.approx(r + c)
 
 
 def test_calc_pmv_and_ppd_return_float_for_valid_inputs():

@@ -2,6 +2,13 @@ import pandas as pd
 import pytest
 
 import vtsimnx as vt
+from vtsimnx.archenv.nocturnal import rn
+
+
+def test_rn_returns_finite_values():
+    v = rn(20.0, 50.0)
+    assert isinstance(v, float)
+    assert v == pytest.approx(v)  # not nan
 
 
 def test_nocturnal_gain_by_angles_from_t_and_rh():
