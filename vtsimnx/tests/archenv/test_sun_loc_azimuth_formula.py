@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-from vtsimnx.archenv.solar import sun_loc, cos_AZs
+from vtsimnx.archenv.solar_position import sun_loc, cos_AZs
 
 
 def test_sun_loc_cos_az_uses_declination_not_hour_angle():
