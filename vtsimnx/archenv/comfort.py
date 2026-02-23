@@ -10,10 +10,25 @@ calc_C  = lambda f_cl, h_c, t_cl, t_a:          f_cl * h_c * (t_cl - t_a)
 calc_RC = lambda f_cl, h_c, t_cl, t_a, t_r:     calc_R(f_cl, t_cl, t_r) + calc_C(f_cl, h_c, t_cl, t_a)
 
 
+def _validate_pmv_inputs(Met, W, Clo, h_a, v_a):
+    if Met < 0:
+        raise ValueError("Met は 0 以上である必要があります。")
+    if Clo < 0:
+        raise ValueError("Clo は 0 以上である必要があります。")
+    if v_a < 0:
+        raise ValueError("v_a は 0 以上である必要があります。")
+    if not (0 <= h_a <= 100):
+        raise ValueError("h_a は 0..100 [%] の範囲である必要があります。")
+    if W < 0:
+        raise ValueError("W は 0 以上である必要があります。")
+
+
 def calc_PMV(Met = 1.0, W = 0.0, Clo = 1.0, t_a = 20, h_a = 50, t_r = 20, v_a = 0.2):
     """PMV（Predicted Mean Vote）の算出
     引数は ISO に準拠した代表値（Met, Clo, 風速など）。戻り値は PMV（無次元）。
     """
+    _validate_pmv_inputs(Met, W, Clo, h_a, v_a)
+
     M, I_cl      = Met * 58.2, Clo * 0.155
     f_cl         = (1.00 + 1.290 * I_cl) if I_cl < 0.078 else (1.05 + 0.645 * I_cl)
     t_cl         = t_a
