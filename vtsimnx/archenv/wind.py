@@ -13,6 +13,24 @@ def make_wind(d, s, c_in: float = 0.7, c_out: float = -0.55, c_horizontal: float
     戻り値:
       (DataFrame, dict[str, Series]) 風向・風速などの中間列と、方位別風圧（E/S/W/N/H）
     """
+    if not isinstance(d, pd.Series) or not isinstance(s, pd.Series):
+        raise TypeError("d と s は pandas.Series で指定してください。")
+    if not d.index.equals(s.index):
+        raise ValueError("d と s の index は一致している必要があります。")
+    if d.isna().any() or s.isna().any():
+        raise ValueError("d と s に NaN は指定できません。")
+    if (s < 0).any():
+        raise ValueError("風速 s は 0 以上である必要があります。")
+
+    # 風向カテゴリは 0..16（0:無風, 1..16:方位）
+    d_num = pd.to_numeric(d, errors="coerce")
+    if d_num.isna().any():
+        raise TypeError("風向カテゴリ d は数値（0..16）で指定してください。")
+    if ((d_num < 0) | (d_num > 16)).any():
+        raise ValueError("風向カテゴリ d は 0..16 の範囲で指定してください。")
+
+    d = d_num.astype("float64")
+    s = s.astype("float64")
     df = pd.DataFrame(index=d.index)
 
     df["風速_E"] = np.sin(np.radians(d * 22.5)) * s
