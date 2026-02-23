@@ -97,7 +97,10 @@ solar_gain_by_angles(
     - `dni` と `dhi` が両方ある場合: それらを優先して使用（Erbs は使わない）
     - `dni` があり `dhi` がない場合: `ghi` から `dhi = ghi - dni*sin(hs)` を復元
     - `ghi` のみの場合: Erbs で `dni/dhi` を推定
-    - `ghi + dhi`（`dni` なし）は、`ghi` のみ扱いとなり Erbs 分離に入る
+    - `ghi + dhi`（`dni` なし）は未対応（`TypeError`）
+  - インデックス要件
+    - `ghi` / `dni` / `dhi` の index は `DatetimeIndex` であること
+    - 複数入力を与える場合、index は完全一致していること（不一致は `ValueError`）
   - そのほか: `glass`, `return_details`, `solar_mode`, `use_astro`, `time_alignment`, `timestamp_ref`
 - 出力:
   - 既定: `日射熱取得量` の `Series` を返す
@@ -238,6 +241,8 @@ print(out[["被影率η", "日向率(1-η)"]].head())
 ## 4. 実務上の注意
 
 - `DatetimeIndex` は日射データと同じインデックスを使う
+- `ghi + dhi`（`dni` なし）は未対応。`ghi` のみ、`ghi + dni`、`dni + dhi` のいずれかを使う
+- `ghi` / `dni` / `dhi` を複数与える場合、index は完全一致が必要
 - `time_alignment="center"` を使う場合は `timestamp_ref`（`"start"`/`"end"`）を意識する
 - `solar_mode="diffuse_only"` は、直達を0扱いにしたいケース（周辺遮蔽を別途見たい場合など）に便利
 - `solar_gain_by_angles_with_shade` のシェード幾何は窓ローカル座標で統一する

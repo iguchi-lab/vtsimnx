@@ -205,6 +205,29 @@ def _solar_base(
     # 入力の組み合わせチェック
     if ghi is None and not (dni is not None and dhi is not None):
         raise TypeError("solar_gain_by_angles: ghi または (dni and dhi) を指定してください。")
+    if ghi is not None and dni is None and dhi is not None:
+        raise TypeError("solar_gain_by_angles: ghi + dhi の組み合わせは未対応です。ghi のみ、ghi + dni、または dni + dhi を指定してください。")
+
+    # インデックス整合チェック（暗黙アラインによる NaN 混入を防ぐ）
+    if ghi is not None and not isinstance(ghi.index, pd.DatetimeIndex):
+        raise TypeError("solar_gain_by_angles: ghi index must be DatetimeIndex.")
+    if dni is not None and not isinstance(dni.index, pd.DatetimeIndex):
+        raise TypeError("solar_gain_by_angles: dni index must be DatetimeIndex.")
+    if dhi is not None and not isinstance(dhi.index, pd.DatetimeIndex):
+        raise TypeError("solar_gain_by_angles: dhi index must be DatetimeIndex.")
+
+    base_idx = None
+    if ghi is not None:
+        base_idx = ghi.index
+    elif dni is not None:
+        base_idx = dni.index
+    if base_idx is not None:
+        if dni is not None and not dni.index.equals(base_idx):
+            raise ValueError("solar_gain_by_angles: dni index must match ghi index.")
+        if dhi is not None and not dhi.index.equals(base_idx):
+            if ghi is not None:
+                raise ValueError("solar_gain_by_angles: dhi index must match ghi index.")
+            raise ValueError("solar_gain_by_angles: dhi index must match dni index.")
 
     idx = (ghi.index if ghi is not None else dni.index)  # type: ignore[union-attr]
 

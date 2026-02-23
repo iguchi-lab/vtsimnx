@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import pytest
 
 import vtsimnx as vt
 
@@ -126,5 +127,40 @@ def test_solar_gain_by_angles_horizontal_equals_ghi():
     sin_hs = np.sin(np.radians(out["太陽高度 hs"].to_numpy()))
     ghi_expected = s_id.to_numpy() + s_ib.to_numpy() * np.maximum(sin_hs, 0.0)
     np.testing.assert_allclose(out["日射熱取得量"].to_numpy(), ghi_expected, rtol=0, atol=1e-6)
+
+
+def test_solar_gain_by_angles_rejects_ghi_plus_dhi_only():
+    idx = pd.date_range("2026-06-21 12:00:00", periods=2, freq="1h")
+    s_ig = pd.Series([200.0, 200.0], index=idx)
+    s_id = pd.Series([100.0, 100.0], index=idx)
+
+    with pytest.raises(TypeError):
+        _ = vt.solar_gain_by_angles(
+            azimuth_deg=0.0,
+            tilt_deg=90.0,
+            lat_deg=35.0,
+            lon_deg=139.0,
+            ghi=s_ig,
+            dhi=s_id,
+            return_details=True,
+        )
+
+
+def test_solar_gain_by_angles_rejects_mismatched_indexes():
+    idx = pd.date_range("2026-06-21 12:00:00", periods=2, freq="1h")
+    idx_shift = pd.date_range("2026-06-21 13:00:00", periods=2, freq="1h")
+    s_ig = pd.Series([200.0, 200.0], index=idx)
+    s_ib = pd.Series([800.0, 800.0], index=idx_shift)
+
+    with pytest.raises(ValueError):
+        _ = vt.solar_gain_by_angles(
+            azimuth_deg=0.0,
+            tilt_deg=90.0,
+            lat_deg=35.0,
+            lon_deg=139.0,
+            ghi=s_ig,
+            dni=s_ib,
+            return_details=True,
+        )
 
 
