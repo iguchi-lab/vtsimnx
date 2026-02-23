@@ -1,4 +1,5 @@
 import math
+import warnings
 import numpy as np
 
 from .archenv import e
@@ -25,6 +26,12 @@ def calc_PMV(Met = 1.0, W = 0.0, Clo = 1.0, t_a = 20, h_a = 50, t_r = 20, v_a = 
         error    = New_t_cl - t_cl
         t_cl     = t_cl + error * omega
         max_iter -= 1
+
+    if max_iter <= 0 and abs(error) > 1e-6:
+        warnings.warn(
+            "calc_PMV did not converge within max_iter; result may be less reliable.",
+            RuntimeWarning,
+        )
 
     E_d  = 3.05e-3 * (5733 - 6.99 * (M - W) - e(t_a, h_a))
     E_s  = 0.42 * ((M - W) - 58.15)

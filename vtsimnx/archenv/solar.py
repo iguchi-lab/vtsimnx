@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 
-from .solar_position import sun_loc, astro_sun_loc, cos_AZs
+from .solar_position import sun_loc, astro_sun_loc
 from .solar_separation import sep_direct_diffuse
 from .solar_shade import _normalize_shade_polygons, _shade_ratio_on_window, _to_window_local_2d
 

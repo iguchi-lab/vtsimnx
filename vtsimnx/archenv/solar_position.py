@@ -1,4 +1,5 @@
 import datetime
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -100,8 +101,8 @@ def astro_sun_loc(idx, lat = '36 00 00.00', lon = '140 00 00.00', td = -0.5):
 
         iers.conf.auto_download = True
         iers.conf.iers_auto_url = "https://datacenter.iers.org/data/9/finals2000A.all"
-    except Exception:
-        pass
+    except (ImportError, AttributeError) as e:
+        warnings.warn(f"IERS auto configuration was skipped: {type(e).__name__}: {e}", RuntimeWarning)
 
     import astropy.time
     import astropy.units as u
