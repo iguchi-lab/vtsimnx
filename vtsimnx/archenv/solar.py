@@ -195,6 +195,39 @@ def _solar_base(
     """
     太陽位置（sin/cos/角度）と、Ib/Id（法線面直達・水平面拡散）だけを作る最小ユーティリティ。
     """
+    _validate_solar_base_args(
+        time_alignment=time_alignment,
+        timestamp_ref=timestamp_ref,
+        min_sun_alt_deg=min_sun_alt_deg,
+    )
+    _validate_solar_input_combo(ghi=ghi, dni=dni, dhi=dhi)
+    idx = _validate_and_resolve_base_index(ghi=ghi, dni=dni, dhi=dhi)
+    td = _auto_td_from_index(idx, time_alignment=time_alignment, timestamp_ref=timestamp_ref)
+    df_sun = _build_sun_df(idx, lat_deg=lat_deg, lon_deg=lon_deg, use_astro=use_astro, td=td)
+
+    if dni is not None and dhi is not None:
+        df_min = _build_df_min_from_dni_dhi(idx=idx, dni=dni, dhi=dhi)
+        return pd.concat([df_min, df_sun], axis=1)
+
+    if ghi is None:
+        raise TypeError("solar_gain_by_angles: ghi がありません。")
+
+    ig = ghi.astype("float64")
+    if dni is not None:
+        df_min = _build_df_min_from_ghi_dni(
+            idx=idx,
+            ig=ig,
+            dni=dni,
+            df_sun=df_sun,
+            min_sun_alt_deg=float(min_sun_alt_deg),
+        )
+        return pd.concat([df_min, df_sun], axis=1)
+
+    df_min = _build_df_min_from_ghi_only(ig=ig, df_sun=df_sun, min_sun_alt_deg=float(min_sun_alt_deg))
+    return pd.concat([df_min, df_sun], axis=1)
+
+
+def _validate_solar_base_args(*, time_alignment: str, timestamp_ref: str, min_sun_alt_deg: float) -> None:
     if time_alignment not in ("center", "timestamp"):
         raise ValueError(f"time_alignment must be 'center' or 'timestamp', got {time_alignment!r}")
     if timestamp_ref not in ("start", "end"):
@@ -202,103 +235,117 @@ def _solar_base(
     if not (0.0 <= float(min_sun_alt_deg) <= 90.0):
         raise ValueError(f"min_sun_alt_deg must be in [0, 90], got {min_sun_alt_deg!r}")
 
-    # 入力の組み合わせチェック
+
+def _validate_solar_input_combo(*, ghi: pd.Series | None, dni: pd.Series | None, dhi: pd.Series | None) -> None:
     if ghi is None and not (dni is not None and dhi is not None):
         raise TypeError("solar_gain_by_angles: ghi または (dni and dhi) を指定してください。")
     if ghi is not None and dni is None and dhi is not None:
-        raise TypeError("solar_gain_by_angles: ghi + dhi の組み合わせは未対応です。ghi のみ、ghi + dni、または dni + dhi を指定してください。")
+        raise TypeError(
+            "solar_gain_by_angles: ghi + dhi の組み合わせは未対応です。ghi のみ、ghi + dni、または dni + dhi を指定してください。"
+        )
 
-    # インデックス整合チェック（暗黙アラインによる NaN 混入を防ぐ）
-    if ghi is not None and not isinstance(ghi.index, pd.DatetimeIndex):
-        raise TypeError("solar_gain_by_angles: ghi index must be DatetimeIndex.")
-    if dni is not None and not isinstance(dni.index, pd.DatetimeIndex):
-        raise TypeError("solar_gain_by_angles: dni index must be DatetimeIndex.")
-    if dhi is not None and not isinstance(dhi.index, pd.DatetimeIndex):
-        raise TypeError("solar_gain_by_angles: dhi index must be DatetimeIndex.")
 
-    base_idx = None
+def _validate_series_index(name: str, s: pd.Series | None) -> None:
+    if s is not None and not isinstance(s.index, pd.DatetimeIndex):
+        raise TypeError(f"solar_gain_by_angles: {name} index must be DatetimeIndex.")
+
+
+def _validate_and_resolve_base_index(
+    *, ghi: pd.Series | None, dni: pd.Series | None, dhi: pd.Series | None
+) -> pd.DatetimeIndex:
+    _validate_series_index("ghi", ghi)
+    _validate_series_index("dni", dni)
+    _validate_series_index("dhi", dhi)
+
     if ghi is not None:
         base_idx = ghi.index
     elif dni is not None:
         base_idx = dni.index
-    if base_idx is not None:
-        if dni is not None and not dni.index.equals(base_idx):
-            raise ValueError("solar_gain_by_angles: dni index must match ghi index.")
-        if dhi is not None and not dhi.index.equals(base_idx):
-            if ghi is not None:
-                raise ValueError("solar_gain_by_angles: dhi index must match ghi index.")
-            raise ValueError("solar_gain_by_angles: dhi index must match dni index.")
-
-    idx = (ghi.index if ghi is not None else dni.index)  # type: ignore[union-attr]
-
-    def _auto_td_from_index(idx_: pd.DatetimeIndex) -> float:
-        if time_alignment == "timestamp":
-            return 0.0
-        if len(idx_) < 2:
-            return 0.0
-        delta_h = (idx_[1] - idx_[0]).total_seconds() / 3600.0
-        sgn = 1.0 if timestamp_ref == "start" else -1.0
-        return sgn * delta_h / 2.0
-
-    td = _auto_td_from_index(idx)
-
-    # 太陽位置
-    if use_astro:
-        df_a = astro_sun_loc(idx, lat=lat_deg, lon=lon_deg, td=td)
-        az = df_a["太陽方位角 az"]
-        AZs = ((az - 180.0 + 180.0) % 360.0) - 180.0
-        df_sun = pd.DataFrame(index=df_a.index)
-        df_sun["太陽高度の正弦 sin_hs"] = df_a["太陽高度の正弦 sin_alt"]
-        df_sun["太陽高度の余弦 cos_hs"] = df_a["太陽高度の余弦 cos_alt"]
-        df_sun["太陽高度 hs"] = df_a["太陽高度 alt"]
-        df_sun["太陽方位角 AZs"] = AZs
-        df_sun["太陽方位角の正弦 sin_AZs"] = np.sin(np.radians(AZs))
-        df_sun["太陽方位角の余弦 cos_AZs"] = np.cos(np.radians(AZs))
     else:
-        df_sun = sun_loc(idx, lat=lat_deg, lon=lon_deg, td=td)
+        raise TypeError("solar_gain_by_angles: 入力インデックスを決定できません。")
 
-    # Ib/Id の決定
-    if dni is not None and dhi is not None:
-        ib = dni.astype("float64")
-        id_ = dhi.astype("float64")
-        df_min = pd.DataFrame(index=idx)
-        df_min["法線面直達日射量 Ib"] = ib
-        df_min["水平面拡散日射量 Id"] = id_
-        return pd.concat([df_min, df_sun], axis=1)
+    if dni is not None and not dni.index.equals(base_idx):
+        raise ValueError("solar_gain_by_angles: dni index must match ghi index.")
+    if dhi is not None and not dhi.index.equals(base_idx):
+        if ghi is not None:
+            raise ValueError("solar_gain_by_angles: dhi index must match ghi index.")
+        raise ValueError("solar_gain_by_angles: dhi index must match dni index.")
+    return base_idx
 
-    if ghi is None:
-        raise TypeError("solar_gain_by_angles: ghi がありません。")
 
-    ig = ghi.astype("float64")
+def _auto_td_from_index(idx: pd.DatetimeIndex, *, time_alignment: str, timestamp_ref: str) -> float:
+    if time_alignment == "timestamp":
+        return 0.0
+    if len(idx) < 2:
+        return 0.0
+    delta_h = (idx[1] - idx[0]).total_seconds() / 3600.0
+    sgn = 1.0 if timestamp_ref == "start" else -1.0
+    return sgn * delta_h / 2.0
+
+
+def _build_sun_df(
+    idx: pd.DatetimeIndex, *, lat_deg: float, lon_deg: float, use_astro: bool, td: float
+) -> pd.DataFrame:
+    if not use_astro:
+        return sun_loc(idx, lat=lat_deg, lon=lon_deg, td=td)
+
+    df_a = astro_sun_loc(idx, lat=lat_deg, lon=lon_deg, td=td)
+    az = df_a["太陽方位角 az"]
+    azs = ((az - 180.0 + 180.0) % 360.0) - 180.0
+    df_sun = pd.DataFrame(index=df_a.index)
+    df_sun["太陽高度の正弦 sin_hs"] = df_a["太陽高度の正弦 sin_alt"]
+    df_sun["太陽高度の余弦 cos_hs"] = df_a["太陽高度の余弦 cos_alt"]
+    df_sun["太陽高度 hs"] = df_a["太陽高度 alt"]
+    df_sun["太陽方位角 AZs"] = azs
+    df_sun["太陽方位角の正弦 sin_AZs"] = np.sin(np.radians(azs))
+    df_sun["太陽方位角の余弦 cos_AZs"] = np.cos(np.radians(azs))
+    return df_sun
+
+
+def _build_df_min_from_dni_dhi(*, idx: pd.DatetimeIndex, dni: pd.Series, dhi: pd.Series) -> pd.DataFrame:
+    df_min = pd.DataFrame(index=idx)
+    df_min["法線面直達日射量 Ib"] = dni.astype("float64")
+    df_min["水平面拡散日射量 Id"] = dhi.astype("float64")
+    return df_min
+
+
+def _build_df_min_from_ghi_dni(
+    *,
+    idx: pd.DatetimeIndex,
+    ig: pd.Series,
+    dni: pd.Series,
+    df_sun: pd.DataFrame,
+    min_sun_alt_deg: float,
+) -> pd.DataFrame:
     sin_hs = df_sun["太陽高度の正弦 sin_hs"].astype("float64")
     hs = df_sun["太陽高度 hs"].astype("float64")
     day = (hs > float(min_sun_alt_deg)) & (sin_hs > 0)
 
-    # (A) IG + Ib で与えられた場合: Id = IG - Ib*sin(hs) を復元（Ibは上限で丸める）
-    if dni is not None:
-        ib_in = dni.astype("float64")
-        ib_used = pd.Series(0.0, index=idx)
-        id_used = pd.Series(0.0, index=idx)
-        if day.any():
-            ib_h = ib_in[day] * sin_hs[day]
-            ib_cap = ig[day] / sin_hs[day]
-            ib_eff = np.where(ib_h > ig[day], ib_cap, ib_in[day])
-            ib_used.loc[day] = ib_eff
-            id_eff = ig[day] - ib_used.loc[day] * sin_hs[day]
-            id_used.loc[day] = np.maximum(id_eff, 0.0)
-        df_min = pd.DataFrame(index=idx)
-        df_min["法線面直達日射量 Ib"] = ib_used
-        df_min["水平面拡散日射量 Id"] = id_used
-        df_min["水平面全天日射量"] = ig
-        return pd.concat([df_min, df_sun], axis=1)
+    ib_in = dni.astype("float64")
+    ib_used = pd.Series(0.0, index=idx)
+    id_used = pd.Series(0.0, index=idx)
+    if day.any():
+        ib_h = ib_in[day] * sin_hs[day]
+        ib_cap = ig[day] / sin_hs[day]
+        ib_eff = np.where(ib_h > ig[day], ib_cap, ib_in[day])
+        ib_used.loc[day] = ib_eff
+        id_eff = ig[day] - ib_used.loc[day] * sin_hs[day]
+        id_used.loc[day] = np.maximum(id_eff, 0.0)
 
-    # (B) IG のみ: Erbs 直散分離
-    df_sep = sep_direct_diffuse(ig, df_sun["太陽高度 hs"], min_sun_alt_deg=min_sun_alt_deg)
     df_min = pd.DataFrame(index=idx)
+    df_min["法線面直達日射量 Ib"] = ib_used
+    df_min["水平面拡散日射量 Id"] = id_used
+    df_min["水平面全天日射量"] = ig
+    return df_min
+
+
+def _build_df_min_from_ghi_only(*, ig: pd.Series, df_sun: pd.DataFrame, min_sun_alt_deg: float) -> pd.DataFrame:
+    df_sep = sep_direct_diffuse(ig, df_sun["太陽高度 hs"], min_sun_alt_deg=min_sun_alt_deg)
+    df_min = pd.DataFrame(index=ig.index)
     df_min["法線面直達日射量 Ib"] = df_sep["法線面直達日射量 Ib"]
     df_min["水平面拡散日射量 Id"] = df_sep["水平面拡散日射量 Id"]
     df_min["水平面全天日射量"] = ig
-    return pd.concat([df_min, df_sun], axis=1)
+    return df_min
 
 
 def solar_gain_by_angles(
