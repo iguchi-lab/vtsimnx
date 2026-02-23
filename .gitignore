@@ -1,5 +1,6 @@
 # --- build artifacts ---
 /build/
+/build-solver/
 /solver/build/
 **/CMakeFiles/
 **/CMakeCache.txt
@@ -28,5 +29,13 @@ __pycache__/
 # --- virtualenv ---
 /venv/
 .venv/
+
+# --- local runtime logs ---
+.uvicorn.log
+.uvicorn.pid
+
+# --- local archived folders ---
+/old_solver/
+/old_vtsim/
 
 
