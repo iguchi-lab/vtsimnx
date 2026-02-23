@@ -17,7 +17,7 @@ def read_csv(fn: Union[str, Path]) -> pd.DataFrame:
     """
     df = pd.read_csv(fn, index_col=0, parse_dates=True)
     # 先に後方補完 → 前方補完の順でギャップを埋める
-    return df.fillna(method="bfill").fillna(method="ffill")
+    return df.bfill().ffill()
 
 
 def index(freq: str, length: int) -> pd.DatetimeIndex:
@@ -48,16 +48,24 @@ def encode(obj: Any):
     return obj
 
 
-def read_json(fn: Union[str, Path]):
+def read_json(fn: Union[str, Path]) -> Any:
     """
     JSON ファイルを読み込み、Python オブジェクト（dict など）を返す。
     """
     p = Path(fn)
-    if p.suffix.lower() == ".gz":
-        with gzip.open(p, "rt", encoding="utf-8") as f:
+    if not p.exists():
+        raise FileNotFoundError(f"ファイルが見つかりません: {p}")
+
+    try:
+        if p.suffix.lower() == ".gz":
+            with gzip.open(p, "rt", encoding="utf-8") as f:
+                return json.load(f)
+        with open(p, encoding="utf-8") as f:
             return json.load(f)
-    with open(p, encoding="utf-8") as f:
-        return json.load(f)
+    except json.JSONDecodeError as e:
+        raise ValueError(f"JSONの解析に失敗しました: {p}") from e
+    except (OSError, UnicodeDecodeError, gzip.BadGzipFile) as e:
+        raise ValueError(f"JSONファイルの読み込みに失敗しました: {p}") from e
 
 
 def read_hasp(fn: Union[str, Path]) -> pd.DataFrame:
@@ -73,13 +81,24 @@ def read_hasp(fn: Union[str, Path]) -> pd.DataFrame:
       - 風向: 風向（整数カテゴリ）
       - 風速: value / 10           [m/s]
     """
+    p = Path(fn)
+    if not p.exists():
+        raise FileNotFoundError(f"HASPファイルが見つかりません: {p}")
+
     # HASP の i_b / i_d は「直達（法線面相当） / 水平面拡散」を想定
     clm = ["外気温", "外気絶対湿度", "直達日射量", "水平面拡散日射量", "夜間放射量", "風向", "風速"]
     str_dat = [""] * 7
 
-    with open(fn, "rb") as f:
-        # 行単位で読み込み（ASCII 数字前提）
-        dat = [line.decode() for line in f.readlines()]
+    try:
+        with open(p, "rb") as f:
+            # 行単位で読み込み（ASCII 数字前提）
+            dat = [line.decode("ascii") for line in f.readlines()]
+    except (OSError, UnicodeDecodeError) as e:
+        raise ValueError(f"HASPファイルの読み込みに失敗しました: {p}") from e
+
+    expected_lines = 365 * 7
+    if len(dat) < expected_lines:
+        raise ValueError(f"HASPファイルの行数が不足しています: expected>={expected_lines}, actual={len(dat)}")
 
     # 365 日分 × 7 行を 24 時間×3 桁で連結
     for day in range(365):

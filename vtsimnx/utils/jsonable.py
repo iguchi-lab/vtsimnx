@@ -45,7 +45,7 @@ def to_jsonable(obj: Any) -> Any:
         try:
             if pd.isna(obj):
                 return None
-        except Exception:
+        except (TypeError, ValueError):
             pass
         return obj.isoformat()
 
@@ -69,7 +69,7 @@ def to_jsonable(obj: Any) -> Any:
 
         if isinstance(obj, np.ndarray):
             return to_jsonable(obj.tolist())
-    except Exception:
+    except ImportError:
         pass
 
     # dict / list / tuple
@@ -87,7 +87,7 @@ def to_jsonable(obj: Any) -> Any:
     try:
         if pd.isna(obj):  # type: ignore[arg-type]
             return None
-    except Exception:
+    except (TypeError, ValueError):
         pass
 
     raise TypeError(f"to_jsonable: JSONに変換できない型です: {type(obj).__name__}")
