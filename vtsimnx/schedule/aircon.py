@@ -199,6 +199,7 @@ __all__ = [
     "AC_MODE_HEATING",
     "AC_MODE_COOLING",
     "AC_MODE_STOP",
+    "AC_MODE_AUTO",
     # profiles
     "ac_mode",
     "pre_tmp",
@@ -207,8 +208,6 @@ __all__ = [
     "make_8760_by_holiday",
     "build_ac_mode",
     "build_pre_tmp",
-    "ac_mode",
-    "pre_tmp",
 ]
 
 

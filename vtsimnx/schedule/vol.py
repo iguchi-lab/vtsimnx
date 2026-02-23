@@ -62,9 +62,13 @@ def build_vol_schedule(*, holiday_days=holiday):
     換気量（vol）スケジュールを生成する。
     """
     return {
-        "LD": make_8760_by_holiday(holiday_days, vent_profiles["LD"]["平日"], vent_profiles["LD"]["休日"], default=0.0),
-        "浴室": make_8760_by_holiday(holiday_days, vent_profiles["浴室"]["平日"], vent_profiles["浴室"]["休日"], default=0.0),
-        "1階トイレ": make_8760_by_holiday(holiday_days, vent_profiles["1階トイレ"]["平日"], vent_profiles["1階トイレ"]["休日"], default=0.0),
+        room: make_8760_by_holiday(
+            holiday_days,
+            profs["平日"],
+            profs["休日"],
+            default=0.0,
+        )
+        for room, profs in vent_profiles.items()
     }
 
 

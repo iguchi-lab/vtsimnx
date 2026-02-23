@@ -6,6 +6,14 @@ schedule 共通部品。
 - 8760生成関数(make_8760_data / make_8760_by_holiday)
 """
 
+DAYS_PER_YEAR = 365
+HOURS_PER_DAY = 24
+
+
+def _assert_daily_profile(name, seq):
+    assert len(seq) == HOURS_PER_DAY, f"{name} length must be {HOURS_PER_DAY}, got {len(seq)}"
+
+
 # 暖冷房期間（365要素 / 1:暖房期, 0:非空調期, -1:冷房期）
 # ※ここは「季節区分」です。空調の出力モード(1/2/3)とは別物です。
 
@@ -87,12 +95,12 @@ def make_8760_data(ac_mode, holiday, w_h, h_h, w_c, h_c, default):
 
     入力の w_*/h_* は「1日24要素」のプロファイル。
     """
-    assert len(ac_mode) == 365, f"ac_mode length must be 365, got {len(ac_mode)}"
-    assert len(holiday) == 365, f"holiday length must be 365, got {len(holiday)}"
+    assert len(ac_mode) == DAYS_PER_YEAR, f"ac_mode length must be {DAYS_PER_YEAR}, got {len(ac_mode)}"
+    assert len(holiday) == DAYS_PER_YEAR, f"holiday length must be {DAYS_PER_YEAR}, got {len(holiday)}"
     for name, seq in (("w_h", w_h), ("h_h", h_h), ("w_c", w_c), ("h_c", h_c)):
-        assert len(seq) == 24, f"{name} length must be 24, got {len(seq)}"
+        _assert_daily_profile(name, seq)
 
-    default_day = [default] * 24
+    default_day = [default] * HOURS_PER_DAY
     profile_by_key = {
         (1, 0): w_h,  # 暖房・平日
         (1, 1): h_h,  # 暖房・休日
@@ -101,7 +109,7 @@ def make_8760_data(ac_mode, holiday, w_h, h_h, w_c, h_c, default):
     }
 
     output = []
-    for day in range(365):
+    for day in range(DAYS_PER_YEAR):
         mode = ac_mode[day]
         if mode == 0:
             output.extend(default_day)
@@ -123,17 +131,18 @@ def make_8760_by_holiday(holiday, weekday_24, holiday_24=None, default=0.0):
     - holiday[i] が falsy なら weekday_24 を採用
     - weekday_24 / holiday_24 は「1日24要素」のプロファイル（値の意味は呼び出し側に依存）
     """
-    assert len(holiday) == 365, f"holiday length must be 365, got {len(holiday)}"
-    assert len(weekday_24) == 24, f"weekday_24 length must be 24, got {len(weekday_24)}"
+    assert len(holiday) == DAYS_PER_YEAR, f"holiday length must be {DAYS_PER_YEAR}, got {len(holiday)}"
+    _assert_daily_profile("weekday_24", weekday_24)
     if holiday_24 is not None:
-        assert len(holiday_24) == 24, f"holiday_24 length must be 24, got {len(holiday_24)}"
+        _assert_daily_profile("holiday_24", holiday_24)
 
+    holiday_profile = holiday_24 if holiday_24 is not None else weekday_24
     out = []
-    for day in range(365):
+    for day in range(DAYS_PER_YEAR):
         if holiday[day]:
-            out.extend(holiday_24 if holiday_24 is not None else weekday_24)
+            out.extend(holiday_profile)
         else:
-            out.extend(weekday_24 if weekday_24 is not None else [default] * 24)
+            out.extend(weekday_24)
     return out
 
 
@@ -148,6 +157,8 @@ __all__ = [
     "period_7",
     "period_8",
     "holiday",
+    "DAYS_PER_YEAR",
+    "HOURS_PER_DAY",
     # helpers
     "make_8760_data",
     "make_8760_by_holiday",
