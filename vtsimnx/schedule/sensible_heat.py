@@ -4,7 +4,7 @@
 
 import numpy as np
 
-from .common import holiday, make_8760_by_holiday
+from .common import HOURS_PER_DAY, holiday, make_8760_by_holiday
 
 # 顕熱プロファイル（1日24要素 × 平日/休日）
 sensible_heat_profiles = {
@@ -350,6 +350,33 @@ sensible_heat_profiles["子供室2"]["機器"]["休日"] = (
 ).tolist()
 
 
+def _build_room_sensible_heat(by_use, *, holiday_days):
+    return {
+        use_name: make_8760_by_holiday(
+            holiday_days,
+            profs["平日"],
+            profs["休日"],
+            default=0.0,
+        )
+        for use_name, profs in by_use.items()
+    }
+
+
+def _validate_sensible_heat_profiles(profiles):
+    for room, by_use in profiles.items():
+        for use_name, profs in by_use.items():
+            if "平日" not in profs or "休日" not in profs:
+                raise ValueError(f"sensible_heat_profiles[{room}][{use_name}] は '平日' と '休日' を持つ必要があります。")
+            if len(profs["平日"]) != HOURS_PER_DAY:
+                raise ValueError(
+                    f"sensible_heat_profiles[{room}][{use_name}]['平日'] length must be {HOURS_PER_DAY}, got {len(profs['平日'])}"
+                )
+            if len(profs["休日"]) != HOURS_PER_DAY:
+                raise ValueError(
+                    f"sensible_heat_profiles[{room}][{use_name}]['休日'] length must be {HOURS_PER_DAY}, got {len(profs['休日'])}"
+                )
+
+
 def build_sensible_heat_schedule(*, holiday_days=holiday):
     """
     顕熱（sensible heat）スケジュールを生成する。
@@ -357,18 +384,11 @@ def build_sensible_heat_schedule(*, holiday_days=holiday):
     out = {}
     for room, by_use in sensible_heat_profiles.items():
         # 用途（人体/照明/機器…）ごとに 8760 を生成する（合算しない）
-        out[room] = {
-            use_name: make_8760_by_holiday(
-                holiday_days,
-                profs["平日"],
-                profs["休日"],
-                default=0.0,
-            )
-            for use_name, profs in by_use.items()
-        }
+        out[room] = _build_room_sensible_heat(by_use, holiday_days=holiday_days)
     return out
 
 
+_validate_sensible_heat_profiles(sensible_heat_profiles)
 sensible_heat = build_sensible_heat_schedule()
 
 __all__ = [
