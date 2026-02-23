@@ -14,7 +14,8 @@
   - 主要キーは `simulation` / `nodes` / `ventilation_branches` / `thermal_branches`
 
 builder は raw_config を正規化・展開して solver_config を作ります。
-（詳細は `docs/builder_json.md`）
+（詳細は `docs/builder_json.md`）  
+建築環境工学の背景（換気回路網/熱回路網/日射・放射/湿気・濃度）は `docs/theory_basics.md` を参照してください。
 
 ---
 
@@ -29,11 +30,15 @@ builder は raw_config を正規化・展開して solver_config を作ります
 
 注: builder は入力内容に応じて `calc_flag` を自動設定します（未指定でもOK）。
 
+各計算対象の理論的な意味は `docs/theory_basics.md` に整理しています。
+
 ---
 
 ### 3. 1タイムステップの処理順（概略）
 
 1ステップの大枠は次の通りです（ログや収束判定のため一部ループ構造になっています）。
+
+背景となる連成の考え方（換気と熱、湿気と濃度の役割分担）は `docs/theory_basics.md` の全体像を参照してください。
 
 #### 3.1 反復の外枠
 

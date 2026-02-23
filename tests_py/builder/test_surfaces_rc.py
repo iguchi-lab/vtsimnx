@@ -1,4 +1,7 @@
+import pytest
+
 from app.builder.surfaces import process_surfaces
+from app.builder.validate import ConfigFileError
 
 
 def test_surfaces_rc_layers_generates_layer_nodes_and_branch_chain():
@@ -69,5 +72,73 @@ def test_surfaces_rc_u_value_generates_single_conduction_and_optional_capacity()
 
     # 伝導は conductance=area*u_value
     assert abs(tbs[1]["conductance"] - (10.0 * 0.5)) < 1e-9
+
+
+def test_surfaces_invalid_part_raises_config_error():
+    surfaces = [
+        {
+            "key": "A->B",
+            "part": "roof",
+            "area": 10.0,
+            "u_value": 0.5,
+        }
+    ]
+
+    with pytest.raises(ConfigFileError):
+        process_surfaces(
+            surfaces,
+            sim_length=2,
+            add_solar=False,
+            add_radiation=False,
+            time_step=60.0,
+        )
+
+
+def test_surfaces_part_accepts_case_and_whitespace():
+    surfaces = [
+        {
+            "key": "A->B",
+            "part": " Wall ",
+            "area": 10.0,
+            "u_value": 0.5,
+        }
+    ]
+
+    nodes, tbs = process_surfaces(
+        surfaces,
+        sim_length=2,
+        node_config=[{"key": "A", "t": 20.0}, {"key": "B", "t": 0.0}],
+        add_solar=False,
+        add_radiation=False,
+        time_step=60.0,
+    )
+
+    layer_nodes = [n for n in nodes if n.get("type") == "layer"]
+    assert len(layer_nodes) == 2
+    assert [b.get("subtype") for b in tbs] == ["convection", "conduction", "convection"]
+
+
+def test_surfaces_part_accepts_window_alias_as_glass():
+    surfaces = [
+        {
+            "key": "A->B",
+            "part": "window",
+            "area": 10.0,
+            "u_value": 0.5,
+        }
+    ]
+
+    nodes, tbs = process_surfaces(
+        surfaces,
+        sim_length=2,
+        node_config=[{"key": "A", "t": 20.0}, {"key": "B", "t": 0.0}],
+        add_solar=False,
+        add_radiation=False,
+        time_step=60.0,
+    )
+
+    layer_nodes = [n for n in nodes if n.get("type") == "layer"]
+    assert len(layer_nodes) == 2
+    assert [b.get("subtype") for b in tbs] == ["convection", "conduction", "convection"]
 
 

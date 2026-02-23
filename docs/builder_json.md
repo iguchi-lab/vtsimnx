@@ -4,7 +4,8 @@
 
 builder は raw_config を **正規化/展開**して、C++ solver が読める形式（`simulation/nodes/ventilation_branches/thermal_branches`）へ変換します。
 
-シミュレーション全体の処理順（概略）は `docs/simulation_overview.md` を参照してください。
+シミュレーション全体の処理順（概略）は `docs/simulation_overview.md` を参照してください。  
+建築環境工学の背景（換気回路網/熱回路網/日射・放射/湿気・濃度）は `docs/theory_basics.md` に整理しています。
 
 ---
 
@@ -236,6 +237,8 @@ builder の raw_config では `key` 記法（`A->B` / `->外部` 等）から `s
 - `gap`: `a`, `n`
 - `fan`: `p_max`, `q_max`, `p1`, `q1`
 
+理論背景（圧力差-流量の考え方）は `docs/theory_basics.md` の「換気回路網の基礎」を参照。
+
 湿度/濃度計算で使う追加フィールド（任意）:
 
 - `humidity_generation`（任意）: **発湿量 \([kg/s]\)**（スカラー or 配列）
@@ -270,6 +273,8 @@ builder の raw_config では `key` 記法（`A->B` / `->外部` 等）から `s
 - `response_conduction`（CTF）
   - `area` が必須（係数が per m² のため）
   - 係数の書式は `docs/thermal_response_factor.md` を参照
+
+理論背景（熱回路網、伝導/対流/放射）は `docs/theory_basics.md` の「熱回路網の基礎」を参照。
 
 ---
 
@@ -316,7 +321,8 @@ builder の raw_config では `key` 記法（`A->B` / `->外部` 等）から `s
 代表フィールド:
 
 - `key`（必須）: `"室->外部"` のような2端子
-- `part`（必須）: `"wall" | "floor" | "ceiling" | "glass"`
+- `part`（必須）: `"wall" | "floor" | "ceiling" | "glass"`  
+  （互換: `"window"` も受理し、内部では `"glass"` として扱います。前後空白・大文字小文字も正規化されます）
 - `area`（必須）
 - `layers`（任意）: `lambda`（熱伝導率）, `t`（厚さ）, `v_capa`（体積熱容量）
 - `u_value`（任意）: `layers` が無い場合の簡略伝熱
@@ -327,6 +333,8 @@ RC/CTFの詳細は以下:
 
 - RC法: `docs/thermal_rc.md`
 - 応答係数法: `docs/thermal_response_factor.md`
+
+日射・放射の背景説明は `docs/theory_basics.md` の「日射・放射の基礎」を参照。
 
 ---
 

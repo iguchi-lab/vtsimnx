@@ -17,6 +17,11 @@ SURFACE_PAIR = {
     "ceiling": "floor",
     "glass": "glass",
 }
+SURFACE_PART_ALIASES = {
+    "window": "glass",
+}
+SOLAR_TARGET_PARTS = frozenset(["wall", "floor", "ceiling"])
+NOCTURNAL_TARGET_PARTS = frozenset(["wall", "floor", "ceiling", "glass"])
 
 DEFAULT_ALPHA_I = 4.4   # 室内側表面の対流熱伝達率
 DEFAULT_ALPHA_O = 20.3  # 室外側表面の対流熱伝達率
@@ -66,13 +71,69 @@ def get_node_prefix(surface: dict) -> tuple[str, str, str, str]:
         )
     start_node = parts[0]
     end_node = parts[1]
-    start_part     = surface["part"]
-    end_part       = SURFACE_PAIR[start_part]
+    start_part = _get_surface_part(surface)
+    end_part = SURFACE_PAIR[start_part]
     comment        = surface.get("comment", "").strip()
     comment_suffix = f"({comment})" if comment else ""
     i_prefix       = f"{start_node}-{end_node}{comment_suffix}_{start_part}"
     o_prefix       = f"{end_node}-{start_node}{comment_suffix}_{end_part}"
     return start_node, end_node, i_prefix, o_prefix
+
+
+def _get_surface_part(surface: dict) -> str:
+    part_raw = surface.get("part")
+    if not isinstance(part_raw, str):
+        raise ConfigFileError(f"surface.part must be a non-empty string, got {part_raw!r}")
+    part = part_raw.strip().lower()
+    if not part:
+        raise ConfigFileError(f"surface.part must be a non-empty string, got {part_raw!r}")
+    part = SURFACE_PART_ALIASES.get(part, part)
+    if part not in SURFACE_PAIR:
+        supported = ", ".join(sorted(SURFACE_PAIR.keys()))
+        raise ConfigFileError(f"surface.part must be one of [{supported}], got {part_raw!r}")
+    return part
+
+
+def collect_room_side_surfaces(
+    room: str,
+    surfaces: list[dict],
+    *,
+    exclude_glass: bool = False,
+) -> list[tuple[dict, str, str, float]]:
+    """
+    基準室 `room` に接する表面（start/end 両側）を収集する。
+    戻り値: [(surface_dict, room_side_node_key, room_side_part, area), ...]
+    """
+    out: list[tuple[dict, str, str, float]] = []
+    room_s = str(room)
+    for s in surfaces or []:
+        if not isinstance(s, dict):
+            continue
+        try:
+            part_start = _get_surface_part(s)
+        except Exception:
+            continue
+        if exclude_glass and part_start == "glass":
+            continue
+        try:
+            start_node, end_node, i_prefix, o_prefix = get_node_prefix(s)
+        except Exception:
+            continue
+        try:
+            area = float(s.get("area", 0.0))
+        except Exception:
+            continue
+        if area <= 0.0:
+            continue
+
+        part_end = SURFACE_PAIR.get(part_start)
+
+        if str(start_node) == room_s:
+            out.append((s, f"{i_prefix}_s", part_start, area))
+        # A->A の自己ループ面は二重計上しない
+        if str(end_node) == room_s and str(end_node) != str(start_node) and part_end is not None:
+            out.append((s, f"{o_prefix}_s", part_end, area))
+    return out
 
 
 def _auto_response_coefficients_from_layers(
@@ -495,23 +556,12 @@ def process_glass_solar(surface: dict, surfaces: list, sim_length: int) -> list:
     node = str(surface["key"]).split(CHAIN_DELIMITER, 1)[0]
     # 基準室 node に接する表面（start/end 両側）を収集する。
     # これにより "X->LD" のような面でも LD 側表面ノードを配分対象に含められる。
-    room_side_surfaces: list[tuple[dict, str, str]] = []
-    for s in surfaces:
-        try:
-            start_node, end_node, i_prefix, o_prefix = get_node_prefix(s)
-        except Exception:
-            continue
-        part_start = str(s.get("part", ""))
-        part_end = SURFACE_PAIR.get(part_start)
-        if str(start_node) == node:
-            room_side_surfaces.append((s, f"{i_prefix}_s", part_start))
-        if str(end_node) == node and str(end_node) != str(start_node) and part_end is not None:
-            room_side_surfaces.append((s, f"{o_prefix}_s", part_end))
+    room_side_surfaces = collect_room_side_surfaces(node, surfaces)
 
-    area_ceiling = sum([float(s.get("area", 0.0)) for s, _node_key, part in room_side_surfaces if part == "ceiling"])
-    area_wall = sum([float(s.get("area", 0.0)) for s, _node_key, part in room_side_surfaces if part == "wall"])
+    area_ceiling = sum([area for _s, _node_key, part, area in room_side_surfaces if part == "ceiling"])
+    area_wall = sum([area for _s, _node_key, part, area in room_side_surfaces if part == "wall"])
     area_ceiling_wall = area_ceiling + area_wall
-    area_floor = sum([float(s.get("area", 0.0)) for s, _node_key, part in room_side_surfaces if part == "floor"])
+    area_floor = sum([area for _s, _node_key, part, area in room_side_surfaces if part == "floor"])
 
     # ガラス透過日射の配分:
     # - 床/床以外（壁・天井）: eta の代わりに SCR を掛けて表面ノードへ投入
@@ -530,12 +580,11 @@ def process_glass_solar(surface: dict, surfaces: list, sim_length: int) -> list:
     heat_generation_ceiling_wall = ensure_timeseries(heat_generation_ceiling_wall, sim_length)
     heat_generation_space        = ensure_timeseries(heat_generation_space,        sim_length)
 
-    for s, room_node_key, part in room_side_surfaces:
+    for s, room_node_key, part, area in room_side_surfaces:
         branch_key = f"void->{room_node_key}"
         # 室内側の各面での「日射吸収」を表すため、受け側表面の eta を掛ける
         # （外壁日射の process_wall_solar と同様の扱い）
         eta_abs = float(s.get("eta", 0.8))
-        area = float(s.get("area", 0.0))
         if part == "floor":
             if area_floor <= 0:
                 continue
@@ -657,9 +706,10 @@ def process_surfaces(
     if add_solar:
         logger.info("日射の解析を開始します。")
         for s in (x for x in surface_data if "solar" in x):
-            if s["part"] in ["wall", "floor", "ceiling"]:
+            part = _get_surface_part(s)
+            if part in SOLAR_TARGET_PARTS:
                 thermal_branches.extend(process_wall_solar(s, sim_length))
-            elif s["part"] == "glass":
+            elif part == "glass":
                 thermal_branches.extend(process_glass_solar(s, surface_data, sim_length))
         logger.info("日射の解析が完了しました。")
     else:
@@ -669,7 +719,8 @@ def process_surfaces(
     if add_nocturnal:
         logger.info("夜間放射の解析を開始します。")
         for s in (x for x in surface_data if ("nocturnal" in x or "night_radiation" in x)):
-            if s["part"] in ["wall", "floor", "ceiling", "glass"]:
+            part = _get_surface_part(s)
+            if part in NOCTURNAL_TARGET_PARTS:
                 thermal_branches.extend(process_wall_nocturnal(s, sim_length))
         logger.info("夜間放射の解析が完了しました。")
     else:
@@ -683,25 +734,10 @@ def process_surfaces(
         start_nodes = {str(s.get("key", "")).split(CHAIN_DELIMITER, 1)[0] for s in surface_data}
         for node in start_nodes:
             node_area_map: dict[str, float] = {}
-            for s in surface_data:
-                if radiation_exclude_glass and str(s.get("part", "")).lower() == "glass":
-                    continue
-                try:
-                    start_node, end_node, i_prefix, o_prefix = get_node_prefix(s)
-                except Exception:
-                    continue
-                try:
-                    area = float(s.get("area", 0.0))
-                except Exception:
-                    continue
-                if area <= 0.0:
-                    continue
-                if str(start_node) == node:
-                    key_i = f"{i_prefix}_s"
-                    node_area_map[key_i] = node_area_map.get(key_i, 0.0) + area
-                if str(end_node) == node and str(end_node) != str(start_node):
-                    key_o = f"{o_prefix}_s"
-                    node_area_map[key_o] = node_area_map.get(key_o, 0.0) + area
+            for _s, node_key, _part, area in collect_room_side_surfaces(
+                node, surface_data, exclude_glass=radiation_exclude_glass
+            ):
+                node_area_map[node_key] = node_area_map.get(node_key, 0.0) + area
             node_surfaces = list(node_area_map.items())
             thermal_branches.extend(process_radiation(node, node_surfaces))
         logger.info("室内放射の解析が完了しました。")

@@ -6,7 +6,7 @@ import numpy as np
 
 from .logger import get_logger
 from .utils import convert_to_json_compatible
-from .surfaces import DEFAULT_ETA_LW, get_node_prefix
+from .surfaces import DEFAULT_ETA_LW, collect_room_side_surfaces
 from .validate import ConfigFileError
 
 logger = get_logger(__name__)
@@ -90,27 +90,11 @@ def _room_surfaces(surface_config: List[Dict[str, Any]], room: str) -> List[Tupl
     戻り値: [(surface_node_key, area, eta_lw), ...]
     """
     out: List[Tuple[str, float, float]] = []
-    for s in surface_config or []:
-        if not isinstance(s, dict):
-            continue
-        try:
-            start_node, _end_node, i_prefix, _o_prefix = get_node_prefix(s)
-        except Exception:
-            continue
-        area = s.get("area")
-        try:
-            a = float(area)
-        except Exception:
-            continue
-        if a <= 0.0:
-            continue
+    for s, room_node_key, _part, a in collect_room_side_surfaces(room, surface_config):
         # 長波放射の吸収率は epsilon を優先（互換で eta も許容）
         eta_lw = _as_float(s.get("epsilon", s.get("eta")), field="epsilon", default=DEFAULT_ETA_LW)
         assert eta_lw is not None
-        if str(start_node) == str(room):
-            out.append((f"{i_prefix}_s", a, float(eta_lw)))
-        if str(_end_node) == str(room) and str(_end_node) != str(start_node):
-            out.append((f"{_o_prefix}_s", a, float(eta_lw)))
+        out.append((room_node_key, a, float(eta_lw)))
     return out
 
 
