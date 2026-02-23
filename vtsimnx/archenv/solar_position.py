@@ -11,28 +11,55 @@ _COS_HS_EPS = 1e-12
 
 # 太陽位置の計算に用いる基本式
 # 太陽の赤緯 δ [deg]（年周の余弦和による近似）
-delta_d = lambda N: (180 / np.pi) * (0.006322 \
-                                     - 0.405748 * np.cos(2 * np.pi * N / 366 + 0.153231) \
-                                     - 0.005880 * np.cos(4 * np.pi * N / 366 + 0.207099) \
-                                     - 0.003233 * np.cos(6 * np.pi * N / 366 + 0.620129))
+def delta_d(N):
+    """太陽の赤緯 δ [deg]。"""
+    return (180 / np.pi) * (
+        0.006322
+        - 0.405748 * np.cos(2 * np.pi * N / 366 + 0.153231)
+        - 0.005880 * np.cos(4 * np.pi * N / 366 + 0.207099)
+        - 0.003233 * np.cos(6 * np.pi * N / 366 + 0.620129)
+    )
 
 # 太陽の均時差 ed [h]（平均太陽時と真太陽時の差）
-e_d     = lambda N: -0.000279 + 0.122772 * np.cos(2 * np.pi * N / 366 + 1.498311) \
-                              - 0.165458 * np.cos(4 * np.pi * N / 366 - 1.261546) \
-                              - 0.005354 * np.cos(6 * np.pi * N / 366 - 1.1571)
+def e_d(N):
+    """太陽の均時差 e_d [h]。"""
+    return (
+        -0.000279
+        + 0.122772 * np.cos(2 * np.pi * N / 366 + 1.498311)
+        - 0.165458 * np.cos(4 * np.pi * N / 366 - 1.261546)
+        - 0.005354 * np.cos(6 * np.pi * N / 366 - 1.1571)
+    )
 
 # 太陽の時角 T_d_t [deg]（正午=0°、午前は負、午後は正）
-T_d_t   = lambda H, ed, L       : (H  + ed - 12.0) * 15.0 + (L - 135.0)
+def T_d_t(H, ed, L):
+    """太陽の時角 T_d_t [deg]（正午=0°）。"""
+    return (H + ed - 12.0) * 15.0 + (L - 135.0)
 
 # 角度[deg]の正弦・余弦
-sin     = lambda v              : np.sin(np.radians(v))
-cos     = lambda v              : np.cos(np.radians(v))
+def sin(v):
+    """角度[deg]の正弦。"""
+    return np.sin(np.radians(v))
+
+
+def cos(v):
+    """角度[deg]の余弦。"""
+    return np.cos(np.radians(v))
 
 # 太陽高度 hs の正弦: sin(hs) = sin(lat)·sin(δ) + cos(lat)·cos(δ)·cos(時角)
-sin_hs  = lambda L, dd, tdt     : sin(L) * sin(dd) + cos(L) * cos(dd) * cos(tdt)
+def sin_hs(L, dd, tdt):
+    """太陽高度 hs の正弦。"""
+    return sin(L) * sin(dd) + cos(L) * cos(dd) * cos(tdt)
+
+
 # 太陽方位角 AZs の正弦/余弦（象限判定は arctan2 で別途実施）
-sin_AZs = lambda dd, tdt, c_h   : cos(dd) * sin(tdt) / c_h
-cos_AZs = lambda s_h, L, dd, c_h: (s_h * sin(L) - sin(dd)) / (c_h * cos(L))
+def sin_AZs(dd, tdt, c_h):
+    """太陽方位角 AZs の正弦。"""
+    return cos(dd) * sin(tdt) / c_h
+
+
+def cos_AZs(s_h, L, dd, c_h):
+    """太陽方位角 AZs の余弦。"""
+    return (s_h * sin(L) - sin(dd)) / (c_h * cos(L))
 
 
 def _build_time_columns(idx: pd.DatetimeIndex, td: float) -> tuple[pd.Series, pd.Series]:

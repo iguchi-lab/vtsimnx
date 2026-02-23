@@ -5,7 +5,9 @@ from .archenv import Wh_to_MJ, MJ_to_Wh, Solar_I
 
 
 # 直散分離（Erbs）
-Kt = lambda IG, alt: IG / (Wh_to_MJ(Solar_I) * np.sin(np.radians(alt)))  # 晴天指数
+def Kt(IG, alt):
+    """晴天指数 Kt。"""
+    return IG / (Wh_to_MJ(Solar_I) * np.sin(np.radians(alt)))
 
 
 def _as_array(x):
