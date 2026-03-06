@@ -142,3 +142,105 @@ def test_surfaces_part_accepts_window_alias_as_glass():
     assert [b.get("subtype") for b in tbs] == ["convection", "conduction", "convection"]
 
 
+def test_surfaces_rc_hollow_layer_can_use_thermal_resistance():
+    surfaces = [
+        {
+            "key": "A->B",
+            "part": "wall",
+            "area": 10.0,
+            "layers": [
+                {"air_layer": True, "thermal_resistance": 0.20},
+            ],
+        }
+    ]
+
+    nodes, tbs = process_surfaces(
+        surfaces,
+        sim_length=2,
+        node_config=[{"key": "A", "t": 20.0}, {"key": "B", "t": 0.0}],
+        add_solar=False,
+        add_radiation=False,
+        time_step=60.0,
+    )
+
+    # n=1扱いのため表面ノードは2つ
+    layer_nodes = [n for n in nodes if n.get("type") == "layer"]
+    assert len(layer_nodes) == 2
+
+    # 対流・中空層相当の伝導・対流
+    assert [b.get("subtype") for b in tbs] == ["convection", "conduction", "convection"]
+    # conductance = area / R
+    assert abs(tbs[1]["conductance"] - (10.0 / 0.20)) < 1e-9
+
+
+def test_surfaces_rc_ventilated_layer_generates_center_node_and_three_internal_branches():
+    surfaces = [
+        {
+            "key": "A->B",
+            "part": "wall",
+            "area": 10.0,
+            "layers": [
+                {
+                    "ventilated_air_layer": True,
+                    "t": 0.05,
+                    "alpha_c1": 3.0,
+                    "alpha_c2": 4.0,
+                    "alpha_r": 5.0,
+                }
+            ],
+        }
+    ]
+
+    nodes, tbs = process_surfaces(
+        surfaces,
+        sim_length=2,
+        node_config=[{"key": "A", "t": 20.0}, {"key": "B", "t": 0.0}],
+        add_solar=False,
+        add_radiation=False,
+        time_step=60.0,
+    )
+
+    # 両端2ノード + 中心ノード1つ
+    layer_nodes = [n for n in nodes if n.get("type") == "layer"]
+    assert len(layer_nodes) == 3
+    center = [n for n in layer_nodes if "_vent" in n.get("key", "")]
+    assert len(center) == 1
+    # thermal_mass = area * t * air_v_capa(default=1200)
+    assert abs(center[0]["thermal_mass"] - (10.0 * 0.05 * 1200.0)) < 1e-9
+
+    # [室内側対流, c1対流, c2対流, 放射, 室外側対流]
+    assert [b.get("subtype") for b in tbs] == [
+        "convection",
+        "convection",
+        "convection",
+        "radiation",
+        "convection",
+    ]
+    assert abs(tbs[1]["conductance"] - (10.0 * 3.0)) < 1e-9
+    assert abs(tbs[2]["conductance"] - (10.0 * 4.0)) < 1e-9
+    assert abs(tbs[3]["conductance"] - (10.0 * 5.0)) < 1e-9
+
+
+def test_surfaces_rc_legacy_layer_flags_are_not_supported():
+    surfaces = [
+        {
+            "key": "A->B",
+            "part": "wall",
+            "area": 10.0,
+            "layers": [
+                {"is_hollow": True, "thermal_resistance": 0.20},
+            ],
+        }
+    ]
+
+    with pytest.raises(ValueError):
+        process_surfaces(
+            surfaces,
+            sim_length=2,
+            node_config=[{"key": "A", "t": 20.0}, {"key": "B", "t": 0.0}],
+            add_solar=False,
+            add_radiation=False,
+            time_step=60.0,
+        )
+
+

@@ -325,6 +325,14 @@ builder の raw_config では `key` 記法（`A->B` / `->外部` 等）から `s
   （互換: `"window"` も受理し、内部では `"glass"` として扱います。前後空白・大文字小文字も正規化されます）
 - `area`（必須）
 - `layers`（任意）: `lambda`（熱伝導率）, `t`（厚さ）, `v_capa`（体積熱容量）
+  - 追加: RC法（`layer_method="rc"`）では層ごとに特殊指定も可能
+    - `air_layer: true`
+      - 中空層として扱い、`thermal_resistance`（または `r_value` / `r`）から
+        `conductance = area / thermal_resistance` を生成
+    - `ventilated_air_layer: true`
+      - 通気層として扱い、3ノード（両端 + 中心）を構成
+      - `alpha_c1` / `alpha_c2` で両端-中心の対流ブランチ、`alpha_r` で両端の放射ブランチを生成
+      - 中心ノードの熱容量は `area * t * air_v_capa`（`air_v_capa` 省略時は 1200 J/m3K）
 - `u_value`（任意）: `layers` が無い場合の簡略伝熱
 - `alpha_i/alpha_o`（任意）: 内外表面の対流熱伝達率
 - `layer_method`（任意）: `"rc"` or `"response"`（未指定なら builder の `surface_layer_method` が入る）

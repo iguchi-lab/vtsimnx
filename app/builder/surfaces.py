@@ -27,6 +27,7 @@ DEFAULT_ALPHA_I = 4.4   # 室内側表面の対流熱伝達率
 DEFAULT_ALPHA_O = 20.3  # 室外側表面の対流熱伝達率
 DEFAULT_ALPHA_R = 4.7   # 放射熱伝達率
 DEFAULT_ETA_LW = 0.9    # 長波放射の吸収率（室内放射回路）
+DEFAULT_AIR_V_CAPA = 1200.0  # 空気の体積熱容量 [J/m3K]（近似）
 
 
 def _scalar_initial_temperature(value):
@@ -58,6 +59,24 @@ def _leading_node_key_from_layer_key(layer_key: str) -> str:
     生成層ノードの key（例: 'A-B_wall_s'）から、先頭に現れるノード名（例: 'A'）を返す。
     """
     return str(layer_key).split("-", 1)[0]
+
+
+def _layer_flag(layer: dict, *names: str) -> bool:
+    for n in names:
+        v = layer.get(n)
+        if isinstance(v, bool):
+            return v
+    return False
+
+
+def _layer_float(layer: dict, *names: str, default: float | None = None) -> float | None:
+    for n in names:
+        if n in layer:
+            try:
+                return float(layer[n])
+            except Exception:
+                raise ValueError(f"invalid numeric value for layer.{n}: {layer.get(n)!r}")
+    return default
 
 
 def get_node_prefix(surface: dict) -> tuple[str, str, str, str]:
@@ -388,6 +407,16 @@ def process_surface(
     layer_method = surface.get("layer_method", "rc")  # "rc"(従来) or "response"(応答係数)
 
     if "layers" in surface and layer_method == "response":
+        for idx, layer in enumerate(surface.get("layers", [])):
+            if not isinstance(layer, dict):
+                continue
+            is_hollow = _layer_flag(layer, "air_layer")
+            is_ventilated = _layer_flag(layer, "ventilated_air_layer")
+            if is_hollow or is_ventilated:
+                raise ValueError(
+                    f"surface {surface.get('key','?')}: layer[{idx}] has hollow/ventilated flag, "
+                    "which is supported only when layer_method='rc'"
+                )
         # 応答係数法: 両端の表面ノードのみ生成し、内部は response_conduction ブランチで表現
         # - response が無ければ layers + time_step から自動生成する（q'' [W/m2] 系列）
         resp = surface.get("response")
@@ -451,53 +480,159 @@ def process_surface(
         return nodes, thermal_branches
 
     if "layers" in surface:
-        n = len(surface["layers"])
-        q = [a * layer["lambda"] / layer["t"] for layer in surface["layers"]]
-        c = [a * layer["v_capa"] * layer["t"] for layer in surface["layers"]]
-    else:
-        n = 1
-        q = [a * surface["u_value"]]
-        c = [a * surface.get("a_capacity", 0.0)]
-
-    thermal_mass = (
-        [c[0] / 2] + [c[i] / 2 + c[i + 1] / 2 for i in range(n - 1)] + [c[-1] / 2]
-    )
-    node_types = ["surface"] + ["internal"] * (n - 1) + ["surface"]
-    conductance = [a * alpha_i] + [q[i] for i in range(n)] + [a * alpha_o]
-    branch_types = ["convection"] + ["conduction"] * (n) + ["convection"]
-
-    node_names = (
-        [f"{i_prefix}_s"]
-        + [f"{i_prefix}_{i+1}-{i+2}" for i in range(n - 1)]
-        + [f"{o_prefix}_s"]
-    )
-
-    thermal_node_chain = [start_node] + node_names + [end_node]
-    thermal_branch_names = [
-        f"{thermal_node_chain[i]}->{thermal_node_chain[i+1]}" for i in range(n + 2)
-    ]
-
-    for i, node in enumerate(node_names):
-        logger.info(f"　ノード【{node}】 を追加します。")
-        node_dict = {
-            "key": node,
-            "calc_t": True,
-            "thermal_mass": thermal_mass[i],
-            "type": "layer",
-            "subtype": node_types[i],
-        }
-        # 生成ノードの初期温度: ノード key の先頭に現れるノード（例: A-B... なら A）の初期温度をコピー
-        if initial_t_by_node_key:
-            lead = _leading_node_key_from_layer_key(node)
-            if lead in initial_t_by_node_key:
-                node_dict["t"] = initial_t_by_node_key[lead]
-        nodes.append(node_dict)
-
-    for i, branch in enumerate(thermal_branch_names):
-        logger.info(f"　熱ブランチ【{branch}】を追加します。")
-        thermal_branches.append(
-            {"key": branch, "conductance": conductance[i], "subtype": branch_types[i]}
+        layers = surface["layers"]
+        n = len(layers)
+        node_names = (
+            [f"{i_prefix}_s"]
+            + [f"{i_prefix}_{i+1}-{i+2}" for i in range(n - 1)]
+            + [f"{o_prefix}_s"]
         )
+        node_types = ["surface"] + ["internal"] * (n - 1) + ["surface"]
+        node_thermal_mass: dict[str, float] = {k: 0.0 for k in node_names}
+        extra_nodes: list[tuple[str, str, float]] = []
+
+        # 室内側/室外側の対流
+        thermal_branches.append(
+            {"key": f"{start_node}->{node_names[0]}", "conductance": a * alpha_i, "subtype": "convection"}
+        )
+
+        for idx, layer in enumerate(layers):
+            if not isinstance(layer, dict):
+                raise ValueError(f"surface {surface.get('key','?')}: layers[{idx}] must be dict")
+            left = node_names[idx]
+            right = node_names[idx + 1]
+
+            is_hollow = _layer_flag(layer, "air_layer")
+            is_ventilated = _layer_flag(layer, "ventilated_air_layer")
+            if is_hollow and is_ventilated:
+                raise ValueError(
+                    f"surface {surface.get('key','?')}: layers[{idx}] cannot have both "
+                    "air_layer and ventilated_air_layer"
+                )
+
+            if is_ventilated:
+                alpha_c1 = _layer_float(layer, "alpha_c1", default=DEFAULT_ALPHA_I)
+                alpha_c2 = _layer_float(layer, "alpha_c2", default=DEFAULT_ALPHA_I)
+                alpha_r = _layer_float(layer, "alpha_r", default=DEFAULT_ALPHA_R)
+                thickness = _layer_float(layer, "t")
+                if thickness is None or thickness <= 0.0:
+                    raise ValueError(
+                        f"surface {surface.get('key','?')}: ventilated layer[{idx}] requires positive 't'"
+                    )
+                air_v_capa = _layer_float(
+                    layer, "air_v_capa", "v_capa_air", "v_capa", default=DEFAULT_AIR_V_CAPA
+                )
+                if air_v_capa is None or air_v_capa < 0.0:
+                    raise ValueError(
+                        f"surface {surface.get('key','?')}: ventilated layer[{idx}] has invalid air heat capacity"
+                    )
+                center = f"{i_prefix}_{idx+1}_vent"
+                extra_nodes.append((center, "internal", a * thickness * air_v_capa))
+                thermal_branches.append(
+                    {"key": f"{left}->{center}", "conductance": a * alpha_c1, "subtype": "convection"}
+                )
+                thermal_branches.append(
+                    {"key": f"{center}->{right}", "conductance": a * alpha_c2, "subtype": "convection"}
+                )
+                thermal_branches.append(
+                    {"key": f"{left}->{right}", "conductance": a * alpha_r, "subtype": "radiation"}
+                )
+                continue
+
+            if is_hollow:
+                r_layer = _layer_float(layer, "thermal_resistance", "r_value", "r")
+                if r_layer is None:
+                    lam = _layer_float(layer, "lambda")
+                    thickness = _layer_float(layer, "t")
+                    if lam is None or thickness is None or lam <= 0.0 or thickness <= 0.0:
+                        raise ValueError(
+                            f"surface {surface.get('key','?')}: hollow layer[{idx}] requires "
+                            "'thermal_resistance' (or 'r_value'/'r') or valid 'lambda'+'t'"
+                        )
+                    r_layer = thickness / lam
+                if r_layer <= 0.0:
+                    raise ValueError(
+                        f"surface {surface.get('key','?')}: hollow layer[{idx}] resistance must be positive"
+                    )
+                thermal_branches.append(
+                    {"key": f"{left}->{right}", "conductance": a / r_layer, "subtype": "conduction"}
+                )
+                continue
+
+            lam = _layer_float(layer, "lambda")
+            thickness = _layer_float(layer, "t")
+            v_capa = _layer_float(layer, "v_capa")
+            if lam is None or thickness is None or v_capa is None:
+                raise ValueError(
+                    f"surface {surface.get('key','?')}: normal layer[{idx}] requires lambda, t, v_capa"
+                )
+            if lam <= 0.0 or thickness <= 0.0 or v_capa < 0.0:
+                raise ValueError(
+                    f"surface {surface.get('key','?')}: normal layer[{idx}] must satisfy "
+                    "lambda>0, t>0, v_capa>=0"
+                )
+            c_layer = a * v_capa * thickness
+            node_thermal_mass[left] += c_layer / 2.0
+            node_thermal_mass[right] += c_layer / 2.0
+            thermal_branches.append(
+                {"key": f"{left}->{right}", "conductance": a * lam / thickness, "subtype": "conduction"}
+            )
+
+        thermal_branches.append(
+            {"key": f"{node_names[-1]}->{end_node}", "conductance": a * alpha_o, "subtype": "convection"}
+        )
+
+        base_nodes = [(name, node_types[i], node_thermal_mass[name]) for i, name in enumerate(node_names)]
+        for node, subtype, thermal_mass in base_nodes + extra_nodes:
+            logger.info(f"　ノード【{node}】 を追加します。")
+            node_dict = {
+                "key": node,
+                "calc_t": True,
+                "thermal_mass": thermal_mass,
+                "type": "layer",
+                "subtype": subtype,
+            }
+            # 生成ノードの初期温度: ノード key の先頭に現れるノード（例: A-B... なら A）の初期温度をコピー
+            if initial_t_by_node_key:
+                lead = _leading_node_key_from_layer_key(node)
+                if lead in initial_t_by_node_key:
+                    node_dict["t"] = initial_t_by_node_key[lead]
+            nodes.append(node_dict)
+
+        for branch in thermal_branches:
+            logger.info(f"　熱ブランチ【{branch['key']}】を追加します。")
+    else:
+        node_names = [f"{i_prefix}_s", f"{o_prefix}_s"]
+        node_types = ["surface", "surface"]
+        c = [a * surface.get("a_capacity", 0.0)]
+        thermal_mass = [c[0] / 2, c[0] / 2]
+        conductance = [a * alpha_i, a * surface["u_value"], a * alpha_o]
+        branch_types = ["convection", "conduction", "convection"]
+        thermal_node_chain = [start_node] + node_names + [end_node]
+        thermal_branch_names = [
+            f"{thermal_node_chain[i]}->{thermal_node_chain[i+1]}" for i in range(3)
+        ]
+
+        for i, node in enumerate(node_names):
+            logger.info(f"　ノード【{node}】 を追加します。")
+            node_dict = {
+                "key": node,
+                "calc_t": True,
+                "thermal_mass": thermal_mass[i],
+                "type": "layer",
+                "subtype": node_types[i],
+            }
+            if initial_t_by_node_key:
+                lead = _leading_node_key_from_layer_key(node)
+                if lead in initial_t_by_node_key:
+                    node_dict["t"] = initial_t_by_node_key[lead]
+            nodes.append(node_dict)
+
+        for i, branch in enumerate(thermal_branch_names):
+            logger.info(f"　熱ブランチ【{branch}】を追加します。")
+            thermal_branches.append(
+                {"key": branch, "conductance": conductance[i], "subtype": branch_types[i]}
+            )
 
     return nodes, thermal_branches
 
