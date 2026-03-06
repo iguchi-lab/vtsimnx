@@ -329,6 +329,9 @@ builder の raw_config では `key` 記法（`A->B` / `->外部` 等）から `s
     - `air_layer: true`
       - 中空層として扱い、`thermal_resistance`（または `r_value` / `r`）から
         `conductance = area / thermal_resistance` を生成
+      - `t` を指定した場合は中心ノード（空気層）を追加し、熱容量
+        `area * t * air_v_capa`（`air_v_capa` 省略時 1200 J/m3K）を設定
+      - この場合、熱抵抗は両側に 1/2 ずつ配分され、内部2本の伝導ブランチで表現
     - `ventilated_air_layer: true`
       - 通気層として扱い、3ノード（両端 + 中心）を構成
       - `alpha_c1` / `alpha_c2` で両端-中心の対流ブランチ、`alpha_r` で両端の放射ブランチを生成

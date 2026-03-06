@@ -541,9 +541,9 @@ def process_surface(
 
             if is_hollow:
                 r_layer = _layer_float(layer, "thermal_resistance", "r_value", "r")
+                thickness = _layer_float(layer, "t")
                 if r_layer is None:
                     lam = _layer_float(layer, "lambda")
-                    thickness = _layer_float(layer, "t")
                     if lam is None or thickness is None or lam <= 0.0 or thickness <= 0.0:
                         raise ValueError(
                             f"surface {surface.get('key','?')}: hollow layer[{idx}] requires "
@@ -554,9 +554,34 @@ def process_surface(
                     raise ValueError(
                         f"surface {surface.get('key','?')}: hollow layer[{idx}] resistance must be positive"
                     )
-                thermal_branches.append(
-                    {"key": f"{left}->{right}", "conductance": a / r_layer, "subtype": "conduction"}
-                )
+
+                # 中空層で厚さ t が与えられた場合は、中心ノードを追加して空気熱容量を考慮する。
+                # 伝導抵抗 R は両側に 1/2 ずつ配分し、等価的には従来の total conductance a/R と一致する。
+                if thickness is not None:
+                    if thickness <= 0.0:
+                        raise ValueError(
+                            f"surface {surface.get('key','?')}: hollow layer[{idx}] 't' must be positive"
+                        )
+                    air_v_capa = _layer_float(
+                        layer, "air_v_capa", "v_capa_air", "v_capa", default=DEFAULT_AIR_V_CAPA
+                    )
+                    if air_v_capa is None or air_v_capa < 0.0:
+                        raise ValueError(
+                            f"surface {surface.get('key','?')}: hollow layer[{idx}] has invalid air heat capacity"
+                        )
+                    center = f"{i_prefix}_{idx+1}_air"
+                    extra_nodes.append((center, "internal", a * thickness * air_v_capa))
+                    g_half = 2.0 * a / r_layer
+                    thermal_branches.append(
+                        {"key": f"{left}->{center}", "conductance": g_half, "subtype": "conduction"}
+                    )
+                    thermal_branches.append(
+                        {"key": f"{center}->{right}", "conductance": g_half, "subtype": "conduction"}
+                    )
+                else:
+                    thermal_branches.append(
+                        {"key": f"{left}->{right}", "conductance": a / r_layer, "subtype": "conduction"}
+                    )
                 continue
 
             lam = _layer_float(layer, "lambda")

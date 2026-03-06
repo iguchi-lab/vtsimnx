@@ -80,6 +80,9 @@ RC法では、`layers` 内の各層にフラグを付けて特殊な熱回路を
   - `air_layer: true`
   - `thermal_resistance`（互換: `r_value`, `r`）を与えると
     `conductance = area / thermal_resistance` で伝導ブランチを生成
+  - `t` を指定した場合は、中心ノードを自動追加して
+    - 中心ノード熱容量: `area * t * air_v_capa`（省略時 `air_v_capa=1200 [J/m3/K]`）
+    - 伝導は「半抵抗 + 半抵抗」の2ブランチで表現（全体の等価抵抗は同じ）
 - 通気層:
   - `ventilated_air_layer: true`
   - その層を「両端ノード + 中心ノード」の3ノードとして扱い、

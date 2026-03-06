@@ -173,6 +173,46 @@ def test_surfaces_rc_hollow_layer_can_use_thermal_resistance():
     assert abs(tbs[1]["conductance"] - (10.0 / 0.20)) < 1e-9
 
 
+def test_surfaces_rc_hollow_layer_with_thickness_adds_air_capacity_node():
+    surfaces = [
+        {
+            "key": "A->B",
+            "part": "wall",
+            "area": 10.0,
+            "layers": [
+                {"air_layer": True, "thermal_resistance": 0.20, "t": 0.05},
+            ],
+        }
+    ]
+
+    nodes, tbs = process_surfaces(
+        surfaces,
+        sim_length=2,
+        node_config=[{"key": "A", "t": 20.0}, {"key": "B", "t": 0.0}],
+        add_solar=False,
+        add_radiation=False,
+        time_step=60.0,
+    )
+
+    # 両端2ノード + 中心ノード1つ（空気熱容量）
+    layer_nodes = [n for n in nodes if n.get("type") == "layer"]
+    assert len(layer_nodes) == 3
+    center = [n for n in layer_nodes if "_air" in n.get("key", "")]
+    assert len(center) == 1
+    assert abs(center[0]["thermal_mass"] - (10.0 * 0.05 * 1200.0)) < 1e-9
+
+    # [室内側対流, 半抵抗伝導, 半抵抗伝導, 室外側対流]
+    assert [b.get("subtype") for b in tbs] == [
+        "convection",
+        "conduction",
+        "conduction",
+        "convection",
+    ]
+    # 各半抵抗の conductance = 2 * area / R
+    assert abs(tbs[1]["conductance"] - (2.0 * 10.0 / 0.20)) < 1e-9
+    assert abs(tbs[2]["conductance"] - (2.0 * 10.0 / 0.20)) < 1e-9
+
+
 def test_surfaces_rc_ventilated_layer_generates_center_node_and_three_internal_branches():
     surfaces = [
         {
