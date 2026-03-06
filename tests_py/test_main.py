@@ -161,3 +161,24 @@ def test_run_returns_structured_400_on_validation_error():
     assert body["detail"]["code"] == "invalid_config"
     assert "存在しません" in body["detail"]["message"]
     assert "nodes" in body["detail"]["hint"]
+
+
+def test_run_returns_structured_400_on_builder_value_error():
+    # builder 内での ValueError（入力不正）も 400 で返す
+    import app.main as main_mod
+
+    original = main_mod.build_config_with_warning_details
+
+    def _raise_builder_value_error(*_args, **_kwargs):
+        raise ValueError("surface 和室->外部: ventilated layer[4] requires positive 't'")
+
+    main_mod.build_config_with_warning_details = _raise_builder_value_error
+    try:
+        resp = client.post("/run", json={"config": {}})
+    finally:
+        main_mod.build_config_with_warning_details = original
+
+    assert resp.status_code == 400
+    body = resp.json()
+    assert body["detail"]["code"] == "invalid_config"
+    assert "requires positive 't'" in body["detail"]["message"]

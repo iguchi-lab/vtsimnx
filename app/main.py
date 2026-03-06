@@ -177,6 +177,7 @@ def _build_bad_request_detail(e: Exception) -> Dict[str, Any]:
         detail["hint"] = "nodes に参照先ノードを追加するか、参照先の key を既存ノード名に合わせてください。"
     return detail
 
+
 class SimulationRequest(BaseModel):
     """
     ソルバに渡す入力設定を表すデータモデル。
@@ -237,17 +238,21 @@ def run_simulation(req: SimulationRequest):
 
         # ユーザー入力（raw）を solver 用 config に変換（正規化/展開/検証）
         with use_builder_log_file(builder_log_tmp):
-            built_config, warnings, warning_details = build_config_with_warning_details(
-                req.config,
-                output_path=None,
-                add_surface=req.add_surface,
-                add_aircon=req.add_aircon,
-                add_capacity=req.add_capacity,
-                add_surface_solar=req.add_surface_solar,
-                add_surface_nocturnal=req.add_surface_nocturnal,
-                add_surface_radiation=req.add_surface_radiation,
-                add_surface_radiation_exclude_glass=req.add_surface_radiation_exclude_glass,
-            )
+            try:
+                built_config, warnings, warning_details = build_config_with_warning_details(
+                    req.config,
+                    output_path=None,
+                    add_surface=req.add_surface,
+                    add_aircon=req.add_aircon,
+                    add_capacity=req.add_capacity,
+                    add_surface_solar=req.add_surface_solar,
+                    add_surface_nocturnal=req.add_surface_nocturnal,
+                    add_surface_radiation=req.add_surface_radiation,
+                    add_surface_radiation_exclude_glass=req.add_surface_radiation_exclude_glass,
+                )
+            except (ValidationError, ConfigFileError, ValueError, KeyError, TypeError) as e:
+                logger.info("validation/config error in /run: %s", e)
+                raise HTTPException(status_code=400, detail=_build_bad_request_detail(e))
 
         # API側でログ冗長度を統制（debug=falseなら常に1に落とす）
         # ※ build_config の後に適用することで、builder の未知キー削除で落ちないようにする
@@ -268,6 +273,8 @@ def run_simulation(req: SimulationRequest):
         # 入力不正は 400
         logger.info("validation/config error in /run: %s", e)
         raise HTTPException(status_code=400, detail=_build_bad_request_detail(e))
+    except HTTPException:
+        raise
     except Exception as e:
         # エラー時は 500 を返す
         logger.exception("internal error in /run")
