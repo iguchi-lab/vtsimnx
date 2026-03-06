@@ -182,3 +182,54 @@ def test_run_returns_structured_400_on_builder_value_error():
     body = resp.json()
     assert body["detail"]["code"] == "invalid_config"
     assert "requires positive 't'" in body["detail"]["message"]
+    assert "ventilated_air_layer" in body["detail"]["hint"]
+
+
+def test_run_returns_structured_400_on_builder_key_error():
+    # builder 内での KeyError（必須キー不足）も 400 で返し、欠落キーを示す
+    import app.main as main_mod
+
+    original = main_mod.build_config_with_warning_details
+
+    def _raise_builder_key_error(*_args, **_kwargs):
+        raise KeyError("outside")
+
+    main_mod.build_config_with_warning_details = _raise_builder_key_error
+    try:
+        resp = client.post("/run", json={"config": {}})
+    finally:
+        main_mod.build_config_with_warning_details = original
+
+    assert resp.status_code == 400
+    body = resp.json()
+    assert body["detail"]["code"] == "invalid_config_missing_field"
+    assert "outside" in body["detail"]["message"]
+    assert "outside" in body["detail"]["hint"]
+
+
+def test_run_returns_structured_500_when_solver_binary_missing():
+    # solver 実行ファイル欠落時は構造化 500 を返す
+    import app.main as main_mod
+
+    original_build = main_mod.build_config_with_warning_details
+    original_run = main_mod.run_solver
+
+    def _ok_build(*_args, **_kwargs):
+        return {}, [], []
+
+    def _missing_solver(*_args, **_kwargs):
+        raise FileNotFoundError(2, "No such file or directory", "/home/ubuntu/vtsimnx-api/build/vtsimnx_solver")
+
+    main_mod.build_config_with_warning_details = _ok_build
+    main_mod.run_solver = _missing_solver
+    try:
+        resp = client.post("/run", json={"config": {}})
+    finally:
+        main_mod.build_config_with_warning_details = original_build
+        main_mod.run_solver = original_run
+
+    assert resp.status_code == 500
+    body = resp.json()
+    assert body["detail"]["code"] == "solver_binary_not_found"
+    assert "vtsimnx_solver" in body["detail"]["message"]
+    assert "build/vtsimnx_solver" in body["detail"]["hint"]

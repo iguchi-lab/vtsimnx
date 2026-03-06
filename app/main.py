@@ -167,14 +167,47 @@ def _build_bad_request_detail(e: Exception) -> Dict[str, Any]:
     クライアントが機械的に扱えるよう code/message を固定化する。
     """
     message = str(e)
-    detail: Dict[str, Any] = {
-        "code": "invalid_config",
+    code = "invalid_config"
+    detail: Dict[str, Any] = {}
+
+    # KeyError は "'outside'" のような表示になりがちなので補足して返す
+    if isinstance(e, KeyError):
+        missing = str(e.args[0]) if getattr(e, "args", None) else message
+        code = "invalid_config_missing_field"
+        message = f"必須フィールド '{missing}' が不足しています。"
+        detail["hint"] = f"入力JSONに '{missing}' を追加してください。"
+
+    detail.update({
+        "code": code,
         "message": message,
-    }
+    })
 
     # 典型的なノード参照ミスには修正ヒントを添える
     if "ノード" in message and "存在しません" in message:
         detail["hint"] = "nodes に参照先ノードを追加するか、参照先の key を既存ノード名に合わせてください。"
+    if "ventilated layer" in message and "requires positive 't'" in message:
+        detail["hint"] = "ventilated_air_layer=true の層には正の厚さ t（例: 0.04）を指定してください。"
+    return detail
+
+
+def _build_internal_error_detail(e: Exception, *, run_id: str | None = None) -> Dict[str, Any]:
+    """
+    内部エラー(500)のレスポンス本文を構造化して返す。
+    """
+    detail: Dict[str, Any] = {
+        "code": "internal_error",
+        "message": str(e),
+    }
+    if run_id:
+        detail["run_id"] = run_id
+
+    if isinstance(e, FileNotFoundError) and "vtsimnx_solver" in str(e):
+        detail["code"] = "solver_binary_not_found"
+        detail["hint"] = "サーバ上で C++ solver 実行ファイル build/vtsimnx_solver をビルドしてください。"
+    elif isinstance(e, RuntimeError) and str(e).startswith("solver failed:"):
+        detail["code"] = "solver_execution_failed"
+        detail["hint"] = "solver.log と入力JSONを確認し、設定値や境界条件の不整合を見直してください。"
+
     return detail
 
 
@@ -227,6 +260,7 @@ def run_simulation(req: SimulationRequest):
     Raises:
         HTTPException(500): ソルバ実行や結果読み取りで例外が発生した場合に返す。
     """
+    run_id: str | None = None
     try:
         # 1リクエスト=1 run_id を先に決める（builderログとsolver成果物を紐付けるため）
         run_id = uuid.uuid4().hex
@@ -278,7 +312,7 @@ def run_simulation(req: SimulationRequest):
     except Exception as e:
         # エラー時は 500 を返す
         logger.exception("internal error in /run")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=_build_internal_error_detail(e, run_id=run_id))
 
     return SimulationResponse(result=output, warnings=warnings, warning_details=warning_details)
 

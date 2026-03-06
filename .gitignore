@@ -2,6 +2,7 @@
 /build/
 /build-solver/
 /solver/build/
+/solver/build-solver/
 **/CMakeFiles/
 **/CMakeCache.txt
 **/cmake_install.cmake
