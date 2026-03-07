@@ -29,7 +29,8 @@ DEFAULT_ALPHA_R = 4.7   # 室内表面間の放射熱伝達率 [W/m2/K]（両面
 DEFAULT_ETA_SW = 0.8   # 短波（日射）の吸収率（外壁日射・ガラス透過日射の床・壁への吸収）
 DEFAULT_ETA_LW = 0.9    # 長波の吸収率（夜間放射・発熱の放射配分で表面が吸収するとき。室内表面間の4.7には不要）
 DEFAULT_EPSILON_LW = 0.9  # 長波放射率（夜間放射の放出側。室内表面間の4.7には既に含まれる）
-DEFAULT_AIR_V_CAPA = 1200.0  # 空気の体積熱容量 [J/(m³·K)]（近似）。core vtsimnx/materials と単位を揃える。
+# 空気の体積熱容量 ρ·c_p [J/(m³·K)]。archenv の定数（ρ≈1.2 kg/m³, c_p=1005 J/(kg·K)）と同じ。
+DEFAULT_AIR_V_CAPA = 1.2 * 1005  # 1206.0
 
 
 def _scalar_initial_temperature(value):
@@ -82,12 +83,12 @@ def _layer_float(layer: dict, *names: str, default: float | None = None) -> floa
 
 
 def _branch_log_detail(branch: dict) -> str:
-    """熱ブランチのログ用に conductance / subtype / heat_generation を文字列化する。"""
+    """熱ブランチのログ用に conductance / subtype / heat_generation を文字列化する（単位付き）。"""
     parts: list[str] = []
     if "conductance" in branch:
         try:
             g = float(branch["conductance"])
-            parts.append(f"conductance={g:.6g}")
+            parts.append(f"conductance={g:.6g} [W/K]")
         except (TypeError, ValueError):
             parts.append(f"conductance={branch['conductance']!r}")
     if "subtype" in branch:
@@ -96,22 +97,22 @@ def _branch_log_detail(branch: dict) -> str:
         hg = branch["heat_generation"]
         if hasattr(hg, "__len__"):
             n = len(hg)
-            parts.append(f"heat_generation=timeseries(len={n})")
+            parts.append(f"heat_generation=timeseries(len={n}) [W]")
         else:
-            parts.append("heat_generation=(scalar)")
+            parts.append("heat_generation=(scalar) [W]")
     if "area" in branch:
         try:
-            parts.append(f"area={float(branch['area']):.6g}")
+            parts.append(f"area={float(branch['area']):.6g} [m²]")
         except (TypeError, ValueError):
             pass
     return " " + ", ".join(parts) if parts else ""
 
 
 def _node_log_detail(thermal_mass: float | None, subtype: str | None) -> str:
-    """ノードのログ用に thermal_mass / subtype を文字列化する。"""
+    """ノードのログ用に thermal_mass / subtype を文字列化する（単位付き）。"""
     parts: list[str] = []
     if thermal_mass is not None:
-        parts.append(f"thermal_mass={thermal_mass:.6g}")
+        parts.append(f"thermal_mass={thermal_mass:.6g} [J/K]")
     if subtype is not None:
         parts.append(f"subtype={subtype!r}")
     return " " + ", ".join(parts) if parts else ""
@@ -581,44 +582,20 @@ def process_surface(
                 continue
 
             if is_hollow:
-                # 中空層: thermal_resistance で抵抗を指定。t が正のときは中心ノード（空気熱容量）を設け、抵抗を左右に半分ずつ配分する。
+                # 中空層: thermal_resistance（または r_value / r）で抵抗を指定。中心ノードは設けず、設定された抵抗値で 1 本の伝導のみ。厚さ t は使用しない。
                 r_layer = _layer_float(layer, "thermal_resistance", "r_value", "r")
-                thickness = _layer_float(layer, "t")
                 if r_layer is None:
-                    lam = _layer_float(layer, "lambda")
-                    if lam is None or thickness is None or lam <= 0.0 or thickness <= 0.0:
-                        raise ValueError(
-                            f"surface {surface.get('key','?')}: hollow layer[{idx}] requires "
-                            "'thermal_resistance' (or 'r_value'/'r') or valid 'lambda'+'t'"
-                        )
-                    r_layer = thickness / lam
+                    raise ValueError(
+                        f"surface {surface.get('key','?')}: hollow layer[{idx}] requires "
+                        "'thermal_resistance' (or 'r_value'/'r')"
+                    )
                 if r_layer <= 0.0:
                     raise ValueError(
                         f"surface {surface.get('key','?')}: hollow layer[{idx}] resistance must be positive"
                     )
-                if thickness is not None and thickness > 0.0:
-                    # 厚さあり: 中心ノード（空気熱容量）を追加し、抵抗を左右に 1/2 ずつ
-                    air_v_capa = _layer_float(
-                        layer, "air_v_capa", "v_capa_air", "v_capa", default=DEFAULT_AIR_V_CAPA
-                    )
-                    if air_v_capa is None or air_v_capa < 0.0:
-                        air_v_capa = DEFAULT_AIR_V_CAPA
-                    capa_air = a * thickness * air_v_capa
-                    center = f"{i_prefix}_{idx+1}_air"
-                    extra_nodes.append((center, "internal", capa_air))
-                    # 各半抵抗の conductance = 2 * area / R
-                    g_half = 2.0 * a / r_layer
-                    thermal_branches.append(
-                        {"key": f"{left}->{center}", "conductance": g_half, "subtype": "conduction"}
-                    )
-                    thermal_branches.append(
-                        {"key": f"{center}->{right}", "conductance": g_half, "subtype": "conduction"}
-                    )
-                else:
-                    # 厚さなし（t が無い or 0）: 中心ノードは設けず、thermal_resistance で 1 本の伝導のみ
-                    thermal_branches.append(
-                        {"key": f"{left}->{right}", "conductance": a / r_layer, "subtype": "conduction"}
-                    )
+                thermal_branches.append(
+                    {"key": f"{left}->{right}", "conductance": a / r_layer, "subtype": "conduction"}
+                )
                 continue
 
             lam = _layer_float(layer, "lambda")

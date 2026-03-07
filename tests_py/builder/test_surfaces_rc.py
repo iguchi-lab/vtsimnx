@@ -173,7 +173,8 @@ def test_surfaces_rc_hollow_layer_can_use_thermal_resistance():
     assert abs(tbs[1]["conductance"] - (10.0 / 0.20)) < 1e-9
 
 
-def test_surfaces_rc_hollow_layer_with_thickness_adds_air_capacity_node():
+def test_surfaces_rc_hollow_layer_ignores_thickness_no_center_node():
+    """中空層は厚さ t を無視し、中心ノードを設けず設定抵抗値で 1 本の伝導のみ。"""
     surfaces = [
         {
             "key": "A->B",
@@ -194,23 +195,20 @@ def test_surfaces_rc_hollow_layer_with_thickness_adds_air_capacity_node():
         time_step=60.0,
     )
 
-    # 両端2ノード + 中心ノード1つ（空気熱容量）
+    # 両端2ノードのみ（中心ノードなし）
     layer_nodes = [n for n in nodes if n.get("type") == "layer"]
-    assert len(layer_nodes) == 3
+    assert len(layer_nodes) == 2
     center = [n for n in layer_nodes if "_air" in n.get("key", "")]
-    assert len(center) == 1
-    assert abs(center[0]["thermal_mass"] - (10.0 * 0.05 * 1200.0)) < 1e-9
+    assert len(center) == 0
 
-    # [室内側対流, 半抵抗伝導, 半抵抗伝導, 室外側対流]
+    # [室内側対流, 中空層伝導, 室外側対流]
     assert [b.get("subtype") for b in tbs] == [
         "convection",
         "conduction",
-        "conduction",
         "convection",
     ]
-    # 各半抵抗の conductance = 2 * area / R
-    assert abs(tbs[1]["conductance"] - (2.0 * 10.0 / 0.20)) < 1e-9
-    assert abs(tbs[2]["conductance"] - (2.0 * 10.0 / 0.20)) < 1e-9
+    # conductance = area / R
+    assert abs(tbs[1]["conductance"] - (10.0 / 0.20)) < 1e-9
 
 
 def test_surfaces_rc_ventilated_layer_generates_center_node_and_three_internal_branches():
@@ -246,7 +244,8 @@ def test_surfaces_rc_ventilated_layer_generates_center_node_and_three_internal_b
     center = [n for n in layer_nodes if "_vent" in n.get("key", "")]
     assert len(center) == 1
     # 中央ノード＝空気の熱容量のみ。左・右境界は隣接建材の半分（他で付与）。
-    assert abs(center[0]["thermal_mass"] - (10.0 * 0.05 * 1200.0)) < 1e-9
+    # 空気の体積熱容量 = 1.2*1005 [J/(m³·K)]（archenv と同じ）
+    assert abs(center[0]["thermal_mass"] - (10.0 * 0.05 * (1.2 * 1005))) < 1e-9
 
     # [室内側対流, c1対流, c2対流, 放射, 室外側対流]
     assert [b.get("subtype") for b in tbs] == [
