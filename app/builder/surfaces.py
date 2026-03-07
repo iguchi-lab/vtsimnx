@@ -528,8 +528,11 @@ def process_surface(
                     raise ValueError(
                         f"surface {surface.get('key','?')}: ventilated layer[{idx}] has invalid air heat capacity"
                     )
+                # 通気層: 4側は通気層の半分の熱容量、中心ノードに空気の熱容量、5側は隣接固体層5の半分（後段で付与）
+                capa_vent = a * thickness * air_v_capa
+                node_thermal_mass[left] += capa_vent / 2.0
                 center = f"{i_prefix}_{idx+1}_vent"
-                extra_nodes.append((center, "internal", a * thickness * air_v_capa))
+                extra_nodes.append((center, "internal", capa_vent))
                 thermal_branches.append(
                     {"key": f"{left}->{center}", "conductance": a * alpha_c1, "subtype": "convection"}
                 )
@@ -542,6 +545,7 @@ def process_surface(
                 continue
 
             if is_hollow:
+                # 中空層: ノードは設けず、設定された抵抗値のみで left->right の熱回路を作る。
                 r_layer = _layer_float(layer, "thermal_resistance", "r_value", "r")
                 thickness = _layer_float(layer, "t")
                 if r_layer is None:
@@ -556,34 +560,9 @@ def process_surface(
                     raise ValueError(
                         f"surface {surface.get('key','?')}: hollow layer[{idx}] resistance must be positive"
                     )
-
-                # 中空層で厚さ t が与えられた場合は、中心ノードを追加して空気熱容量を考慮する。
-                # 伝導抵抗 R は両側に 1/2 ずつ配分し、等価的には従来の total conductance a/R と一致する。
-                if thickness is not None:
-                    if thickness <= 0.0:
-                        raise ValueError(
-                            f"surface {surface.get('key','?')}: hollow layer[{idx}] 't' must be positive"
-                        )
-                    air_v_capa = _layer_float(
-                        layer, "air_v_capa", "v_capa_air", "v_capa", default=DEFAULT_AIR_V_CAPA
-                    )
-                    if air_v_capa is None or air_v_capa < 0.0:
-                        raise ValueError(
-                            f"surface {surface.get('key','?')}: hollow layer[{idx}] has invalid air heat capacity"
-                        )
-                    center = f"{i_prefix}_{idx+1}_air"
-                    extra_nodes.append((center, "internal", a * thickness * air_v_capa))
-                    g_half = 2.0 * a / r_layer
-                    thermal_branches.append(
-                        {"key": f"{left}->{center}", "conductance": g_half, "subtype": "conduction"}
-                    )
-                    thermal_branches.append(
-                        {"key": f"{center}->{right}", "conductance": g_half, "subtype": "conduction"}
-                    )
-                else:
-                    thermal_branches.append(
-                        {"key": f"{left}->{right}", "conductance": a / r_layer, "subtype": "conduction"}
-                    )
+                thermal_branches.append(
+                    {"key": f"{left}->{right}", "conductance": a / r_layer, "subtype": "conduction"}
+                )
                 continue
 
             lam = _layer_float(layer, "lambda")
