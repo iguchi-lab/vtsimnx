@@ -25,8 +25,10 @@ NOCTURNAL_TARGET_PARTS = frozenset(["wall", "floor", "ceiling", "glass"])
 
 DEFAULT_ALPHA_I = 4.4   # 室内側表面の対流熱伝達率
 DEFAULT_ALPHA_O = 20.3  # 室外側表面の対流熱伝達率
-DEFAULT_ALPHA_R = 4.7   # 放射熱伝達率
-DEFAULT_ETA_LW = 0.9    # 長波放射の吸収率（室内放射回路）
+DEFAULT_ALPHA_R = 4.7   # 室内表面間の放射熱伝達率 [W/m2/K]（両面の長波放射率0.9は既に含む。0.9/0.8は掛けない）
+DEFAULT_ETA_SW = 0.8   # 短波（日射）の吸収率（外壁日射・ガラス透過日射の床・壁への吸収）
+DEFAULT_ETA_LW = 0.9    # 長波の吸収率（夜間放射・発熱の放射配分で表面が吸収するとき。室内表面間の4.7には不要）
+DEFAULT_EPSILON_LW = 0.9  # 長波放射率（夜間放射の放出側。室内表面間の4.7には既に含まれる）
 DEFAULT_AIR_V_CAPA = 1200.0  # 空気の体積熱容量 [J/m3K]（近似）
 
 
@@ -666,7 +668,7 @@ def process_wall_solar(surface: dict, sim_length: int) -> list:
     thermal_branches: list = []
     _, _, _, o_prefix = get_node_prefix(surface)
 
-    heat_generation = surface["area"] * surface.get("eta", 0.8) * np.array(surface["solar"])
+    heat_generation = surface["area"] * surface.get("eta", DEFAULT_ETA_SW) * np.array(surface["solar"])
     heat_generation = ensure_timeseries(heat_generation, sim_length)
 
     branch_key = f"void->{o_prefix}_s"
@@ -694,8 +696,8 @@ def process_wall_nocturnal(surface: dict, sim_length: int) -> list:
     if noct is None:
         return thermal_branches
 
-    # 表面->void への流出なので負符号
-    heat_generation = -surface["area"] * surface.get("epsilon", 0.9) * np.array(noct)
+    # 表面->void への流出なので負符号。夜間放射は長波なので epsilon=0.9
+    heat_generation = -surface["area"] * surface.get("epsilon", DEFAULT_EPSILON_LW) * np.array(noct)
     heat_generation = ensure_timeseries(heat_generation, sim_length)
 
     branch_key = f"void->{o_prefix}_s"
@@ -727,8 +729,8 @@ def process_glass_solar(surface: dict, surfaces: list, sim_length: int) -> list:
     # - 床/床以外（壁・天井）: eta の代わりに SCR を掛けて表面ノードへ投入
     # - 室空間（空気ノード）   : SCC を掛けて投入（追加ブランチ）
     #
-    # 互換: 既存入力が eta のみの場合は SCR のデフォルトとして eta を使用する。
-    scr = surface.get("SCR", surface.get("scr", surface.get("eta", 0.9)))
+    # 互換: 既存入力が eta のみの場合は SCR のデフォルトとして eta を使用する。日射は短波なので 0.8。
+    scr = surface.get("SCR", surface.get("scr", surface.get("eta", DEFAULT_ETA_SW)))
     scc = surface.get("SCC", surface.get("scc", 0.0))
 
     base = np.array(surface["solar"]) * surface["area"]
@@ -742,9 +744,8 @@ def process_glass_solar(surface: dict, surfaces: list, sim_length: int) -> list:
 
     for s, room_node_key, part, area in room_side_surfaces:
         branch_key = f"void->{room_node_key}"
-        # 室内側の各面での「日射吸収」を表すため、受け側表面の eta を掛ける
-        # （外壁日射の process_wall_solar と同様の扱い）
-        eta_abs = float(s.get("eta", 0.8))
+        # 室内側の各面での「日射吸収」を表すため、受け側表面の eta を掛ける（短波なので 0.8）
+        eta_abs = float(s.get("eta", DEFAULT_ETA_SW))
         if part == "floor":
             if area_floor <= 0:
                 continue
@@ -794,7 +795,8 @@ def process_radiation(node: str, surface_nodes: list[tuple[str, float]]) -> list
             node1_key, area1 = node1
             node2_key, area2 = node2
             branch_key = f"{node1_key}->{node2_key}"
-            conductance = DEFAULT_ALPHA_R * DEFAULT_ETA_LW * area1 * area2 / sum_area
+            # 4.7 には既に両面の放射率0.9が含まれるため、室内表面間では eta を掛けない
+            conductance = DEFAULT_ALPHA_R * area1 * area2 / sum_area
             logger.info(f"　室内放射熱ブランチ【{branch_key}】を追加します。")
             thermal_branches.append(
                 {"key": branch_key, "conductance": conductance, "subtype": "radiation"}
