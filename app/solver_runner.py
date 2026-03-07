@@ -139,13 +139,32 @@ def _invoke_solver(input_path: Path, output_path: Path, cwd: Path) -> None:
     """
     共通のソルバ実行ロジック。
     subprocess.run の設定やエラーハンドリングを一箇所に集約する。
+    環境変数 VTSIMNX_SOLVER_TIMEOUT（秒・正の整数）を設定すると、その秒数で打ち切る。
+    未設定または 0 の場合はタイムアウトなし。
     """
-    result = subprocess.run(
-        [str(SOLVER_EXE), str(input_path), str(output_path)],
-        cwd=cwd,
-        capture_output=True,
-        text=True,
-    )
+    timeout_s: Optional[int] = None
+    try:
+        raw = os.getenv("VTSIMNX_SOLVER_TIMEOUT", "").strip()
+        if raw:
+            t = int(raw)
+            if t > 0:
+                timeout_s = t
+    except ValueError:
+        pass
+
+    try:
+        result = subprocess.run(
+            [str(SOLVER_EXE), str(input_path), str(output_path)],
+            cwd=cwd,
+            capture_output=True,
+            text=True,
+            timeout=timeout_s,
+        )
+    except subprocess.TimeoutExpired as e:
+        raise RuntimeError(
+            f"solver timed out after {e.timeout}s. "
+            "Increase VTSIMNX_SOLVER_TIMEOUT or optimize the run."
+        ) from e
 
     if result.returncode != 0:
         raise RuntimeError(

@@ -81,6 +81,42 @@ def _layer_float(layer: dict, *names: str, default: float | None = None) -> floa
     return default
 
 
+def _branch_log_detail(branch: dict) -> str:
+    """熱ブランチのログ用に conductance / subtype / heat_generation を文字列化する。"""
+    parts: list[str] = []
+    if "conductance" in branch:
+        try:
+            g = float(branch["conductance"])
+            parts.append(f"conductance={g:.6g}")
+        except (TypeError, ValueError):
+            parts.append(f"conductance={branch['conductance']!r}")
+    if "subtype" in branch:
+        parts.append(f"subtype={branch['subtype']!r}")
+    if "heat_generation" in branch:
+        hg = branch["heat_generation"]
+        if hasattr(hg, "__len__"):
+            n = len(hg)
+            parts.append(f"heat_generation=timeseries(len={n})")
+        else:
+            parts.append("heat_generation=(scalar)")
+    if "area" in branch:
+        try:
+            parts.append(f"area={float(branch['area']):.6g}")
+        except (TypeError, ValueError):
+            pass
+    return " " + ", ".join(parts) if parts else ""
+
+
+def _node_log_detail(thermal_mass: float | None, subtype: str | None) -> str:
+    """ノードのログ用に thermal_mass / subtype を文字列化する。"""
+    parts: list[str] = []
+    if thermal_mass is not None:
+        parts.append(f"thermal_mass={thermal_mass:.6g}")
+    if subtype is not None:
+        parts.append(f"subtype={subtype!r}")
+    return " " + ", ".join(parts) if parts else ""
+
+
 def get_node_prefix(surface: dict) -> tuple[str, str, str, str]:
     key = surface.get("key")
     if not isinstance(key, str) or not key.strip():
@@ -446,7 +482,7 @@ def process_surface(
         node_types = ["surface", "surface"]
 
         for i, node in enumerate(node_names):
-            logger.info(f"　ノード【{node}】 を追加します。")
+            logger.info(f"　ノード【{node}】 を追加します。{_node_log_detail(None, node_types[i])}")
             node_dict = {
                 "key": node,
                 "calc_t": True,
@@ -477,7 +513,7 @@ def process_surface(
             "area": float(surface["area"]),  # q''[W/m2] を solver 側で q[W]=A*q'' にするため
             **resp,
         }
-        logger.info(f"　応答係数熱ブランチ【{tb['key']}】を追加します。")
+        logger.info(f"　応答係数熱ブランチ【{tb['key']}】を追加します。{_branch_log_detail(tb)}")
         thermal_branches.append(tb)
 
         return nodes, thermal_branches
@@ -545,7 +581,7 @@ def process_surface(
                 continue
 
             if is_hollow:
-                # 中空層: ノードは設けず、設定された抵抗値のみで left->right の熱回路を作る。
+                # 中空層: thermal_resistance で抵抗を指定。t が正のときは中心ノード（空気熱容量）を設け、抵抗を左右に半分ずつ配分する。
                 r_layer = _layer_float(layer, "thermal_resistance", "r_value", "r")
                 thickness = _layer_float(layer, "t")
                 if r_layer is None:
@@ -560,9 +596,29 @@ def process_surface(
                     raise ValueError(
                         f"surface {surface.get('key','?')}: hollow layer[{idx}] resistance must be positive"
                     )
-                thermal_branches.append(
-                    {"key": f"{left}->{right}", "conductance": a / r_layer, "subtype": "conduction"}
-                )
+                if thickness is not None and thickness > 0.0:
+                    # 厚さあり: 中心ノード（空気熱容量）を追加し、抵抗を左右に 1/2 ずつ
+                    air_v_capa = _layer_float(
+                        layer, "air_v_capa", "v_capa_air", "v_capa", default=DEFAULT_AIR_V_CAPA
+                    )
+                    if air_v_capa is None or air_v_capa < 0.0:
+                        air_v_capa = DEFAULT_AIR_V_CAPA
+                    capa_air = a * thickness * air_v_capa
+                    center = f"{i_prefix}_{idx+1}_air"
+                    extra_nodes.append((center, "internal", capa_air))
+                    # 各半抵抗の conductance = 2 * area / R
+                    g_half = 2.0 * a / r_layer
+                    thermal_branches.append(
+                        {"key": f"{left}->{center}", "conductance": g_half, "subtype": "conduction"}
+                    )
+                    thermal_branches.append(
+                        {"key": f"{center}->{right}", "conductance": g_half, "subtype": "conduction"}
+                    )
+                else:
+                    # 厚さなし（t が無い or 0）: 中心ノードは設けず、thermal_resistance で 1 本の伝導のみ
+                    thermal_branches.append(
+                        {"key": f"{left}->{right}", "conductance": a / r_layer, "subtype": "conduction"}
+                    )
                 continue
 
             lam = _layer_float(layer, "lambda")
@@ -593,7 +649,7 @@ def process_surface(
 
         base_nodes = [(name, node_types[i], node_thermal_mass[name]) for i, name in enumerate(node_names)]
         for node, subtype, thermal_mass in base_nodes + extra_nodes:
-            logger.info(f"　ノード【{node}】 を追加します。")
+            logger.info(f"　ノード【{node}】 を追加します。{_node_log_detail(thermal_mass, subtype)}")
             node_dict = {
                 "key": node,
                 "calc_t": True,
@@ -609,7 +665,7 @@ def process_surface(
             nodes.append(node_dict)
 
         for branch in thermal_branches:
-            logger.info(f"　熱ブランチ【{branch['key']}】を追加します。")
+            logger.info(f"　熱ブランチ【{branch['key']}】を追加します。{_branch_log_detail(branch)}")
     else:
         node_names = [f"{i_prefix}_s", f"{o_prefix}_s"]
         node_types = ["surface", "surface"]
@@ -623,7 +679,7 @@ def process_surface(
         ]
 
         for i, node in enumerate(node_names):
-            logger.info(f"　ノード【{node}】 を追加します。")
+            logger.info(f"　ノード【{node}】 を追加します。{_node_log_detail(thermal_mass[i], node_types[i])}")
             node_dict = {
                 "key": node,
                 "calc_t": True,
@@ -638,10 +694,9 @@ def process_surface(
             nodes.append(node_dict)
 
         for i, branch in enumerate(thermal_branch_names):
-            logger.info(f"　熱ブランチ【{branch}】を追加します。")
-            thermal_branches.append(
-                {"key": branch, "conductance": conductance[i], "subtype": branch_types[i]}
-            )
+            b = {"key": branch, "conductance": conductance[i], "subtype": branch_types[i]}
+            logger.info(f"　熱ブランチ【{branch}】を追加します。{_branch_log_detail(b)}")
+            thermal_branches.append(b)
 
     return nodes, thermal_branches
 
@@ -654,10 +709,9 @@ def process_wall_solar(surface: dict, sim_length: int) -> list:
     heat_generation = ensure_timeseries(heat_generation, sim_length)
 
     branch_key = f"void->{o_prefix}_s"
-    logger.info(f"　外壁日射熱ブランチ【{branch_key}】を追加します。")
-    thermal_branches.append(
-        {"key": branch_key, "heat_generation": heat_generation, "subtype": "solar_gain"}
-    )
+    b = {"key": branch_key, "heat_generation": heat_generation, "subtype": "solar_gain"}
+    logger.info(f"　外壁日射熱ブランチ【{branch_key}】を追加します。{_branch_log_detail(b)}")
+    thermal_branches.append(b)
     return thermal_branches
 
 
@@ -683,10 +737,9 @@ def process_wall_nocturnal(surface: dict, sim_length: int) -> list:
     heat_generation = ensure_timeseries(heat_generation, sim_length)
 
     branch_key = f"void->{o_prefix}_s"
-    logger.info(f"　外壁夜間放射熱ブランチ【{branch_key}】を追加します。")
-    thermal_branches.append(
-        {"key": branch_key, "heat_generation": heat_generation, "subtype": "nocturnal_loss"}
-    )
+    b = {"key": branch_key, "heat_generation": heat_generation, "subtype": "nocturnal_loss"}
+    logger.info(f"　外壁夜間放射熱ブランチ【{branch_key}】を追加します。{_branch_log_detail(b)}")
+    thermal_branches.append(b)
     return thermal_branches
 
 
@@ -742,24 +795,22 @@ def process_glass_solar(surface: dict, surfaces: list, sim_length: int) -> list:
             ).tolist()
         else:
             continue
-        logger.info(f"　ガラス透過日射熱ブランチ【{branch_key}】を追加します。")
-        thermal_branches.append(
-            {"key": branch_key, "heat_generation": heat_generation, "subtype": "solar_gain"}
-        )
+        b = {"key": branch_key, "heat_generation": heat_generation, "subtype": "solar_gain"}
+        logger.info(f"　ガラス透過日射熱ブランチ【{branch_key}】を追加します。{_branch_log_detail(b)}")
+        thermal_branches.append(b)
 
     # 室空間（ノード）へ SCC 分を追加投入
     # key は一旦 "void->{node}" として生成し、重複があれば validation 側で (01),(02)... にリネームされる。
     if any(v != 0.0 for v in heat_generation_space):
         branch_key = f"void->{node}"
-        logger.info(f"　ガラス透過日射（室空間SCC）熱ブランチ【{branch_key}】を追加します。")
-        thermal_branches.append(
-            {
-                "key": branch_key,
-                "heat_generation": list(heat_generation_space),
-                "subtype": "solar_gain",
-                "comment": "glass_solar_space(SCC)",
-            }
-        )
+        b = {
+            "key": branch_key,
+            "heat_generation": list(heat_generation_space),
+            "subtype": "solar_gain",
+            "comment": "glass_solar_space(SCC)",
+        }
+        logger.info(f"　ガラス透過日射（室空間SCC）熱ブランチ【{branch_key}】を追加します。{_branch_log_detail(b)}")
+        thermal_branches.append(b)
 
     return thermal_branches
 
@@ -779,10 +830,9 @@ def process_radiation(node: str, surface_nodes: list[tuple[str, float]]) -> list
             branch_key = f"{node1_key}->{node2_key}"
             # 4.7 には既に両面の放射率0.9が含まれるため、室内表面間では eta を掛けない
             conductance = DEFAULT_ALPHA_R * area1 * area2 / sum_area
-            logger.info(f"　室内放射熱ブランチ【{branch_key}】を追加します。")
-            thermal_branches.append(
-                {"key": branch_key, "conductance": conductance, "subtype": "radiation"}
-            )
+            b = {"key": branch_key, "conductance": conductance, "subtype": "radiation"}
+            logger.info(f"　室内放射熱ブランチ【{branch_key}】を追加します。{_branch_log_detail(b)}")
+            thermal_branches.append(b)
 
     return thermal_branches
 
