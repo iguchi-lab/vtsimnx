@@ -29,7 +29,7 @@ DEFAULT_ALPHA_R = 4.7   # 室内表面間の放射熱伝達率 [W/m2/K]（両面
 DEFAULT_ETA_SW = 0.8   # 短波（日射）の吸収率（外壁日射・ガラス透過日射の床・壁への吸収）
 DEFAULT_ETA_LW = 0.9    # 長波の吸収率（夜間放射・発熱の放射配分で表面が吸収するとき。室内表面間の4.7には不要）
 DEFAULT_EPSILON_LW = 0.9  # 長波放射率（夜間放射の放出側。室内表面間の4.7には既に含まれる）
-DEFAULT_AIR_V_CAPA = 1200.0  # 空気の体積熱容量 [J/m3K]（近似）
+DEFAULT_AIR_V_CAPA = 1200.0  # 空気の体積熱容量 [J/(m³·K)]（近似）。core vtsimnx/materials と単位を揃える。
 
 
 def _scalar_initial_temperature(value):
@@ -166,6 +166,7 @@ def _auto_response_coefficients_from_layers(
 ) -> dict:
     """
     layers に含まれる lambda, t, v_capa と time_step[s] から response_conduction 係数を自動生成する。
+    v_capa は体積熱容量 [J/(m³·K)]（core vtsimnx/materials の public materials と同じ単位）。
 
     生成する係数は「熱流密度 q'' [W/m2]」に対するもの（面積Aは solver 側で掛けて [W] にする想定）。
     resp_c_* は無次元（過去の q'' あるいは q に掛ける係数。q = A*q'' なので同じ係数で整合する）として扱う。
@@ -528,9 +529,8 @@ def process_surface(
                     raise ValueError(
                         f"surface {surface.get('key','?')}: ventilated layer[{idx}] has invalid air heat capacity"
                     )
-                # 通気層: 4側は通気層の半分の熱容量、中心ノードに空気の熱容量、5側は隣接固体層5の半分（後段で付与）
+                # 通気層: 空気の熱容量は全て中心のみ。左境界＝左側建材の半分（隣接層で付与）、右境界＝右側建材の半分（後段で付与）。
                 capa_vent = a * thickness * air_v_capa
-                node_thermal_mass[left] += capa_vent / 2.0
                 center = f"{i_prefix}_{idx+1}_vent"
                 extra_nodes.append((center, "internal", capa_vent))
                 thermal_branches.append(
@@ -577,6 +577,9 @@ def process_surface(
                     f"surface {surface.get('key','?')}: normal layer[{idx}] must satisfy "
                     "lambda>0, t>0, v_capa>=0"
                 )
+            # 熱容量 [J/K] = 面積 [m²] × 体積熱容量 [J/(m³·K)] × 厚さ [m]
+            # 注意: t は [m]、v_capa は [J/(m³·K)]。t を [mm] で渡すと熱容量が約1000倍になる。
+            # core materials は公開時 v_capa を既に [J/(m³·K)] にしているのでそのまま使う。
             c_layer = a * v_capa * thickness
             node_thermal_mass[left] += c_layer / 2.0
             node_thermal_mass[right] += c_layer / 2.0

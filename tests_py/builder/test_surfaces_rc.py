@@ -245,7 +245,7 @@ def test_surfaces_rc_ventilated_layer_generates_center_node_and_three_internal_b
     assert len(layer_nodes) == 3
     center = [n for n in layer_nodes if "_vent" in n.get("key", "")]
     assert len(center) == 1
-    # thermal_mass = area * t * air_v_capa(default=1200)
+    # 中央ノード＝空気の熱容量のみ。左・右境界は隣接建材の半分（他で付与）。
     assert abs(center[0]["thermal_mass"] - (10.0 * 0.05 * 1200.0)) < 1e-9
 
     # [室内側対流, c1対流, c2対流, 放射, 室外側対流]

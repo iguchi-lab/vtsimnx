@@ -324,7 +324,8 @@ builder の raw_config では `key` 記法（`A->B` / `->外部` 等）から `s
 - `part`（必須）: `"wall" | "floor" | "ceiling" | "glass"`  
   （互換: `"window"` も受理し、内部では `"glass"` として扱います。前後空白・大文字小文字も正規化されます）
 - `area`（必須）
-- `layers`（任意）: `lambda`（熱伝導率）, `t`（厚さ）, `v_capa`（体積熱容量）
+- `layers`（任意）: `lambda`（熱伝導率 [W/(m·K)]）, `t`（厚さ **[m]**）, `v_capa`（体積熱容量 **[J/(m³·K)]**）
+  - `t` を mm で渡すと熱容量が約1000倍になるので [m] で指定すること。
   - 追加: RC法（`layer_method="rc"`）では層ごとに特殊指定も可能
     - `air_layer: true`
       - 中空層として扱い、`thermal_resistance`（または `r_value` / `r`）から
