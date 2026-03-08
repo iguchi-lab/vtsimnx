@@ -69,6 +69,7 @@ builder は raw_config を正規化・展開して solver_config を作ります
 6. **エアコン制御**
    - 設定温度/モードに基づきON/OFF等を更新し、必要なら熱計算側を再計算
    - 湿度計算が有効な場合、エアコンモデルへの入力湿度（`X_in/X_ex`）はノードの `current_x` を優先し、取得できない場合は警告してJIS条件へフォールバック
+   - ON/OFF判定、fixed-row、処理熱量、能力上限超過時の設定温度補正の詳細は `docs/aircon_control_overview.md` を参照
 7. **濃度計算（`c`）**
    - エアコン制御が完了した後に、換気流量・`dust_generation`・沈着率 `beta`・除去効率 `eta` を用いて 1 ステップ更新
 8. **出力**

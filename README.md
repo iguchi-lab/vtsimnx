@@ -16,6 +16,7 @@
 - builder入力JSON: `docs/builder_json.md`
 - シミュレーション全体の概略: `docs/simulation_overview.md`
 - エアコンモデル（acmodel）: `docs/acmodel_overview.md`
+- エアコン制御（ON/OFF・能力上限制御）: `docs/aircon_control_overview.md`
 - 物理・数学メモ: `docs/physics_math_notes.md`
 
 ---

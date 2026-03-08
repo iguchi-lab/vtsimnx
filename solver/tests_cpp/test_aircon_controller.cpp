@@ -6,6 +6,7 @@
 
 #include "aircon/aircon_controller.h"
 #include "network/thermal_network.h"
+#include "network/ventilation_network.h"
 
 namespace {
 
@@ -68,6 +69,16 @@ static VertexProperties makeNode(const std::string& key, const std::string& type
     v.current_pre_temp = 24.0;
     v.on = false;
     return v;
+}
+
+static nlohmann::json makeAcSpecWithMax(double coolingMaxKw, double heatingMaxKw) {
+    return nlohmann::json{
+        {"Q",
+         {
+             {"cooling", {{"max", coolingMaxKw}}},
+             {"heating", {{"max", heatingMaxKw}}},
+         }},
+    };
 }
 
 } // namespace
@@ -148,6 +159,76 @@ int main() {
             expectNear(sensible[0], 0.0, 0.0, "A sensible heat=0 when off");
             expectTrue(sensible[1] > 0.0, "B sensible heat > 0 when on");
         }
+    }
+
+    {
+        auto& in = thermal.getNode("IN");
+        auto& b = thermal.getNode("B");
+        in.current_t = 18.0;
+        b.current_t = 24.0;
+        b.current_mode = "HEATING";
+        b.current_pre_temp = 26.0;
+        b.on = true;
+        b.ac_spec = makeAcSpecWithMax(3.3, 0.5);
+        b.initializeAirconSpec();
+
+        VentilationNetwork vent;
+        SimulationConstants constants{};
+        std::ostringstream logs;
+        int totalIterations = 0;
+        const bool adjusted = controller.checkAndAdjustCapacity(
+            thermal, vent, constants, flowRates, logs, totalIterations);
+
+        expectTrue(adjusted, "heating over-capacity should trigger adjustment");
+        expectTrue(b.current_pre_temp < 26.0, "heating setpoint should decrease");
+        expectTrue(b.current_pre_temp > 18.0, "heating setpoint should stay above inlet temp");
+    }
+
+    {
+        auto& in = thermal.getNode("IN");
+        auto& b = thermal.getNode("B");
+        in.current_t = 30.0;
+        b.current_t = 22.0;
+        b.current_mode = "COOLING";
+        b.current_pre_temp = 24.0;
+        b.on = true;
+        b.ac_spec = makeAcSpecWithMax(0.5, 5.4);
+        b.initializeAirconSpec();
+
+        VentilationNetwork vent;
+        SimulationConstants constants{};
+        std::ostringstream logs;
+        int totalIterations = 0;
+        const bool adjusted = controller.checkAndAdjustCapacity(
+            thermal, vent, constants, flowRates, logs, totalIterations);
+
+        expectTrue(adjusted, "cooling over-capacity should trigger adjustment");
+        expectTrue(b.current_pre_temp > 24.0, "cooling setpoint should increase");
+        expectTrue(b.current_pre_temp < 30.0, "cooling setpoint should stay below inlet temp");
+    }
+
+    {
+        auto& in = thermal.getNode("IN");
+        auto& b = thermal.getNode("B");
+        in.current_t = 18.0;
+        b.current_t = 24.0;
+        b.current_mode = "HEATING";
+        b.current_pre_temp = 26.0;
+        b.on = true;
+        b.ac_spec = nlohmann::json{
+            {"Q", {{"cooling", {{"rtd", 2.2}}}, {"heating", {{"rtd", 2.5}}}}},
+        };
+        b.initializeAirconSpec();
+
+        VentilationNetwork vent;
+        SimulationConstants constants{};
+        std::ostringstream logs;
+        int totalIterations = 0;
+        const bool adjusted = controller.checkAndAdjustCapacity(
+            thermal, vent, constants, flowRates, logs, totalIterations);
+
+        expectTrue(!adjusted, "missing Q.max should skip capacity adjustment");
+        expectNear(b.current_pre_temp, 26.0, 1e-12, "setpoint unchanged when Q.max is absent");
     }
 
     if (g_failures == 0) {

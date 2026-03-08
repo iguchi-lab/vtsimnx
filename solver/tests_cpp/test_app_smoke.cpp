@@ -205,6 +205,8 @@ int main() {
                 const size_t initCount = countOccurrences(logText, "エアコン設定（初期化）");
                 expectTrue(modelInitCount == 1, "aircon model initializes once");
                 expectTrue(initCount == 2, "applyPreset log appears once per timestep (2 times)");
+                expectTrue(logText.find("エアコン制御の修正が行われました。再計算を実行します。") != std::string::npos,
+                           "simulation runner recompute log exists");
             }
         }
     }

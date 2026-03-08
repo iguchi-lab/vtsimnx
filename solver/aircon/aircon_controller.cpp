@@ -22,6 +22,8 @@ namespace {
 constexpr double kAirDensity = archenv::DENSITY_DRY_AIR;         // [kg/m^3]
 constexpr double kAirSpecificHeat = archenv::SPECIFIC_HEAT_AIR;   // [J/(kg·K)]
 constexpr double kDefaultOuterFlowRate = 25.5 / 60.0;             // m^3/s
+constexpr int kSetpointSearchMaxIterations = 32;
+constexpr double kSetpointSearchTolerance = 1e-3;                 // [degC]
 
 inline std::string toLowerCopy(const std::string& value) {
     std::string result = value;
@@ -50,6 +52,64 @@ inline double clampHeatCapacity(double value) {
         return 0.0;
     }
     return value;
+}
+
+inline double estimateHeatCapacityForSetpoint(const std::string& operationMode,
+                                              double inletTemp,
+                                              double setpoint,
+                                              double airFlowRate) {
+    if (std::abs(airFlowRate) <= std::numeric_limits<double>::epsilon()) {
+        return 0.0;
+    }
+    double deltaT = 0.0;
+    if (operationMode == "heating") {
+        deltaT = std::max(0.0, setpoint - inletTemp);
+    } else {
+        deltaT = std::max(0.0, inletTemp - setpoint);
+    }
+    return clampHeatCapacity(kAirDensity * kAirSpecificHeat * std::abs(airFlowRate) * deltaT);
+}
+
+inline std::optional<double> findCapacityLimitedSetpoint(const std::string& operationMode,
+                                                         double inletTemp,
+                                                         double currentSetpoint,
+                                                         double airFlowRate,
+                                                         double maxHeatCapacity) {
+    if (!std::isfinite(inletTemp) || !std::isfinite(currentSetpoint) || !std::isfinite(maxHeatCapacity)) {
+        return std::nullopt;
+    }
+
+    if (operationMode == "heating") {
+        double feasible = std::min(inletTemp, currentSetpoint);
+        double infeasible = std::max(inletTemp, currentSetpoint);
+        if (estimateHeatCapacityForSetpoint(operationMode, inletTemp, infeasible, airFlowRate) <= maxHeatCapacity) {
+            return std::nullopt;
+        }
+        for (int i = 0; i < kSetpointSearchMaxIterations && (infeasible - feasible) > kSetpointSearchTolerance; ++i) {
+            const double mid = 0.5 * (feasible + infeasible);
+            if (estimateHeatCapacityForSetpoint(operationMode, inletTemp, mid, airFlowRate) <= maxHeatCapacity) {
+                feasible = mid;
+            } else {
+                infeasible = mid;
+            }
+        }
+        return feasible;
+    }
+
+    double infeasible = std::min(inletTemp, currentSetpoint);
+    double feasible = std::max(inletTemp, currentSetpoint);
+    if (estimateHeatCapacityForSetpoint(operationMode, inletTemp, infeasible, airFlowRate) <= maxHeatCapacity) {
+        return std::nullopt;
+    }
+    for (int i = 0; i < kSetpointSearchMaxIterations && (feasible - infeasible) > kSetpointSearchTolerance; ++i) {
+        const double mid = 0.5 * (feasible + infeasible);
+        if (estimateHeatCapacityForSetpoint(operationMode, inletTemp, mid, airFlowRate) <= maxHeatCapacity) {
+            feasible = mid;
+        } else {
+            infeasible = mid;
+        }
+    }
+    return feasible;
 }
 
 static inline acmodel::InputData buildAcmodelInput(const std::string& /*operationMode*/,
@@ -306,19 +366,6 @@ std::optional<double> resolveMaxHeatCapacity(const VertexProperties& nodeProps,
             source = "Q." + modeKey + ".max";
             return *value * 1000.0;
         }
-        if (auto value = spec->getCapacity(modeKey, "rtd")) {
-            source = "Q." + modeKey + ".rtd";
-            return *value * 1000.0;
-        }
-        double fallback = spec->getMaxHeatCapacity();
-        if (fallback > 0.0) {
-            source = "max_heat_capacity";
-            return fallback;
-        }
-    }
-    if (nodeProps.ac_spec.contains("max_heat_capacity")) {
-        source = "max_heat_capacity";
-        return nodeProps.ac_spec["max_heat_capacity"].get<double>();
     }
     return std::nullopt;
 }
@@ -333,7 +380,7 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
     bool adjustmentMade = false;
     // 順序を決定的にしてログ/挙動の再現性を上げる
     for (const auto& airconKey : getAirconKeys()) {
-        const auto& nodeProps = thermalNetwork.getNode(airconKey);
+        auto& nodeProps = thermalNetwork.getNode(airconKey);
         if (!nodeProps.on) {
             continue;
         }
@@ -354,6 +401,21 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
             oss << ", 現在処理熱量=" << std::fixed << std::setprecision(2) << current << "W";
             if (maxHeatCapacity && current > *maxHeatCapacity) {
                 oss << " → 超過";
+                auto limitedSetpoint = findCapacityLimitedSetpoint(
+                    context.operationMode,
+                    context.validData.indoorTemp,
+                    nodeProps.current_pre_temp,
+                    context.airFlowRate,
+                    *maxHeatCapacity);
+                if (limitedSetpoint && std::abs(*limitedSetpoint - nodeProps.current_pre_temp) > kSetpointSearchTolerance) {
+                    const double previousSetpoint = nodeProps.current_pre_temp;
+                    nodeProps.current_pre_temp = *limitedSetpoint;
+                    adjustmentMade = true;
+                    oss << ", 設定温度補正=" << previousSetpoint << "→" << *limitedSetpoint << "°C";
+                    oss << ", 再計算要求";
+                } else {
+                    oss << ", 補正不要";
+                }
             } else {
                 oss << " → OK";
             }
