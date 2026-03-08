@@ -218,7 +218,8 @@ def test_run_returns_structured_500_when_solver_binary_missing():
         return {}, [], []
 
     def _missing_solver(*_args, **_kwargs):
-        raise FileNotFoundError(2, "No such file or directory", "/home/ubuntu/vtsimnx-api/build/vtsimnx_solver")
+        # パスは環境に依存しないよう相対的な表記にしておく（レスポンスの message に含まれる）
+        raise FileNotFoundError(2, "No such file or directory", "build/vtsimnx_solver")
 
     main_mod.build_config_with_warning_details = _ok_build
     main_mod.run_solver = _missing_solver

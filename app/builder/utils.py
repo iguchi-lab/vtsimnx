@@ -63,6 +63,18 @@ def _append_with_comment(base: Dict[str, Any], **overrides: Any) -> Dict[str, An
     return _normalize_timeseries_mapping(merged)
 
 
+def series_summary_for_log(value: Any) -> str:
+    """
+    ログ用の時系列サマリ。配列は len / 先頭・末尾のみ表示する。
+    heat_sources / moisture などで共通利用。
+    """
+    if isinstance(value, list):
+        if not value:
+            return "series[len=0]"
+        return f"series[len={len(value)} first={value[0]} last={value[-1]}]"
+    return f"scalar[{value}]"
+
+
 def convert_numeric_values(
     obj: Any,
     *,

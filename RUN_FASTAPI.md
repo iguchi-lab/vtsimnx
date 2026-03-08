@@ -199,7 +199,7 @@ OFF:
 ### フォアグラウンドで起動（ログを見たいとき）
 
 ```bash
-cd /home/ubuntu/vtsimnx-api
+cd /home/ubuntu/vtsimnx/api   # ワークスペース統合時は vtsimnx/api
 ./scripts/run_api.sh
 ```
 

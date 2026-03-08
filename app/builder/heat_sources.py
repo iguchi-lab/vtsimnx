@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 
 from .logger import get_logger
-from .utils import convert_to_json_compatible
+from .utils import convert_to_json_compatible, series_summary_for_log
 from .surfaces import DEFAULT_ETA_LW, collect_room_side_surfaces
 from .validate import ConfigFileError
 
@@ -68,20 +68,6 @@ def _normalize_heat_series(value: Any) -> Any:
         return float(v)
     except Exception:
         raise ConfigFileError(f"heat_source.generation_rate must be number or array<number>, got {value!r}")
-
-
-def _series_summary(v: Any) -> str:
-    """
-    ログ出力用の短いサマリ。
-    - 具体的な時系列値を全文出すとログが巨大になるため、型/長さ/先頭/末尾のみ出す。
-    """
-    if isinstance(v, list):
-        if not v:
-            return "series[len=0]"
-        first = v[0]
-        last = v[-1]
-        return f"series[len={len(v)} first={first} last={last}]"
-    return f"scalar[{v}]"
 
 
 def _room_surfaces(surface_config: List[Dict[str, Any]], room: str) -> List[Tuple[str, float, float]]:
@@ -148,7 +134,7 @@ def build_heat_generation_branches(
                 branch_key,
                 room,
                 key,
-                _series_summary(q_conv),
+                series_summary_for_log(q_conv),
             )
             branches.append(
                 {
@@ -173,7 +159,7 @@ def build_heat_generation_branches(
                     branch_key,
                     room,
                     key,
-                    _series_summary(q_rad),
+                    series_summary_for_log(q_rad),
                 )
                 branches.append(
                     {
@@ -194,7 +180,7 @@ def build_heat_generation_branches(
                         surf_node,
                         room,
                         key,
-                        _series_summary(q_abs),
+                        series_summary_for_log(q_abs),
                         area,
                         sum_area,
                         frac,

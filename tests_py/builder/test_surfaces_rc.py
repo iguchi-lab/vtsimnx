@@ -198,8 +198,8 @@ def test_surfaces_rc_hollow_layer_half_air_capacity_to_end_nodes():
     # 両端2ノードのみ（中心ノードなし）
     layer_nodes = [n for n in nodes if n.get("type") == "layer"]
     assert len(layer_nodes) == 2
-    # 空気の熱容量 = area * t * (1.2*1005)、半分ずつ両端に追加
-    capa_air_half = (10.0 * 0.05 * (1.2 * 1005)) / 2.0
+    # 空気の熱容量 = area * t * 1298（SimHeat で採用の標準値）、半分ずつ両端に追加
+    capa_air_half = (10.0 * 0.05 * 1298.0) / 2.0
     for n in layer_nodes:
         assert abs(n["thermal_mass"] - capa_air_half) < 1e-9
 
@@ -258,8 +258,8 @@ def test_surfaces_rc_ventilated_layer_generates_center_node_and_three_internal_b
     center = [n for n in layer_nodes if "_vent" in n.get("key", "")]
     assert len(center) == 1
     # 中央ノード＝空気の熱容量のみ。左・右境界は隣接建材の半分（他で付与）。
-    # 空気の体積熱容量 = 1.2*1005 [J/(m³·K)]（archenv と同じ）
-    assert abs(center[0]["thermal_mass"] - (10.0 * 0.05 * (1.2 * 1005))) < 1e-9
+    # 空気の体積熱容量 = 1298 [J/(m³·K)]（SimHeat で採用の標準値）
+    assert abs(center[0]["thermal_mass"] - (10.0 * 0.05 * 1298.0)) < 1e-9
 
     # [室内側対流, c1対流, c2対流, 放射, 室外側対流]
     assert [b.get("subtype") for b in tbs] == [

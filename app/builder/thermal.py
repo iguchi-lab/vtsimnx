@@ -1,25 +1,9 @@
 from __future__ import annotations
 
 from .logger import get_logger
+from .surfaces import _scalar_initial_temperature
 
 logger = get_logger(__name__)
-
-
-def _scalar_initial_temperature(value):
-    """
-    ノード設定の `t`（スカラー or 時系列）から「初期値（スカラー）」を取り出す。
-    熱容量ノードは通常 calc_t=False だが、初期状態の整合のため親ノードの初期値を引き継ぐ。
-    """
-    if value is None:
-        return None
-    if isinstance(value, (list, tuple)):
-        if len(value) == 0:
-            return None
-        return float(value[0])
-    try:
-        return float(value)
-    except Exception:
-        return None
 
 
 def add_capacity(node: dict, time_step: float) -> tuple[list, list]:

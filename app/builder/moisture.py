@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 
 from .logger import get_logger
-from .utils import convert_to_json_compatible
+from .utils import convert_to_json_compatible, series_summary_for_log
 from .validate import ConfigFileError
 
 logger = get_logger(__name__)
@@ -31,14 +31,6 @@ def _normalize_series(value: Any, *, field: str) -> Any:
         return float(v)
     except Exception:
         raise ConfigFileError(f"humidity_source.{field} must be number or array<number>, got {value!r}")
-
-
-def _series_summary(v: Any) -> str:
-    if isinstance(v, list):
-        if not v:
-            return "series[len=0]"
-        return f"series[len={len(v)} first={v[0]} last={v[-1]}]"
-    return f"scalar[{v}]"
 
 
 def build_humidity_generation_vents(
@@ -89,7 +81,7 @@ def build_humidity_generation_vents(
                 raise ConfigFileError(f"humidity_source[{key!r}] missing required field: mx")
             gen = _normalize_series(item.get("mx"), field="mx")
             branch_key = f"void->{room}"
-            logger.info("　発湿(互換)換気ブランチ【%s】を追加します: key=%s rate=%s", branch_key, key, _series_summary(gen))
+            logger.info("　発湿(互換)換気ブランチ【%s】を追加します: key=%s rate=%s", branch_key, key, series_summary_for_log(gen))
             branches.append(
                 {
                     "key": branch_key,
@@ -118,7 +110,7 @@ def build_humidity_generation_vents(
 
         gen = _normalize_series(item.get("generation_rate"), field="generation_rate")
         branch_key = f"void->{room}"
-        logger.info("　発湿換気ブランチ【%s】を追加します: key=%s rate=%s", branch_key, key, _series_summary(gen))
+        logger.info("　発湿換気ブランチ【%s】を追加します: key=%s rate=%s", branch_key, key, series_summary_for_log(gen))
         branches.append(
             {
                 "key": branch_key,
