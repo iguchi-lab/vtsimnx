@@ -149,7 +149,7 @@ def test_surfaces_rc_hollow_layer_can_use_thermal_resistance():
             "part": "wall",
             "area": 10.0,
             "layers": [
-                {"air_layer": True, "thermal_resistance": 0.20},
+                {"air_layer": True, "thermal_resistance": 0.20, "t": 0.05},
             ],
         }
     ]
@@ -173,8 +173,8 @@ def test_surfaces_rc_hollow_layer_can_use_thermal_resistance():
     assert abs(tbs[1]["conductance"] - (10.0 / 0.20)) < 1e-9
 
 
-def test_surfaces_rc_hollow_layer_ignores_thickness_no_center_node():
-    """中空層は厚さ t を無視し、中心ノードを設けず設定抵抗値で 1 本の伝導のみ。"""
+def test_surfaces_rc_hollow_layer_half_air_capacity_to_end_nodes():
+    """中空層は厚さ t 必須。空気の熱容量を半分ずつ両端ノードに追加し、抵抗値で 1 本の伝導（中心ノードなし）。"""
     surfaces = [
         {
             "key": "A->B",
@@ -198,8 +198,10 @@ def test_surfaces_rc_hollow_layer_ignores_thickness_no_center_node():
     # 両端2ノードのみ（中心ノードなし）
     layer_nodes = [n for n in nodes if n.get("type") == "layer"]
     assert len(layer_nodes) == 2
-    center = [n for n in layer_nodes if "_air" in n.get("key", "")]
-    assert len(center) == 0
+    # 空気の熱容量 = area * t * (1.2*1005)、半分ずつ両端に追加
+    capa_air_half = (10.0 * 0.05 * (1.2 * 1005)) / 2.0
+    for n in layer_nodes:
+        assert abs(n["thermal_mass"] - capa_air_half) < 1e-9
 
     # [室内側対流, 中空層伝導, 室外側対流]
     assert [b.get("subtype") for b in tbs] == [
@@ -207,8 +209,20 @@ def test_surfaces_rc_hollow_layer_ignores_thickness_no_center_node():
         "conduction",
         "convection",
     ]
-    # conductance = area / R
     assert abs(tbs[1]["conductance"] - (10.0 / 0.20)) < 1e-9
+
+
+def test_surfaces_rc_hollow_layer_requires_positive_t():
+    """中空層で厚さ t が無い or 0 以下なら ValueError。"""
+    with pytest.raises(ValueError, match="hollow layer.*requires positive 't'"):
+        process_surfaces(
+            [{"key": "A->B", "part": "wall", "area": 10.0, "layers": [{"air_layer": True, "thermal_resistance": 0.20}]}],
+            sim_length=2,
+            node_config=[{"key": "A", "t": 20.0}, {"key": "B", "t": 0.0}],
+            add_solar=False,
+            add_radiation=False,
+            time_step=60.0,
+        )
 
 
 def test_surfaces_rc_ventilated_layer_generates_center_node_and_three_internal_branches():

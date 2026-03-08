@@ -582,7 +582,7 @@ def process_surface(
                 continue
 
             if is_hollow:
-                # 中空層: thermal_resistance（または r_value / r）で抵抗を指定。中心ノードは設けず、設定された抵抗値で 1 本の伝導のみ。厚さ t は使用しない。
+                # 中空層: thermal_resistance で抵抗を指定し 1 本の伝導。厚さ t で空気の熱容量を算出し、半分ずつ両端ノードに追加（中心ノードなし）。
                 r_layer = _layer_float(layer, "thermal_resistance", "r_value", "r")
                 if r_layer is None:
                     raise ValueError(
@@ -593,6 +593,19 @@ def process_surface(
                     raise ValueError(
                         f"surface {surface.get('key','?')}: hollow layer[{idx}] resistance must be positive"
                     )
+                thickness = _layer_float(layer, "t")
+                if thickness is None or thickness <= 0.0:
+                    raise ValueError(
+                        f"surface {surface.get('key','?')}: hollow layer[{idx}] requires positive 't'"
+                    )
+                air_v_capa = _layer_float(
+                    layer, "air_v_capa", "v_capa_air", "v_capa", default=DEFAULT_AIR_V_CAPA
+                )
+                if air_v_capa is None or air_v_capa < 0.0:
+                    air_v_capa = DEFAULT_AIR_V_CAPA
+                capa_air = a * thickness * air_v_capa
+                node_thermal_mass[left] += capa_air / 2.0
+                node_thermal_mass[right] += capa_air / 2.0
                 thermal_branches.append(
                     {"key": f"{left}->{right}", "conductance": a / r_layer, "subtype": "conduction"}
                 )
