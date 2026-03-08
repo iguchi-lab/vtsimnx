@@ -1,6 +1,37 @@
 from __future__ import annotations
 
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
+
+
+def extract_manifest_error(manifest: Dict[str, Any]) -> Optional[str]:
+    """
+    manifest/レスポンス相当のJSONから、ユーザーに見せるべき失敗理由を抽出する。
+    """
+    output: Dict[str, Any]
+    if isinstance(manifest.get("output"), dict):
+        output = manifest["output"]
+    elif isinstance(manifest.get("result"), dict):
+        output = manifest["result"]
+    else:
+        output = manifest
+
+    error = output.get("error")
+    if isinstance(error, str) and error.strip():
+        extras: List[str] = []
+        log_file = output.get("log_file")
+        if isinstance(log_file, str) and log_file:
+            extras.append(f"log={log_file}")
+        builder_log_file = output.get("builder_log_file")
+        if isinstance(builder_log_file, str) and builder_log_file:
+            extras.append(f"builder_log={builder_log_file}")
+        suffix = f" ({', '.join(extras)})" if extras else ""
+        return f"シミュレーションに失敗しました: {error.strip()}{suffix}"
+
+    status = output.get("status")
+    if isinstance(status, str) and status.lower() == "error":
+        return "シミュレーションに失敗しました"
+
+    return None
 
 
 def extract_result_files(manifest: Dict[str, Any]) -> Dict[str, str]:
@@ -13,22 +44,28 @@ def extract_result_files(manifest: Dict[str, Any]) -> Dict[str, str]:
       - {"result_files": {...}}
       - {"files": {...}}
     """
+    candidates = []
     if isinstance(manifest.get("output"), dict) and isinstance(manifest["output"].get("result_files"), dict):
-        result_files = manifest["output"]["result_files"]
-    elif isinstance(manifest.get("result"), dict) and isinstance(manifest["result"].get("result_files"), dict):
-        result_files = manifest["result"]["result_files"]
-    elif isinstance(manifest.get("result_files"), dict):
-        result_files = manifest["result_files"]
-    elif isinstance(manifest.get("files"), dict):
-        result_files = manifest["files"]
-    else:
-        raise ValueError("manifest.json から result_files/files が見つかりませんでした")
+        candidates.append(manifest["output"]["result_files"])
+    if isinstance(manifest.get("result"), dict) and isinstance(manifest["result"].get("result_files"), dict):
+        candidates.append(manifest["result"]["result_files"])
+    if isinstance(manifest.get("result_files"), dict):
+        candidates.append(manifest["result_files"])
+    if isinstance(manifest.get("files"), dict):
+        candidates.append(manifest["files"])
 
-    out: Dict[str, str] = {}
-    for k, v in result_files.items():
-        if isinstance(k, str) and isinstance(v, str):
-            out[k] = v
-    return out
+    for result_files in candidates:
+        out: Dict[str, str] = {}
+        for k, v in result_files.items():
+            if isinstance(k, str) and isinstance(v, str):
+                out[k] = v
+        if out:
+            return out
+
+    error_message = extract_manifest_error(manifest)
+    if error_message:
+        raise ValueError(error_message)
+    raise ValueError("manifest.json から result_files/files が見つかりませんでした")
 
 
 def series_columns(schema: Dict[str, Any], series_name: str) -> List[str]:
@@ -63,6 +100,6 @@ def series_columns(schema: Dict[str, Any], series_name: str) -> List[str]:
     return cols
 
 
-__all__ = ["extract_result_files", "series_columns"]
+__all__ = ["extract_result_files", "extract_manifest_error", "series_columns"]
 
 

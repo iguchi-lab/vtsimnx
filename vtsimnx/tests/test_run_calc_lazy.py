@@ -3,6 +3,7 @@ import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 
 import numpy as np
+import pytest
 
 import vtsimnx as vt
 
@@ -134,6 +135,41 @@ class _Handler(BaseHTTPRequestHandler):
         return
 
 
+class _ErrorHandler(BaseHTTPRequestHandler):
+    def do_POST(self):
+        if self.path != "/run":
+            self.send_response(404)
+            self.end_headers()
+            return
+
+        try:
+            n = int(self.headers.get("Content-Length", "0"))
+        except Exception:
+            n = 0
+        if n > 0:
+            _ = self.rfile.read(n)
+
+        body = {
+            "result": {
+                "artifact_dir": "output.artifacts.123",
+                "status": "error",
+                "error": "nodes[928].pre_temp must be array<number>",
+                "log_file": "solver.log",
+                "builder_log_file": "builder.log",
+                "result_files": {},
+            }
+        }
+        raw = json.dumps(body).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
+    def log_message(self, format, *args):
+        return
+
+
 def test_run_calc_with_dataframes_is_lazy():
     server = HTTPServer(("127.0.0.1", 0), _Handler)
     port = server.server_address[1]
@@ -175,6 +211,27 @@ def test_run_calc_with_dataframes_is_lazy():
         assert df2.shape == (2, 1)
         assert _State.get_schema == schema_count
         assert _State.get_bin >= 2
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+def test_run_calc_with_dataframes_raises_original_error_message():
+    server = HTTPServer(("127.0.0.1", 0), _ErrorHandler)
+    port = server.server_address[1]
+    t = threading.Thread(target=server.serve_forever, daemon=True)
+    t.start()
+
+    try:
+        base_url = f"http://127.0.0.1:{port}"
+        with pytest.raises(ValueError, match="nodes\\[928\\]\\.pre_temp must be array<number>"):
+            vt.run_calc(
+                base_url,
+                {"simulation": {"index": {"length": 2, "timestep": 1}}},
+                output_path=None,
+                with_dataframes=True,
+                compress_request=False,
+            )
     finally:
         server.shutdown()
         server.server_close()

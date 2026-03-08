@@ -6,6 +6,7 @@ import numpy as np
 import pytest
 
 import vtsimnx as vt
+from vtsimnx.artifacts._schema import extract_result_files
 
 
 def _serve(handler_cls):
@@ -159,5 +160,21 @@ def test_get_artifact_file_does_not_set_time_index_when_index_length_mismatch():
     finally:
         server.shutdown()
         server.server_close()
+
+
+def test_extract_result_files_raises_with_output_error_message():
+    manifest = {
+        "output": {
+            "status": "error",
+            "error": "nodes[928].pre_temp must be array<number>",
+            "log_file": "solver.log",
+            "builder_log_file": "builder.log",
+        },
+        "result_files": {},
+        "files": {},
+    }
+
+    with pytest.raises(ValueError, match="nodes\\[928\\]\\.pre_temp must be array<number>"):
+        extract_result_files(manifest)
 
 

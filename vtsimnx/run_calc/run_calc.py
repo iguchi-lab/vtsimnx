@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional, Union
 import numpy as np
 import pandas as pd
 
-from vtsimnx.artifacts._schema import extract_result_files
+from vtsimnx.artifacts._schema import extract_manifest_error, extract_result_files
 from vtsimnx.run_calc._http import _post_run
 from vtsimnx.run_calc._index import (
     _normalize_simulation_index_inplace,
@@ -241,6 +241,10 @@ def run_calc(
         return resp_json
 
     output = _output_block(resp_json)
+    error_message = extract_manifest_error(output)
+    if error_message:
+        raise ValueError(error_message)
+
     artifact_dir = output.get("artifact_dir")
     if not isinstance(artifact_dir, str) or not artifact_dir:
         raise ValueError(f"run_calcレスポンスから artifact_dir を取得できませんでした: {artifact_dir!r}")
