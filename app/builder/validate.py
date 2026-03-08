@@ -9,7 +9,7 @@ from typing import Any, Dict, List, Tuple, Set, Optional, TypedDict
 import numpy as np
 
 from .logger import get_logger
-from .utils import CHAIN_DELIMITER, convert_numeric_values, convert_to_json_compatible
+from .utils import CHAIN_DELIMITER, convert_numeric_values, convert_to_json_compatible, ensure_timeseries
 from .config_types import (
     SimConfigType,
     NodeType,
@@ -44,6 +44,22 @@ THERMAL_BRANCH_TYPES: Dict[str, Dict[str, List[str]]] = {
         "optional": ["resp_c_src", "resp_c_tgt"],
     },
 }
+
+
+def _is_nan_like(value: Any) -> bool:
+    return value is None or (
+        isinstance(value, (float, np.floating)) and np.isnan(value)
+    )
+
+
+def _aircon_mode_is_off(value: Any) -> bool:
+    if isinstance(value, str):
+        return value.strip().upper() == "OFF"
+    if isinstance(value, (int, np.integer)):
+        return int(value) == 0
+    if isinstance(value, (float, np.floating)):
+        return not np.isnan(value) and int(value) == 0
+    return False
 
 
 # ------------------------------
@@ -425,13 +441,27 @@ def validate_node_config(
 
         # エアコン特有の pre_temp
         if node.get("type") == NodeTypeEnum.AIRCON:
+            sim_length = int(sim_config["index"]["length"])
             pre = node.get("pre_temp")
+            mode = node.get("mode")
             if pre is None:
-                node["pre_temp"] = 20.0
-            elif isinstance(pre, (int, float)):
-                node["pre_temp"] = float(pre)
-            elif isinstance(pre, list):
-                node["pre_temp"] = pre
+                node["pre_temp"] = ensure_timeseries(20.0, sim_length)
+            elif isinstance(pre, (int, float, list, np.ndarray)):
+                pre_series = ensure_timeseries(pre, sim_length)
+                mode_series = ensure_timeseries(mode, sim_length) if mode is not None else None
+                for idx, val in enumerate(pre_series):
+                    if not _is_nan_like(val):
+                        continue
+                    mode_val = mode_series[idx] if mode_series and idx < len(mode_series) else None
+                    if _aircon_mode_is_off(mode_val):
+                        # 停止中は設定温度が使われないため、安全な既定値へ置換する。
+                        pre_series[idx] = 20.0
+                    else:
+                        errors.append(
+                            f"ノード {node['key']} の pre_temp[{idx}] が NaN/None です。"
+                            "mode が OFF 以外の時刻では数値が必要です。"
+                        )
+                node["pre_temp"] = pre_series
         elif "pre_temp" in node:
             del node["pre_temp"]
 

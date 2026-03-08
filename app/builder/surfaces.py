@@ -29,8 +29,8 @@ DEFAULT_ALPHA_R = 4.7   # 室内表面間の放射熱伝達率 [W/m2/K]（両面
 DEFAULT_ETA_SW = 0.8   # 短波（日射）の吸収率（外壁日射・ガラス透過日射の床・壁への吸収）
 DEFAULT_ETA_LW = 0.9    # 長波の吸収率（夜間放射・発熱の放射配分で表面が吸収するとき。室内表面間の4.7には不要）
 DEFAULT_EPSILON_LW = 0.9  # 長波放射率（夜間放射の放出側。室内表面間の4.7には既に含まれる）
-# 空気の体積熱容量 ρ·c_p [J/(m³·K)]。archenv の定数（ρ≈1.2 kg/m³, c_p=1005 J/(kg·K)）と同じ。
-DEFAULT_AIR_V_CAPA = 1.2 * 1005  # 1206.0
+# 空気の体積熱容量 [J/(m³·K)]。中空層・通気層の標準値（1298 J/(m³·K)。SimHeat で採用されている値）。
+DEFAULT_AIR_V_CAPA = 1298.0
 
 
 def _scalar_initial_temperature(value):
@@ -80,6 +80,127 @@ def _layer_float(layer: dict, *names: str, default: float | None = None) -> floa
             except Exception:
                 raise ValueError(f"invalid numeric value for layer.{n}: {layer.get(n)!r}")
     return default
+
+
+def _get_air_v_capa(layer: dict) -> float:
+    """層の空気体積熱容量を取得。未指定・不正時は DEFAULT_AIR_V_CAPA を返す。"""
+    v = _layer_float(layer, "air_v_capa", "v_capa_air", "v_capa", default=DEFAULT_AIR_V_CAPA)
+    if v is None or v < 0.0:
+        return DEFAULT_AIR_V_CAPA
+    return float(v)
+
+
+def _build_layer_node_dict(
+    key: str,
+    subtype: str,
+    thermal_mass: float,
+    initial_t_by_node_key: dict[str, float] | None,
+) -> dict:
+    """層ノード用の辞書を組み立てる（key, calc_t, type, subtype, thermal_mass, 必要なら t）。"""
+    node_dict = {
+        "key": key,
+        "calc_t": True,
+        "type": "layer",
+        "subtype": subtype,
+        "thermal_mass": thermal_mass,
+    }
+    if initial_t_by_node_key:
+        lead = _leading_node_key_from_layer_key(key)
+        if lead in initial_t_by_node_key:
+            node_dict["t"] = initial_t_by_node_key[lead]
+    return node_dict
+
+
+def _apply_ventilated_layer(
+    layer: dict, idx: int, left: str, right: str, a: float, i_prefix: str, surface_key: str
+) -> tuple[list[tuple[str, str, float]], list[dict]]:
+    """
+    通気層を処理する。返り値は (extra_nodes: [(name, subtype, thermal_mass)], branches)。
+    """
+    alpha_c1 = _layer_float(layer, "alpha_c1", default=DEFAULT_ALPHA_I)
+    alpha_c2 = _layer_float(layer, "alpha_c2", default=DEFAULT_ALPHA_I)
+    alpha_r = _layer_float(layer, "alpha_r", default=DEFAULT_ALPHA_R)
+    thickness = _layer_float(layer, "t")
+    if thickness is None or thickness <= 0.0:
+        raise ValueError(
+            f"surface {surface_key}: ventilated layer[{idx}] requires positive 't'"
+        )
+    air_v_capa = _get_air_v_capa(layer)
+    if air_v_capa < 0.0:
+        raise ValueError(
+            f"surface {surface_key}: ventilated layer[{idx}] has invalid air heat capacity"
+        )
+    capa_vent = a * thickness * air_v_capa
+    center = f"{i_prefix}_{idx+1}_vent"
+    extra_nodes = [(center, "internal", capa_vent)]
+    branches = [
+        {"key": f"{left}->{center}", "conductance": a * alpha_c1, "subtype": "convection"},
+        {"key": f"{center}->{right}", "conductance": a * alpha_c2, "subtype": "convection"},
+        {"key": f"{left}->{right}", "conductance": a * alpha_r, "subtype": "radiation"},
+    ]
+    return extra_nodes, branches
+
+
+def _apply_hollow_layer(
+    layer: dict, idx: int, left: str, right: str, a: float, i_prefix: str, surface_key: str
+) -> tuple[float, float, list[dict]]:
+    """
+    中空層を処理する。返り値は (add_thermal_mass_left, add_thermal_mass_right, branches)。
+    """
+    r_layer = _layer_float(layer, "thermal_resistance", "r_value", "r")
+    if r_layer is None:
+        raise ValueError(
+            f"surface {surface_key}: hollow layer[{idx}] requires "
+            "'thermal_resistance' (or 'r_value'/'r')"
+        )
+    if r_layer <= 0.0:
+        raise ValueError(
+            f"surface {surface_key}: hollow layer[{idx}] resistance must be positive"
+        )
+    thickness = _layer_float(layer, "t")
+    if thickness is None or thickness <= 0.0:
+        raise ValueError(
+            f"surface {surface_key}: hollow layer[{idx}] requires positive 't'"
+        )
+    air_v_capa = _get_air_v_capa(layer)
+    capa_air = a * thickness * air_v_capa
+    add_left = capa_air / 2.0
+    add_right = capa_air / 2.0
+    branches = [
+        {"key": f"{left}->{right}", "conductance": a / r_layer, "subtype": "conduction"}
+    ]
+    return add_left, add_right, branches
+
+
+def _apply_normal_layer(
+    layer: dict, idx: int, left: str, right: str, a: float, surface_key: str
+) -> tuple[float, float, list[dict]]:
+    """
+    通常層（lambda, t, v_capa）を処理する。返り値は (add_thermal_mass_left, add_thermal_mass_right, branches)。
+    """
+    lam = _layer_float(layer, "lambda")
+    thickness = _layer_float(layer, "t")
+    v_capa = _layer_float(layer, "v_capa")
+    if lam is None or thickness is None or v_capa is None:
+        raise ValueError(
+            f"surface {surface_key}: normal layer[{idx}] requires lambda, t, v_capa"
+        )
+    if lam <= 0.0 or thickness <= 0.0 or v_capa < 0.0:
+        raise ValueError(
+            f"surface {surface_key}: normal layer[{idx}] must satisfy "
+            "lambda>0, t>0, v_capa>=0"
+        )
+    c_layer = a * v_capa * thickness
+    add_left = c_layer / 2.0
+    add_right = c_layer / 2.0
+    branches = [
+        {
+            "key": f"{left}->{right}",
+            "conductance": a * lam / thickness,
+            "subtype": "conduction",
+        }
+    ]
+    return add_left, add_right, branches
 
 
 def _branch_log_detail(branch: dict) -> str:
@@ -194,6 +315,127 @@ def collect_room_side_surfaces(
     return out
 
 
+def _collect_room_to_node_area(
+    surface_data: list[dict],
+    *,
+    exclude_glass: bool = False,
+) -> dict[str, list[tuple[str, float]]]:
+    """
+    表面リストを 1 パスで走査し、室ごとに (node_key, area) のリストを集計する。
+    戻り値: {room: [(node_key, area), ...], ...}（同一 node_key は未集約。process_radiation 用に集約する側で sum 可能）。
+    室内放射の room ループで collect_room_side_surfaces を部屋数回呼ぶ代わりに 1 パスで済ませる。
+    """
+    room_to_list: dict[str, list[tuple[str, str, float]]] = {}  # room -> [(node_key, part, area), ...]
+
+    for s in surface_data or []:
+        if not isinstance(s, dict):
+            continue
+        try:
+            part_start = _get_surface_part(s)
+        except Exception:
+            continue
+        if exclude_glass and part_start == "glass":
+            continue
+        try:
+            start_node, end_node, i_prefix, o_prefix = get_node_prefix(s)
+        except Exception:
+            continue
+        try:
+            area = float(s.get("area", 0.0))
+        except Exception:
+            continue
+        if area <= 0.0:
+            continue
+
+        part_end = SURFACE_PAIR.get(part_start)
+        start_s = str(start_node)
+        end_s = str(end_node)
+
+        if start_s not in room_to_list:
+            room_to_list[start_s] = []
+        room_to_list[start_s].append((f"{i_prefix}_s", part_start, area))
+        if end_s != start_s and part_end is not None:
+            if end_s not in room_to_list:
+                room_to_list[end_s] = []
+            room_to_list[end_s].append((f"{o_prefix}_s", part_end, area))
+
+    # 室ごとに node_key で面積を集約して (node_key, area) のリストに
+    result: dict[str, list[tuple[str, float]]] = {}
+    for room, items in room_to_list.items():
+        agg: dict[str, float] = {}
+        for node_key, _part, area in items:
+            agg[node_key] = agg.get(node_key, 0.0) + area
+        result[room] = list(agg.items())
+    return result
+
+
+def _layers_to_rc_arrays(layers: list[dict]) -> tuple[int, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    層リストから物性配列と抵抗・容量を算出する。
+    返り値: (n, lam, thk, vc, C, R_half, R_between)。
+    """
+    if not layers:
+        raise ValueError("layers is empty")
+    n = len(layers)
+    lam = np.array([float(x["lambda"]) for x in layers], dtype=float)
+    thk = np.array([float(x["t"]) for x in layers], dtype=float)
+    vc = np.array([float(x["v_capa"]) for x in layers], dtype=float)
+    if np.any(lam <= 0) or np.any(thk <= 0) or np.any(vc < 0):
+        raise ValueError("invalid layer properties: lambda>0, t>0, v_capa>=0 required")
+    C = vc * thk
+    R_half = (thk / 2.0) / lam
+    R_between = np.zeros(max(n - 1, 0), dtype=float)
+    for i in range(n - 1):
+        R_between[i] = R_half[i] + R_half[i + 1]
+    return n, lam, thk, vc, C, R_half, R_between
+
+
+def _build_rc_continuous_abcd(
+    n: int, C: np.ndarray, R_half: np.ndarray, R_between: np.ndarray
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """
+    RC 連鎖の連続系状態空間 (A, B, Cmat, Dmat) を構築する。
+    u=[Ts, Tt], y=[q''src, q''tgt]。
+    """
+    def invR(r: float) -> float:
+        return 0.0 if r == 0 else 1.0 / r
+
+    A = np.zeros((n, n), dtype=float)
+    B = np.zeros((n, 2), dtype=float)
+    g_s = invR(R_half[0])
+    if n == 1:
+        g_t = invR(R_half[0])
+        A[0, 0] = -(g_s + g_t) / C[0] if C[0] > 0 else 0.0
+        B[0, 0] = g_s / C[0] if C[0] > 0 else 0.0
+        B[0, 1] = g_t / C[0] if C[0] > 0 else 0.0
+    else:
+        g_12 = invR(R_between[0])
+        A[0, 0] = -(g_s + g_12) / C[0] if C[0] > 0 else 0.0
+        A[0, 1] = g_12 / C[0] if C[0] > 0 else 0.0
+        B[0, 0] = g_s / C[0] if C[0] > 0 else 0.0
+        for i in range(1, n - 1):
+            g_im1 = invR(R_between[i - 1])
+            g_ip1 = invR(R_between[i])
+            if C[i] > 0:
+                A[i, i - 1] = g_im1 / C[i]
+                A[i, i] = -(g_im1 + g_ip1) / C[i]
+                A[i, i + 1] = g_ip1 / C[i]
+        g_t = invR(R_half[-1])
+        g_nm1 = invR(R_between[-1])
+        if C[-1] > 0:
+            A[-1, -2] = g_nm1 / C[-1]
+            A[-1, -1] = -(g_nm1 + g_t) / C[-1]
+            B[-1, 1] = g_t / C[-1]
+
+    Cmat = np.zeros((2, n), dtype=float)
+    Dmat = np.zeros((2, 2), dtype=float)
+    Cmat[0, 0] = -invR(R_half[0])
+    Dmat[0, 0] = invR(R_half[0])
+    Cmat[1, -1] = -invR(R_half[-1])
+    Dmat[1, 1] = invR(R_half[-1])
+    return A, B, Cmat, Dmat
+
+
 def _auto_response_coefficients_from_layers(
     layers: list[dict],
     time_step: float,
@@ -227,74 +469,9 @@ def _auto_response_coefficients_from_layers(
     dt = float(time_step)
     if dt <= 0:
         raise ValueError(f"time_step must be positive, got {dt}")
-    if not layers:
-        raise ValueError("layers is empty")
 
-    # 物性 -> 抵抗/容量（単位: R[m2K/W], C[J/m2K]）
-    n = len(layers)
-    lam = np.array([float(x["lambda"]) for x in layers], dtype=float)
-    thk = np.array([float(x["t"]) for x in layers], dtype=float)
-    vc  = np.array([float(x["v_capa"]) for x in layers], dtype=float)
-    if np.any(lam <= 0) or np.any(thk <= 0) or np.any(vc < 0):
-        raise ValueError("invalid layer properties: lambda>0, t>0, v_capa>=0 required")
-
-    # 各層中心の熱容量（面積1m2あたり）
-    C = vc * thk  # [J/m2K]
-
-    # 各層の半抵抗
-    R_half = (thk / 2.0) / lam  # [m2K/W]
-
-    # 連結抵抗（中心-中心）
-    R_between = np.zeros(max(n - 1, 0), dtype=float)
-    for i in range(n - 1):
-        R_between[i] = R_half[i] + R_half[i + 1]
-
-    # 連続系: x_dot = A x + B u, u=[Ts, Tt], y=[q''src, q''tgt]
-    A = np.zeros((n, n), dtype=float)
-    B = np.zeros((n, 2), dtype=float)
-
-    def invR(r):
-        return 0.0 if r == 0 else 1.0 / r
-
-    # src側境界
-    g_s = invR(R_half[0])
-    if n == 1:
-        # C1 dT1/dt = g_s*(Ts - T1) + g_t*(Tt - T1)
-        g_t = invR(R_half[0])  # same layer half to target
-        A[0, 0] = -(g_s + g_t) / C[0] if C[0] > 0 else 0.0
-        B[0, 0] = g_s / C[0] if C[0] > 0 else 0.0
-        B[0, 1] = g_t / C[0] if C[0] > 0 else 0.0
-    else:
-        g_12 = invR(R_between[0])
-        A[0, 0] = -(g_s + g_12) / C[0] if C[0] > 0 else 0.0
-        A[0, 1] = (g_12) / C[0] if C[0] > 0 else 0.0
-        B[0, 0] = g_s / C[0] if C[0] > 0 else 0.0
-
-        # interior
-        for i in range(1, n - 1):
-            g_im1 = invR(R_between[i - 1])
-            g_ip1 = invR(R_between[i])
-            if C[i] > 0:
-                A[i, i - 1] = g_im1 / C[i]
-                A[i, i] = -(g_im1 + g_ip1) / C[i]
-                A[i, i + 1] = g_ip1 / C[i]
-            # Bは0
-
-        # tgt側
-        g_t = invR(R_half[-1])
-        g_nm1 = invR(R_between[-1])
-        if C[-1] > 0:
-            A[-1, -2] = g_nm1 / C[-1]
-            A[-1, -1] = -(g_nm1 + g_t) / C[-1]
-            B[-1, 1] = g_t / C[-1]
-
-    # 出力: q''src = (Ts - T1)/R_half0, q''tgt = (Tt - Tn)/R_halfN
-    Cmat = np.zeros((2, n), dtype=float)
-    Dmat = np.zeros((2, 2), dtype=float)
-    Cmat[0, 0] = -invR(R_half[0])
-    Dmat[0, 0] = invR(R_half[0])
-    Cmat[1, -1] = -invR(R_half[-1])
-    Dmat[1, 1] = invR(R_half[-1])
+    n, lam, thk, vc, C, R_half, R_between = _layers_to_rc_arrays(layers)
+    A, B, Cmat, Dmat = _build_rc_continuous_abcd(n, C, R_half, R_between)
 
     # 離散化（Backward Euler）: x_k = (I - dt*A)^-1 x_{k-1} + (I - dt*A)^-1 (dt*B) u_k
     I = np.eye(n, dtype=float)
@@ -427,6 +604,85 @@ def _auto_response_coefficients_from_layers(
     }
 
 
+def _process_surface_response_method(
+    surface: dict,
+    start_node: str,
+    end_node: str,
+    i_prefix: str,
+    o_prefix: str,
+    a: float,
+    initial_t_by_node_key: dict[str, float] | None,
+    time_step: float | None,
+    response_method: str,
+    response_terms: int | None,
+    verbose: bool = True,
+) -> tuple[list, list]:
+    """応答係数法: 両端の表面ノードのみ生成し、内部は response_conduction ブランチで表現。"""
+    surface_key = surface.get("key", "?")
+    for idx, layer in enumerate(surface.get("layers", [])):
+        if not isinstance(layer, dict):
+            continue
+        if _layer_flag(layer, "air_layer") or _layer_flag(layer, "ventilated_air_layer"):
+            raise ValueError(
+                f"surface {surface_key}: layer[{idx}] has hollow/ventilated flag, "
+                "which is supported only when layer_method='rc'"
+            )
+
+    resp = surface.get("response")
+    if resp is None:
+        rm = surface.get("response_method", response_method)
+        rt = surface.get("response_terms", response_terms)
+        resp = _auto_response_coefficients_from_layers(
+            surface["layers"],
+            time_step=time_step,
+            response_method=str(rm) if rm is not None else "arx_rc",
+            response_terms=rt,
+        )
+    if not isinstance(resp, dict):
+        raise ValueError(f"surface {surface_key}: layer_method='response' requires 'response' dict")
+    for kreq in ("resp_a_src", "resp_b_src", "resp_a_tgt", "resp_b_tgt"):
+        if kreq not in resp:
+            raise ValueError(f"surface {surface_key}: response missing required '{kreq}'")
+
+    i_surface = f"{i_prefix}_s"
+    o_surface = f"{o_prefix}_s"
+    node_names = [i_surface, o_surface]
+    node_types = ["surface", "surface"]
+    alpha_i = surface.get("alpha_i", DEFAULT_ALPHA_I)
+    alpha_o = surface.get("alpha_o", DEFAULT_ALPHA_O)
+
+    nodes: list = []
+    for i, node in enumerate(node_names):
+        if verbose:
+            logger.info(f"　ノード【{node}】 を追加します。{_node_log_detail(None, node_types[i])}")
+        node_dict = {
+            "key": node,
+            "calc_t": True,
+            "type": "layer",
+            "subtype": node_types[i],
+        }
+        if initial_t_by_node_key:
+            lead = _leading_node_key_from_layer_key(node)
+            if lead in initial_t_by_node_key:
+                node_dict["t"] = initial_t_by_node_key[lead]
+        nodes.append(node_dict)
+
+    thermal_branches: list = [
+        {"key": f"{start_node}->{i_surface}", "conductance": a * alpha_i, "subtype": "convection"},
+        {"key": f"{o_surface}->{end_node}", "conductance": a * alpha_o, "subtype": "convection"},
+        {
+            "key": f"{i_surface}->{o_surface}",
+            "type": "response_conduction",
+            "subtype": "conduction",
+            "area": float(surface["area"]),
+            **resp,
+        },
+    ]
+    if verbose:
+        logger.info(f"　応答係数熱ブランチ【{thermal_branches[-1]['key']}】を追加します。{_branch_log_detail(thermal_branches[-1])}")
+    return nodes, thermal_branches
+
+
 def process_surface(
     surface: dict,
     initial_t_by_node_key: dict[str, float] | None = None,
@@ -434,90 +690,22 @@ def process_surface(
     time_step: float | None = None,
     response_method: str = "arx_rc",
     response_terms: int | None = None,
+    verbose: bool = True,
 ) -> tuple[list, list]:
     nodes: list = []
     thermal_branches: list = []
 
     start_node, end_node, i_prefix, o_prefix = get_node_prefix(surface)
-
     a = surface["area"]
     alpha_i = surface.get("alpha_i", DEFAULT_ALPHA_I)
     alpha_o = surface.get("alpha_o", DEFAULT_ALPHA_O)
-
-    layer_method = surface.get("layer_method", "rc")  # "rc"(従来) or "response"(応答係数)
+    layer_method = surface.get("layer_method", "rc")
 
     if "layers" in surface and layer_method == "response":
-        for idx, layer in enumerate(surface.get("layers", [])):
-            if not isinstance(layer, dict):
-                continue
-            is_hollow = _layer_flag(layer, "air_layer")
-            is_ventilated = _layer_flag(layer, "ventilated_air_layer")
-            if is_hollow or is_ventilated:
-                raise ValueError(
-                    f"surface {surface.get('key','?')}: layer[{idx}] has hollow/ventilated flag, "
-                    "which is supported only when layer_method='rc'"
-                )
-        # 応答係数法: 両端の表面ノードのみ生成し、内部は response_conduction ブランチで表現
-        # - response が無ければ layers + time_step から自動生成する（q'' [W/m2] 系列）
-        resp = surface.get("response")
-        if resp is None:
-            # surface 個別の上書きを許可（無ければ builder 既定値）
-            rm = surface.get("response_method", response_method)
-            rt = surface.get("response_terms", response_terms)
-            resp = _auto_response_coefficients_from_layers(
-                surface["layers"],
-                time_step=time_step,
-                response_method=str(rm) if rm is not None else "arx_rc",
-                response_terms=rt,
-            )
-        if not isinstance(resp, dict):
-            raise ValueError(f"surface {surface.get('key','?')}: layer_method='response' requires 'response' dict")
-        for kreq in ("resp_a_src", "resp_b_src", "resp_a_tgt", "resp_b_tgt"):
-            if kreq not in resp:
-                raise ValueError(f"surface {surface.get('key','?')}: response missing required '{kreq}'")
-
-        # 表面ノード（室内側/室外側）
-        i_surface = f"{i_prefix}_s"
-        o_surface = f"{o_prefix}_s"
-        node_names = [i_surface, o_surface]
-        node_types = ["surface", "surface"]
-
-        for i, node in enumerate(node_names):
-            logger.info(f"　ノード【{node}】 を追加します。{_node_log_detail(None, node_types[i])}")
-            node_dict = {
-                "key": node,
-                "calc_t": True,
-                "type": "layer",
-                "subtype": node_types[i],
-            }
-            if initial_t_by_node_key:
-                lead = _leading_node_key_from_layer_key(node)
-                if lead in initial_t_by_node_key:
-                    node_dict["t"] = initial_t_by_node_key[lead]
-            nodes.append(node_dict)
-
-        # 対流（室内側/室外側）
-        alpha_i = surface.get("alpha_i", DEFAULT_ALPHA_I)
-        alpha_o = surface.get("alpha_o", DEFAULT_ALPHA_O)
-        thermal_branches.append(
-            {"key": f"{start_node}->{i_surface}", "conductance": a * alpha_i, "subtype": "convection"}
+        return _process_surface_response_method(
+            surface, start_node, end_node, i_prefix, o_prefix, a,
+            initial_t_by_node_key, time_step, response_method, response_terms, verbose,
         )
-        thermal_branches.append(
-            {"key": f"{o_surface}->{end_node}", "conductance": a * alpha_o, "subtype": "convection"}
-        )
-
-        # 応答係数ブランチ（壁体内部）
-        tb = {
-            "key": f"{i_surface}->{o_surface}",
-            "type": "response_conduction",
-            "subtype": "conduction",
-            "area": float(surface["area"]),  # q''[W/m2] を solver 側で q[W]=A*q'' にするため
-            **resp,
-        }
-        logger.info(f"　応答係数熱ブランチ【{tb['key']}】を追加します。{_branch_log_detail(tb)}")
-        thermal_branches.append(tb)
-
-        return nodes, thermal_branches
 
     if "layers" in surface:
         layers = surface["layers"]
@@ -536,9 +724,10 @@ def process_surface(
             {"key": f"{start_node}->{node_names[0]}", "conductance": a * alpha_i, "subtype": "convection"}
         )
 
+        surface_key = surface.get("key", "?")
         for idx, layer in enumerate(layers):
             if not isinstance(layer, dict):
-                raise ValueError(f"surface {surface.get('key','?')}: layers[{idx}] must be dict")
+                raise ValueError(f"surface {surface_key}: layers[{idx}] must be dict")
             left = node_names[idx]
             right = node_names[idx + 1]
 
@@ -546,92 +735,33 @@ def process_surface(
             is_ventilated = _layer_flag(layer, "ventilated_air_layer")
             if is_hollow and is_ventilated:
                 raise ValueError(
-                    f"surface {surface.get('key','?')}: layers[{idx}] cannot have both "
+                    f"surface {surface_key}: layers[{idx}] cannot have both "
                     "air_layer and ventilated_air_layer"
                 )
 
             if is_ventilated:
-                alpha_c1 = _layer_float(layer, "alpha_c1", default=DEFAULT_ALPHA_I)
-                alpha_c2 = _layer_float(layer, "alpha_c2", default=DEFAULT_ALPHA_I)
-                alpha_r = _layer_float(layer, "alpha_r", default=DEFAULT_ALPHA_R)
-                thickness = _layer_float(layer, "t")
-                if thickness is None or thickness <= 0.0:
-                    raise ValueError(
-                        f"surface {surface.get('key','?')}: ventilated layer[{idx}] requires positive 't'"
-                    )
-                air_v_capa = _layer_float(
-                    layer, "air_v_capa", "v_capa_air", "v_capa", default=DEFAULT_AIR_V_CAPA
+                extra, br = _apply_ventilated_layer(
+                    layer, idx, left, right, a, i_prefix, surface_key
                 )
-                if air_v_capa is None or air_v_capa < 0.0:
-                    raise ValueError(
-                        f"surface {surface.get('key','?')}: ventilated layer[{idx}] has invalid air heat capacity"
-                    )
-                # 通気層: 空気の熱容量は全て中心のみ。左境界＝左側建材の半分（隣接層で付与）、右境界＝右側建材の半分（後段で付与）。
-                capa_vent = a * thickness * air_v_capa
-                center = f"{i_prefix}_{idx+1}_vent"
-                extra_nodes.append((center, "internal", capa_vent))
-                thermal_branches.append(
-                    {"key": f"{left}->{center}", "conductance": a * alpha_c1, "subtype": "convection"}
-                )
-                thermal_branches.append(
-                    {"key": f"{center}->{right}", "conductance": a * alpha_c2, "subtype": "convection"}
-                )
-                thermal_branches.append(
-                    {"key": f"{left}->{right}", "conductance": a * alpha_r, "subtype": "radiation"}
-                )
+                extra_nodes.extend(extra)
+                thermal_branches.extend(br)
                 continue
 
             if is_hollow:
-                # 中空層: thermal_resistance で抵抗を指定し 1 本の伝導。厚さ t で空気の熱容量を算出し、半分ずつ両端ノードに追加（中心ノードなし）。
-                r_layer = _layer_float(layer, "thermal_resistance", "r_value", "r")
-                if r_layer is None:
-                    raise ValueError(
-                        f"surface {surface.get('key','?')}: hollow layer[{idx}] requires "
-                        "'thermal_resistance' (or 'r_value'/'r')"
-                    )
-                if r_layer <= 0.0:
-                    raise ValueError(
-                        f"surface {surface.get('key','?')}: hollow layer[{idx}] resistance must be positive"
-                    )
-                thickness = _layer_float(layer, "t")
-                if thickness is None or thickness <= 0.0:
-                    raise ValueError(
-                        f"surface {surface.get('key','?')}: hollow layer[{idx}] requires positive 't'"
-                    )
-                air_v_capa = _layer_float(
-                    layer, "air_v_capa", "v_capa_air", "v_capa", default=DEFAULT_AIR_V_CAPA
+                add_left, add_right, br = _apply_hollow_layer(
+                    layer, idx, left, right, a, i_prefix, surface_key
                 )
-                if air_v_capa is None or air_v_capa < 0.0:
-                    air_v_capa = DEFAULT_AIR_V_CAPA
-                capa_air = a * thickness * air_v_capa
-                node_thermal_mass[left] += capa_air / 2.0
-                node_thermal_mass[right] += capa_air / 2.0
-                thermal_branches.append(
-                    {"key": f"{left}->{right}", "conductance": a / r_layer, "subtype": "conduction"}
-                )
+                node_thermal_mass[left] += add_left
+                node_thermal_mass[right] += add_right
+                thermal_branches.extend(br)
                 continue
 
-            lam = _layer_float(layer, "lambda")
-            thickness = _layer_float(layer, "t")
-            v_capa = _layer_float(layer, "v_capa")
-            if lam is None or thickness is None or v_capa is None:
-                raise ValueError(
-                    f"surface {surface.get('key','?')}: normal layer[{idx}] requires lambda, t, v_capa"
-                )
-            if lam <= 0.0 or thickness <= 0.0 or v_capa < 0.0:
-                raise ValueError(
-                    f"surface {surface.get('key','?')}: normal layer[{idx}] must satisfy "
-                    "lambda>0, t>0, v_capa>=0"
-                )
-            # 熱容量 [J/K] = 面積 [m²] × 体積熱容量 [J/(m³·K)] × 厚さ [m]
-            # 注意: t は [m]、v_capa は [J/(m³·K)]。t を [mm] で渡すと熱容量が約1000倍になる。
-            # core materials は公開時 v_capa を既に [J/(m³·K)] にしているのでそのまま使う。
-            c_layer = a * v_capa * thickness
-            node_thermal_mass[left] += c_layer / 2.0
-            node_thermal_mass[right] += c_layer / 2.0
-            thermal_branches.append(
-                {"key": f"{left}->{right}", "conductance": a * lam / thickness, "subtype": "conduction"}
+            add_left, add_right, br = _apply_normal_layer(
+                layer, idx, left, right, a, surface_key
             )
+            node_thermal_mass[left] += add_left
+            node_thermal_mass[right] += add_right
+            thermal_branches.extend(br)
 
         thermal_branches.append(
             {"key": f"{node_names[-1]}->{end_node}", "conductance": a * alpha_o, "subtype": "convection"}
@@ -639,59 +769,67 @@ def process_surface(
 
         base_nodes = [(name, node_types[i], node_thermal_mass[name]) for i, name in enumerate(node_names)]
         for node, subtype, thermal_mass in base_nodes + extra_nodes:
-            logger.info(f"　ノード【{node}】 を追加します。{_node_log_detail(thermal_mass, subtype)}")
-            node_dict = {
-                "key": node,
-                "calc_t": True,
-                "thermal_mass": thermal_mass,
-                "type": "layer",
-                "subtype": subtype,
-            }
-            # 生成ノードの初期温度: ノード key の先頭に現れるノード（例: A-B... なら A）の初期温度をコピー
-            if initial_t_by_node_key:
-                lead = _leading_node_key_from_layer_key(node)
-                if lead in initial_t_by_node_key:
-                    node_dict["t"] = initial_t_by_node_key[lead]
-            nodes.append(node_dict)
+            if verbose:
+                logger.info(f"　ノード【{node}】 を追加します。{_node_log_detail(thermal_mass, subtype)}")
+            nodes.append(
+                _build_layer_node_dict(node, subtype, thermal_mass, initial_t_by_node_key)
+            )
 
         for branch in thermal_branches:
-            logger.info(f"　熱ブランチ【{branch['key']}】を追加します。{_branch_log_detail(branch)}")
+            if verbose:
+                logger.info(f"　熱ブランチ【{branch['key']}】を追加します。{_branch_log_detail(branch)}")
     else:
-        node_names = [f"{i_prefix}_s", f"{o_prefix}_s"]
-        node_types = ["surface", "surface"]
-        c = [a * surface.get("a_capacity", 0.0)]
-        thermal_mass = [c[0] / 2, c[0] / 2]
-        conductance = [a * alpha_i, a * surface["u_value"], a * alpha_o]
-        branch_types = ["convection", "conduction", "convection"]
-        thermal_node_chain = [start_node] + node_names + [end_node]
-        thermal_branch_names = [
-            f"{thermal_node_chain[i]}->{thermal_node_chain[i+1]}" for i in range(3)
-        ]
-
-        for i, node in enumerate(node_names):
-            logger.info(f"　ノード【{node}】 を追加します。{_node_log_detail(thermal_mass[i], node_types[i])}")
-            node_dict = {
-                "key": node,
-                "calc_t": True,
-                "thermal_mass": thermal_mass[i],
-                "type": "layer",
-                "subtype": node_types[i],
-            }
-            if initial_t_by_node_key:
-                lead = _leading_node_key_from_layer_key(node)
-                if lead in initial_t_by_node_key:
-                    node_dict["t"] = initial_t_by_node_key[lead]
-            nodes.append(node_dict)
-
-        for i, branch in enumerate(thermal_branch_names):
-            b = {"key": branch, "conductance": conductance[i], "subtype": branch_types[i]}
-            logger.info(f"　熱ブランチ【{branch}】を追加します。{_branch_log_detail(b)}")
-            thermal_branches.append(b)
+        return _process_surface_u_value(
+            surface, start_node, end_node, i_prefix, o_prefix, a, alpha_i, alpha_o,
+            initial_t_by_node_key, verbose,
+        )
 
     return nodes, thermal_branches
 
 
-def process_wall_solar(surface: dict, sim_length: int) -> list:
+def _process_surface_u_value(
+    surface: dict,
+    start_node: str,
+    end_node: str,
+    i_prefix: str,
+    o_prefix: str,
+    a: float,
+    alpha_i: float,
+    alpha_o: float,
+    initial_t_by_node_key: dict[str, float] | None,
+    verbose: bool = True,
+) -> tuple[list, list]:
+    """u_value のみ指定された表面: 2 ノードと 3 ブランチ（対流・伝導・対流）。"""
+    node_names = [f"{i_prefix}_s", f"{o_prefix}_s"]
+    node_types = ["surface", "surface"]
+    c = a * surface.get("a_capacity", 0.0)
+    thermal_mass = [c / 2, c / 2]
+    conductance = [a * alpha_i, a * surface["u_value"], a * alpha_o]
+    branch_types = ["convection", "conduction", "convection"]
+    thermal_node_chain = [start_node] + node_names + [end_node]
+    thermal_branch_names = [
+        f"{thermal_node_chain[i]}->{thermal_node_chain[i+1]}" for i in range(3)
+    ]
+
+    nodes: list = []
+    for i, node in enumerate(node_names):
+        if verbose:
+            logger.info(f"　ノード【{node}】 を追加します。{_node_log_detail(thermal_mass[i], node_types[i])}")
+        nodes.append(
+            _build_layer_node_dict(node, node_types[i], thermal_mass[i], initial_t_by_node_key)
+        )
+
+    thermal_branches: list = []
+    for i, branch_key in enumerate(thermal_branch_names):
+        b = {"key": branch_key, "conductance": conductance[i], "subtype": branch_types[i]}
+        if verbose:
+            logger.info(f"　熱ブランチ【{branch_key}】を追加します。{_branch_log_detail(b)}")
+        thermal_branches.append(b)
+
+    return nodes, thermal_branches
+
+
+def process_wall_solar(surface: dict, sim_length: int, verbose: bool = True) -> list:
     thermal_branches: list = []
     _, _, _, o_prefix = get_node_prefix(surface)
 
@@ -700,12 +838,13 @@ def process_wall_solar(surface: dict, sim_length: int) -> list:
 
     branch_key = f"void->{o_prefix}_s"
     b = {"key": branch_key, "heat_generation": heat_generation, "subtype": "solar_gain"}
-    logger.info(f"　外壁日射熱ブランチ【{branch_key}】を追加します。{_branch_log_detail(b)}")
+    if verbose:
+        logger.info(f"　外壁日射熱ブランチ【{branch_key}】を追加します。{_branch_log_detail(b)}")
     thermal_branches.append(b)
     return thermal_branches
 
 
-def process_wall_nocturnal(surface: dict, sim_length: int) -> list:
+def process_wall_nocturnal(surface: dict, sim_length: int, verbose: bool = True) -> list:
     """
     夜間放射（長波放射）による熱損失を、void から表面ノードへの heat_generation として表現する。
 
@@ -728,12 +867,13 @@ def process_wall_nocturnal(surface: dict, sim_length: int) -> list:
 
     branch_key = f"void->{o_prefix}_s"
     b = {"key": branch_key, "heat_generation": heat_generation, "subtype": "nocturnal_loss"}
-    logger.info(f"　外壁夜間放射熱ブランチ【{branch_key}】を追加します。{_branch_log_detail(b)}")
+    if verbose:
+        logger.info(f"　外壁夜間放射熱ブランチ【{branch_key}】を追加します。{_branch_log_detail(b)}")
     thermal_branches.append(b)
     return thermal_branches
 
 
-def process_glass_solar(surface: dict, surfaces: list, sim_length: int) -> list:
+def process_glass_solar(surface: dict, surfaces: list, sim_length: int, verbose: bool = True) -> list:
     thermal_branches: list = []
 
     # NOTE:
@@ -786,7 +926,8 @@ def process_glass_solar(surface: dict, surfaces: list, sim_length: int) -> list:
         else:
             continue
         b = {"key": branch_key, "heat_generation": heat_generation, "subtype": "solar_gain"}
-        logger.info(f"　ガラス透過日射熱ブランチ【{branch_key}】を追加します。{_branch_log_detail(b)}")
+        if verbose:
+            logger.info(f"　ガラス透過日射熱ブランチ【{branch_key}】を追加します。{_branch_log_detail(b)}")
         thermal_branches.append(b)
 
     # 室空間（ノード）へ SCC 分を追加投入
@@ -799,13 +940,14 @@ def process_glass_solar(surface: dict, surfaces: list, sim_length: int) -> list:
             "subtype": "solar_gain",
             "comment": "glass_solar_space(SCC)",
         }
-        logger.info(f"　ガラス透過日射（室空間SCC）熱ブランチ【{branch_key}】を追加します。{_branch_log_detail(b)}")
+        if verbose:
+            logger.info(f"　ガラス透過日射（室空間SCC）熱ブランチ【{branch_key}】を追加します。{_branch_log_detail(b)}")
         thermal_branches.append(b)
 
     return thermal_branches
 
 
-def process_radiation(node: str, surface_nodes: list[tuple[str, float]]) -> list:
+def process_radiation(node: str, surface_nodes: list[tuple[str, float]], verbose: bool = True) -> list:
     thermal_branches: list = []
     if len(surface_nodes) < 2:
         return thermal_branches
@@ -821,7 +963,8 @@ def process_radiation(node: str, surface_nodes: list[tuple[str, float]]) -> list
             # 4.7 には既に両面の放射率0.9が含まれるため、室内表面間では eta を掛けない
             conductance = DEFAULT_ALPHA_R * area1 * area2 / sum_area
             b = {"key": branch_key, "conductance": conductance, "subtype": "radiation"}
-            logger.info(f"　室内放射熱ブランチ【{branch_key}】を追加します。{_branch_log_detail(b)}")
+            if verbose:
+                logger.info(f"　室内放射熱ブランチ【{branch_key}】を追加します。{_branch_log_detail(b)}")
             thermal_branches.append(b)
 
     return thermal_branches
@@ -839,6 +982,7 @@ def process_surfaces(
     time_step: float | None = None,
     response_method: str = "arx_rc",
     response_terms: int | None = None,
+    verbose: bool = True,
 ) -> tuple[list, list]:
     """
     builder から呼び出す統合処理。
@@ -846,6 +990,7 @@ def process_surfaces(
     - 日射（壁/床/天井・ガラス）の熱ブランチを追加（add_solar が True の場合）
     - 室内放射の熱ブランチを追加（add_radiation が True の場合）
     戻り値は (add_nodes, add_thermal_branches)。
+    verbose=False にするとノード/ブランチごとの詳細ログを出さず処理を軽くする。
     """
     if not surface_config:
         return [], []
@@ -881,6 +1026,7 @@ def process_surfaces(
             time_step=time_step,
             response_method=response_method,
             response_terms=response_terms,
+            verbose=verbose,
         )
         nodes.extend(add_nodes)
         thermal_branches.extend(add_tb)
@@ -892,9 +1038,9 @@ def process_surfaces(
         for s in (x for x in surface_data if "solar" in x):
             part = _get_surface_part(s)
             if part in SOLAR_TARGET_PARTS:
-                thermal_branches.extend(process_wall_solar(s, sim_length))
+                thermal_branches.extend(process_wall_solar(s, sim_length, verbose=verbose))
             elif part == "glass":
-                thermal_branches.extend(process_glass_solar(s, surface_data, sim_length))
+                thermal_branches.extend(process_glass_solar(s, surface_data, sim_length, verbose=verbose))
         logger.info("日射の解析が完了しました。")
     else:
         logger.info("日射の解析をスキップします。")
@@ -905,25 +1051,20 @@ def process_surfaces(
         for s in (x for x in surface_data if ("nocturnal" in x or "night_radiation" in x)):
             part = _get_surface_part(s)
             if part in NOCTURNAL_TARGET_PARTS:
-                thermal_branches.extend(process_wall_nocturnal(s, sim_length))
+                thermal_branches.extend(process_wall_nocturnal(s, sim_length, verbose=verbose))
         logger.info("夜間放射の解析が完了しました。")
     else:
         logger.info("夜間放射の解析をスキップします。")
 
-    # 室内放射
+    # 室内放射（室ごとの node_key–面積を 1 パスで集計してから放射ブランチを追加）
     if add_radiation:
         logger.info("室内放射の解析を開始します。")
-        # 基準室（start側）ごとに、その室に接する全表面（start/end の両側）を放射対象として集約する。
-        # これにより「X->LD」のような surface でも LD 側表面ノードを LD 室の放射ネットワークへ含められる。
-        start_nodes = {str(s.get("key", "")).split(CHAIN_DELIMITER, 1)[0] for s in surface_data}
-        for node in start_nodes:
-            node_area_map: dict[str, float] = {}
-            for _s, node_key, _part, area in collect_room_side_surfaces(
-                node, surface_data, exclude_glass=radiation_exclude_glass
-            ):
-                node_area_map[node_key] = node_area_map.get(node_key, 0.0) + area
-            node_surfaces = list(node_area_map.items())
-            thermal_branches.extend(process_radiation(node, node_surfaces))
+        room_to_node_area = _collect_room_to_node_area(
+            surface_data, exclude_glass=radiation_exclude_glass
+        )
+        for node, node_surfaces in room_to_node_area.items():
+            if node_surfaces:
+                thermal_branches.extend(process_radiation(node, node_surfaces, verbose=verbose))
         logger.info("室内放射の解析が完了しました。")
     else:
         logger.info("室内放射の解析をスキップします。")

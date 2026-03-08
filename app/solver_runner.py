@@ -8,7 +8,7 @@ C++ 製 VTSimNX ソルバの実行を担う薄いラッパーモジュール。
 import json
 import subprocess
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 from datetime import datetime, timezone
 import uuid
 import os
@@ -86,9 +86,29 @@ def write_artifact_manifest(output_data: Dict[str, Any]) -> Optional[Path]:
     artifact_dir_path.mkdir(parents=True, exist_ok=True)
 
     manifest_path = artifact_dir_path / "manifest.json"
+    result_files = output_data.get("result_files")
+    if not isinstance(result_files, dict):
+        result_files = {}
+
+    # 互換:
+    # 一部クライアントは manifest.json のトップレベル files/result_files を参照する。
+    # solver がエラーで result_files が空でも、最低限 log / builder_log / manifest へ辿れるよう
+    # files は常に非空になり得るマップとして構成する。
+    compat_files = dict(result_files)
+    if isinstance(output_data.get("log_file"), str) and output_data.get("log_file"):
+        compat_files["log"] = output_data["log_file"]
+    if isinstance(output_data.get("builder_log_file"), str) and output_data.get("builder_log_file"):
+        compat_files["builder_log"] = output_data["builder_log_file"]
+    compat_files["manifest"] = "manifest.json"
+
     manifest = {
         "created_at": datetime.now(timezone.utc).isoformat(),
         "output": output_data,
+        # 互換:
+        # - result_files: 従来どおり solver の結果ファイル群
+        # - files: ログ/manifest を含む広いファイルマップ
+        "result_files": result_files,
+        "files": compat_files,
     }
     # UTF-8で確実に保存（ログ本文など巨大データは入れない想定）
     manifest_path.write_text(json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -100,9 +120,13 @@ def attach_builder_log_to_artifacts(
     builder_log_path: Path,
     artifact_filename: str = "builder.log",
     delete_source: bool = False,
+    build_stats: Optional[Tuple[int, int, int]] = None,
+    build_config: Optional[Dict[str, Any]] = None,
 ) -> Optional[Path]:
     """
     builder のログファイルを artifacts 配下にコピーし、output_data に参照キーを追加する。
+    - コピー前に「ビルド結果: ノード=〇, 熱ブランチ=〇, 換気ブランチ=〇」を1行追記する。
+      build_stats が渡されていればそれを使い、なければ build_config から件数を算出する。
     - API の download は artifact_dir 直下しか許可していないため、サブディレクトリは使わない。
 
     追加するキー:
@@ -112,6 +136,25 @@ def attach_builder_log_to_artifacts(
         return None
     if not builder_log_path.exists() or not builder_log_path.is_file():
         return None
+
+    if build_stats is None and build_config is not None:
+        try:
+            build_stats = (
+                len(build_config.get("nodes") or []),
+                len(build_config.get("thermal_branches") or []),
+                len(build_config.get("ventilation_branches") or []),
+            )
+        except Exception:
+            pass
+
+    if build_stats is not None:
+        try:
+            n_nodes, n_thermal, n_vent = build_stats
+            msg = "ビルド結果: ノード=%d, 熱ブランチ=%d, 換気ブランチ=%d" % (n_nodes, n_thermal, n_vent)
+            with open(builder_log_path, "a", encoding="utf-8") as f:
+                f.write("%s [INFO] %s\n" % (datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S,%f")[:-3], msg))
+        except (ValueError, OSError):
+            pass
 
     work_dir = BASE_DIR / "work"
     artifact_dir_path = _artifact_dir_from_output(work_dir, output_data)

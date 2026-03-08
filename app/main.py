@@ -271,6 +271,7 @@ def run_simulation(req: SimulationRequest):
         builder_log_tmp = Path(tmp_dir) / f"vtsimnx.builder.{run_id}.log"
 
         # ユーザー入力（raw）を solver 用 config に変換（正規化/展開/検証）
+        build_stats_out: list = []
         with use_builder_log_file(builder_log_tmp):
             try:
                 built_config, warnings, warning_details = build_config_with_warning_details(
@@ -283,6 +284,7 @@ def run_simulation(req: SimulationRequest):
                     add_surface_nocturnal=req.add_surface_nocturnal,
                     add_surface_radiation=req.add_surface_radiation,
                     add_surface_radiation_exclude_glass=req.add_surface_radiation_exclude_glass,
+                    build_stats_out=build_stats_out,
                 )
             except (ValidationError, ConfigFileError, ValueError, KeyError, TypeError) as e:
                 logger.info("validation/config error in /run: %s", e)
@@ -300,8 +302,14 @@ def run_simulation(req: SimulationRequest):
             # モック想定（本番のsolverでここに落ちるのは基本的に想定しない）
             output = run_solver(built_config)
 
-        # builderログを artifacts へ取り込み、manifest(output) に参照を追加
-        attach_builder_log_to_artifacts(output, builder_log_path=builder_log_tmp, artifact_filename="builder.log", delete_source=True)
+        # builderログを artifacts へ取り込み、manifest(output) に参照を追加（ビルド結果行は attach 内で追記）
+        attach_builder_log_to_artifacts(
+            output,
+            builder_log_path=builder_log_tmp,
+            artifact_filename="builder.log",
+            delete_source=True,
+            build_config=built_config,
+        )
         write_artifact_manifest(output)
     except (ValidationError, ConfigFileError) as e:
         # 入力不正は 400
@@ -337,6 +345,7 @@ def _run_simulation_core(
     run_id = uuid.uuid4().hex
     tmp_dir = os.getenv("VTSIMNX_BUILDER_TMP_DIR") or tempfile.gettempdir()
     builder_log_tmp = Path(tmp_dir) / f"vtsimnx.builder.{run_id}.log"
+    build_stats_out: list = []
     with use_builder_log_file(builder_log_tmp):
         built_config, warnings, warning_details = build_config_with_warning_details(
             raw_config,
@@ -348,10 +357,17 @@ def _run_simulation_core(
             add_surface_nocturnal=add_surface_nocturnal,
             add_surface_radiation=add_surface_radiation,
             add_surface_radiation_exclude_glass=add_surface_radiation_exclude_glass,
+            build_stats_out=build_stats_out,
         )
     force_log_verbosity(built_config, debug=debug, debug_verbosity=debug_verbosity, default_verbosity=1)
     output = run_solver(built_config, run_id=run_id, write_manifest=False)
-    attach_builder_log_to_artifacts(output, builder_log_path=builder_log_tmp, artifact_filename="builder.log", delete_source=True)
+    attach_builder_log_to_artifacts(
+        output,
+        builder_log_path=builder_log_tmp,
+        artifact_filename="builder.log",
+        delete_source=True,
+        build_config=built_config,
+    )
     write_artifact_manifest(output)
     return SimulationResponse(result=output, warnings=warnings, warning_details=warning_details)
 
