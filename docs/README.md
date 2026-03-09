@@ -32,6 +32,25 @@
 - `node_branch_schema.md`
   - 計算入力のノード/枝データ構造
 
+## 4. スケジュール（暖冷房・換気・発熱）
+
+- `schedule_usage.md`
+  - `vtsimnx.schedule` の構成（common/aircon/vol/sensible_heat）
+  - `holiday` / `period_x` / `make_8760_data` による 24h プロファイル→8760展開
+  - `ac_mode` / `pre_tmp` / `pre_rh` / `vol` / `sensible_heat` の使い方
+
+## 5. サーフェス（壁・床・窓）
+
+- `surface_usage.md`
+  - `run.py` における surface / layers / materials の組み立て方
+  - `surfaces` 入力（`室A->室B||面ID` キー、area、solar など）の具体例
+
+## 6. 実入力例（SimHeat 比較）
+
+- `vs_simheat_example.md`
+  - `vtsimnx_test/vs_simheat_r14.ipynb` で構築している builder 入力 `input_data` の概要
+  - 気象・日射・materials/layers/surfaces・schedule（`vtsimnx.schedule`）を組み合わせて 1件分の house モデルを構成する流れ
+
 ## 補足
 
 - ルートの `README.md` はセットアップと実行手順の入口です。

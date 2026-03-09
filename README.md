@@ -45,3 +45,14 @@ python run.py
 APIサーバーを使用する場合は、環境変数 `VTSIMNX_API_URL` を設定してください（例: `VTSIMNX_API_URL=http://localhost:8000`）。未設定の場合、`run.py` は入力生成のみ行い `run_calc` をスキップします。
 
 ※ `hasp/lat/lon` を変更したい場合は、現在は `run.py` 内の固定値（`hasp_path`, `lat`, `lon`）を編集してください。
+
+---
+
+### GitHub とローカルの対応
+
+- このディレクトリ `/home/ubuntu/vtsimnx/core` は **単独の Git リポジトリ** で、GitHub 上の [`iguchi-lab/vtsimnx`](https://github.com/iguchi-lab/vtsimnx) に対応します。
+- デフォルトブランチ: `main` （`origin/main` と追従）
+- **規則**:
+  - Python コアライブラリ（`vtsimnx` パッケージ / `vt.*` モジュール）の変更は、必ずこのリポジトリで `git commit` `git push` します。
+  - API サーバー（FastAPI + builder + C++ solver）は別リポジトリ `/home/ubuntu/vtsimnx/api` （`iguchi-lab/vtsimnx-api`）で管理し、API 側の変更はそちらで commit/push します。
+  - 親ディレクトリ `/home/ubuntu/vtsimnx` 自体は Git 管理せず、`core/` と `api/` を **2つの独立したリポジトリ** として扱います。
