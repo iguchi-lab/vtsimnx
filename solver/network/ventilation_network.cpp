@@ -317,12 +317,15 @@ std::vector<double> VentilationNetwork::collectFlowRateValues() const {
 
 FlowRateMap VentilationNetwork::collectFlowRateMap() const {
     FlowRateMap out;
-    // edge direction（source->target）に対して flow_rate を格納する
+    // edge direction（source->target）に対して flow_rate を合算する。
+    // 同じ (source, target) ペアに複数のエッジが存在する場合（例: 24h換気と局所換気スケジュールが
+    // 同一ノード間に重複するケース）は流量を加算する。`=` による上書きだと、後から処理された
+    // エッジの値だけが残り、スケジュール=0 の深夜帯に常時換気流量が消えるバグが生じる。
     for (auto e : boost::make_iterator_range(boost::edges(graph))) {
         const Vertex sv = boost::source(e, graph);
         const Vertex tv = boost::target(e, graph);
         const auto& ep = graph[e];
-        out[{graph[sv].key, graph[tv].key}] = ep.flow_rate;
+        out[{graph[sv].key, graph[tv].key}] += ep.flow_rate;
     }
     return out;
 }
