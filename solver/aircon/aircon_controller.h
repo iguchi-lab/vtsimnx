@@ -7,6 +7,7 @@
 #include <memory>
 #include <stdexcept>
 #include <sstream>
+#include <utility>
 
 #include "acmodel/acmodel.h"
 
@@ -56,6 +57,10 @@ private:
     mutable bool airconKeysCacheInitialized_ = false;
     mutable std::vector<std::string> airconKeysOrdered_;
 
+    // 能力超過時 nullopt 用の二分探索 bracket（タイムステップごとにクリア）
+    // first=T_low, second=T_high。暖房時は setpoint を下げるので T_high を更新、冷房時は T_low を更新。
+    mutable std::unordered_map<std::string, std::pair<double, double>> capacityLimitBracket_;
+
     /**
      * @brief エアコンの基本データをバリデーションして取得する
      * @throws std::runtime_error 必要なデータが見つからない場合
@@ -68,6 +73,14 @@ private:
                                          ThermalNetwork& thermalNetwork,
                                          const VertexProperties& nodeProps,
                                          const FlowRateMap& flowRates) const;
+
+    /** 1台分の電力[W]とCOPを推定する。logDetail が true のときのみ WARN と詳細1行を出力。失敗時は例外。 */
+    std::pair<double, double> estimatePowerAndCOPForAircon(const std::string& airconKey,
+                                                           ThermalNetwork& thermalNetwork,
+                                                           const VertexProperties& nodeProps,
+                                                           const FlowRateMap& flowRates,
+                                                           std::ostream& logs,
+                                                           bool logDetail) const;
 
 public:
     // === モデル管理 ===
@@ -185,6 +198,9 @@ public:
 
     // === 設定 ===
     void applyPreset(ThermalNetwork& thermalNetwork, std::ostream& logFile) const;
+
+    /** 能力超過時の二分探索 bracket をクリア（タイムステップ先頭で呼ぶ） */
+    void clearCapacityLimitBracket() const;
 };
 
 

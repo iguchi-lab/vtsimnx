@@ -360,7 +360,9 @@ RC/CTFの詳細は以下:
 - `set`（必須）: 制御対象ノード
 - `outside`（必須）: 外気ノード
 - `pre_temp`（必須）: 目標温度（スカラー/配列）
-- `model`（必須）, `mode`（必須）
+- `model`（任意）: エアコンモデル種別。`CRIEPI` / `RAC` / `DUCT_CENTRAL` / `LATENT_EVALUATE`。**未指定時は RAC**
+- `mode`（必須）: 運転モード（時系列）
+- `ac_spec`（任意）: 能力・電力・風量などの仕様JSON。モデル別の形は `docs/aircon_spec_reference.md` を参照
 - `vol`（任意）: 風量（未指定時は既定値）
 - `in/out`（任意）: 吸込/吹出ノード（省略時は `set`）
 

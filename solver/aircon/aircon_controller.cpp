@@ -24,6 +24,13 @@ constexpr double kAirSpecificHeat = archenv::SPECIFIC_HEAT_AIR;   // [J/(kg·K)]
 constexpr double kDefaultOuterFlowRate = 25.5 / 60.0;             // m^3/s
 constexpr int kSetpointSearchMaxIterations = 32;
 constexpr double kSetpointSearchTolerance = 1e-3;                 // [degC]
+constexpr double kSetpointFloor = 0.0;
+constexpr double kSetpointCeiling = 50.0;
+// 能力超過時二分探索の初期 bracket 幅。いきなり極端な設定にせず、まず現在設定から幅だけ動かした範囲で探索する。
+constexpr double kCapacityLimitInitialBracketWidth = 10.0;        // [degC]
+// 処理熱量が最大能力に「十分近い」とみなす許容（相対＋絶対）。0.1% + 1W。
+constexpr double kCapacityConvergenceRelTol = 0.001;
+constexpr double kCapacityConvergenceAbsTol = 1.0;               // [W]
 
 inline std::string toLowerCopy(const std::string& value) {
     std::string result = value;
@@ -242,16 +249,19 @@ double AirconController::calculateHeatCapacity(ThermalNetwork& thermalNetwork,
     }
 
     // 処理熱量は「暖房/冷房どちらでも +W（大きさ）」として扱う。
-    // - cooling: 入口(室)が高く、出口(吹出)が低いほど +（除熱）
-    // - heating: 入口(室)が低く、出口(吹出)が高いほど +（加熱）
+    // - heating: 出口(吹出) > 入口 のときのみ加熱。出口 <= 入口なら 0（加熱していない）。
+    // - cooling: 入口 > 出口 のときのみ除熱。入口 <= 出口なら 0。
+    // モードと逆の向きの温度差は 0 とする。abs のみで正にするのは、熱ソルバが極端な設定で
+    // 出口温度が暴れたときに巨大な処理熱量にならないようにするため。
     double deltaT = 0.0;
     if (mode == "heating") {
         deltaT = outletTemp - inletTemp;
+        if (deltaT <= 0.0) return 0.0;
     } else {
-        // "cooling" もしくは不明値は cooling 扱い（安全側：符号が反転してCOP推定を壊さない）
         deltaT = inletTemp - outletTemp;
+        if (deltaT <= 0.0) return 0.0;
     }
-    double heatCapacity = kAirDensity * kAirSpecificHeat * std::abs(flowRate) * std::abs(deltaT);
+    double heatCapacity = kAirDensity * kAirSpecificHeat * std::abs(flowRate) * deltaT;
     return clampHeatCapacity(heatCapacity);
 }
 
@@ -357,12 +367,56 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
 }
 
 namespace {
+// 能力超過時二分探索: bracket (tLow, tHigh) を1ステップ更新し、新 setpoint と収束フラグを返す。
+struct CapacityLimitBracketResult {
+    double newSetpoint = 0.0;
+    bool bracketConverged = false;
+    bool capacityConverged = false;
+};
+
+void initCapacityLimitBracket(bool heating, double currentPreTemp, double& tLow, double& tHigh) {
+    const double w = kCapacityLimitInitialBracketWidth;
+    if (heating) {
+        tLow = std::max(kSetpointFloor, currentPreTemp - w);
+        tHigh = currentPreTemp;
+    } else {
+        tLow = currentPreTemp;
+        tHigh = std::min(kSetpointCeiling, currentPreTemp + w);
+    }
+}
+
+CapacityLimitBracketResult stepCapacityLimitBracket(bool heating, double maxQ, double currentQ,
+                                                    double currentSetpoint,
+                                                    double& tLow, double& tHigh) {
+    // 処理熱量 > 最大能力: bracket を狭める（暖房なら tHigh=現設定、冷房なら tLow=現設定）
+    if (currentQ > maxQ) {
+        if (heating) {
+            tHigh = currentSetpoint;
+        } else {
+            tLow = currentSetpoint;
+        }
+    } else {
+        // 処理熱量 < 最大能力: 設定を上げる方向に広げる（暖房: tLow=現設定、冷房: tHigh=現設定）
+        if (heating) {
+            tLow = currentSetpoint;
+        } else {
+            tHigh = currentSetpoint;
+        }
+    }
+    const double newSetpoint = 0.5 * (tLow + tHigh);
+    const bool bracketConverged = (tHigh - tLow) <= kSetpointSearchTolerance;
+    const bool capacityConverged =
+        std::abs(currentQ - maxQ) <= (maxQ * kCapacityConvergenceRelTol + kCapacityConvergenceAbsTol);
+    return {newSetpoint, bracketConverged, capacityConverged};
+}
+
 std::optional<double> resolveMaxHeatCapacity(const VertexProperties& nodeProps,
                                              const std::string& operationMode,
                                              std::string& source) {
     auto modeKey = toLowerCopy(operationMode);
     if (const auto* spec = nodeProps.getAirconSpec()) {
-        if (auto value = spec->getCapacity(modeKey, "max")) {
+        auto value = spec->getCapacityMaxForMode(modeKey);
+        if (value && *value > 0) {
             source = "Q." + modeKey + ".max";
             return *value * 1000.0;
         }
@@ -377,8 +431,10 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                                               const FlowRateMap& flowRates,
                                               std::ostream& logs,
                                               int& /*totalIterations*/) const {
+    // 分岐: (1) 超過 → 公式で補正可能なら limitedSetpoint 適用、でなければ bracket 二分探索
+    //       (2) 不足かつ bracket あり → 二分探索継続（設定温度を上げて再計算）
+    //       (3) それ以外 → OK
     bool adjustmentMade = false;
-    // 順序を決定的にしてログ/挙動の再現性を上げる
     for (const auto& airconKey : getAirconKeys()) {
         auto& nodeProps = thermalNetwork.getNode(airconKey);
         if (!nodeProps.on) {
@@ -400,21 +456,71 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
             }
             oss << ", 現在処理熱量=" << std::fixed << std::setprecision(2) << current << "W";
             if (maxHeatCapacity && current > *maxHeatCapacity) {
-                oss << " → 超過";
+                // 目的: 処理熱量が最大能力（maxHeatCapacity）と等しくなる設定温度を求める。
+                // このタイムステップのみ見かけ上設定温度を変えて再計算し、能力内に収まる解を得る。
+                // current_pre_temp の変更は当該タイムステップの熱計算にのみ使われ、次ステップでは入力時系列の設定温度に戻る。
                 auto limitedSetpoint = findCapacityLimitedSetpoint(
                     context.operationMode,
                     context.validData.indoorTemp,
                     nodeProps.current_pre_temp,
                     context.airFlowRate,
                     *maxHeatCapacity);
-                if (limitedSetpoint && std::abs(*limitedSetpoint - nodeProps.current_pre_temp) > kSetpointSearchTolerance) {
-                    const double previousSetpoint = nodeProps.current_pre_temp;
+                const double previousSetpoint = nodeProps.current_pre_temp;
+                if (limitedSetpoint) {
                     nodeProps.current_pre_temp = *limitedSetpoint;
                     adjustmentMade = true;
-                    oss << ", 設定温度補正=" << previousSetpoint << "→" << *limitedSetpoint << "°C";
+                    oss << " → 超過, 設定温度補正=" << previousSetpoint << "→" << *limitedSetpoint << "°C";
                     oss << ", 再計算要求";
                 } else {
-                    oss << ", 補正不要";
+                    // 二分探索で有効な設定温度が見つからない場合。吹き込み温度は参照しない。
+                    // 処理熱量が最大能力と同じになる設定温度を、熱ソルバの解を使った二分探索で求める。
+                    const bool heating = (context.operationMode == "heating");
+                    const double maxQ = *maxHeatCapacity;
+                    const double currentQ = current;
+                    auto it = capacityLimitBracket_.find(airconKey);
+                    if (it == capacityLimitBracket_.end()) {
+                        std::pair<double, double> bracket;
+                        initCapacityLimitBracket(heating, nodeProps.current_pre_temp, bracket.first, bracket.second);
+                        capacityLimitBracket_[airconKey] = bracket;
+                        it = capacityLimitBracket_.find(airconKey);
+                    }
+                    double& tLow = it->second.first;
+                    double& tHigh = it->second.second;
+                    const auto result = stepCapacityLimitBracket(heating, maxQ, currentQ,
+                                                                nodeProps.current_pre_temp, tLow, tHigh);
+                    nodeProps.current_pre_temp = result.newSetpoint;
+                    if (result.capacityConverged) {
+                        oss << " → 二分探索収束 設定温度=" << result.newSetpoint << "°C（処理熱量≒最大能力）";
+                    } else if (result.bracketConverged) {
+                        adjustmentMade = true;
+                        oss << " → 超過, 設定温度補正=" << previousSetpoint << "→" << result.newSetpoint << "°C（bracket収束・最終解のため再計算1回）";
+                    } else {
+                        adjustmentMade = true;
+                        oss << " → 超過, 設定温度補正=" << previousSetpoint << "→" << result.newSetpoint << "°C（能力=" << maxQ << "Wに合わせて二分探索）";
+                        oss << ", 再計算要求";
+                    }
+                }
+            } else if (maxHeatCapacity && current < *maxHeatCapacity && capacityLimitBracket_.count(airconKey)) {
+                // 処理熱量が最大能力と同じになる設定温度を探す途中で、下げすぎて処理熱量が 0 等になった場合。
+                // bracket を更新して設定温度を上げ、再計算して「処理熱量＝最大能力」に近づける。
+                const double previousSetpoint = nodeProps.current_pre_temp;
+                oss << " → 不足（能力=" << *maxHeatCapacity << "Wに合わせて二分探索継続）";
+                const bool heating = (context.operationMode == "heating");
+                const double maxQ = *maxHeatCapacity;
+                auto it = capacityLimitBracket_.find(airconKey);
+                double& tLow = it->second.first;
+                double& tHigh = it->second.second;
+                const auto result = stepCapacityLimitBracket(heating, maxQ, current,
+                                                             nodeProps.current_pre_temp, tLow, tHigh);
+                nodeProps.current_pre_temp = result.newSetpoint;
+                if (result.capacityConverged) {
+                    oss << ", 二分探索収束 設定温度=" << result.newSetpoint << "°C（処理熱量≒最大能力）";
+                } else if (result.bracketConverged) {
+                    adjustmentMade = true;
+                    oss << ", 設定温度補正=" << previousSetpoint << "→" << result.newSetpoint << "°C（bracket収束・最終解のため再計算1回）";
+                } else {
+                    adjustmentMade = true;
+                    oss << ", 設定温度補正=" << previousSetpoint << "→" << result.newSetpoint << "°C, 再計算要求";
                 }
             } else {
                 oss << " → OK";
@@ -477,6 +583,65 @@ std::vector<double> AirconController::collectAirconDataValues(ThermalNetwork& th
     return values;
 }
 
+std::pair<double, double> AirconController::estimatePowerAndCOPForAircon(
+    const std::string& airconKey,
+    ThermalNetwork& thermalNetwork,
+    const VertexProperties& nodeProps,
+    const FlowRateMap& flowRates,
+    std::ostream& logs,
+    bool logDetail) const {
+    auto context = prepareRuntimeContext(airconKey, thermalNetwork, nodeProps, flowRates);
+    auto* model = getModel(airconKey);
+    if (!model) {
+        throw std::runtime_error("初期化済みモデルがありません");
+    }
+    acmodel::InputData input =
+        buildAcmodelInput(context.operationMode, context.validData, context.heatCapacity, context.airFlowRate);
+
+    const bool heating = (context.operationMode == "heating");
+    bool usedFallbackEx = false;
+    bool usedFallbackIn = false;
+    if (!(input.X_ex > 0.0)) {
+        usedFallbackEx = true;
+        input.X_ex = heating ? archenv::jis::X_H_EX : archenv::jis::X_C_EX;
+    }
+    if (!(input.X_in > 0.0)) {
+        usedFallbackIn = true;
+        input.X_in = heating ? archenv::jis::X_H_IN : archenv::jis::X_C_IN;
+    }
+    if (logDetail && logVerbosity_ >= 1 && (usedFallbackEx || usedFallbackIn)) {
+        std::ostringstream warn;
+        warn << "　　[WARN] エアコン湿度入力が不足のためJIS条件で補完: " << airconKey
+             << " [" << context.operationMode << "]";
+        if (usedFallbackIn) warn << " in_node=" << nodeProps.in_node << " X_in=JIS";
+        if (usedFallbackEx) warn << " outside_node=" << nodeProps.outside_node << " X_ex=JIS";
+        writeLog(logs, warn.str());
+    }
+    auto result = model->estimateCOP(context.operationMode, input);
+    if (logVerbosity_ >= 2) {
+        for (const auto& msg : result.logMessages) {
+            writeLog(logs, msg);
+        }
+    }
+    if (!result.valid) {
+        throw std::runtime_error("COP推定に失敗しました");
+    }
+    const double powerW = result.power * 1000.0; // kW -> W
+    if (logDetail && logVerbosity_ >= 1) {
+        std::ostringstream detail;
+        detail << "　　エアコン電力計算: " << airconKey
+               << " [" << context.operationMode << "]"
+               << " 処理=" << std::fixed << std::setprecision(2) << context.heatCapacity << "W"
+               << " 風量=" << context.airFlowRate << "m³/s"
+               << " 外気=" << context.validData.outdoorTemp << "°C"
+               << " 室内=" << context.validData.indoorTemp << "°C"
+               << " COP=" << result.COP
+               << " 電力=" << powerW << "W";
+        writeLog(logs, detail.str());
+    }
+    return {powerW, result.COP};
+}
+
 std::vector<double> AirconController::calculatePowerValues(ThermalNetwork& thermalNetwork,
                                                            const FlowRateMap& flowRates,
                                                            std::ostream& logs) const {
@@ -486,66 +651,13 @@ std::vector<double> AirconController::calculatePowerValues(ThermalNetwork& therm
         const std::string& airconKey = keys[i];
         const auto& nodeProps = thermalNetwork.getNode(airconKey);
         if (!nodeProps.on) {
-            power[i] = 0.0;
             continue;
         }
         try {
-            auto context = prepareRuntimeContext(airconKey, thermalNetwork, nodeProps, flowRates);
-            auto* model = getModel(airconKey);
-            if (!model) {
-                throw std::runtime_error("初期化済みモデルがありません");
-            }
-            acmodel::InputData input =
-                buildAcmodelInput(context.operationMode, context.validData, context.heatCapacity, context.airFlowRate);
-
-            // 湿度（絶対湿度）: 欠損時は警告 + JIS固定値にフォールバック
-            const bool heating = (context.operationMode == "heating");
-            bool usedFallbackEx = false;
-            bool usedFallbackIn = false;
-            if (!(input.X_ex > 0.0)) {
-                usedFallbackEx = true;
-                input.X_ex = heating ? archenv::jis::X_H_EX : archenv::jis::X_C_EX;
-            }
-            if (!(input.X_in > 0.0)) {
-                usedFallbackIn = true;
-                input.X_in = heating ? archenv::jis::X_H_IN : archenv::jis::X_C_IN;
-            }
-            if (logVerbosity_ >= 1 && (usedFallbackEx || usedFallbackIn)) {
-                std::ostringstream warn;
-                warn << "　　[WARN] エアコン湿度入力が不足のためJIS条件で補完: " << airconKey
-                     << " [" << context.operationMode << "]";
-                if (usedFallbackIn) {
-                    warn << " in_node=" << nodeProps.in_node << " X_in=JIS";
-                }
-                if (usedFallbackEx) {
-                    warn << " outside_node=" << nodeProps.outside_node << " X_ex=JIS";
-                }
-                writeLog(logs, warn.str());
-            }
-            auto result = model->estimateCOP(context.operationMode, input);
-            if (logVerbosity_ >= 2) {
-                for (const auto& msg : result.logMessages) {
-                    writeLog(logs, msg);
-                }
-            }
-            if (!result.valid) {
-                throw std::runtime_error("COP推定に失敗しました");
-            }
-            double p = result.power * 1000.0; // kW -> W
-            std::ostringstream detail;
-            detail << "　　エアコン電力計算: " << airconKey
-                   << " [" << context.operationMode << "]"
-                   << " 処理=" << std::fixed << std::setprecision(2) << context.heatCapacity << "W"
-                   << " 風量=" << context.airFlowRate << "m³/s"
-                   << " 外気=" << context.validData.outdoorTemp << "°C"
-                   << " 室内=" << context.validData.indoorTemp << "°C"
-                   << " COP=" << result.COP
-                   << " 電力=" << p << "W";
-            writeLog(logs, detail.str());
-            power[i] = p;
+            const auto pair = estimatePowerAndCOPForAircon(airconKey, thermalNetwork, nodeProps, flowRates, logs, true);
+            power[i] = pair.first;
         } catch (const std::exception& e) {
             writeLog(logs, std::string("　　エラー: エアコン ") + airconKey + " - " + e.what());
-            power[i] = 0.0;
         }
     }
     return power;
@@ -560,72 +672,20 @@ std::vector<double> AirconController::calculateCOPValues(ThermalNetwork& thermal
         const std::string& airconKey = keys[i];
         const auto& nodeProps = thermalNetwork.getNode(airconKey);
         if (!nodeProps.on) {
-            cop[i] = 0.0;
             continue;
         }
         try {
-            auto context = prepareRuntimeContext(airconKey, thermalNetwork, nodeProps, flowRates);
-            auto* model = getModel(airconKey);
-            if (!model) {
-                throw std::runtime_error("初期化済みモデルがありません");
-            }
-            acmodel::InputData input =
-                buildAcmodelInput(context.operationMode, context.validData, context.heatCapacity, context.airFlowRate);
-
-            // 湿度（絶対湿度）: 欠損時は警告 + JIS固定値にフォールバック
-            const bool heating = (context.operationMode == "heating");
-            bool usedFallbackEx = false;
-            bool usedFallbackIn = false;
-            if (!(input.X_ex > 0.0)) {
-                usedFallbackEx = true;
-                input.X_ex = heating ? archenv::jis::X_H_EX : archenv::jis::X_C_EX;
-            }
-            if (!(input.X_in > 0.0)) {
-                usedFallbackIn = true;
-                input.X_in = heating ? archenv::jis::X_H_IN : archenv::jis::X_C_IN;
-            }
-            if (logVerbosity_ >= 1 && (usedFallbackEx || usedFallbackIn)) {
-                std::ostringstream warn;
-                warn << "　　[WARN] エアコン湿度入力が不足のためJIS条件で補完: " << airconKey
-                     << " [" << context.operationMode << "]";
-                if (usedFallbackIn) {
-                    warn << " in_node=" << nodeProps.in_node << " X_in=JIS";
-                }
-                if (usedFallbackEx) {
-                    warn << " outside_node=" << nodeProps.outside_node << " X_ex=JIS";
-                }
-                writeLog(logs, warn.str());
-            }
-            auto result = model->estimateCOP(context.operationMode, input);
-            // verbosity>=2 のときは、acmodel 側の詳細ログも出す
-            if (logVerbosity_ >= 2) {
-                for (const auto& msg : result.logMessages) {
-                    writeLog(logs, msg);
-                }
-            }
-            // verbosity=1 でも「最終結果（数値）」だけは毎回1行で残す（デバッグしやすくする）
-            // 失敗時も、入力条件と "COP=N/A" を残して原因追跡しやすくする。
-            {
-                std::ostringstream detail;
-                detail << "　　エアコンCOP計算: " << airconKey
-                       << " [" << context.operationMode << "]"
-                       << " 処理=" << std::fixed << std::setprecision(2) << context.heatCapacity << "W"
-                       << " 風量=" << context.airFlowRate << "m³/s"
-                       << " 外気=" << context.validData.outdoorTemp << "°C"
-                       << " 室内=" << context.validData.indoorTemp << "°C"
-                       << " COP=" << (result.valid ? std::to_string(result.COP) : std::string("N/A"));
-                writeLog(logs, detail.str());
-            }
-            if (!result.valid) {
-                throw std::runtime_error("COP推定に失敗しました");
-            }
-            cop[i] = result.COP;
+            const auto pair = estimatePowerAndCOPForAircon(airconKey, thermalNetwork, nodeProps, flowRates, logs, false);
+            cop[i] = pair.second;
         } catch (const std::exception& e) {
             writeLog(logs, std::string("　　エラー: エアコン ") + airconKey + " - " + e.what());
-            cop[i] = 0.0;
         }
     }
     return cop;
+}
+
+void AirconController::clearCapacityLimitBracket() const {
+    capacityLimitBracket_.clear();
 }
 
 void AirconController::applyPreset(ThermalNetwork& thermalNetwork,

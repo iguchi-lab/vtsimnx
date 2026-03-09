@@ -91,6 +91,12 @@ struct AirconSpec {
     std::optional<double> getCapacity(const std::string& mode, const std::string& rating = "rtd") const {
         return Q.getValue(mode, rating);
     }
+    /** 能力上限 [kW]。max があればそれ、なければ mid を返す（DUCT_CENTRAL / LATENT_EVALUATE で mid のみの spec に対応） */
+    std::optional<double> getCapacityMaxForMode(const std::string& mode) const {
+        auto v = Q.getValue(mode, "max");
+        if (v.has_value() && *v > 0) return v;
+        return Q.getValue(mode, "mid");
+    }
     std::optional<double> getPower(const std::string& mode, const std::string& rating = "rtd") const {
         return P.getValue(mode, rating);
     }

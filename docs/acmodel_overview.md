@@ -4,14 +4,20 @@
 
 ---
 
-### 1. モデルの種類
+### 1. モデルの種類と選択
 
 `acmodel::AirconModelFactory::createModel(typeStr, spec)` で選択します。
 
-- `CRIEPI`（`CRIEPIModel`）: CRIEPI系の係数モデル
-- `RAC`（`RACModel`）: ルームエアコンモデル（顕熱/潜熱、着霜補正等）
-- `DUCT_CENTRAL`（`DuctCentralModel`）:（将来拡張）
-- `LATENT_EVALUATE`（`LatentEvaluateModel`）:（将来拡張）
+- `CRIEPI`（`CRIEPIModel`）: CRIEPI系の係数モデル（カタログから係数同定、風量必須）
+- `RAC`（`RACModel`）: ルームエアコンモデル（顕熱/潜熱、着霜補正等、BECC 4-3節準拠）
+- `DUCT_CENTRAL`（`DuctCentralModel`）: ダクト式セントラル空調（仕様は `rtd`/`mid`/`min` 等）
+- `LATENT_EVALUATE`（`LatentEvaluateModel`）: 潜熱評価モデル（細井式）
+
+**モデル指定**  
+- builder 入力の `aircon.model`（未指定時は **`RAC`** がデフォルト）
+- solver 入力の `nodes[].model`（未指定時は parser が **`RAC`** をデフォルト適用）
+
+能力上限の参照（solver 側）: `Q.<mode>.max` を優先し、無い場合は `Q.<mode>.mid` を使用。詳細は `docs/aircon_control_overview.md` および `docs/aircon_spec_reference.md` を参照。
 
 ---
 
@@ -122,6 +128,13 @@ RAC は Python版互換の実装で、例えば以下のフラグを参照しま
 
 参考（RACモデル資料）: [第四章 暖冷房設備／第三節 ルームエアコンディショナー（Ver.08, 2025.04）](https://www.kenken.go.jp/becc/documents/house/4-3_250401_v08.pdf)
 
+#### 3.4 DUCT_CENTRAL / LATENT_EVALUATE の仕様
+
+- **DUCT_CENTRAL**: `Q` / `P` に加え `P_fan`、`V_inner`（必要に応じ `V_outer`）を `cooling` / `heating` ごとに `rtd` / `mid` / `min` / `dsgn` 等で指定。能力上限は solver が `Q.<mode>.max` または `Q.<mode>.mid` を参照。
+- **LATENT_EVALUATE**: 同様に `Q` / `P` / `P_fan` / `V_inner` 等。潜熱評価式用の熱交換器面積は定格能力から算出。
+
+モデル別の ac_spec の最小形・推奨キーは `docs/aircon_spec_reference.md` を参照してください。
+
 ---
 
 ### 4. 出力
@@ -150,6 +163,8 @@ solver 側で `verbosity>=2` のとき、モデル内部の詳細ログを出力
 
 ### 6. 関連ドキュメント
 
+- モデル別 ac_spec 一覧: `docs/aircon_spec_reference.md`
+- エアコン制御・能力上限: `docs/aircon_control_overview.md`
 - builder 入力: `docs/builder_json.md`
 - シミュレーション全体: `docs/simulation_overview.md`
 - 参考文献（CRIEPI冷房モデル）: [家庭用エアコンの熱源特性モデルの開発（その1）](https://doi.org/10.18948/shase.38.190_41)

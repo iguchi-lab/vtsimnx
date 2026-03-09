@@ -231,6 +231,77 @@ int main() {
         expectNear(b.current_pre_temp, 26.0, 1e-12, "setpoint unchanged when Q.max is absent");
     }
 
+    // DUCT_CENTRAL / LATENT_EVALUATE 用: Q.max が無く Q.mid のみの場合も能力上限として扱う
+    {
+        auto& in = thermal.getNode("IN");
+        auto& b = thermal.getNode("B");
+        in.current_t = 18.0;
+        b.current_t = 24.0;
+        b.current_mode = "HEATING";
+        b.current_pre_temp = 26.0;
+        b.on = true;
+        b.ac_spec = nlohmann::json{
+            {"Q", {{"cooling", {{"mid", 2.0}}}, {"heating", {{"mid", 0.5}}}}},  // kW; mid only
+        };
+        b.initializeAirconSpec();
+
+        VentilationNetwork vent;
+        SimulationConstants constants{};
+        std::ostringstream logs;
+        int totalIterations = 0;
+        const bool adjusted = controller.checkAndAdjustCapacity(
+            thermal, vent, constants, flowRates, logs, totalIterations);
+
+        expectTrue(adjusted, "Q.mid only (no max) should still apply capacity limit");
+        expectTrue(b.current_pre_temp < 26.0, "heating setpoint should decrease when over mid capacity");
+    }
+
+    // 処理熱量: 暖房で出口<=入口なら0、冷房で入口<=出口なら0
+    {
+        auto& in = thermal.getNode("IN");
+        auto& b = thermal.getNode("B");
+        in.current_t = 26.0;
+        b.current_t = 20.0;  // 出口 < 入口
+        b.on = true;
+        const double heatH = controller.calculateHeatCapacity(thermal, "heating", "IN", "B", flowRates);
+        expectNear(heatH, 0.0, 1e-9, "heating: outlet < inlet => heat 0");
+        in.current_t = 20.0;
+        b.current_t = 26.0;  // 入口 < 出口
+        const double heatC = controller.calculateHeatCapacity(thermal, "cooling", "IN", "B", flowRates);
+        expectNear(heatC, 0.0, 1e-9, "cooling: inlet < outlet => heat 0");
+    }
+
+    // 能力超過で bracket を使った後、処理熱量が不足（0）になったら設定温度を上げて二分探索継続すること
+    {
+        auto& in = thermal.getNode("IN");
+        auto& b = thermal.getNode("B");
+        in.current_t = 25.0;
+        b.current_t = 30.0;
+        b.current_mode = "HEATING";
+        b.current_pre_temp = 20.0;
+        b.on = true;
+        b.ac_spec = makeAcSpecWithMax(3.3, 0.5);  // 500W
+        b.initializeAirconSpec();
+
+        VentilationNetwork vent;
+        SimulationConstants constants{};
+        std::ostringstream logs;
+        int totalIterations = 0;
+        const bool adjusted1 = controller.checkAndAdjustCapacity(
+            thermal, vent, constants, flowRates, logs, totalIterations);
+        expectTrue(adjusted1, "first call: over capacity should adjust (bracket path when nullopt)");
+        const double setpointAfter1 = b.current_pre_temp;
+
+        // 処理熱量が0になるようにする（出口 <= 入口）
+        b.current_t = 24.0;
+        in.current_t = 25.0;
+        const bool adjusted2 = controller.checkAndAdjustCapacity(
+            thermal, vent, constants, flowRates, logs, totalIterations);
+        expectTrue(adjusted2, "second call: under capacity with bracket should request recalc");
+        expectTrue(b.current_pre_temp > setpointAfter1,
+                   "under capacity: setpoint should increase toward max capacity");
+    }
+
     if (g_failures == 0) {
         std::cout << "[OK] all tests passed\n";
         return 0;

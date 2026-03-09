@@ -354,6 +354,9 @@ void runSimulation(VentilationNetwork& ventNetwork,
     CoupledStepData step;
 
     for (auto iteration = 0; iteration < static_cast<int>(constants.maxInnerIteration); iteration++) {
+        if (iteration == 0) {
+            airconController.clearCapacityLimitBracket();
+        }
         std::string loopLabel = "圧力-温度連成計算-エアコン制御ループ " +
                                 std::to_string(iteration + 1) + ":";
         bool loopConverged = false;

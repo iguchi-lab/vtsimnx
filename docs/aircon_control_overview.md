@@ -112,13 +112,13 @@ flowchart TD
 
 概念的には次です。
 
-- `heatCapacity = rho_air * cp_air * |flowRate| * |deltaT|`
+- `heatCapacity = rho_air * cp_air * |flowRate| * deltaT`（有効な向きのみ）
 
 ここで:
 
 - `flowRate`: `in_node -> airconNode` の流量
-- 暖房時 `deltaT = outletTemp - inletTemp`
-- 冷房時 `deltaT = inletTemp - outletTemp`
+- **暖房時**: `deltaT = outletTemp - inletTemp`。**出口温度 ≤ 入口温度のときは 0**（加熱していない）
+- **冷房時**: `deltaT = inletTemp - outletTemp`。**入口温度 ≤ 出口温度のときは 0**（除熱していない）
 
 どちらも「処理熱量の大きさ [W]」として正値で扱います。
 
@@ -128,12 +128,13 @@ flowchart TD
 
 能力上限チェックは `checkAndAdjustCapacity()` で行います。
 
-今回の仕様:
+参照する上限:
 
-- 参照する上限は **`ac_spec.Q.<mode>.max` のみ**
-- `Q.<mode>.max` が無い機種は、**能力制限を掛けない**
+- **`ac_spec.Q.<mode>.max`** を優先
+- **`max` が無い場合は `ac_spec.Q.<mode>.mid`** を使用（DUCT_CENTRAL / LATENT_EVALUATE など `mid` のみの仕様に対応）
+- 両方無い機種は能力制限を掛けません（上限なしとして扱う）
 
-`Q.rtd` や `max_heat_capacity` は、今回の制御では使いません。
+`Q.rtd` や `max_heat_capacity` は、この制御では参照しません。
 
 ---
 
@@ -141,9 +142,9 @@ flowchart TD
 
 エアコンが ON で、かつ
 
-- `current heatCapacity > ac_spec.Q.<mode>.max`
+- `current heatCapacity > 最大能力（上記 max または mid）`
 
-になった場合、`checkAndAdjustCapacity()` は設定温度を補正します。
+になった場合、`checkAndAdjustCapacity()` は**処理熱量が最大能力と等しくなる**設定温度を求め、`current_pre_temp` を補正します。
 
 方針:
 
@@ -152,20 +153,15 @@ flowchart TD
 - 運転モードは固定する
 - ON/OFF は次の outer loop で再判定してよい
 
-補正方法:
+補正方法（2段階）:
 
-- `estimateHeatCapacityForSetpoint(...)`
-- `findCapacityLimitedSetpoint(...)`
+1. **公式による補正**  
+   `findCapacityLimitedSetpoint(...)` で、入口温度・風量・運転モードを固定した近似のもと、`heatCapacity <= maxHeatCapacity` となる setpoint を算出。有効な setpoint が得られればそれを適用。
+2. **二分探索（フォールバック）**  
+   公式で有効解が得られない場合、熱ソルバの解（処理熱量）を利用した bracket 二分探索で、処理熱量 ≒ 最大能力 となる setpoint を求める。収束判定は「処理熱量が最大能力に十分近い」（相対 0.1% + 絶対 1W）で行い、bracket のみ狭まった場合はあと 1 回再計算してから完了。
 
-で、現在の入口温度・風量・運転モードを固定した近似のもと、二分探索で `heatCapacity <= maxHeatCapacity` となる setpoint を探します。
-
-探索レンジ:
-
-- 暖房: `inletTemp` 〜 `current_pre_temp`
-- 冷房: `current_pre_temp` 〜 `inletTemp`
-
-見つかった setpoint は `current_pre_temp` に書き戻し、`adjustmentMade=true` を返します。  
-これにより `simulation_runner.cpp` 側が同じ timestep を再計算します。
+補正後は `adjustmentMade=true` を返し、`simulation_runner.cpp` が同じ timestep を再計算します。  
+処理熱量が最大能力を**下回る**状態で既に bracket が存在する場合（例: 設定を下げすぎて処理熱量が 0 に近い）は、設定温度を上げる方向に bracket を更新して探索を継続します。
 
 ---
 
@@ -210,6 +206,7 @@ flowchart TD
 
 ```text
 ac1 最大処理熱量=500.00W (Q.heating.max 基準), 現在処理熱量=820.00W → 超過, 設定温度補正=26.00→23.41°C, 再計算要求
+ac1 最大処理熱量=500.00W (Q.heating.max 基準), 現在処理熱量=499.20W → 二分探索収束 設定温度=23.10°C（処理熱量≒最大能力）
 ```
 
 ---
@@ -218,4 +215,5 @@ ac1 最大処理熱量=500.00W (Q.heating.max 基準), 現在処理熱量=820.00
 
 - `docs/simulation_overview.md`
 - `docs/acmodel_overview.md`
+- `docs/aircon_spec_reference.md`（モデル別 ac_spec の形と能力上限キー）
 - `docs/builder_json.md`

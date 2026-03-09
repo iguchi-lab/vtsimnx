@@ -16,7 +16,7 @@ def process_aircon(aircon: dict) -> tuple[list, list]:
     set_node = aircon["set"]
     outside_node = aircon["outside"]
     pre_temp = aircon["pre_temp"]
-    model = aircon["model"]
+    model = aircon.get("model", "RAC")
     mode = aircon["mode"]
 
     ventilation_chain = [

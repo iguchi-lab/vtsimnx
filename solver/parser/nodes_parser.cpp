@@ -138,8 +138,14 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
         // エアコン仕様原本
         if (nodeJson.contains("ac_spec")) node.ac_spec = nodeJson["ac_spec"];
 
-        // 型が aircon の場合、仕様を初期化
+        // 型が aircon の場合、モデル未指定時は RAC をデフォルトにし、仕様を初期化
         if (node.type == "aircon") {
+            if (node.model.empty()) {
+                node.model = "RAC";
+                if (verbosity >= 1) {
+                    writeLog(logs, "  [INFO] aircon node: model が未指定のため RAC をデフォルト適用しました: key=" + node.key);
+                }
+            }
             node.initializeAirconSpec();
         }
 
