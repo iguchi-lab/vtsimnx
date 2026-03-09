@@ -34,3 +34,14 @@
 - `docs/thermal_rc.md`
 
 
+
+---
+
+### GitHub とローカルの対応
+
+- このディレクトリ `/home/ubuntu/vtsimnx/api` は **単独の Git リポジトリ** で、GitHub 上の [`iguchi-lab/vtsimnx-api`](https://github.com/iguchi-lab/vtsimnx-api) に対応します。
+- デフォルトブランチ: `main` （`origin/main` と追従）
+- **規則**:
+  - API 側のコード・builder・C++ solver（このリポジトリ配下の `solver/`）の変更は、必ずこのリポジトリで `git commit` `git push` します。
+  - 親ディレクトリ `/home/ubuntu/vtsimnx` には Git 管理を置かず、`git` コマンドはこのディレクトリ（または `core/` 側）から実行します。
+  - Python コアライブラリ（`vtsimnx` パッケージ）側の変更は `/home/ubuntu/vtsimnx/core` リポジトリで管理します（別リポジトリ）。
