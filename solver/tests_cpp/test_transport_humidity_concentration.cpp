@@ -103,6 +103,28 @@ int main() {
         FlowRateMap flowRates = vent.collectFlowRateMap(); // (A,B)->0.1
         transport::updateHumidityIfEnabled(constants, vent, thermal, flowRates, logs, timings, "test");
 
+        // humidity_x keys: calc_x=true の B に加え、v<=0 の void も出力対象になるはず
+        const auto& humidityKeys = thermal.getHumidityKeys();
+        bool hasVoid = false;
+        bool hasB = false;
+        for (const auto& k : humidityKeys) {
+            if (k == "void") hasVoid = true;
+            if (k == "B") hasB = true;
+        }
+        if (!hasVoid || !hasB) {
+            std::ostringstream oss;
+            oss << "humidity_x keys missing expected entries. hasVoid=" << (hasVoid ? "true" : "false")
+                << " hasB=" << (hasB ? "true" : "false") << " keys={";
+            bool firstKey = true;
+            for (const auto& k : humidityKeys) {
+                if (!firstKey) oss << ",";
+                firstKey = false;
+                oss << k;
+            }
+            oss << "}";
+            throw std::runtime_error(oss.str());
+        }
+
         // balanced flow (A->B and B->void):
         // dx/dt = (q/V)*(x_src - x), implicit Euler -> x_{n+1} = (x_n + a*x_src)/(1+a)
         const double dt = static_cast<double>(constants.timestep);
@@ -237,6 +259,77 @@ int main() {
         }
         const double actual = tG[itB->second].current_c;
         expectNear(actual, expected, 1e-8, "concentration generation+beta");
+    }
+
+    // ------------------------------------------------------------------
+    // 4) humidity: duplicate edges on same (src,dst) pair must be SUMMED
+    //    (not overwritten). Scenario: 24h-ventilation branch always-on
+    //    plus a schedule-based branch both create SRC->ROOM edges.
+    //    When schedule=0, the 24h flow must still reach ROOM.
+    // ------------------------------------------------------------------
+    {
+        // Nodes: SRC (x=0.01, boundary), ROOM (calc_x, v=50), EXT (boundary)
+        auto SRC  = makeNode("SRC");
+        SRC.v = 0.0;
+        SRC.calc_x = false;
+        SRC.current_x = 0.010;
+
+        auto ROOM = makeNode("ROOM");
+        ROOM.calc_x = true;
+        ROOM.current_x = 0.0;
+        ROOM.v = 50.0;
+
+        auto EXT = makeNode("EXT");
+        EXT.v = 0.0;
+        EXT.calc_x = false;
+        EXT.current_x = 0.001;
+
+        // edge1: SRC->ROOM (24h ventilation, always-on, q=0.05 m3/s)
+        // edge2: SRC->ROOM (schedule-based, q=0.0 at this timestep)
+        // edge3: ROOM->EXT (always-on exhaust, q=0.05)
+        EdgeProperties e1 = makeFixedFlowEdge("24h_SRC->ROOM", "SRC", "ROOM", 0.05);
+        EdgeProperties e2 = makeFixedFlowEdge("sch_SRC->ROOM", "SRC", "ROOM", 0.0); // schedule=0
+        EdgeProperties e3 = makeFixedFlowEdge("ROOM->EXT",     "ROOM", "EXT",  0.05);
+
+        std::vector<VertexProperties> nodes = {SRC, ROOM, EXT};
+        std::vector<EdgeProperties> ventEdges = {e1, e2, e3};
+        std::vector<EdgeProperties> thEdges   = {};
+
+        VentilationNetwork vent;
+        ThermalNetwork thermal;
+        vent.buildFromData(nodes, ventEdges, constants, logs);
+        thermal.buildFromData(nodes, thEdges, ventEdges, constants, logs);
+        vent.updatePropertiesForTimestep(nodes, ventEdges, 0);
+
+        FlowRateMap flowRates = vent.collectFlowRateMap();
+
+        // SRC->ROOM flow must equal 24h flow (0.05), not be zeroed by schedule edge (0.0)
+        const double q_src_room = [&]() -> double {
+            auto it = flowRates.find({"SRC", "ROOM"});
+            return (it != flowRates.end()) ? it->second : 0.0;
+        }();
+        if (std::abs(q_src_room - 0.05) > 1e-12) {
+            std::ostringstream oss;
+            oss << "duplicate edge overwrite bug: SRC->ROOM flow=" << q_src_room
+                << " expected=0.05 (24h flow must not be overwritten by schedule=0 edge)";
+            throw std::runtime_error(oss.str());
+        }
+
+        transport::updateHumidityIfEnabled(constants, vent, thermal, flowRates, logs, timings, "test");
+
+        // ROOM should approach SRC humidity (0.010), not decay toward 0
+        const double dt = static_cast<double>(constants.timestep);
+        const double q = 0.05;
+        const double V = 50.0;
+        const double a = dt * (q / V);
+        const double expected = (0.0 + a * 0.010) / (1.0 + a);
+
+        const auto& tG = thermal.getGraph();
+        const auto& tMap = thermal.getKeyToVertex();
+        const auto itR = tMap.find("ROOM");
+        if (itR == tMap.end()) throw std::runtime_error("missing ROOM");
+        const double actual = tG[itR->second].current_x;
+        expectNear(actual, expected, 1e-12, "duplicate edge flow must be summed (not overwritten)");
     }
 
     std::cout << "[OK] all tests passed\n";
