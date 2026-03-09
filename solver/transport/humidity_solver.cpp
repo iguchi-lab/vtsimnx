@@ -45,35 +45,43 @@ void updateHumidityIfEnabled(const SimulationConstants& constants,
         genByVertex[itT->second] += g;
     }
 
+    (void)flowRates; // エッジ直接走査方式に統一したため FlowRateMap は不使用
+
     auto idxOf = [](Vertex v) -> size_t { return static_cast<size_t>(v); };
     const size_t nV = static_cast<size_t>(boost::num_vertices(tGraph));
     std::vector<double> outSum(nV, 0.0);
     std::vector<std::vector<std::pair<Vertex, double>>> inflow(nV);
 
-    // 流量（m3/s）から inflow/outflow を構築し、質量流量（kg/s）へ変換して扱う
-    for (const auto& kv : flowRates) {
-        const std::string& a = kv.first.first;
-        const std::string& b = kv.first.second;
-        const double f = kv.second;
+    // ベントグラフのエッジを直接走査して inflow/outflow を構築する。
+    // concentration_solver と同方式にすることで:
+    //   1. 同一ノードペアに複数エッジが存在する場合も各エッジの寄与を独立に処理できる
+    //   2. calc_p=true で流量が逆転した際も個別の寄与が正しく反映される
+    //   3. FlowRateMap の集計による src/dst の取り違えリスクがなくなる
+    for (auto e : boost::make_iterator_range(boost::edges(vGraph))) {
+        const auto& ep = vGraph[e];
+        const double f = ep.flow_rate; // [m3/s]（正: エッジ定義方向、負: 逆向き）
         if (f == 0.0) continue;
 
-        std::string srcKey = a;
-        std::string dstKey = b;
-        // FlowRateMap は volumetric flow [m3/s]（pressure solver の出力）なので、rho を掛けて [kg/s]
+        const Vertex vSv = boost::source(e, vGraph);
+        const Vertex vTv = boost::target(e, vGraph);
+        const std::string& kS = vGraph[vSv].key;
+        const std::string& kT = vGraph[vTv].key;
+
+        auto itTS = tKeyToV.find(kS);
+        auto itTT = tKeyToV.find(kT);
+        if (itTS == tKeyToV.end() || itTT == tKeyToV.end()) continue;
+
+        // 流量の符号からソース/デスティネーションを決定し、質量流量 [kg/s] に変換
+        Vertex src = itTS->second;
+        Vertex dst = itTT->second;
         double mDot = f * PhysicalConstants::DENSITY_DRY_AIR;
         if (mDot < 0.0) {
             mDot = -mDot;
-            srcKey = b;
-            dstKey = a;
+            std::swap(src, dst);
         }
-        auto itS = tKeyToV.find(srcKey);
-        auto itD = tKeyToV.find(dstKey);
-        if (itS == tKeyToV.end() || itD == tKeyToV.end()) continue;
 
-        const Vertex sv = itS->second;
-        const Vertex dv = itD->second;
-        outSum[idxOf(sv)] += mDot;
-        inflow[idxOf(dv)].push_back({sv, mDot});
+        outSum[idxOf(src)] += mDot;
+        inflow[idxOf(dst)].push_back({src, mDot});
     }
 
     // 更新対象（calc_x=true）の頂点を key でソートして決定性を確保

@@ -109,6 +109,7 @@ void ThermalNetwork::buildFromData(const std::vector<VertexProperties>& allNodes
     heatRateKeysOrderedCapacity.clear();
     advectionEdgeCacheInitialized = false;
     advectionEdgesByVertexPair.clear();
+    advectionEdgeByVentUniqueId.clear();
 
     if (simConstants.temperatureCalc || simConstants.humidityCalc || simConstants.concentrationCalc) {
         writeLog(logs, "  熱回路網を作成中...");
@@ -220,9 +221,11 @@ void ThermalNetwork::buildFromData(const std::vector<VertexProperties>& allNodes
 void ThermalNetwork::syncFlowRatesFromVentilationNetwork(const VentilationNetwork& ventNetwork) {
     const auto& ventGraph = ventNetwork.getGraph();
 
-    // 熱回路網側の移流エッジ（source/target vertex pair）キャッシュを構築（初回のみ）
+    // 熱回路網側の移流エッジキャッシュを構築（初回のみ）
+    // - 移流エッジの unique_id は "advection_" + 換気枝 unique_id で一意対応するため、順序に依存せず同期可能
     if (!advectionEdgeCacheInitialized) {
         advectionEdgesByVertexPair.clear();
+        advectionEdgeByVentUniqueId.clear();
         advectionEdgesByVertexPair.reserve(boost::num_edges(graph));
         for (auto e : boost::make_iterator_range(boost::edges(graph))) {
             const auto& ep = graph[e];
@@ -233,31 +236,18 @@ void ThermalNetwork::syncFlowRatesFromVentilationNetwork(const VentilationNetwor
                 (static_cast<std::uint64_t>(static_cast<std::uint32_t>(sv)) << 32) |
                 static_cast<std::uint64_t>(static_cast<std::uint32_t>(tv));
             advectionEdgesByVertexPair[key].push_back(e);
+            advectionEdgeByVentUniqueId[ep.unique_id] = e;
         }
         advectionEdgeCacheInitialized = true;
     }
 
-    // 換気エッジを走査し、対応する移流エッジに風量をコピー
-    // - 同一 source/target の重複枝は、出現順で 1 対 1 に対応づける
-    std::unordered_map<std::uint64_t, size_t> nextIndexByPair;
-    nextIndexByPair.reserve(advectionEdgesByVertexPair.size());
-    auto vent_edge_range = boost::edges(ventGraph);
-    for (auto vent_edge : boost::make_iterator_range(vent_edge_range)) {
+    // 換気エッジを走査し、unique_id で対応する移流エッジに風量をコピー（boost::edges の順序に依存しない）
+    for (auto vent_edge : boost::make_iterator_range(boost::edges(ventGraph))) {
         const auto& ventEp = ventGraph[vent_edge];
-        // 換気側の source/target key を、熱側の vertex に変換して同期する
-        auto itS = keyToVertex.find(ventEp.source);
-        auto itT = keyToVertex.find(ventEp.target);
-        if (itS == keyToVertex.end() || itT == keyToVertex.end()) continue;
-        const Vertex sv = itS->second;
-        const Vertex tv = itT->second;
-        const std::uint64_t key =
-            (static_cast<std::uint64_t>(static_cast<std::uint32_t>(sv)) << 32) |
-            static_cast<std::uint64_t>(static_cast<std::uint32_t>(tv));
-        auto it = advectionEdgesByVertexPair.find(key);
-        if (it == advectionEdgesByVertexPair.end() || it->second.empty()) continue;
-        const size_t idx = nextIndexByPair[key]++;
-        if (idx >= it->second.size()) continue;
-        graph[it->second[idx]].flow_rate = ventEp.flow_rate;
+        const std::string thermalUniqueId = "advection_" + ventEp.unique_id;
+        auto itAd = advectionEdgeByVentUniqueId.find(thermalUniqueId);
+        if (itAd == advectionEdgeByVentUniqueId.end()) continue;
+        graph[itAd->second].flow_rate = ventEp.flow_rate;
     }
 }
 
@@ -398,7 +388,13 @@ const std::vector<std::string>& ThermalNetwork::getHumidityKeys() const {
         items.reserve(boost::num_vertices(graph) / 4 + 1);
         for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
             const auto& nd = graph[v];
-            if (!nd.calc_x) continue;
+            // 湿度出力対象:
+            // - 通常: calc_x=true のノード（未知数として解くもの）
+            // - 例外: v<=0 のノード（外気など境界条件ノード）。current_x を境界値として artifact に残したいケースがある。
+            //   => V<=0 のノードは湿度ソルバ update では「流入混合のみ」扱いであり、解く対象にならないためここで出力だけ許可しても安全。
+            const bool isCalcX = nd.calc_x;
+            const bool isZeroVolume = !(nd.v > 0.0);
+            if (!isCalcX && !isZeroVolume) continue;
             items.emplace_back(nd.key, v);
         }
         std::sort(items.begin(), items.end(),

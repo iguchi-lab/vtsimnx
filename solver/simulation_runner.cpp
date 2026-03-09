@@ -127,6 +127,35 @@ static inline void capturePrevTempsByVertex(const Graph& graph, std::vector<doub
     }
 }
 
+// タイムステップ開始時点の絶対湿度 x を保存する。
+// エアコン制御ループが複数回まわっても「毎回タイムステップ開始時から x を積分し直す」ために使用する。
+static inline void captureXPrevByVertex(const Graph& graph, std::vector<double>& xPrev) {
+    const size_t vCount = static_cast<size_t>(boost::num_vertices(graph));
+    xPrev.resize(vCount);
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        xPrev[static_cast<size_t>(v)] = graph[v].current_x;
+    }
+}
+
+// 保存した x_prev を thermal/vent 両グラフへ復元する。
+// これにより、どのループ反復でも湿度計算は「タイムステップ開始時点から」スタートする。
+static inline void restoreXPrevToGraph(Graph& graph, VentilationNetwork& ventNetwork,
+                                       const std::vector<double>& xPrev) {
+    const auto& vKeyToV = ventNetwork.getKeyToVertex();
+    auto& vGraph = ventNetwork.getGraph();
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        const size_t i = static_cast<size_t>(v);
+        if (i < xPrev.size()) {
+            graph[v].current_x = xPrev[i];
+            // vent 側にも反映（humidity_solver が vGraph も更新するため）
+            auto itV = vKeyToV.find(graph[v].key);
+            if (itV != vKeyToV.end()) {
+                vGraph[itV->second].current_x = xPrev[i];
+            }
+        }
+    }
+}
+
 struct CoupledDelta {
     double pressureChange = 0.0;     // [Pa]
     double temperatureChange = 0.0;  // [K]
@@ -353,6 +382,14 @@ void runSimulation(VentilationNetwork& ventNetwork,
     // 連成計算の実行（1回分の結果をまとめて保持）
     CoupledStepData step;
 
+    // タイムステップ開始時点の絶対湿度を保存する。
+    // エアコン制御ループが複数回まわる場合に、毎回同じ出発点から x を積分し直すために必要。
+    // （ループ回数に関わらず計算結果が冪等になる）
+    std::vector<double> xPrevByVertex;
+    if (constants.humidityCalc) {
+        captureXPrevByVertex(thermalNetwork.getGraph(), xPrevByVertex);
+    }
+
     for (auto iteration = 0; iteration < static_cast<int>(constants.maxInnerIteration); iteration++) {
         if (iteration == 0) {
             airconController.clearCapacityLimitBracket();
@@ -443,8 +480,13 @@ void runSimulation(VentilationNetwork& ventNetwork,
             }
 
             // 湿度（絶対湿度）更新：
-            // - 「換気＋熱」が落ち着いた（この反復での flowRates/温度が確定した）後に更新する
-            // - その結果（current_x）を、後段のエアコン制御（潜熱/除湿の将来拡張）で参照できるようにする
+            // - エアコン制御ループ内に置くことで、将来エアコンの除湿・加湿が湿度に影響する際に
+            //   制御結果（流量・温度）を反映した正しい湿度を計算できる。
+            // - ループが複数回まわっても結果が冪等になるよう、毎回タイムステップ開始時点の
+            //   x_prev を復元してから積分し直す。
+            if (constants.humidityCalc) {
+                restoreXPrevToGraph(thermalNetwork.getGraph(), ventNetwork, xPrevByVertex);
+            }
             transport::updateHumidityIfEnabled(constants, ventNetwork, thermalNetwork, step.flowRates, logs, timings,
                                                meta + ",iteration=" + std::to_string(iteration + 1));
 

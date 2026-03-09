@@ -69,6 +69,8 @@ private:
     // value: 同一 source/target を持つ移流エッジ群（重複ペア対応）
     mutable bool advectionEdgeCacheInitialized = false;
     mutable std::unordered_map<std::uint64_t, std::vector<Edge>> advectionEdgesByVertexPair;
+    // 換気枝 unique_id → 熱側移流エッジ（"advection_" + vent.unique_id で一意対応、順序に依存しない）
+    mutable std::unordered_map<std::string, Edge> advectionEdgeByVentUniqueId;
 
 public:
     // ノード・エッジ操作
