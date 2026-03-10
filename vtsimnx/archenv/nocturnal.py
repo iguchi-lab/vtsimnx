@@ -3,12 +3,12 @@ from __future__ import annotations
 import pandas as pd
 import numpy as np
 
-from .archenv import e, T, MJ_to_Wh, Sigma
+from .archenv import vapor_pressure_from_rh_pa, to_kelvin, MJ_to_Wh, Sigma
 
 
 def rn(t, h):
     """夜間放射量 [MJ/m2] を推算する。"""
-    return (94.21 + 39.06 * np.sqrt(e(t, h) / 100) - 0.85 * Sigma * np.power(T(t), 4)) * 4.187 / 1000
+    return (94.21 + 39.06 * np.sqrt(vapor_pressure_from_rh_pa(t, h) / 100) - 0.85 * Sigma * np.power(to_kelvin(t), 4)) * 4.187 / 1000
 
 
 def nocturnal_gain_by_angles(

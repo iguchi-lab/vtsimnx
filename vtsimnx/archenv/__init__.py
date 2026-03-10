@@ -1,6 +1,17 @@
 from .archenv import (
     Air_Cp, Vap_Cp, Vap_L, Sigma, Solar_I, capa_air,
-    get_rho, T, T_dash, Wh_to_MJ, MJ_to_Wh, f, f_from_x, ps, e, x, hs, hl, ht,
+    P_ATM,
+    air_density, to_kelvin, T_dash, Wh_to_MJ, MJ_to_Wh,
+    log10_saturation_vapor_pressure_hpa,
+    saturation_vapor_pressure_pa,
+    vapor_pressure_from_rh_pa,
+    vapor_pressure_from_humidity_ratio_pa,
+    vapor_pressure_from_humidity_ratio_gpkg_pa,
+    humidity_ratio_from_rh,
+    relative_humidity_from_humidity_ratio,
+    sensible_enthalpy_kjkg,
+    latent_enthalpy_kjkg,
+    total_enthalpy_kjkg,
     _alt_deg_from_sin, _az_deg_from_sin_cos,
 )
 
@@ -17,7 +28,18 @@ from .comfort import (
 __all__ = [
     # 共通
     "Air_Cp", "Vap_Cp", "Vap_L", "Sigma", "Solar_I", "capa_air",
-    "get_rho", "T", "T_dash", "Wh_to_MJ", "MJ_to_Wh", "f", "f_from_x", "ps", "e", "x", "hs", "hl", "ht",
+    "P_ATM",
+    "air_density", "to_kelvin", "T_dash", "Wh_to_MJ", "MJ_to_Wh",
+    "log10_saturation_vapor_pressure_hpa",
+    "saturation_vapor_pressure_pa",
+    "vapor_pressure_from_rh_pa",
+    "vapor_pressure_from_humidity_ratio_pa",
+    "vapor_pressure_from_humidity_ratio_gpkg_pa",
+    "humidity_ratio_from_rh",
+    "relative_humidity_from_humidity_ratio",
+    "sensible_enthalpy_kjkg",
+    "latent_enthalpy_kjkg",
+    "total_enthalpy_kjkg",
     "_alt_deg_from_sin", "_az_deg_from_sin_cos",
     # 風
     "make_wind",

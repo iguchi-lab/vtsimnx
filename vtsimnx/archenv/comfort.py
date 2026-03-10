@@ -2,7 +2,7 @@ import math
 import warnings
 import numpy as np
 
-from .archenv import e
+from .archenv import vapor_pressure_from_rh_pa
 
 
 def calc_R(f_cl, t_cl, t_r):
@@ -58,9 +58,9 @@ def calc_PMV(Met = 1.0, W = 0.0, Clo = 1.0, t_a = 20, h_a = 50, t_r = 20, v_a = 
             RuntimeWarning,
         )
 
-    E_d  = 3.05e-3 * (5733 - 6.99 * (M - W) - e(t_a, h_a))
+    E_d  = 3.05e-3 * (5733 - 6.99 * (M - W) - vapor_pressure_from_rh_pa(t_a, h_a))
     E_s  = 0.42 * ((M - W) - 58.15)
-    E_re = 1.7e-5 * M * (5867 - e(t_a, h_a))
+    E_re = 1.7e-5 * M * (5867 - vapor_pressure_from_rh_pa(t_a, h_a))
     C_re = 0.0014 * M * (34 - t_a)
     L    = (M - W) - E_d - E_s - E_re - C_re - calc_RC(f_cl, h_c, t_cl, t_a, t_r)
     PMV  = (0.303 * math.exp(-0.036 * M) + 0.028) * L
