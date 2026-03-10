@@ -252,6 +252,9 @@ static void buildTimestepResult(const SimulationConstants& constants,
 
     if (constants.pressureCalc) {
         convertDoublesToF32(timestepResult.pressure, ventNetwork.collectPressureValues());
+    }
+    // 換気回路網を構築している場合は風量を出力する（圧力収束計算をしない固定流量のみのときも固定値を出力）
+    if (constants.pressureCalc || constants.temperatureCalc || constants.humidityCalc || constants.concentrationCalc) {
         convertDoublesToF32(timestepResult.flowRate, ventNetwork.collectFlowRateValues());
     }
 
