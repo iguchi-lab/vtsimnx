@@ -289,17 +289,7 @@ def _build_sun_df(
     if not use_astro:
         return sun_loc(idx, lat=lat_deg, lon=lon_deg, td=td)
 
-    df_a = astro_sun_loc(idx, lat=lat_deg, lon=lon_deg, td=td)
-    az = df_a["太陽方位角 az"]
-    azs = ((az - 180.0 + 180.0) % 360.0) - 180.0
-    df_sun = pd.DataFrame(index=df_a.index)
-    df_sun["太陽高度の正弦 sin_hs"] = df_a["太陽高度の正弦 sin_alt"]
-    df_sun["太陽高度の余弦 cos_hs"] = df_a["太陽高度の余弦 cos_alt"]
-    df_sun["太陽高度 hs"] = df_a["太陽高度 alt"]
-    df_sun["太陽方位角 AZs"] = azs
-    df_sun["太陽方位角の正弦 sin_AZs"] = np.sin(np.radians(azs))
-    df_sun["太陽方位角の余弦 cos_AZs"] = np.cos(np.radians(azs))
-    return df_sun
+    return astro_sun_loc(idx, lat=lat_deg, lon=lon_deg, td=td)
 
 
 def _build_df_min_from_dni_dhi(*, idx: pd.DatetimeIndex, dni: pd.Series, dhi: pd.Series) -> pd.DataFrame:

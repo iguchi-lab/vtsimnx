@@ -36,30 +36,35 @@ def T_d_t(H, ed, L):
     return (H + ed - 12.0) * 15.0 + (L - 135.0)
 
 # 角度[deg]の正弦・余弦
-def sin(v):
+def sin_deg(v):
     """角度[deg]の正弦。"""
     return np.sin(np.radians(v))
 
 
-def cos(v):
+def cos_deg(v):
     """角度[deg]の余弦。"""
     return np.cos(np.radians(v))
 
 # 太陽高度 hs の正弦: sin(hs) = sin(lat)·sin(δ) + cos(lat)·cos(δ)·cos(時角)
 def sin_hs(L, dd, tdt):
     """太陽高度 hs の正弦。"""
-    return sin(L) * sin(dd) + cos(L) * cos(dd) * cos(tdt)
+    return sin_deg(L) * sin_deg(dd) + cos_deg(L) * cos_deg(dd) * cos_deg(tdt)
 
 
 # 太陽方位角 AZs の正弦/余弦（象限判定は arctan2 で別途実施）
 def sin_AZs(dd, tdt, c_h):
     """太陽方位角 AZs の正弦。"""
-    return cos(dd) * sin(tdt) / c_h
+    return cos_deg(dd) * sin_deg(tdt) / c_h
 
 
 def cos_AZs(s_h, L, dd, c_h):
     """太陽方位角 AZs の余弦。"""
-    return (s_h * sin(L) - sin(dd)) / (c_h * cos(L))
+    return (s_h * sin_deg(L) - sin_deg(dd)) / (c_h * cos_deg(L))
+
+
+# Backward-compatible aliases (internal use only)
+sin = sin_deg
+cos = cos_deg
 
 
 def _build_time_columns(idx: pd.DatetimeIndex, td: float) -> tuple[pd.Series, pd.Series]:
@@ -148,23 +153,28 @@ def astro_sun_loc(idx, lat = '36 00 00.00', lon = '140 00 00.00', td = -0.5):
     time = astropy.time.Time(idx) + (-9 + td ) * u.hour
     sun = get_sun(time).transform_to(AltAz(obstime = time, location = loc))
 
-    df = pd.DataFrame(index = idx)
+    df = pd.DataFrame(index=idx)
 
-    # 太陽高度（仰角）
-    df['太陽高度の正弦 sin_alt'] = np.array([np.sin(s.alt) for s in sun]).astype('float64')
-    df['太陽高度の余弦 cos_alt'] = np.array([np.cos(s.alt) for s in sun]).astype('float64')
-    df['太陽高度 alt'] = np.degrees(
-        np.arcsin(df['太陽高度の正弦 sin_alt'])
-    )
+    # 太陽高度（仰角）: hs
+    sin_alt = np.array([np.sin(s.alt) for s in sun], dtype="float64")
+    cos_alt = np.array([np.cos(s.alt) for s in sun], dtype="float64")
+    sin_alt = np.clip(sin_alt, -1.0, 1.0)
+    cos_alt = np.clip(cos_alt, -1.0, 1.0)
+    hs = _alt_deg_from_sin(sin_alt)
 
-    # 太陽方位角
-    df['太陽方位角の正弦 sin_az'] = np.array([np.sin(s.az) for s in sun]).astype('float64')
-    df['太陽方位角の余弦 cos_az'] = np.array([np.cos(s.az) for s in sun]).astype('float64')
+    # 太陽方位角: astropy は North=0, East=90 の az を返す。
+    # 本コードの AZs は South=0, East=-90, West=+90, North=±180 に合わせる。
+    sin_az = np.array([np.sin(s.az) for s in sun], dtype="float64")
+    cos_az = np.array([np.cos(s.az) for s in sun], dtype="float64")
+    az = _az_deg_from_sin_cos(sin_az, cos_az)  # [deg], North=0
+    azs = ((az - 180.0 + 180.0) % 360.0) - 180.0
 
-    df['太陽方位角 az'] = _az_deg_from_sin_cos(
-        df['太陽方位角の正弦 sin_az'], df['太陽方位角の余弦 cos_az']
-    )
-
+    df["太陽高度の正弦 sin_hs"] = sin_alt
+    df["太陽高度の余弦 cos_hs"] = cos_alt
+    df["太陽高度 hs"] = hs
+    df["太陽方位角 AZs"] = azs
+    df["太陽方位角の正弦 sin_AZs"] = np.sin(np.radians(azs))
+    df["太陽方位角の余弦 cos_AZs"] = np.cos(np.radians(azs))
     return df
 
 
