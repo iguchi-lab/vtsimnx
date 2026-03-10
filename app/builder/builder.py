@@ -190,7 +190,7 @@ def _build_output_json(
         raise
 
     if aircon_config and add_aircon:
-        # 吸込ノードで calc_x/c=true の場合、aircon ノードにもフラグを引き継ぐ。
+        # 設定ノード(set)で calc_x/c=true の場合、aircon ノードにもフラグを引き継ぐ。
         # これをしないと aircon ノードの current_x/current_c が 0 固定になり、
         # 室内循環時に湿度・濃度が不自然に低下しうる。
         calc_x_node_keys = {
@@ -206,8 +206,8 @@ def _build_output_json(
         for ac in aircon_config:
             if not isinstance(ac, dict):
                 continue
-            in_node = ac.get("in", ac.get("set"))
-            key = str(in_node)
+            set_node = ac.get("set", ac.get("in"))
+            key = str(set_node)
             ac["calc_x"] = key in calc_x_node_keys
             ac["calc_c"] = key in calc_c_node_keys
 

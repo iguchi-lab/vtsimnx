@@ -18,6 +18,8 @@ def process_aircon(aircon: dict) -> tuple[list, list]:
     pre_temp = aircon["pre_temp"]
     model = aircon.get("model", "RAC")
     mode = aircon["mode"]
+    calc_x = bool(aircon.get("calc_x", False))
+    calc_c = bool(aircon.get("calc_c", False))
 
     ventilation_chain = [
         f"{in_node}->{aircon_out_node}",
@@ -26,14 +28,25 @@ def process_aircon(aircon: dict) -> tuple[list, list]:
     vol = aircon.get("vol", 1000 / 3600)
 
     # ノードの追加
+    logger.info(
+        "　エアコンを追加します: key=%s set=%s in=%s out=%s outside=%s calc_x=%s calc_c=%s vol=%s",
+        aircon_out_node,
+        set_node,
+        in_node,
+        out_node,
+        outside_node,
+        calc_x,
+        calc_c,
+        vol,
+    )
     logger.info(f"　エアコンノード【{aircon_out_node}】を追加します。")
     nodes.append(
         {
             "key": aircon_out_node,
             "calc_t": True,
             # 吸込ノード側で湿度・濃度計算を行う場合のみ、airconノードも対象にする
-            "calc_x": bool(aircon.get("calc_x", False)),
-            "calc_c": bool(aircon.get("calc_c", False)),
+            "calc_x": calc_x,
+            "calc_c": calc_c,
             "in_node": in_node,
             "set_node": set_node,
             "outside_node": outside_node,
