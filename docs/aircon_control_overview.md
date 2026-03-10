@@ -106,13 +106,18 @@ flowchart TD
 
 ---
 
-### 5. 処理熱量の定義
+### 5. 処理熱量の定義（顕熱・潜熱）
 
-現在の処理熱量は `AirconController::calculateHeatCapacity()` で計算します。
+処理熱量は、内部的に次の 2 つを区別して扱います。
+
+- 顕熱 `sensibleHeatCapacity` [W]
+- 潜熱 `latentHeatCapacity` [W]
+
+`AirconController::calculateHeatCapacity()` は顕熱の基礎量を計算します。
 
 概念的には次です。
 
-- `heatCapacity = rho_air * cp_air * |flowRate| * deltaT`（有効な向きのみ）
+- `sensible = rho_air * cp_air * |flowRate| * deltaT`（有効な向きのみ）
 
 ここで:
 
@@ -120,11 +125,28 @@ flowchart TD
 - **暖房時**: `deltaT = outletTemp - inletTemp`。**出口温度 ≤ 入口温度のときは 0**（加熱していない）
 - **冷房時**: `deltaT = inletTemp - outletTemp`。**入口温度 ≤ 出口温度のときは 0**（除熱していない）
 
-どちらも「処理熱量の大きさ [W]」として正値で扱います。
+顕熱・潜熱ともに「処理熱量の大きさ [W]」として正値で扱います。  
+acmodel 入力では `Q_S=顕熱`, `Q_L=潜熱`, `Q=Q_S+Q_L` を渡します。
 
 ---
 
-### 6. 能力上限の扱い
+### 6. 潜熱計算（latent_method）
+
+冷房時の吹出絶対湿度 `supplyX` と潜熱は、`ac_spec.latent_method` で方式を切り替えます。
+
+- `rh95`（**デフォルト**）  
+  吹出温度 `Tout` が決まったら、吹出空気を **RH=95%** とみなして `supplyX` を決定します。
+- `bf`  
+  バイパスファクタ法で `supplyX` を計算します（`bf`/`BF`/`bypass_factor`、既定 `0.2`）。
+- `none`  
+  潜熱処理なし（`Q_L=0`）。
+
+`bf` 選択時に吹出 RH が 100% を超えた場合は、警告を出して **RH95 法へフォールバック** します。  
+計算された `supplyX` は aircon ノードの `current_x` に反映され、次ステップや `humidity_x` 出力に使われます。
+
+---
+
+### 7. 能力上限の扱い
 
 能力上限チェックは `checkAndAdjustCapacity()` で行います。
 
@@ -138,13 +160,15 @@ flowchart TD
 
 ---
 
-### 7. 能力超過時の設定温度補正
+### 8. 能力超過時の設定温度補正
 
 エアコンが ON で、かつ
 
-- `current heatCapacity > 最大能力（上記 max または mid）`
+- `current totalCapacity > 最大能力（上記 max または mid）`
 
 になった場合、`checkAndAdjustCapacity()` は**処理熱量が最大能力と等しくなる**設定温度を求め、`current_pre_temp` を補正します。
+
+ここでの `totalCapacity` は **全熱（顕熱+潜熱）** [W] です。
 
 方針:
 
@@ -165,7 +189,7 @@ flowchart TD
 
 ---
 
-### 8. 現在の近似と制約
+### 9. 現在の近似と制約
 
 初期実装では、二分探索の**各試行ごとに full thermal solve はしていません**。
 
@@ -191,27 +215,35 @@ flowchart TD
 
 ---
 
-### 9. ログ
+### 10. ログ
 
 能力チェック時は `solver.log` に次のような情報を出します。
 
 - aircon key
 - 最大処理熱量
-- 現在処理熱量
+- 現在処理熱量（全熱、顕熱/潜熱内訳付き）
 - 超過/OK
 - 補正前後の設定温度
 - 再計算要求の有無
 
-例:
+例（能力チェック）:
 
 ```text
-ac1 最大処理熱量=500.00W (Q.heating.max 基準), 現在処理熱量=820.00W → 超過, 設定温度補正=26.00→23.41°C, 再計算要求
-ac1 最大処理熱量=500.00W (Q.heating.max 基準), 現在処理熱量=499.20W → 二分探索収束 設定温度=23.10°C（処理熱量≒最大能力）
+ac1 最大処理熱量=500.00W (Q.heating.max 基準), 現在処理熱量(全熱)=820.00W (顕熱=700.00W, 潜熱=120.00W) → 超過, 設定温度補正=26.00→23.41°C, 再計算要求
+ac1 最大処理熱量=500.00W (Q.heating.max 基準), 現在処理熱量(全熱)=499.20W (顕熱=430.00W, 潜熱=69.20W) → 二分探索収束 設定温度=23.10°C（処理熱量≒最大能力）
 ```
 
 ---
 
-### 10. 関連ドキュメント
+`bf` 選択時に RH>100% となった場合のログ例:
+
+```text
+[WARN] bf法の吹出点相対湿度が100%を超えたためRH95法へフォールバック: ac1 RH(bf)=102.31% -> RH(out)=95.00%
+```
+
+---
+
+### 11. 関連ドキュメント
 
 - `docs/simulation_overview.md`
 - `docs/acmodel_overview.md`

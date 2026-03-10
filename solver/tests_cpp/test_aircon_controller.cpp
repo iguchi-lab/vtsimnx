@@ -107,6 +107,14 @@ int main() {
         b.set_node.clear();
         b.on = true;
     }
+    {
+        auto& out = thermal.getNode("OUT");
+        auto& in = thermal.getNode("IN");
+        auto& b = thermal.getNode("B");
+        out.current_x = 0.018;
+        in.current_x = 0.020;
+        b.current_x = 0.0;
+    }
 
     // flowRates: IN -> aircon の流量を入れて、heatCapacity が 0 にならないようにする
     FlowRateMap flowRates;
@@ -138,6 +146,12 @@ int main() {
             expectNear(powerW[1], 200.0, 1e-9, "B power=0.2kW -> 200W");
         }
         expectTrue(calls == 1, "estimateCOP called only for ON aircon (power)");
+        expectTrue(!history.empty(), "history has one entry");
+        if (!history.empty()) {
+            const auto& in = history.back().input;
+            expectTrue(in.Q_L > 0.0, "Q_L should be positive in humid cooling case");
+            expectNear(in.Q, in.Q_S + in.Q_L, 1e-6, "Q should equal Q_S + Q_L");
+        }
     }
     {
         calls = 0;

@@ -4,8 +4,8 @@
 - `docs/builder_json.md`: builder入力JSON（raw_config）の作り方（トップレベル構造、key記法、時系列、surface/aircon展開、validation）
 - `docs/simulation_overview.md`: シミュレーション全体の概略（builder→solver、1タイムステップの処理順、出力artifact）
 - `docs/acmodel_overview.md`: エアコンモデル（acmodel）の概要（CRIEPI/RAC/DUCT_CENTRAL/LATENT_EVALUATE、ac_spec、solver入力、出力）
-- `docs/aircon_control_overview.md`: エアコン制御の概要（ON/OFF判定、fixed-row、処理熱量・能力上限、超過時の設定温度補正・二分探索）
-- `docs/aircon_spec_reference.md`: エアコン仕様（ac_spec）リファレンス（モデル別の必須キー、能力上限に使う max/mid）
+- `docs/aircon_control_overview.md`: エアコン制御の概要（ON/OFF判定、fixed-row、顕熱/潜熱、全熱での能力上限判定、超過時の設定温度補正・二分探索）
+- `docs/aircon_spec_reference.md`: エアコン仕様（ac_spec）リファレンス（モデル別の必須キー、能力上限に使う max/mid、`latent_method`/`bf`）
 - `docs/physics_math_notes.md`: 物理・数学メモ（符号/単位/離散化/安定性の注意点）
 - `docs/thermal_rc.md`: 壁モデル（RC法）
 - `docs/thermal_response_factor.md`: 壁モデル（応答係数法/CTF, `response_conduction`）

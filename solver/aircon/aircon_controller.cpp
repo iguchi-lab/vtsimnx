@@ -22,6 +22,8 @@ namespace {
 constexpr double kAirDensity = archenv::DENSITY_DRY_AIR;         // [kg/m^3]
 constexpr double kAirSpecificHeat = archenv::SPECIFIC_HEAT_AIR;   // [J/(kg·K)]
 constexpr double kDefaultOuterFlowRate = 25.5 / 60.0;             // m^3/s
+constexpr double kDefaultBypassFactor = 0.2;                      // [-]
+constexpr double kDefaultSupplyRhPercent = 95.0;                  // [%]
 constexpr int kSetpointSearchMaxIterations = 32;
 constexpr double kSetpointSearchTolerance = 1e-3;                 // [degC]
 constexpr double kSetpointFloor = 0.0;
@@ -121,7 +123,8 @@ inline std::optional<double> findCapacityLimitedSetpoint(const std::string& oper
 
 static inline acmodel::InputData buildAcmodelInput(const std::string& /*operationMode*/,
                                                    const AirconValidationData& validData,
-                                                   double heatCapacity,
+                                                   double sensibleHeatCapacity,
+                                                   double latentHeatCapacity,
                                                    double airFlowRate) {
     acmodel::InputData input;
     input.T_ex = validData.outdoorTemp;
@@ -129,12 +132,129 @@ static inline acmodel::InputData buildAcmodelInput(const std::string& /*operatio
     // 湿度（絶対湿度）は呼び出し側で「欠損時の警告 + JISフォールバック」を行う
     input.X_ex = validData.outdoorX;
     input.X_in = validData.indoorX;
-    input.Q = heatCapacity;
-    input.Q_S = heatCapacity;
-    input.Q_L = 0.0;
+    input.Q_S = sensibleHeatCapacity;
+    input.Q_L = latentHeatCapacity;
+    input.Q = sensibleHeatCapacity + latentHeatCapacity;
     input.V_inner = airFlowRate;
     input.V_outer = kDefaultOuterFlowRate;
     return input;
+}
+
+struct LatentProcessResult {
+    double sensibleHeatCapacity = 0.0; // [W]
+    double latentHeatCapacity = 0.0;   // [W]
+    double supplyX = 0.0;              // [kg/kg(DA)]
+    double coilTemp = 0.0;             // [degC]
+    double coilX = 0.0;                // [kg/kg(DA)]
+    double supplyRhPercent = 0.0;      // [%]
+    double bfRhPercentBeforeFallback = 0.0; // [%]
+    bool rhExceeded = false;
+    bool usedRh95Fallback = false;
+};
+
+inline double readBypassFactor(const VertexProperties& nodeProps) {
+    const auto& spec = nodeProps.ac_spec;
+    auto read = [&](const char* key, double& out) -> bool {
+        if (!spec.is_object() || !spec.contains(key) || !spec[key].is_number()) return false;
+        out = spec[key].get<double>();
+        return std::isfinite(out);
+    };
+    double bf = kDefaultBypassFactor;
+    if (!read("bf", bf) && !read("BF", bf) && !read("bypass_factor", bf)) {
+        return kDefaultBypassFactor;
+    }
+    return std::clamp(bf, 0.0, 0.99);
+}
+
+inline std::string readLatentMethod(const VertexProperties& nodeProps) {
+    const auto& spec = nodeProps.ac_spec;
+    if (!spec.is_object() || !spec.contains("latent_method") || !spec["latent_method"].is_string()) {
+        return "rh95";
+    }
+    return toLowerCopy(spec["latent_method"].get<std::string>());
+}
+
+inline LatentProcessResult estimateLatentByBypassFactor(const AirconValidationData& validData,
+                                                        const std::string& operationMode,
+                                                        double sensibleHeatCapacity,
+                                                        double airFlowRate,
+                                                        const VertexProperties& nodeProps) {
+    LatentProcessResult result;
+    result.sensibleHeatCapacity = std::max(0.0, sensibleHeatCapacity);
+    result.supplyX = std::max(0.0, validData.indoorX);
+
+    if (operationMode != "cooling") return result;
+    if (!(airFlowRate > std::numeric_limits<double>::epsilon())) return result;
+
+    const double tIn = validData.indoorTemp;
+    // 潜熱処理量は「吸込(in)→吹出(out)」の空気状態差で評価する。
+    // ここでの吹出温度は制御点(set)ではなく、aircon ノード温度（out相当）を使う。
+    const double tOut = validData.airconTemp;
+    const double xIn = std::max(0.0, validData.indoorX);
+    if (!(tIn > tOut)) {
+        result.supplyX = xIn;
+        return result;
+    }
+
+    const std::string latentMethod = readLatentMethod(nodeProps);
+    if (latentMethod == "none") {
+        result.supplyX = xIn;
+        return result;
+    }
+
+    auto applyRh95 = [&]() {
+        const double x95 = std::max(0.0, archenv::absolute_humidity(tOut, kDefaultSupplyRhPercent));
+        result.supplyX = std::min(xIn, x95);
+        const double xSatOut = std::max(0.0, archenv::absolute_humidity(tOut, 100.0));
+        if (xSatOut > std::numeric_limits<double>::epsilon()) {
+            result.supplyRhPercent = 100.0 * result.supplyX / xSatOut;
+        }
+    };
+
+    if (latentMethod == "bf") {
+        const double bf = readBypassFactor(nodeProps);
+        if (!(bf < 1.0)) {
+            result.supplyX = xIn;
+        } else {
+            // θcoil = θin - (θin-θout)/(1-BF)
+            const double tCoil = tIn - (tIn - tOut) / std::max(1e-9, (1.0 - bf));
+            const double xCoil = std::max(0.0, archenv::absolute_humidity(tCoil, 100.0));
+            result.coilTemp = tCoil;
+            result.coilX = xCoil;
+
+            // 空気線図上の直線（吸込点-コイル飽和点）と吹出温度との交点
+            const double denom = (tIn - tCoil);
+            double xOut = xIn;
+            if (std::abs(denom) > 1e-9) {
+                const double ratio = (tIn - tOut) / denom;
+                xOut = xIn + (xCoil - xIn) * ratio;
+            }
+            if (!std::isfinite(xOut)) xOut = xIn;
+            xOut = std::max(0.0, xOut);
+            result.supplyX = std::min(xOut, xIn); // 冷房コイルで加湿はしない前提
+        }
+
+        const double xSatOut = std::max(0.0, archenv::absolute_humidity(tOut, 100.0));
+        if (xSatOut > std::numeric_limits<double>::epsilon()) {
+            result.supplyRhPercent = 100.0 * result.supplyX / xSatOut;
+            result.bfRhPercentBeforeFallback = result.supplyRhPercent;
+            result.rhExceeded = (result.supplyRhPercent > 100.0 + 1e-6);
+        }
+        if (result.rhExceeded) {
+            applyRh95();
+            result.usedRh95Fallback = true;
+            result.rhExceeded = false;
+        }
+    } else {
+        applyRh95();
+    }
+
+    const double deltaX = std::max(0.0, xIn - result.supplyX);
+    result.latentHeatCapacity =
+        std::max(0.0,
+                 kAirDensity * std::abs(airFlowRate) *
+                     archenv::vapor_latent_heat(tOut) * deltaX);
+    return result;
 }
 
 } // namespace
@@ -283,7 +403,11 @@ AirconValidationData AirconController::validateAirconData(const std::string& air
     data.outdoorTemp = getTemp(nodeProps.outside_node, "outside_node");
     data.indoorTemp = getTemp(nodeProps.in_node, "in_node");
     data.airconTemp = getTemp(nodeProps.key, "aircon_node");
-    if (!nodeProps.set_node.empty()) {
+    // 設定温度は set_node の現在温度ではなく、airconノードの current_pre_temp を使う。
+    // （set_node は制御対象室であり、設定値そのものではない）
+    if (std::isfinite(nodeProps.current_pre_temp)) {
+        data.setTemp = nodeProps.current_pre_temp;
+    } else if (!nodeProps.set_node.empty()) {
         data.setTemp = getTemp(nodeProps.set_node, "set_node");
     } else {
         data.setTemp = data.indoorTemp;
@@ -442,9 +566,13 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
         }
         try {
             auto context = prepareRuntimeContext(airconKey, thermalNetwork, nodeProps, flowRates);
+            const auto loads = estimateLatentByBypassFactor(
+                context.validData, context.operationMode, context.heatCapacity, context.airFlowRate, nodeProps);
             std::string sourceLabel = "unknown";
             auto maxHeatCapacity = resolveMaxHeatCapacity(nodeProps, context.operationMode, sourceLabel);
-            double current = context.heatCapacity;
+            const double sensibleQ = std::max(0.0, loads.sensibleHeatCapacity);
+            const double latentQ = std::max(0.0, loads.latentHeatCapacity);
+            double current = sensibleQ + latentQ;
 
             std::ostringstream oss;
             oss << "　" << airconKey << " 最大処理熱量=";
@@ -454,7 +582,8 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
             } else {
                 oss << "N/A";
             }
-            oss << ", 現在処理熱量=" << std::fixed << std::setprecision(2) << current << "W";
+            oss << ", 現在処理熱量(全熱)=" << std::fixed << std::setprecision(2) << current
+                << "W (顕熱=" << sensibleQ << "W, 潜熱=" << latentQ << "W)";
             if (maxHeatCapacity && current > *maxHeatCapacity) {
                 // 目的: 処理熱量が最大能力（maxHeatCapacity）と等しくなる設定温度を求める。
                 // このタイムステップのみ見かけ上設定温度を変えて再計算し、能力内に収まる解を得る。
@@ -572,9 +701,18 @@ std::vector<double> AirconController::collectAirconDataValues(ThermalNetwork& th
                     continue;
                 }
                 auto context = prepareRuntimeContext(airconKey, thermalNetwork, nodeProps, flowRates);
-                values[i] = context.heatCapacity;
+                values[i] = estimateLatentByBypassFactor(
+                    context.validData, context.operationMode, context.heatCapacity, context.airFlowRate, nodeProps)
+                                .sensibleHeatCapacity;
             } else if (dataType == "latentHeatCapacity") {
-                values[i] = 0.0; // 潜熱は現状モデル化していない
+                if (!nodeProps.on) {
+                    values[i] = 0.0;
+                    continue;
+                }
+                auto context = prepareRuntimeContext(airconKey, thermalNetwork, nodeProps, flowRates);
+                values[i] = estimateLatentByBypassFactor(
+                    context.validData, context.operationMode, context.heatCapacity, context.airFlowRate, nodeProps)
+                                .latentHeatCapacity;
             }
         } catch (...) {
             values[i] = 0.0;
@@ -595,8 +733,15 @@ std::pair<double, double> AirconController::estimatePowerAndCOPForAircon(
     if (!model) {
         throw std::runtime_error("初期化済みモデルがありません");
     }
+    const auto loads = estimateLatentByBypassFactor(
+        context.validData, context.operationMode, context.heatCapacity, context.airFlowRate, nodeProps);
+    // 吹出絶対湿度をエアコンノードへ反映する（humidity_x 出力および次ステップ初期値に利用）。
+    // ここでは冷房時のみ有効値が入り、暖房/無効時は入力湿度（実質据え置き）となる。
+    thermalNetwork.getNode(airconKey).current_x = loads.supplyX;
     acmodel::InputData input =
-        buildAcmodelInput(context.operationMode, context.validData, context.heatCapacity, context.airFlowRate);
+        buildAcmodelInput(context.operationMode, context.validData,
+                          loads.sensibleHeatCapacity, loads.latentHeatCapacity,
+                          context.airFlowRate);
 
     const bool heating = (context.operationMode == "heating");
     bool usedFallbackEx = false;
@@ -617,6 +762,15 @@ std::pair<double, double> AirconController::estimatePowerAndCOPForAircon(
         if (usedFallbackEx) warn << " outside_node=" << nodeProps.outside_node << " X_ex=JIS";
         writeLog(logs, warn.str());
     }
+    if (logDetail && logVerbosity_ >= 1 && loads.usedRh95Fallback) {
+        std::ostringstream warn;
+        warn << "　　[WARN] bf法の吹出点相対湿度が100%を超えたためRH95法へフォールバック: " << airconKey
+             << " RH(bf)=" << std::fixed << std::setprecision(2) << loads.bfRhPercentBeforeFallback
+             << "% -> RH(out)=" << std::fixed << std::setprecision(2) << loads.supplyRhPercent
+             << "% (Tout=" << context.validData.airconTemp << "°C, X_out=" << loads.supplyX
+             << ", T_coil=" << loads.coilTemp << "°C, X_coil=" << loads.coilX << ")";
+        writeLog(logs, warn.str());
+    }
     auto result = model->estimateCOP(context.operationMode, input);
     if (logVerbosity_ >= 2) {
         for (const auto& msg : result.logMessages) {
@@ -631,7 +785,9 @@ std::pair<double, double> AirconController::estimatePowerAndCOPForAircon(
         std::ostringstream detail;
         detail << "　　エアコン電力計算: " << airconKey
                << " [" << context.operationMode << "]"
-               << " 処理=" << std::fixed << std::setprecision(2) << context.heatCapacity << "W"
+               << " 顕熱=" << std::fixed << std::setprecision(2) << loads.sensibleHeatCapacity << "W"
+               << " 潜熱=" << std::fixed << std::setprecision(2) << loads.latentHeatCapacity << "W"
+               << " 合計=" << std::fixed << std::setprecision(2) << (loads.sensibleHeatCapacity + loads.latentHeatCapacity) << "W"
                << " 風量=" << context.airFlowRate << "m³/s"
                << " 外気=" << context.validData.outdoorTemp << "°C"
                << " 室内=" << context.validData.indoorTemp << "°C"
