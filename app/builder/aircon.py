@@ -31,6 +31,9 @@ def process_aircon(aircon: dict) -> tuple[list, list]:
         {
             "key": aircon_out_node,
             "calc_t": True,
+            # 吸込ノード側で湿度・濃度計算を行う場合のみ、airconノードも対象にする
+            "calc_x": bool(aircon.get("calc_x", False)),
+            "calc_c": bool(aircon.get("calc_c", False)),
             "in_node": in_node,
             "set_node": set_node,
             "outside_node": outside_node,

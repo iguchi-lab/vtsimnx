@@ -190,6 +190,27 @@ def _build_output_json(
         raise
 
     if aircon_config and add_aircon:
+        # 吸込ノードで calc_x/c=true の場合、aircon ノードにもフラグを引き継ぐ。
+        # これをしないと aircon ノードの current_x/current_c が 0 固定になり、
+        # 室内循環時に湿度・濃度が不自然に低下しうる。
+        calc_x_node_keys = {
+            str(node.get("key", ""))
+            for node in node_config
+            if isinstance(node, dict) and bool(node.get("calc_x", False))
+        }
+        calc_c_node_keys = {
+            str(node.get("key", ""))
+            for node in node_config
+            if isinstance(node, dict) and bool(node.get("calc_c", False))
+        }
+        for ac in aircon_config:
+            if not isinstance(ac, dict):
+                continue
+            in_node = ac.get("in", ac.get("set"))
+            key = str(in_node)
+            ac["calc_x"] = key in calc_x_node_keys
+            ac["calc_c"] = key in calc_c_node_keys
+
         add_nodes, add_ventilation_branches = process_aircons(aircon_config)
         node_config.extend(add_nodes)
         ventilation_config.extend(add_ventilation_branches)
