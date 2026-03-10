@@ -6,6 +6,7 @@
 - 暖冷房期間 (`period_1`..`period_8`)
 - 換気量 (`vol`)
 - 顕熱発熱 (`sensible_heat`)
+- 潜熱由来の水分発生量 (`latent_moisture`)
 - 空調モード／設定温度／設定湿度 (`ac_mode`, `pre_tmp`, `pre_rh`)
 
 を一括生成してくれます。
@@ -20,6 +21,7 @@
   - `schedule/aircon.py` — 空調モード (`ac_mode`)、設定温度 (`pre_tmp`)、設定湿度 (`pre_rh`)
   - `schedule/vol.py` — 換気量プロファイルと `vol`
   - `schedule/sensible_heat.py` — 顕熱プロファイルと `sensible_heat`
+  - `schedule/latent_moisture.py` — 潜熱由来の水分発生プロファイルと `latent_moisture`
 
 トップレベルでは次のように使えます:
 
@@ -31,6 +33,7 @@ pre_tmp = vt.schedule.pre_tmp
 pre_rh  = vt.schedule.pre_rh
 vol     = vt.schedule.vol
 sensible_heat = vt.schedule.sensible_heat
+latent_moisture = vt.schedule.latent_moisture
 ```
 
 ---
@@ -161,7 +164,48 @@ LD_heat_legacy = sch.sensible_heat["LD"]
 
 ---
 
-### 6. カスタマイズの入り口
+### 6. 潜熱（水分発生）スケジュール（`latent_moisture`）
+
+`schedule/latent_moisture.py` は、潜熱に対応する **水分発生量 [kg/h]** の 24h プロファイルを定義し、8760 に展開します。
+
+- 現状の対象:
+  - 人体: 顕熱スケジュールと同じ「在室プロファイル」を用い、**56 W/人** を水分発生量に換算（蒸発潜熱で割り戻し）。
+  - 台所機器: 最大 50 g/h (=0.05 kg/h) を上限として、指定の時間帯プロファイル [%] を乗算。
+
+#### 6.1 `latent_moisture_profiles`
+
+構造は顕熱スケジュールとほぼ同じですが、値の単位が **kg/h** になっています。
+
+```python
+from vtsimnx import schedule as sch
+
+sch.latent_moisture_profiles["LD"]["人体"]["平日"]   # LD・人体・平日 24h [kg/h]
+sch.latent_moisture_profiles["台所"]["機器"]["休日"] # 台所・機器・休日 24h [kg/h]
+```
+
+- 人体プロファイルは、`sensible_heat_profiles["部屋"]["人体"][...]` を 63 W/人 で割って人数に戻し、
+  さらに `56 W/人` を蒸発潜熱で割り戻して **kg/h/人** に換算したものを掛けています。
+- 台所機器プロファイルは、与えられた [%] を `0.05 kg/h` に掛けたものです。
+
+#### 6.2 `build_latent_moisture_schedule` と `latent_moisture`
+
+```python
+from vtsimnx import schedule as sch
+
+lm_8760 = sch.build_latent_moisture_schedule()
+LD_lm_profiles = lm_8760["LD"]        # {"人体": 8760 Series(kg/h)} の dict
+KITCHEN_lm = lm_8760["台所"]["機器"]  # 台所機器からの 8760h 水分発生量 [kg/h]
+
+# 互換性のため、モジュール import 時点で sch.latent_moisture も生成済み
+LD_lm_legacy = sch.latent_moisture["LD"]
+```
+
+`build_latent_moisture_schedule` は、`holiday` を見ながら 24h プロファイルを 8760h に展開し、  
+部屋ごとの「用途別水分発生（人体 / 機器など）」の 8760 シリーズを返します。
+
+---
+
+### 7. カスタマイズの入り口
 
 - **休日パターンを変えたい**: `holiday` を自前で作って `build_*` 関数に渡す。
 - **期間区分を変えたい**: `period_x` 相当の 365 要素配列を自分で用意し、`make_8760_data` の第1引数に渡す。
@@ -178,7 +222,7 @@ custom_pre_tmp = vt.schedule.build_pre_tmp()
 
 ---
 
-### 7. どこまで core/docs で書くか
+### 8. どこまで core/docs で書くか
 
 `vtsimnx` 側では、
 

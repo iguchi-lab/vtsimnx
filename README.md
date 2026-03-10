@@ -35,7 +35,7 @@ python run.py
 `run.py` は `3639999.has` を読み込み、日射・表面設定・ノード/分岐などの入力データを作って、`run_calc` 経由でAPI（`/run`）に渡します（builderはAPI側で実行されます）。
 
 補足:
-- `vt.schedule` にスケジュール一式（aircon/vol/sensible_heat）をまとめています
+- `vt.schedule` にスケジュール一式（aircon/vol/sensible_heat/latent_moisture）をまとめています
 - `vt.materials` は材料物性テーブル（dict）です
 - ドキュメント一覧は `docs/README.md` を参照してください
 - 建築環境工学の基礎解説は `docs/building_environment_engineering_basics.md` を参照してください

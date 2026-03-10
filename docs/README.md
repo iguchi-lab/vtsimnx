@@ -35,9 +35,9 @@
 ## 4. スケジュール（暖冷房・換気・発熱）
 
 - `schedule_usage.md`
-  - `vtsimnx.schedule` の構成（common/aircon/vol/sensible_heat）
+  - `vtsimnx.schedule` の構成（common/aircon/vol/sensible_heat/latent_moisture）
   - `holiday` / `period_x` / `make_8760_data` による 24h プロファイル→8760展開
-  - `ac_mode` / `pre_tmp` / `pre_rh` / `vol` / `sensible_heat` の使い方
+  - `ac_mode` / `pre_tmp` / `pre_rh` / `vol` / `sensible_heat` / `latent_moisture` の使い方
 
 ## 5. サーフェス（壁・床・窓）
 

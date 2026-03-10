@@ -8,5 +8,6 @@ from .common import *  # noqa: F403
 from .aircon import *  # noqa: F403
 from .vol import *  # noqa: F403
 from .sensible_heat import *  # noqa: F403
+from .latent_moisture import *  # noqa: F403
 
 
