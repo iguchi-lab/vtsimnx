@@ -82,6 +82,12 @@ private:
                                                            std::ostream& logs,
                                                            bool logDetail) const;
 
+    // returnPower=true: power[W] を返す, false: COP を返す
+    std::vector<double> calculatePowerOrCOPValues(ThermalNetwork& thermalNetwork,
+                                                  const FlowRateMap& flowRates,
+                                                  std::ostream& logs,
+                                                  bool returnPower) const;
+
 public:
     // === モデル管理 ===
     void initializeModels(ThermalNetwork& thermalNetwork, std::ostream& logs, int logVerbosity);
