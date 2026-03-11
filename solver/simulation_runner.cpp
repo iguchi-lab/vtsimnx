@@ -275,6 +275,7 @@ static void runCoupledInnerLoop(VentilationNetwork& ventNetwork,
 static void buildTimestepResult(const SimulationConstants& constants,
                                 VentilationNetwork& ventNetwork,
                                 ThermalNetwork& thermalNetwork,
+                                ContaminantNetwork& contaminantNetwork,
                                 AirconController& airconController,
                                 const FlowRateMap& flowRates,
                                 std::ostream& logs,
@@ -316,7 +317,7 @@ static void buildTimestepResult(const SimulationConstants& constants,
         convertDoublesToF32(timestepResult.humidityX, thermalNetwork.collectHumidityValues());
     }
     if (constants.concentrationCalc) {
-        convertDoublesToF32(timestepResult.concentrationC, ContaminantNetwork::collectOutputValues(thermalNetwork));
+        convertDoublesToF32(timestepResult.concentrationC, contaminantNetwork.collectOutputValues(thermalNetwork));
     }
 
     timestepResultOut = std::move(timestepResult);
@@ -379,6 +380,7 @@ performCoupledStepCalculation(VentilationNetwork& ventNetwork,
 
 void runSimulation(VentilationNetwork& ventNetwork,
                    ThermalNetwork& thermalNetwork,
+                   ContaminantNetwork& contaminantNetwork,
                    AirconController& airconController,
                    const SimulationConstants& constants,
                    TimestepResult& timestepResultOut,
@@ -488,10 +490,11 @@ void runSimulation(VentilationNetwork& ventNetwork,
     }
 
     // 濃度（c）更新：エアコン制御が完了した後でOK（エアコン制御には影響しない想定）
-    transport::updateConcentrationIfEnabled(constants, ventNetwork, thermalNetwork, logs, timings, meta);
+    transport::updateConcentrationIfEnabled(constants, ventNetwork, thermalNetwork, contaminantNetwork, logs, timings, meta);
 
     // 1タイムステップ分の結果を構築（呼び出し側で即座に書き出す想定）
-    buildTimestepResult(constants, ventNetwork, thermalNetwork, airconController, step.flowRates, logs, timestepResultOut);
+    buildTimestepResult(constants, ventNetwork, thermalNetwork, contaminantNetwork,
+                       airconController, step.flowRates, logs, timestepResultOut);
 
     if (logEnabled) {
         writeLog(logs,

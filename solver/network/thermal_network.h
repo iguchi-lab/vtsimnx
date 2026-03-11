@@ -41,10 +41,6 @@ private:
     mutable bool humidityCacheInitialized = false;
     mutable std::vector<Vertex> humidityVerticesOrdered;
     mutable std::vector<std::string> humidityKeysOrdered;
-    // 出力用（concentration c）キャッシュ：calc_c ノードをキー順で固定
-    mutable bool concentrationCacheInitialized = false;
-    mutable std::vector<Vertex> concentrationVerticesOrdered;
-    mutable std::vector<std::string> concentrationKeysOrdered;
     // 出力用（heat_rate）キャッシュ：キー順を固定して値配列で回す
     mutable bool heatRateCacheInitialized = false;
     mutable std::vector<Edge> heatRateEdgesOrderedAdvection;
@@ -130,10 +126,6 @@ public:
     // 湿度（絶対湿度 x）
     const std::vector<std::string>& getHumidityKeys() const;
     std::vector<double> collectHumidityValues() const;
-
-    // 濃度（c）
-    const std::vector<std::string>& getConcentrationKeys() const;
-    std::vector<double> collectConcentrationValues() const;
 
     // heat_rate（カテゴリ別）
     const std::vector<std::string>& getHeatRateKeysAdvection() const;

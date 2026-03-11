@@ -8,8 +8,9 @@
 
 #include <boost/range/iterator_range.hpp>
 
-const std::vector<std::string>& ThermalNetwork::getConcentrationKeys() const {
-    if (!concentrationCacheInitialized) {
+const std::vector<std::string>& ContaminantNetwork::getOutputKeys(const ThermalNetwork& thermalNetwork) const {
+    if (!outputCacheInitialized) {
+        const auto& graph = thermalNetwork.getGraph();
         std::vector<std::pair<std::string, Vertex>> items;
         items.reserve(boost::num_vertices(graph) / 4 + 1);
         for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
@@ -19,35 +20,34 @@ const std::vector<std::string>& ThermalNetwork::getConcentrationKeys() const {
         }
         std::sort(items.begin(), items.end(),
                   [](const auto& a, const auto& b) { return a.first < b.first; });
-        concentrationVerticesOrdered.clear();
-        concentrationKeysOrdered.clear();
-        concentrationVerticesOrdered.reserve(items.size());
-        concentrationKeysOrdered.reserve(items.size());
+        outputVerticesOrdered.clear();
+        outputKeysOrdered.clear();
+        outputVerticesOrdered.reserve(items.size());
+        outputKeysOrdered.reserve(items.size());
         for (const auto& kv : items) {
-            concentrationKeysOrdered.push_back(kv.first);
-            concentrationVerticesOrdered.push_back(kv.second);
+            outputKeysOrdered.push_back(kv.first);
+            outputVerticesOrdered.push_back(kv.second);
         }
-        concentrationCacheInitialized = true;
+        outputCacheInitialized = true;
     }
-    return concentrationKeysOrdered;
+    return outputKeysOrdered;
 }
 
-std::vector<double> ThermalNetwork::collectConcentrationValues() const {
-    const auto& keys = getConcentrationKeys();
+std::vector<double> ContaminantNetwork::collectOutputValues(const ThermalNetwork& thermalNetwork) const {
+    const auto& keys = getOutputKeys(thermalNetwork);
     (void)keys;
+    const auto& graph = thermalNetwork.getGraph();
     std::vector<double> values;
-    values.resize(concentrationVerticesOrdered.size());
-    for (size_t i = 0; i < concentrationVerticesOrdered.size(); ++i) {
-        values[i] = graph[concentrationVerticesOrdered[i]].current_c;
+    values.resize(outputVerticesOrdered.size());
+    for (size_t i = 0; i < outputVerticesOrdered.size(); ++i) {
+        values[i] = graph[outputVerticesOrdered[i]].current_c;
     }
     return values;
 }
 
-const std::vector<std::string>& ContaminantNetwork::getOutputKeys(const ThermalNetwork& thermalNetwork) {
-    return thermalNetwork.getConcentrationKeys();
-}
-
-std::vector<double> ContaminantNetwork::collectOutputValues(const ThermalNetwork& thermalNetwork) {
-    return thermalNetwork.collectConcentrationValues();
+void ContaminantNetwork::invalidateOutputCache() {
+    outputCacheInitialized = false;
+    outputVerticesOrdered.clear();
+    outputKeysOrdered.clear();
 }
 

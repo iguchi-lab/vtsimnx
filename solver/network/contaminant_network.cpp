@@ -9,7 +9,7 @@
 void ContaminantNetwork::buildTerms(const Graph& nodeGraph,
                                     const std::unordered_map<std::string, Vertex>& nodeKeyToVertex,
                                     const VentilationNetwork& ventNetwork,
-                                    ContaminantNetworkTerms& terms) {
+                                    ContaminantNetworkTerms& terms) const {
     const auto& tGraph = nodeGraph;
     const auto& vGraph = ventNetwork.getGraph();
     const auto& tKeyToV = nodeKeyToVertex;

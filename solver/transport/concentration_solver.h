@@ -5,6 +5,7 @@
 
 class VentilationNetwork;
 class ThermalNetwork;
+class ContaminantNetwork;
 
 namespace transport {
 
@@ -17,6 +18,7 @@ namespace transport {
 void updateConcentrationIfEnabled(const SimulationConstants& constants,
                                   VentilationNetwork& ventNetwork,
                                   ThermalNetwork& thermalNetwork,
+                                  ContaminantNetwork& contaminantNetwork,
                                   std::ostream& logs,
                                   TimingList& timings,
                                   const std::string& meta);

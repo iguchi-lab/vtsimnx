@@ -85,6 +85,7 @@ struct OutputFiles {
 static void initializeSchemaIfNeeded(ArtifactIO::OutputSchema& schema,
                                      VentilationNetwork& ventNetwork,
                                      ThermalNetwork& thermalNetwork,
+                                     ContaminantNetwork& contaminantNetwork,
                                      AirconController& airconController) {
     if (schema.initialized) return;
     schema.pressureKeys = ventNetwork.getPressureKeys();
@@ -93,7 +94,7 @@ static void initializeSchemaIfNeeded(ArtifactIO::OutputSchema& schema,
     schema.temperatureKeysCapacity = thermalNetwork.getTemperatureKeysCapacity();
     schema.temperatureKeysLayer = thermalNetwork.getTemperatureKeysLayer();
     schema.humidityKeys = thermalNetwork.getHumidityKeys();
-    schema.concentrationKeys = ContaminantNetwork::getOutputKeys(thermalNetwork);
+    schema.concentrationKeys = contaminantNetwork.getOutputKeys(thermalNetwork);
     schema.heatRateKeysAdvection = thermalNetwork.getHeatRateKeysAdvection();
     schema.heatRateKeysHeatGeneration = thermalNetwork.getHeatRateKeysHeatGeneration();
     schema.heatRateKeysSolarGain = thermalNetwork.getHeatRateKeysSolarGain();
@@ -214,6 +215,7 @@ static bool runSimulationLoop(const InputData& inputData,
         std::vector<EdgeProperties>   allThermalBranches;
         VentilationNetwork ventNetwork;
         ThermalNetwork     thermalNetwork;
+        ContaminantNetwork contaminantNetwork;
         AirconController   airconController;
 
         {
@@ -232,6 +234,7 @@ static bool runSimulationLoop(const InputData& inputData,
                 ScopedTimer timer(timings, "build_networks");
                 ventNetwork.buildFromData(allNodes, allVentilationBranches, simConstants, logs);
                 thermalNetwork.buildFromData(allNodes, allThermalBranches, allVentilationBranches, simConstants, logs);
+                contaminantNetwork.invalidateOutputCache();
             }
 
             if (simConstants.temperatureCalc) {
@@ -329,7 +332,7 @@ static bool runSimulationLoop(const InputData& inputData,
             TimestepResult timestepResult;
             if (simConstants.pressureCalc || simConstants.temperatureCalc || simConstants.humidityCalc || simConstants.concentrationCalc) {
                 ScopedTimer timer(timings, "runSimulation", stepMeta);
-                runSimulation(ventNetwork, thermalNetwork, airconController, simConstants, timestepResult, logs, timings, stepMeta);
+                runSimulation(ventNetwork, thermalNetwork, contaminantNetwork, airconController, simConstants, timestepResult, logs, timings, stepMeta);
             }
 
             if (simConstants.temperatureCalc) {
@@ -344,7 +347,7 @@ static bool runSimulationLoop(const InputData& inputData,
 
             {
                 ScopedTimer timer(timings, "write_timestep_results", stepMeta);
-                initializeSchemaIfNeeded(schema, ventNetwork, thermalNetwork, airconController);
+                initializeSchemaIfNeeded(schema, ventNetwork, thermalNetwork, contaminantNetwork, airconController);
 
                 if (!schemasWritten) {
                     std::string schemaErr;

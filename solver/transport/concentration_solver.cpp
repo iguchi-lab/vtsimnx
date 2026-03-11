@@ -15,6 +15,7 @@ namespace transport {
 void updateConcentrationIfEnabled(const SimulationConstants& constants,
                                   VentilationNetwork& ventNetwork,
                                   ThermalNetwork& thermalNetwork,
+                                  ContaminantNetwork& contaminantNetwork,
                                   std::ostream& logs,
                                   TimingList& timings,
                                   const std::string& meta) {
@@ -41,7 +42,7 @@ void updateConcentrationIfEnabled(const SimulationConstants& constants,
     }
 
     ContaminantNetworkTerms terms;
-    ContaminantNetwork::buildTerms(tGraph, tKeyToV, ventNetwork, terms);
+    contaminantNetwork.buildTerms(tGraph, tKeyToV, ventNetwork, terms);
 
     std::vector<double> cNew = cOld;
     for (Vertex v : terms.updateVertices) {

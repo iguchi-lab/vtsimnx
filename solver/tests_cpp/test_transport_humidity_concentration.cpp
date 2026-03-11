@@ -7,6 +7,7 @@
 
 #include "network/thermal_network.h"
 #include "network/ventilation_network.h"
+#include "network/contaminant_network.h"
 #include "core/humidity/humidity_solver.h"
 #include "transport/concentration_solver.h"
 
@@ -177,10 +178,11 @@ int main() {
 
         VentilationNetwork vent;
         ThermalNetwork thermal;
+        ContaminantNetwork contaminant;
         vent.buildFromData(nodes, ventEdges, constants, logs);
         thermal.buildFromData(nodes, thEdges, ventEdges, constants, logs);
 
-        transport::updateConcentrationIfEnabled(constants, vent, thermal, logs, timings, "test");
+        transport::updateConcentrationIfEnabled(constants, vent, thermal, contaminant, logs, timings, "test");
 
         const double dt = static_cast<double>(constants.timestep);
         const double expected = 100.0 * std::exp(-1e-5 * dt);
@@ -226,11 +228,12 @@ int main() {
 
         VentilationNetwork vent;
         ThermalNetwork thermal;
+        ContaminantNetwork contaminant;
         vent.buildFromData(nodes, ventEdges, constants, logs);
         thermal.buildFromData(nodes, thEdges, ventEdges, constants, logs);
         vent.updatePropertiesForTimestep(nodes, ventEdges, 0);
 
-        transport::updateConcentrationIfEnabled(constants, vent, thermal, logs, timings, "test");
+        transport::updateConcentrationIfEnabled(constants, vent, thermal, contaminant, logs, timings, "test");
 
         // k1 = m/V, k2 = beta
         const double dt = static_cast<double>(constants.timestep);

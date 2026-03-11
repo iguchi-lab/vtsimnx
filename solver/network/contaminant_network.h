@@ -21,13 +21,19 @@ struct ContaminantNetworkTerms {
 // 汚染物質濃度(c)ネットワークの項組み立て責務を集約するヘルパー。
 class ContaminantNetwork {
 public:
-    static void buildTerms(const Graph& nodeGraph,
-                           const std::unordered_map<std::string, Vertex>& nodeKeyToVertex,
-                           const VentilationNetwork& ventNetwork,
-                           ContaminantNetworkTerms& terms);
+    void buildTerms(const Graph& nodeGraph,
+                    const std::unordered_map<std::string, Vertex>& nodeKeyToVertex,
+                    const VentilationNetwork& ventNetwork,
+                    ContaminantNetworkTerms& terms) const;
 
-    // 汚染物質濃度(c)の出力取得窓口（既存 ThermalNetwork 出力APIの薄いラッパー）
-    static const std::vector<std::string>& getOutputKeys(const ThermalNetwork& thermalNetwork);
-    static std::vector<double> collectOutputValues(const ThermalNetwork& thermalNetwork);
+    // 汚染物質濃度(c)の出力取得窓口
+    const std::vector<std::string>& getOutputKeys(const ThermalNetwork& thermalNetwork) const;
+    std::vector<double> collectOutputValues(const ThermalNetwork& thermalNetwork) const;
+    void invalidateOutputCache();
+
+private:
+    mutable bool outputCacheInitialized = false;
+    mutable std::vector<Vertex> outputVerticesOrdered;
+    mutable std::vector<std::string> outputKeysOrdered;
 };
 
