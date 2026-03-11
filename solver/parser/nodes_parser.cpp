@@ -121,9 +121,8 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
                     node.mode.push_back(parseModeValueToString(v, nodePrefix));
                 }
                 if (!node.mode.empty()) {
-                    node.current_mode = timestep < static_cast<long>(node.mode.size())
-                        ? node.mode[static_cast<size_t>(timestep)]
-                        : node.mode.back();
+                    const size_t ts = (timestep < 0) ? 0u : static_cast<size_t>(timestep);
+                    node.current_mode = (ts < node.mode.size()) ? node.mode[ts] : node.mode.back();
                 }
             } else if (mj.is_string()) {
                 node.current_mode = mj.get<std::string>();
