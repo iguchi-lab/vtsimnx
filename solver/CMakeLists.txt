@@ -62,10 +62,15 @@ set(ARCHENV_SOURCES
     ../archenv/archenv_fungal.cpp
 )
 
+set(HUMIDITY_SOURCES
+    transport/humidity_solver.cpp
+    transport/humidity/humidity_internal.cpp
+)
+
 set(MAIN_SOURCES
     vtsimnx_solver.cpp
     simulation_runner.cpp
-    transport/humidity_solver.cpp
+    ${HUMIDITY_SOURCES}
     transport/concentration_solver.cpp
     app/vtsimnx_app.cpp
     output/artifact_io.cpp
@@ -323,7 +328,7 @@ if(VTSIMNX_BUILD_CPP_TESTS)
     # 7b) transport: humidity(x) + concentration(c) 1-step update
     add_executable(vtsimnx_solver_cpp_test_transport_humidity_concentration
         tests_cpp/test_transport_humidity_concentration.cpp
-        transport/humidity_solver.cpp
+        ${HUMIDITY_SOURCES}
         transport/concentration_solver.cpp
         network/ventilation_network.cpp
         network/thermal_network.cpp
@@ -411,7 +416,7 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         app/vtsimnx_app.cpp
         simulation_runner.cpp
         output/artifact_io.cpp
-        transport/humidity_solver.cpp
+        ${HUMIDITY_SOURCES}
         transport/concentration_solver.cpp
         ${PARSER_SOURCES}
         ${NETWORK_SOURCES}
