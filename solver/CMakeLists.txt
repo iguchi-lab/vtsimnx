@@ -21,6 +21,7 @@ set(PARSER_SOURCES
 )
 
 set(NETWORK_SOURCES
+    network/contaminant_network.cpp
     network/ventilation_network.cpp
     network/ventilation_network_outputs.cpp
     network/thermal_network.cpp
@@ -343,6 +344,7 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         core/humidity/humidity_solver.cpp
         core/humidity/humidity_coupling.cpp
         transport/concentration_solver.cpp
+        network/contaminant_network.cpp
         network/ventilation_network.cpp
         network/ventilation_network_outputs.cpp
         network/thermal_network.cpp
