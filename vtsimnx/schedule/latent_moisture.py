@@ -1,8 +1,8 @@
 """
-潜熱由来の水分発生（主に人体）のスケジュール（単位: kg/h）。
+潜熱由来の水分発生（主に人体）のスケジュール（単位: kg/s）。
 
 現状は「人体」のみを対象とし、時間プロファイルは顕熱スケジュールと同一、
-強度だけ「56 W/人」を蒸発潜熱で割って kg/h に換算している。
+強度だけ「56 W/人」を蒸発潜熱で割って kg/s に換算している。
 """
 
 import numpy as np
@@ -19,14 +19,14 @@ LATENT_POWER_PER_PERSON_W = 56.0
 # 蒸発潜熱 [J/kg]
 LATENT_HEAT_J_PER_KG = Vap_L * 1000.0
 
-# 1 人あたりの水分発生量 [kg/h]
-LATENT_KG_PER_H_PER_PERSON = LATENT_POWER_PER_PERSON_W * 3600.0 / LATENT_HEAT_J_PER_KG
+# 1 人あたりの水分発生量 [kg/s]
+LATENT_KG_PER_S_PER_PERSON = LATENT_POWER_PER_PERSON_W / LATENT_HEAT_J_PER_KG
 
 
 def _extract_people_profiles():
     """
     顕熱スケジュールから「人体」のプロファイル（人数スケール）だけを抽出し、
-    人数×[kg/h/人] で水分発生量に換算した 24h プロファイルを作る。
+    人数×[kg/s/人] で水分発生量に換算した 24h プロファイルを作る。
     """
     latent_profiles: dict[str, dict[str, dict[str, list[float]]]] = {}
 
@@ -44,8 +44,8 @@ def _extract_people_profiles():
         people_count_weekday = weekday / 63.0
         people_count_holiday = holiday_ / 63.0
 
-        latent_weekday = (people_count_weekday * LATENT_KG_PER_H_PER_PERSON).tolist()
-        latent_holiday = (people_count_holiday * LATENT_KG_PER_H_PER_PERSON).tolist()
+        latent_weekday = (people_count_weekday * LATENT_KG_PER_S_PER_PERSON).tolist()
+        latent_holiday = (people_count_holiday * LATENT_KG_PER_S_PER_PERSON).tolist()
 
         if len(latent_weekday) != HOURS_PER_DAY or len(latent_holiday) != HOURS_PER_DAY:
             raise ValueError(f"latent_moisture: unexpected profile length for room {room!r}")
@@ -61,8 +61,8 @@ def _extract_people_profiles():
 latent_moisture_profiles = _extract_people_profiles()
 
 
-# 台所機器からの水蒸気発生（最大 50 g/h = 0.05 kg/h）
-_KITCHEN_APPLIANCE_MAX_KG_PER_H = 0.05
+# 台所機器からの水蒸気発生（最大 50 g/h = 0.05 kg/h = 0.05/3600 kg/s）
+_KITCHEN_APPLIANCE_MAX_KG_PER_S = 0.05 / 3600.0
 
 _kitchen_weekday_pct = np.array([
     0.00, 0.00, 0.00, 0.00, 0.00, 0.00,
@@ -78,12 +78,12 @@ _kitchen_holiday_pct = np.array([
     0.00, 0.00, 0.00, 0.00, 0.00, 0.00,
 ], dtype="float64")
 
-_kitchen_weekday_kgph = (_kitchen_weekday_pct / 100.0 * _KITCHEN_APPLIANCE_MAX_KG_PER_H).tolist()
-_kitchen_holiday_kgph = (_kitchen_holiday_pct / 100.0 * _KITCHEN_APPLIANCE_MAX_KG_PER_H).tolist()
+_kitchen_weekday_kgps = (_kitchen_weekday_pct / 100.0 * _KITCHEN_APPLIANCE_MAX_KG_PER_S).tolist()
+_kitchen_holiday_kgps = (_kitchen_holiday_pct / 100.0 * _KITCHEN_APPLIANCE_MAX_KG_PER_S).tolist()
 
 latent_moisture_profiles.setdefault("台所", {})["機器"] = {
-    "平日": _kitchen_weekday_kgph,
-    "休日": _kitchen_holiday_kgph,
+    "平日": _kitchen_weekday_kgps,
+    "休日": _kitchen_holiday_kgps,
 }
 
 
@@ -120,12 +120,12 @@ def _validate_latent_moisture_profiles(profiles):
 
 def build_latent_moisture_schedule(*, holiday_days=holiday):
     """
-    潜熱由来の水分発生スケジュール（kg/h）を生成する。
+    潜熱由来の水分発生スケジュール（kg/s）を生成する。
 
     戻り値の構造:
       {
         "LD": {
-          "人体": np.ndarray(shape=(8760,)),  # kg/h
+          "人体": np.ndarray(shape=(8760,)),  # kg/s
           ...
         },
         ...
