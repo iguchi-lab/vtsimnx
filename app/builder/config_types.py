@@ -78,8 +78,8 @@ class NodeType(TypedDict):
     # 湿気回路網（Phase1）
     # - moisture_capacity: 材料側ノードなどに与える湿気容量 [kg/(kg/kg)]
     # - moisture_capacity_unit:
-    #     * 既定/省略: "kg/(kg/kg)"（内部単位）
-    #     * "J/(kg/kg')" を指定した場合、builder が内部単位へ変換
+    #     * 既定/省略: "J/(kg/kg')"（builder が内部単位へ変換）
+    #     * "kg/(kg/kg)" を指定した場合、内部単位としてそのまま使用
     # - w: 材料側含湿状態（時系列）を保持する拡張フィールド
     moisture_capacity: Optional[float]
     moisture_capacity_unit: Optional[str]

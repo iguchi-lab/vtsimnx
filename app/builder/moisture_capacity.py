@@ -12,11 +12,12 @@ def _normalize_moisture_capacity(node: dict) -> float:
     """
     入力単位を内部単位 [kg/(kg/kg)] に正規化する。
 
-    - 既定/省略: kg/(kg/kg)
+    - 既定/省略: J/(kg/kg')
+    - kg/(kg/kg) 指定時: そのまま
     - J/(kg/kg') 指定時: (J/(kg/kg')) / Lv[J/kg]
     """
     cap_raw = float(node["moisture_capacity"])
-    unit_raw = node.get("moisture_capacity_unit", "kg/(kg/kg)")
+    unit_raw = node.get("moisture_capacity_unit", "J/(kg/kg')")
     unit = str(unit_raw).strip().lower()
 
     # 既定（内部単位）
