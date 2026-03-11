@@ -51,7 +51,14 @@ struct SimulationConstants {
     // 単位: pressure [Pa], temperature [K]
     double couplingPressureTolerance = 0.0;
     double couplingTemperatureTolerance = 0.0;
+    // 湿気連成（x/w）の停止判定。0以下なら convergenceTolerance を使用。
+    double couplingHumidityTolerance = 0.0;
     double maxInnerIteration;
+    // 3ネットワーク連成の有効化（既定ON）
+    bool moistureCouplingEnabled = true;
+    // 内側反復での緩和係数（0<alpha<=1）。1.0=緩和なし
+    double humidityRelaxation = 1.0;
+    double latentRelaxation = 0.5;
     bool pressureCalc;
     bool temperatureCalc;
     bool humidityCalc = false;

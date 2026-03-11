@@ -175,6 +175,21 @@ int main() {
         }
     }
 
+    // 潜熱フィードバック: 冷房時に in_node へ負の heat_source が入ること
+    {
+        auto& in = thermal.getNode("IN");
+        auto& b = thermal.getNode("B");
+        in.current_t = 27.0;
+        in.current_x = 0.020;
+        b.current_t = 20.0;
+        b.current_mode = "COOLING";
+        b.on = true;
+        in.heat_source = 0.0;
+        const auto stats = controller.applyLatentFeedbackToThermal(thermal, flowRates, 1.0, std::cout);
+        expectTrue(stats.maxAppliedHeatW > 0.0, "latent feedback should apply non-zero heat");
+        expectTrue(in.heat_source < 0.0, "latent feedback should be negative heat source at in_node");
+    }
+
     {
         auto& in = thermal.getNode("IN");
         auto& b = thermal.getNode("B");

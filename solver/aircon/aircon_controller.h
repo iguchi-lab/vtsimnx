@@ -89,6 +89,9 @@ private:
                                                   bool returnPower) const;
 
 public:
+    struct LatentFeedbackStats {
+        double maxAppliedHeatW = 0.0;
+    };
     // === モデル管理 ===
     void initializeModels(ThermalNetwork& thermalNetwork, std::ostream& logs, int logVerbosity);
     acmodel::AirconSpec* getModel(const std::string& airconKey) const;
@@ -186,6 +189,14 @@ public:
                                 const FlowRateMap& flowRates,
                                 std::ostream& logFile,
                                 int& totalIterations) const;
+
+    // 潜熱処理量を熱方程式の heat_source へ反映する（冷房時のみ有効）。
+    // relaxation=1.0 で全量反映。<1.0 で緩和反映。
+    LatentFeedbackStats applyLatentFeedbackToThermal(
+        ThermalNetwork& thermalNetwork,
+        const FlowRateMap& flowRates,
+        double relaxation,
+        std::ostream& logs) const;
 
     // === データ収集・ログ ===
     const std::vector<std::string>& getAirconKeys() const;

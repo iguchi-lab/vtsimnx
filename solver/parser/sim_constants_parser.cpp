@@ -111,6 +111,15 @@ SimulationConstants parseSimulationConstants(const nlohmann::json& config,
             oss << "  連成(温度)許容誤差: " << outConstants.couplingTemperatureTolerance;
         });
     }
+    if (tol.contains("coupling_humidity")) {
+        if (!tol["coupling_humidity"].is_number()) {
+            throw std::runtime_error("Missing or invalid 'simulation.tolerance.coupling_humidity' (number required)");
+        }
+        outConstants.couplingHumidityTolerance = tol["coupling_humidity"];
+        logLine([&](std::ostringstream& oss) {
+            oss << "  連成(湿気)許容誤差: " << outConstants.couplingHumidityTolerance;
+        });
+    }
     bool customMaxInner = false;
     outConstants.maxInnerIteration = 100;
     if (sim.contains("iteration")) {
@@ -136,6 +145,43 @@ SimulationConstants parseSimulationConstants(const nlohmann::json& config,
         oss << "  最大内部反復回数"
             << (customMaxInner ? "（設定値）: " : "（デフォルト値）: ")
             << outConstants.maxInnerIteration;
+    });
+
+    // 3ネットワーク連成制御（任意）
+    if (sim.contains("coupling")) {
+        if (!sim["coupling"].is_object()) {
+            throw std::runtime_error("Missing or invalid 'simulation.coupling' object");
+        }
+        const auto& cp = sim["coupling"];
+        if (cp.contains("moisture_enabled")) {
+            if (!cp["moisture_enabled"].is_boolean()) {
+                throw std::runtime_error("Missing or invalid 'simulation.coupling.moisture_enabled' (boolean required)");
+            }
+            outConstants.moistureCouplingEnabled = cp["moisture_enabled"];
+        }
+        if (cp.contains("humidity_relaxation")) {
+            if (!cp["humidity_relaxation"].is_number()) {
+                throw std::runtime_error("Missing or invalid 'simulation.coupling.humidity_relaxation' (number required)");
+            }
+            outConstants.humidityRelaxation = cp["humidity_relaxation"];
+        }
+        if (cp.contains("latent_relaxation")) {
+            if (!cp["latent_relaxation"].is_number()) {
+                throw std::runtime_error("Missing or invalid 'simulation.coupling.latent_relaxation' (number required)");
+            }
+            outConstants.latentRelaxation = cp["latent_relaxation"];
+        }
+    }
+    if (!(outConstants.humidityRelaxation > 0.0 && outConstants.humidityRelaxation <= 1.0)) {
+        throw std::runtime_error("'simulation.coupling.humidity_relaxation' must be in (0, 1]");
+    }
+    if (!(outConstants.latentRelaxation > 0.0 && outConstants.latentRelaxation <= 1.0)) {
+        throw std::runtime_error("'simulation.coupling.latent_relaxation' must be in (0, 1]");
+    }
+    logLine([&](std::ostringstream& oss) {
+        oss << "  3ネットワーク連成: " << parser_utils::boolToString(outConstants.moistureCouplingEnabled)
+            << ", humidity_relaxation=" << outConstants.humidityRelaxation
+            << ", latent_relaxation=" << outConstants.latentRelaxation;
     });
 
     // 計算フラグ

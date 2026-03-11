@@ -885,6 +885,48 @@ std::vector<double> AirconController::calculateCOPValues(ThermalNetwork& thermal
     return calculatePowerOrCOPValues(thermalNetwork, flowRates, logs, false);
 }
 
+AirconController::LatentFeedbackStats
+AirconController::applyLatentFeedbackToThermal(ThermalNetwork& thermalNetwork,
+                                               const FlowRateMap& flowRates,
+                                               double relaxation,
+                                               std::ostream& logs) const {
+    LatentFeedbackStats stats{};
+    if (!(relaxation > 0.0)) return stats;
+    const double alpha = std::min(1.0, relaxation);
+
+    for (const auto& airconKey : getAirconKeys()) {
+        auto& nodeProps = thermalNetwork.getNode(airconKey);
+        if (!nodeProps.on) continue;
+        try {
+            auto context = prepareRuntimeContext(airconKey, thermalNetwork, nodeProps, flowRates);
+            if (context.operationMode != "cooling") continue;
+            const auto loads = estimateLatentProcess(
+                context.validData, context.operationMode, context.heatCapacity, context.airFlowRate, nodeProps);
+            const double latentQ = std::max(0.0, loads.latentHeatCapacity);
+            if (!(latentQ > 0.0)) continue;
+            if (nodeProps.in_node.empty()) continue;
+
+            auto& inNode = thermalNetwork.getNode(nodeProps.in_node);
+            const double deltaQ = -alpha * latentQ; // 冷房除湿は室側の熱源としては負（除熱）
+            inNode.heat_source += deltaQ;
+            stats.maxAppliedHeatW = std::max(stats.maxAppliedHeatW, std::abs(deltaQ));
+
+            if (logVerbosity_ >= 2) {
+                std::ostringstream oss;
+                oss << "　潜熱フィードバック: " << airconKey
+                    << " in_node=" << nodeProps.in_node
+                    << " latent=" << latentQ << "W"
+                    << " alpha=" << alpha
+                    << " applied=" << deltaQ << "W";
+                writeLog(logs, oss.str());
+            }
+        } catch (const std::exception& e) {
+            writeLog(logs, std::string("　　エラー: 潜熱フィードバック ") + airconKey + " - " + e.what());
+        }
+    }
+    return stats;
+}
+
 void AirconController::clearCapacityLimitBracket() const {
     capacityLimitBracket_.clear();
 }
