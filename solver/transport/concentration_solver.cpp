@@ -41,7 +41,7 @@ void updateConcentrationIfEnabled(const SimulationConstants& constants,
     }
 
     ContaminantNetworkTerms terms;
-    contaminantNetwork.buildTerms(tGraph, thermalNetwork, ventNetwork, terms);
+    contaminantNetwork.buildTerms(static_cast<const ThermalNetwork&>(thermalNetwork).nodeStateView(), ventNetwork, terms);
 
     std::vector<double> cNew = cOld;
     for (Vertex v : terms.updateVertices) {

@@ -95,8 +95,8 @@ static void initializeSchemaIfNeeded(ArtifactIO::OutputSchema& schema,
     schema.temperatureKeys = thermalNetwork.getTemperatureKeys();
     schema.temperatureKeysCapacity = thermalNetwork.getTemperatureKeysCapacity();
     schema.temperatureKeysLayer = thermalNetwork.getTemperatureKeysLayer();
-    schema.humidityKeys = humidityNetwork.getOutputKeys(thermalNetwork);
-    schema.concentrationKeys = contaminantNetwork.getOutputKeys(thermalNetwork);
+    schema.humidityKeys = humidityNetwork.getOutputKeys(static_cast<const ThermalNetwork&>(thermalNetwork).nodeStateView());
+    schema.concentrationKeys = contaminantNetwork.getOutputKeys(static_cast<const ThermalNetwork&>(thermalNetwork).nodeStateView());
     schema.heatRateKeysAdvection = thermalNetwork.getHeatRateKeysAdvection();
     schema.heatRateKeysHeatGeneration = thermalNetwork.getHeatRateKeysHeatGeneration();
     schema.heatRateKeysSolarGain = thermalNetwork.getHeatRateKeysSolarGain();

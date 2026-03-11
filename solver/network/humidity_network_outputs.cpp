@@ -1,5 +1,4 @@
 #include "network/humidity_network.h"
-#include "network/thermal_network.h"
 
 #include <algorithm>
 #include <string>
@@ -8,10 +7,10 @@
 
 #include <boost/range/iterator_range.hpp>
 
-const std::vector<std::string>& HumidityNetwork::getOutputKeys(const ThermalNetwork& thermalNetwork) const {
-    ensureNodeIndex(thermalNetwork);
+const std::vector<std::string>& HumidityNetwork::getOutputKeys(ConstNodeStateView nodeState) const {
+    ensureNodeIndex(nodeState);
     if (!outputCacheInitialized) {
-        const auto& graph = thermalNetwork.getGraph();
+        const auto& graph = nodeState.graph;
         std::vector<std::pair<std::string, Vertex>> items;
         items.reserve(boost::num_vertices(graph) / 4 + 1);
         for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
@@ -36,10 +35,10 @@ const std::vector<std::string>& HumidityNetwork::getOutputKeys(const ThermalNetw
     return outputKeysOrdered;
 }
 
-std::vector<double> HumidityNetwork::collectOutputValues(const ThermalNetwork& thermalNetwork) const {
-    const auto& keys = getOutputKeys(thermalNetwork);
+std::vector<double> HumidityNetwork::collectOutputValues(ConstNodeStateView nodeState) const {
+    const auto& keys = getOutputKeys(nodeState);
     (void)keys;
-    const auto& graph = thermalNetwork.getGraph();
+    const auto& graph = nodeState.graph;
     std::vector<double> values;
     values.resize(outputVerticesOrdered.size());
     for (size_t i = 0; i < outputVerticesOrdered.size(); ++i) {

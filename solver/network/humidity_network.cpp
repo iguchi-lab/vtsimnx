@@ -1,5 +1,4 @@
 #include "network/humidity_network.h"
-#include "network/thermal_network.h"
 #include "network/ventilation_network.h"
 #include "types/common_types.h"
 
@@ -7,12 +6,11 @@
 
 #include <boost/range/iterator_range.hpp>
 
-void HumidityNetwork::buildTerms(const Graph& nodeGraph,
-                                 const ThermalNetwork& thermalNetwork,
+void HumidityNetwork::buildTerms(ConstNodeStateView nodeState,
                                  const VentilationNetwork& ventNetwork,
                                  HumidityNetworkTerms& terms) const {
-    ensureNodeIndex(thermalNetwork);
-    const auto& tGraph = nodeGraph;
+    ensureNodeIndex(nodeState);
+    const auto& tGraph = nodeState.graph;
     const auto& vGraph = ventNetwork.getGraph();
     const auto& tKeyToV = nodeKeyToVertex;
     const size_t nV = static_cast<size_t>(boost::num_vertices(tGraph));
@@ -84,10 +82,10 @@ void HumidityNetwork::buildTerms(const Graph& nodeGraph,
     });
 }
 
-void HumidityNetwork::ensureNodeIndex(const ThermalNetwork& thermalNetwork) const {
+void HumidityNetwork::ensureNodeIndex(ConstNodeStateView nodeState) const {
     if (nodeIndexInitialized) return;
     nodeKeyToVertex.clear();
-    const auto& graph = thermalNetwork.getGraph();
+    const auto& graph = nodeState.graph;
     nodeKeyToVertex.reserve(boost::num_vertices(graph));
     for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
         nodeKeyToVertex.emplace(graph[v].key, v);

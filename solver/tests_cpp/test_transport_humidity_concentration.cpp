@@ -107,7 +107,7 @@ int main() {
         (void)core::humidity::updateHumidityIfEnabled(constants, vent, thermal, humidity, flowRates, logs, timings, "test");
 
         // humidity_x keys: calc_x=true の B に加え、v<=0 の void も出力対象になるはず
-        const auto& humidityKeys = humidity.getOutputKeys(thermal);
+        const auto& humidityKeys = humidity.getOutputKeys(static_cast<const ThermalNetwork&>(thermal).nodeStateView());
         bool hasVoid = false;
         bool hasB = false;
         for (const auto& k : humidityKeys) {

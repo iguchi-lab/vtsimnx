@@ -1,5 +1,6 @@
 #pragma once
 
+#include "network/node_state_view.h"
 #include "vtsim_solver.h"
 #include <vector>
 #include <fstream>
@@ -83,6 +84,8 @@ public:
     const Graph& getGraph() const { return graph; }
     Graph& getGraph() { return graph; }
     const std::unordered_map<std::string, Vertex>& getKeyToVertex() const { return keyToVertex; }
+    ConstNodeStateView nodeStateView() const { return ConstNodeStateView{graph, keyToVertex}; }
+    NodeStateView nodeStateView() { return NodeStateView{graph, keyToVertex}; }
 
     // データ構築（換気ブランチは別途同期）
     void buildFromData(const std::vector<VertexProperties>& allNodes,

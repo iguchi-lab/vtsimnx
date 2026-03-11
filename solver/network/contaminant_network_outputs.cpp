@@ -1,5 +1,4 @@
 #include "network/contaminant_network.h"
-#include "network/thermal_network.h"
 
 #include <algorithm>
 #include <string>
@@ -8,10 +7,10 @@
 
 #include <boost/range/iterator_range.hpp>
 
-const std::vector<std::string>& ContaminantNetwork::getOutputKeys(const ThermalNetwork& thermalNetwork) const {
-    ensureNodeIndex(thermalNetwork);
+const std::vector<std::string>& ContaminantNetwork::getOutputKeys(ConstNodeStateView nodeState) const {
+    ensureNodeIndex(nodeState);
     if (!outputCacheInitialized) {
-        const auto& graph = thermalNetwork.getGraph();
+        const auto& graph = nodeState.graph;
         std::vector<std::pair<std::string, Vertex>> items;
         items.reserve(boost::num_vertices(graph) / 4 + 1);
         for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
@@ -34,10 +33,10 @@ const std::vector<std::string>& ContaminantNetwork::getOutputKeys(const ThermalN
     return outputKeysOrdered;
 }
 
-std::vector<double> ContaminantNetwork::collectOutputValues(const ThermalNetwork& thermalNetwork) const {
-    const auto& keys = getOutputKeys(thermalNetwork);
+std::vector<double> ContaminantNetwork::collectOutputValues(ConstNodeStateView nodeState) const {
+    const auto& keys = getOutputKeys(nodeState);
     (void)keys;
-    const auto& graph = thermalNetwork.getGraph();
+    const auto& graph = nodeState.graph;
     std::vector<double> values;
     values.resize(outputVerticesOrdered.size());
     for (size_t i = 0; i < outputVerticesOrdered.size(); ++i) {
