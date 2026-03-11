@@ -102,9 +102,21 @@ static double calculateTemperatureChangeByVertex(const Graph& graph, const std::
 
 namespace {
 
-static inline bool needsCoupledCalculation(const SimulationConstants& constants) {
-    // 両方が true のときのみ連成
-    return constants.pressureCalc && constants.temperatureCalc;
+static inline bool humidityCouplingActive(const SimulationConstants& constants) {
+    return constants.humidityCalc && constants.moistureCouplingEnabled;
+}
+
+static inline int activeCouplingStateCount(const SimulationConstants& constants) {
+    int n = 0;
+    if (constants.pressureCalc) ++n;
+    if (constants.temperatureCalc) ++n;
+    if (humidityCouplingActive(constants)) ++n;
+    return n;
+}
+
+static inline bool needsInnerCoupledIteration(const SimulationConstants& constants) {
+    // 連成対象状態量が2つ以上なら、内側反復で収束させる
+    return activeCouplingStateCount(constants) >= 2;
 }
 
 static inline double couplingPressureTol(const SimulationConstants& constants) {
@@ -157,6 +169,23 @@ static inline void capturePrevHumidityByVertex(const Graph& graph, std::vector<d
     prevHumidityByVertex.resize(vCount);
     for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
         prevHumidityByVertex[static_cast<size_t>(v)] = graph[v].current_x;
+    }
+}
+
+static inline void captureHeatSourceByVertex(const Graph& graph, std::vector<double>& heatSourceByVertex) {
+    const size_t vCount = static_cast<size_t>(boost::num_vertices(graph));
+    heatSourceByVertex.resize(vCount);
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        heatSourceByVertex[static_cast<size_t>(v)] = graph[v].heat_source;
+    }
+}
+
+static inline void restoreHeatSourceByVertex(Graph& graph, const std::vector<double>& heatSourceByVertex) {
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        const size_t i = static_cast<size_t>(v);
+        if (i < heatSourceByVertex.size()) {
+            graph[v].heat_source = heatSourceByVertex[i];
+        }
     }
 }
 
@@ -481,10 +510,17 @@ void runSimulation(VentilationNetwork& ventNetwork,
                 std::vector<double> prevTempsByVertex;
                 std::vector<double> prevPressuresByKey;
                 std::vector<double> prevHumidityByVertex;
+                std::vector<double> baseHeatSourceByVertex;
+                CoupledDelta lastDelta{};
+                double lastLatentAppliedW = 0.0;
                 int coupledIter = 0;
                 while (true) {
                     ++coupledIter;
                     ++totalIterations;
+                    const bool humidityActive = humidityCouplingActive(constants);
+                    if (coupledIter == 1) {
+                        captureHeatSourceByVertex(thermalNetwork.getGraph(), baseHeatSourceByVertex);
+                    }
 
                     // 前回の値を保存
                     if (constants.pressureCalc) {
@@ -493,7 +529,7 @@ void runSimulation(VentilationNetwork& ventNetwork,
                     if (constants.temperatureCalc) {
                         capturePrevTempsByVertex(thermalNetwork.getGraph(), prevTempsByVertex);
                     }
-                    if (constants.humidityCalc) {
+                    if (humidityActive) {
                         capturePrevHumidityByVertex(thermalNetwork.getGraph(), prevHumidityByVertex);
                     }
 
@@ -514,7 +550,7 @@ void runSimulation(VentilationNetwork& ventNetwork,
                         step.flowRates = ventNetwork.collectFlowRateMap();
                     }
 
-                    if (constants.humidityCalc && constants.moistureCouplingEnabled) {
+                    if (humidityActive) {
                         // 同一タイムステップ内反復なので、毎回 x_prev / w_prev に戻して再評価する。
                         restoreXPrevToGraph(thermalNetwork.getGraph(), ventNetwork, xPrevByVertex);
                         restoreWPrevToGraph(thermalNetwork.getGraph(), wPrevByVertex);
@@ -524,8 +560,13 @@ void runSimulation(VentilationNetwork& ventNetwork,
                                        ",coupledIter=" + std::to_string(coupledIter));
                         relaxHumidityByVertex(thermalNetwork.getGraph(), ventNetwork, prevHumidityByVertex, constants.humidityRelaxation);
                     }
+
+                    // 潜熱フィードバックは内側反復ごとに「基準熱源 + 今回分」で再構成する。
+                    // これにより反復回数依存の熱源積み上がりを防ぐ。
+                    restoreHeatSourceByVertex(thermalNetwork.getGraph(), baseHeatSourceByVertex);
                     const auto latentStats = airconController.applyLatentFeedbackToThermal(
                         thermalNetwork, step.flowRates, constants.latentRelaxation, logs);
+                    lastLatentAppliedW = latentStats.maxAppliedHeatW;
 
                     // 1回目で pressure が未収束なら停止（従来と同じ）
                     if (constants.pressureCalc && coupledIter == 1 && !ventNetwork.getLastPressureConverged()) {
@@ -535,18 +576,19 @@ void runSimulation(VentilationNetwork& ventNetwork,
                         throw std::runtime_error("Disabled final normal solve: stopping after fallback non-convergence");
                     }
 
-                    // 連成計算が不要な場合、1回の計算後に抜ける（従来と同じ）
-                    if (!needsCoupledCalculation(constants)) {
-                        if (logEnabled) writeLog(logs, "圧力-熱連成計算は不要です（圧力または熱計算のみ）");
+                    // 連成計算が不要な場合、1回の計算後に抜ける
+                    if (!needsInnerCoupledIteration(constants)) {
+                        if (logEnabled) writeLog(logs, "内側連成反復は不要です（有効状態量が1つ以下）");
                         break;
                     }
 
                     // 変化量を計算してログ出力
                     auto delta = computeCoupledDelta(constants, ventNetwork, thermalNetwork,
                                                      prevPressuresByKey, prevTempsByVertex);
-                    if (constants.humidityCalc && constants.moistureCouplingEnabled) {
+                    if (humidityActive) {
                         delta.humidityChange = calculateHumidityChangeByVertex(thermalNetwork.getGraph(), prevHumidityByVertex);
                     }
+                    lastDelta = delta;
                     if (logEnabled) {
                         writeLog(
                             logs,
@@ -563,7 +605,7 @@ void runSimulation(VentilationNetwork& ventNetwork,
                         const double xTol = couplingHumidityTol(constants);
                         const bool pOk = !constants.pressureCalc || (delta.pressureChange < pTol);
                         const bool tOk = !constants.temperatureCalc || (delta.temperatureChange < tTol);
-                        const bool xOk = !constants.humidityCalc || !constants.moistureCouplingEnabled || (delta.humidityChange < xTol);
+                        const bool xOk = !humidityActive || (delta.humidityChange < xTol);
                         if (pOk && tOk && xOk) {
                             if (logEnabled) {
                                 writeLog(logs, "空気-熱-湿気 連成計算が収束しました (" +
@@ -574,7 +616,29 @@ void runSimulation(VentilationNetwork& ventNetwork,
                     }
 
                     if (coupledIter >= static_cast<int>(constants.maxInnerIteration)) {
-                        if (logEnabled) writeLog(logs, "圧力-熱計算 連成計算が最大反復回数に達しました");
+                        if (logEnabled) {
+                            const double pTol = couplingPressureTol(constants);
+                            const double tTol = couplingTemperatureTol(constants);
+                            const double xTol = couplingHumidityTol(constants);
+                            const double pRatio = constants.pressureCalc ? (lastDelta.pressureChange / std::max(1e-30, pTol)) : 0.0;
+                            const double tRatio = constants.temperatureCalc ? (lastDelta.temperatureChange / std::max(1e-30, tTol)) : 0.0;
+                            const double xRatio = humidityActive ? (lastDelta.humidityChange / std::max(1e-30, xTol)) : 0.0;
+
+                            std::string dominant = "none";
+                            double domRatio = -1.0;
+                            if (constants.pressureCalc && pRatio > domRatio) { domRatio = pRatio; dominant = "pressure"; }
+                            if (constants.temperatureCalc && tRatio > domRatio) { domRatio = tRatio; dominant = "temperature"; }
+                            if (humidityActive && xRatio > domRatio) { domRatio = xRatio; dominant = "humidity"; }
+
+                            std::ostringstream oss;
+                            oss << "連成計算が最大反復回数に到達: iter=" << coupledIter
+                                << ", dominant=" << dominant
+                                << ", pressure=" << lastDelta.pressureChange << "/" << pTol
+                                << ", temperature=" << lastDelta.temperatureChange << "/" << tTol
+                                << ", humidity=" << lastDelta.humidityChange << "/" << xTol
+                                << ", latentApplied=" << lastLatentAppliedW << " W";
+                            writeLog(logs, oss.str());
+                        }
                         throw std::runtime_error("Maximum iteration count reached: stopping after maximum iteration count");
                     }
                 }
