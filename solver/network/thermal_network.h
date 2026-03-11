@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vtsim_solver.h"
+#include "network/humidity_network.h"
 #include <vector>
 #include <fstream>
 #include <ostream>
@@ -96,6 +97,10 @@ public:
                        const std::vector<EdgeProperties>& ventilationBranches,
                        const SimulationConstants& simConstants,
                        std::ostream& logs);
+
+    // 湿気計算用のネットワーク項を組み立てる（core/humidity から呼び出し）
+    void buildHumidityNetworkTerms(const VentilationNetwork& ventNetwork,
+                                   HumidityNetworkTerms& terms) const;
 
     // 換気回路網から風量を同期
     void syncFlowRatesFromVentilationNetwork(const VentilationNetwork& ventNetwork);

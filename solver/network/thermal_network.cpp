@@ -13,6 +13,7 @@
 #include <cstdint>
 
 #include <boost/graph/adjacency_list.hpp>
+#include <boost/range/iterator_range.hpp>
 
 // ノードを追加
 Vertex ThermalNetwork::addNode(const VertexProperties& node) {

@@ -23,15 +23,14 @@ HumiditySolveStats updateHumidityIfEnabled(const SimulationConstants& constants,
 
     auto& tGraph = thermalNetwork.getGraph();
     auto& vGraph = ventNetwork.getGraph();
-    const auto& tKeyToV = thermalNetwork.getKeyToVertex();
     const auto& vKeyToV = ventNetwork.getKeyToVertex();
 
     const double dt = static_cast<double>(constants.timestep);
     if (!(dt > 0.0)) return stats;
 
     (void)flowRates; // エッジ直接走査方式に統一したため FlowRateMap は不使用
-    NetworkTerms terms;
-    buildHumidityNetworkTerms(vGraph, tGraph, tKeyToV, terms);
+    HumidityNetworkTerms terms;
+    thermalNetwork.buildHumidityNetworkTerms(ventNetwork, terms);
     stats.activeVertices = static_cast<int>(terms.updateVertices.size());
     if (stats.activeVertices == 0) return stats;
 

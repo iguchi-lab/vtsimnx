@@ -23,6 +23,7 @@ set(PARSER_SOURCES
 set(NETWORK_SOURCES
     network/ventilation_network.cpp
     network/thermal_network.cpp
+    network/humidity_network.cpp
 )
 
 set(CORE_SOURCES
@@ -226,6 +227,7 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         core/thermal/thermal_direct_solve.cpp
         core/thermal/thermal_direct_postprocess.cpp
         network/thermal_network.cpp
+        network/humidity_network.cpp
     )
     target_link_libraries(vtsimnx_solver_cpp_test_thermal_direct_cache
         Boost::boost
@@ -248,6 +250,7 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         core/thermal/thermal_direct_solve.cpp
         core/thermal/thermal_direct_postprocess.cpp
         network/thermal_network.cpp
+        network/humidity_network.cpp
     )
     target_link_libraries(vtsimnx_solver_cpp_test_thermal_advection_sign
         Boost::boost
@@ -298,6 +301,7 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         tests_cpp/test_network_rebuild.cpp
         network/ventilation_network.cpp
         network/thermal_network.cpp
+        network/humidity_network.cpp
         core/ventilation/pressure_solver.cpp
         core/ventilation/pressure_solver_ceres.cpp
         core/ventilation/pressure_solver_fallback.cpp
@@ -329,6 +333,7 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         transport/concentration_solver.cpp
         network/ventilation_network.cpp
         network/thermal_network.cpp
+        network/humidity_network.cpp
         core/ventilation/pressure_solver.cpp
         core/ventilation/pressure_solver_ceres.cpp
         core/ventilation/pressure_solver_fallback.cpp
@@ -380,6 +385,7 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         tests_cpp/test_aircon_controller.cpp
         aircon/aircon_controller.cpp
         network/thermal_network.cpp
+        network/humidity_network.cpp
         core/thermal/thermal_solver.cpp
         core/thermal/thermal_solver_linear_direct.cpp
         core/thermal/thermal_direct_internal.cpp
