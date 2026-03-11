@@ -7,6 +7,7 @@
 
 #include "network/thermal_network.h"
 #include "network/ventilation_network.h"
+#include "network/humidity_network.h"
 #include "network/contaminant_network.h"
 #include "core/humidity/humidity_solver.h"
 #include "transport/concentration_solver.h"
@@ -95,6 +96,7 @@ int main() {
 
         VentilationNetwork vent;
         ThermalNetwork thermal;
+        HumidityNetwork humidity;
         vent.buildFromData(nodes, ventEdges, constants, logs);
         thermal.buildFromData(nodes, thEdges, ventEdges, constants, logs);
 
@@ -102,10 +104,10 @@ int main() {
         vent.updatePropertiesForTimestep(nodes, ventEdges, 0);
 
         FlowRateMap flowRates = vent.collectFlowRateMap(); // (A,B)->0.1
-        (void)core::humidity::updateHumidityIfEnabled(constants, vent, thermal, flowRates, logs, timings, "test");
+        (void)core::humidity::updateHumidityIfEnabled(constants, vent, thermal, humidity, flowRates, logs, timings, "test");
 
         // humidity_x keys: calc_x=true の B に加え、v<=0 の void も出力対象になるはず
-        const auto& humidityKeys = thermal.getHumidityKeys();
+        const auto& humidityKeys = humidity.getOutputKeys(thermal);
         bool hasVoid = false;
         bool hasB = false;
         for (const auto& k : humidityKeys) {
@@ -300,6 +302,7 @@ int main() {
 
         VentilationNetwork vent;
         ThermalNetwork thermal;
+        HumidityNetwork humidity;
         vent.buildFromData(nodes, ventEdges, constants, logs);
         thermal.buildFromData(nodes, thEdges, ventEdges, constants, logs);
         vent.updatePropertiesForTimestep(nodes, ventEdges, 0);
@@ -318,7 +321,7 @@ int main() {
             throw std::runtime_error(oss.str());
         }
 
-        (void)core::humidity::updateHumidityIfEnabled(constants, vent, thermal, flowRates, logs, timings, "test");
+        (void)core::humidity::updateHumidityIfEnabled(constants, vent, thermal, humidity, flowRates, logs, timings, "test");
 
         // ROOM should approach SRC humidity (0.010), not decay toward 0
         const double dt = static_cast<double>(constants.timestep);
@@ -365,11 +368,12 @@ int main() {
 
         VentilationNetwork vent;
         ThermalNetwork thermal;
+        HumidityNetwork humidity;
         vent.buildFromData(nodes, ventEdges, constants, logs);
         thermal.buildFromData(nodes, thEdges, ventEdges, constants, logs);
 
         FlowRateMap emptyFlows;
-        (void)core::humidity::updateHumidityIfEnabled(constants, vent, thermal, emptyFlows, logs, timings, "test");
+        (void)core::humidity::updateHumidityIfEnabled(constants, vent, thermal, humidity, emptyFlows, logs, timings, "test");
 
         const auto& tG = thermal.getGraph();
         const auto& tMap = thermal.getKeyToVertex();

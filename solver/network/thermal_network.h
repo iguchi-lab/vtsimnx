@@ -38,9 +38,7 @@ private:
     mutable std::vector<std::string> temperatureKeysOrderedLayer;    // layer
 
     // 出力用（humidity x）キャッシュ：calc_x ノードをキー順で固定
-    mutable bool humidityCacheInitialized = false;
-    mutable std::vector<Vertex> humidityVerticesOrdered;
-    mutable std::vector<std::string> humidityKeysOrdered;
+    // (x の出力キャッシュは HumidityNetwork 側に移管)
     // 出力用（heat_rate）キャッシュ：キー順を固定して値配列で回す
     mutable bool heatRateCacheInitialized = false;
     mutable std::vector<Edge> heatRateEdgesOrderedAdvection;
@@ -122,10 +120,6 @@ public:
     std::vector<double> collectTemperatureValuesCapacity() const;
     const std::vector<std::string>& getTemperatureKeysLayer() const;
     std::vector<double> collectTemperatureValuesLayer() const;
-
-    // 湿度（絶対湿度 x）
-    const std::vector<std::string>& getHumidityKeys() const;
-    std::vector<double> collectHumidityValues() const;
 
     // heat_rate（カテゴリ別）
     const std::vector<std::string>& getHeatRateKeysAdvection() const;

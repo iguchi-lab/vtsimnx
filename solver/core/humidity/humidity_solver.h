@@ -5,6 +5,7 @@
 
 class VentilationNetwork;
 class ThermalNetwork;
+class HumidityNetwork;
 
 namespace core::humidity {
 
@@ -22,6 +23,7 @@ struct HumiditySolveStats {
 HumiditySolveStats updateHumidityIfEnabled(const SimulationConstants& constants,
                                            VentilationNetwork& ventNetwork,
                                            ThermalNetwork& thermalNetwork,
+                                           HumidityNetwork& humidityNetwork,
                                            const FlowRateMap& flowRates,
                                            std::ostream& logs,
                                            TimingList& timings,

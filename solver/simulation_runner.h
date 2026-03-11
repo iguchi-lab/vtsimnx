@@ -7,12 +7,14 @@
 
 class VentilationNetwork;
 class ThermalNetwork;
+class HumidityNetwork;
 class ContaminantNetwork;
 class AirconController;
 
 // シミュレーションのタイムステップループを実行
 void runSimulation(VentilationNetwork& ventNetwork,
                    ThermalNetwork& thermalNetwork,
+                   HumidityNetwork& humidityNetwork,
                    ContaminantNetwork& contaminantNetwork,
                    AirconController& airconController,
                    const SimulationConstants& constants,

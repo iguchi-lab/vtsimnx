@@ -1,3 +1,4 @@
+#include "network/humidity_network.h"
 #include "network/thermal_network.h"
 
 #include <algorithm>
@@ -7,8 +8,9 @@
 
 #include <boost/range/iterator_range.hpp>
 
-const std::vector<std::string>& ThermalNetwork::getHumidityKeys() const {
-    if (!humidityCacheInitialized) {
+const std::vector<std::string>& HumidityNetwork::getOutputKeys(const ThermalNetwork& thermalNetwork) const {
+    if (!outputCacheInitialized) {
+        const auto& graph = thermalNetwork.getGraph();
         std::vector<std::pair<std::string, Vertex>> items;
         items.reserve(boost::num_vertices(graph) / 4 + 1);
         for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
@@ -20,27 +22,34 @@ const std::vector<std::string>& ThermalNetwork::getHumidityKeys() const {
         }
         std::sort(items.begin(), items.end(),
                   [](const auto& a, const auto& b) { return a.first < b.first; });
-        humidityVerticesOrdered.clear();
-        humidityKeysOrdered.clear();
-        humidityVerticesOrdered.reserve(items.size());
-        humidityKeysOrdered.reserve(items.size());
+        outputVerticesOrdered.clear();
+        outputKeysOrdered.clear();
+        outputVerticesOrdered.reserve(items.size());
+        outputKeysOrdered.reserve(items.size());
         for (const auto& kv : items) {
-            humidityKeysOrdered.push_back(kv.first);
-            humidityVerticesOrdered.push_back(kv.second);
+            outputKeysOrdered.push_back(kv.first);
+            outputVerticesOrdered.push_back(kv.second);
         }
-        humidityCacheInitialized = true;
+        outputCacheInitialized = true;
     }
-    return humidityKeysOrdered;
+    return outputKeysOrdered;
 }
 
-std::vector<double> ThermalNetwork::collectHumidityValues() const {
-    const auto& keys = getHumidityKeys();
+std::vector<double> HumidityNetwork::collectOutputValues(const ThermalNetwork& thermalNetwork) const {
+    const auto& keys = getOutputKeys(thermalNetwork);
     (void)keys;
+    const auto& graph = thermalNetwork.getGraph();
     std::vector<double> values;
-    values.resize(humidityVerticesOrdered.size());
-    for (size_t i = 0; i < humidityVerticesOrdered.size(); ++i) {
-        values[i] = graph[humidityVerticesOrdered[i]].current_x;
+    values.resize(outputVerticesOrdered.size());
+    for (size_t i = 0; i < outputVerticesOrdered.size(); ++i) {
+        values[i] = graph[outputVerticesOrdered[i]].current_x;
     }
     return values;
+}
+
+void HumidityNetwork::invalidateOutputCache() {
+    outputCacheInitialized = false;
+    outputVerticesOrdered.clear();
+    outputKeysOrdered.clear();
 }
 

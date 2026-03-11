@@ -12,6 +12,7 @@ namespace core::humidity {
 HumiditySolveStats updateHumidityIfEnabled(const SimulationConstants& constants,
                                            VentilationNetwork& ventNetwork,
                                            ThermalNetwork& thermalNetwork,
+                                           HumidityNetwork& humidityNetwork,
                                            const FlowRateMap& flowRates,
                                            std::ostream& logs,
                                            TimingList& timings,
@@ -31,10 +32,10 @@ HumiditySolveStats updateHumidityIfEnabled(const SimulationConstants& constants,
 
     (void)flowRates; // エッジ直接走査方式に統一したため FlowRateMap は不使用
     HumidityNetworkTerms terms;
-    HumidityNetwork::buildTerms(thermalNetwork.getGraph(),
-                                thermalNetwork.getKeyToVertex(),
-                                ventNetwork,
-                                terms);
+    humidityNetwork.buildTerms(thermalNetwork.getGraph(),
+                               thermalNetwork.getKeyToVertex(),
+                               ventNetwork,
+                               terms);
     stats.activeVertices = static_cast<int>(terms.updateVertices.size());
     if (stats.activeVertices == 0) return stats;
 

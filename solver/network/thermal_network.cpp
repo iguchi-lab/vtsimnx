@@ -85,9 +85,6 @@ void ThermalNetwork::buildFromData(const std::vector<VertexProperties>& allNodes
     temperatureKeysOrderedCapacity.clear();
     temperatureVerticesOrderedLayer.clear();
     temperatureKeysOrderedLayer.clear();
-    humidityCacheInitialized = false;
-    humidityVerticesOrdered.clear();
-    humidityKeysOrdered.clear();
     heatRateCacheInitialized = false;
     heatRateEdgesOrderedAdvection.clear();
     heatRateKeysOrderedAdvection.clear();

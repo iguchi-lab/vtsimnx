@@ -1,4 +1,5 @@
 #include "simulation_runner.h"
+#include "network/humidity_network.h"
 #include "network/ventilation_network.h"
 #include "network/thermal_network.h"
 #include "network/contaminant_network.h"
@@ -110,6 +111,7 @@ static AirconStepResult runAirconControlAndAdjust(AirconController& airconContro
 
 static void runCoupledInnerLoop(VentilationNetwork& ventNetwork,
                                 ThermalNetwork& thermalNetwork,
+                                HumidityNetwork& humidityNetwork,
                                 AirconController& airconController,
                                 const SimulationConstants& constants,
                                 std::ostream& logs,
@@ -172,7 +174,7 @@ static void runCoupledInnerLoop(VentilationNetwork& ventNetwork,
             restoreXPrevToGraph(thermalNetwork.getGraph(), ventNetwork, xPrevByVertex);
             restoreWPrevToGraph(thermalNetwork.getGraph(), wPrevByVertex);
             lastHumiditySolveStats = core::humidity::updateHumidityIfEnabled(
-                constants, ventNetwork, thermalNetwork, step.flowRates, logs, timings,
+                constants, ventNetwork, thermalNetwork, humidityNetwork, step.flowRates, logs, timings,
                 meta + ",iteration=" + std::to_string(outerIteration + 1) +
                            ",coupledIter=" + std::to_string(coupledIter));
             if (logEnabled && !lastHumiditySolveStats.converged) {
@@ -275,6 +277,7 @@ static void runCoupledInnerLoop(VentilationNetwork& ventNetwork,
 static void buildTimestepResult(const SimulationConstants& constants,
                                 VentilationNetwork& ventNetwork,
                                 ThermalNetwork& thermalNetwork,
+                                HumidityNetwork& humidityNetwork,
                                 ContaminantNetwork& contaminantNetwork,
                                 AirconController& airconController,
                                 const FlowRateMap& flowRates,
@@ -314,7 +317,7 @@ static void buildTimestepResult(const SimulationConstants& constants,
     }
 
     if (constants.humidityCalc) {
-        convertDoublesToF32(timestepResult.humidityX, thermalNetwork.collectHumidityValues());
+        convertDoublesToF32(timestepResult.humidityX, humidityNetwork.collectOutputValues(thermalNetwork));
     }
     if (constants.concentrationCalc) {
         convertDoublesToF32(timestepResult.concentrationC, contaminantNetwork.collectOutputValues(thermalNetwork));
@@ -380,6 +383,7 @@ performCoupledStepCalculation(VentilationNetwork& ventNetwork,
 
 void runSimulation(VentilationNetwork& ventNetwork,
                    ThermalNetwork& thermalNetwork,
+                   HumidityNetwork& humidityNetwork,
                    ContaminantNetwork& contaminantNetwork,
                    AirconController& airconController,
                    const SimulationConstants& constants,
@@ -420,6 +424,7 @@ void runSimulation(VentilationNetwork& ventNetwork,
             {
                 runCoupledInnerLoop(ventNetwork,
                                     thermalNetwork,
+                                    humidityNetwork,
                                     airconController,
                                     constants,
                                     logs,
@@ -441,7 +446,8 @@ void runSimulation(VentilationNetwork& ventNetwork,
                 // 連成OFF時は従来互換: 外側ループごとに1回のみ湿気更新
                 restoreXPrevToGraph(thermalNetwork.getGraph(), ventNetwork, xPrevByVertex);
                 restoreWPrevToGraph(thermalNetwork.getGraph(), wPrevByVertex);
-                (void)core::humidity::updateHumidityIfEnabled(constants, ventNetwork, thermalNetwork, step.flowRates, logs, timings,
+                (void)core::humidity::updateHumidityIfEnabled(constants, ventNetwork, thermalNetwork, humidityNetwork,
+                                                              step.flowRates, logs, timings,
                                                               meta + ",iteration=" + std::to_string(iteration + 1));
             }
 
@@ -493,7 +499,7 @@ void runSimulation(VentilationNetwork& ventNetwork,
     transport::updateConcentrationIfEnabled(constants, ventNetwork, thermalNetwork, contaminantNetwork, logs, timings, meta);
 
     // 1タイムステップ分の結果を構築（呼び出し側で即座に書き出す想定）
-    buildTimestepResult(constants, ventNetwork, thermalNetwork, contaminantNetwork,
+    buildTimestepResult(constants, ventNetwork, thermalNetwork, humidityNetwork, contaminantNetwork,
                        airconController, step.flowRates, logs, timestepResultOut);
 
     if (logEnabled) {
