@@ -68,6 +68,7 @@ set(ARCHENV_SOURCES
 set(MAIN_SOURCES
     vtsimnx_solver.cpp
     simulation_runner.cpp
+    simulation_runner_helpers.cpp
     transport/concentration_solver.cpp
     app/vtsimnx_app.cpp
     output/artifact_io.cpp
@@ -418,6 +419,7 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         tests_cpp/test_app_smoke.cpp
         app/vtsimnx_app.cpp
         simulation_runner.cpp
+        simulation_runner_helpers.cpp
         output/artifact_io.cpp
         transport/concentration_solver.cpp
         ${PARSER_SOURCES}
