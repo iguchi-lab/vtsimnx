@@ -7,6 +7,7 @@
 #include <vector>
 
 class VentilationNetwork;
+class ThermalNetwork;
 
 using WeightedContaminantLinks = std::vector<std::vector<std::pair<Vertex, double>>>;
 
@@ -24,5 +25,9 @@ public:
                            const std::unordered_map<std::string, Vertex>& nodeKeyToVertex,
                            const VentilationNetwork& ventNetwork,
                            ContaminantNetworkTerms& terms);
+
+    // 汚染物質濃度(c)の出力取得窓口（既存 ThermalNetwork 出力APIの薄いラッパー）
+    static const std::vector<std::string>& getOutputKeys(const ThermalNetwork& thermalNetwork);
+    static std::vector<double> collectOutputValues(const ThermalNetwork& thermalNetwork);
 };
 

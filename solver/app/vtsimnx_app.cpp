@@ -26,6 +26,7 @@ using json = nlohmann::json;
 #include "parser/branches_parser.h"
 #include "network/ventilation_network.h"
 #include "network/thermal_network.h"
+#include "network/contaminant_network.h"
 #include "aircon/aircon_controller.h"
 #include "simulation_runner.h"
 #include "utils/utils.h"
@@ -92,7 +93,7 @@ static void initializeSchemaIfNeeded(ArtifactIO::OutputSchema& schema,
     schema.temperatureKeysCapacity = thermalNetwork.getTemperatureKeysCapacity();
     schema.temperatureKeysLayer = thermalNetwork.getTemperatureKeysLayer();
     schema.humidityKeys = thermalNetwork.getHumidityKeys();
-    schema.concentrationKeys = thermalNetwork.getConcentrationKeys();
+    schema.concentrationKeys = ContaminantNetwork::getOutputKeys(thermalNetwork);
     schema.heatRateKeysAdvection = thermalNetwork.getHeatRateKeysAdvection();
     schema.heatRateKeysHeatGeneration = thermalNetwork.getHeatRateKeysHeatGeneration();
     schema.heatRateKeysSolarGain = thermalNetwork.getHeatRateKeysSolarGain();

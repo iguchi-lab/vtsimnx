@@ -1,3 +1,4 @@
+#include "network/contaminant_network.h"
 #include "network/thermal_network.h"
 
 #include <algorithm>
@@ -40,5 +41,13 @@ std::vector<double> ThermalNetwork::collectConcentrationValues() const {
         values[i] = graph[concentrationVerticesOrdered[i]].current_c;
     }
     return values;
+}
+
+const std::vector<std::string>& ContaminantNetwork::getOutputKeys(const ThermalNetwork& thermalNetwork) {
+    return thermalNetwork.getConcentrationKeys();
+}
+
+std::vector<double> ContaminantNetwork::collectOutputValues(const ThermalNetwork& thermalNetwork) {
+    return thermalNetwork.collectConcentrationValues();
 }
 

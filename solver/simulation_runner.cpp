@@ -1,6 +1,7 @@
 #include "simulation_runner.h"
 #include "network/ventilation_network.h"
 #include "network/thermal_network.h"
+#include "network/contaminant_network.h"
 #include "aircon/aircon_controller.h"
 #include "core/humidity/humidity_solver.h"
 #include "simulation_runner_helpers.h"
@@ -315,7 +316,7 @@ static void buildTimestepResult(const SimulationConstants& constants,
         convertDoublesToF32(timestepResult.humidityX, thermalNetwork.collectHumidityValues());
     }
     if (constants.concentrationCalc) {
-        convertDoublesToF32(timestepResult.concentrationC, thermalNetwork.collectConcentrationValues());
+        convertDoublesToF32(timestepResult.concentrationC, ContaminantNetwork::collectOutputValues(thermalNetwork));
     }
 
     timestepResultOut = std::move(timestepResult);
