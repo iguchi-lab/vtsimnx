@@ -1,11 +1,10 @@
-#include "transport/humidity/humidity_internal.h"
+#include "core/humidity/humidity_coupling.h"
 
 #include <algorithm>
-#include <limits>
 
 #include <boost/range/iterator_range.hpp>
 
-namespace transport::humidity_internal {
+namespace core::humidity {
 
 namespace {
 inline size_t idxOf(Vertex v) { return static_cast<size_t>(v); }
@@ -172,5 +171,5 @@ void applyHumidityStateToGraphs(Graph& tGraph,
     }
 }
 
-} // namespace transport::humidity_internal
+} // namespace core::humidity
 

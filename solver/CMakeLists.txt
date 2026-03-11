@@ -38,6 +38,7 @@ set(CORE_SOURCES
     core/thermal/thermal_direct_build.cpp
     core/thermal/thermal_direct_solve.cpp
     core/thermal/thermal_direct_postprocess.cpp
+    core/humidity/humidity_coupling.cpp
 )
 
 set(AIRCON_SOURCES
@@ -64,7 +65,6 @@ set(ARCHENV_SOURCES
 
 set(HUMIDITY_SOURCES
     transport/humidity_solver.cpp
-    transport/humidity/humidity_internal.cpp
 )
 
 set(MAIN_SOURCES
@@ -329,6 +329,7 @@ if(VTSIMNX_BUILD_CPP_TESTS)
     add_executable(vtsimnx_solver_cpp_test_transport_humidity_concentration
         tests_cpp/test_transport_humidity_concentration.cpp
         ${HUMIDITY_SOURCES}
+        core/humidity/humidity_coupling.cpp
         transport/concentration_solver.cpp
         network/ventilation_network.cpp
         network/thermal_network.cpp

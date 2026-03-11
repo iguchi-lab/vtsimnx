@@ -1,5 +1,5 @@
 #include "transport/humidity_solver.h"
-#include "transport/humidity/humidity_internal.h"
+#include "core/humidity/humidity_coupling.h"
 
 #include "network/thermal_network.h"
 #include "network/ventilation_network.h"
@@ -30,14 +30,14 @@ void updateHumidityIfEnabled(const SimulationConstants& constants,
     if (!(dt > 0.0)) return;
 
     (void)flowRates; // エッジ直接走査方式に統一したため FlowRateMap は不使用
-    humidity_internal::NetworkTerms terms;
-    humidity_internal::buildHumidityNetworkTerms(vGraph, tGraph, tKeyToV, terms);
+    core::humidity::NetworkTerms terms;
+    core::humidity::buildHumidityNetworkTerms(vGraph, tGraph, tKeyToV, terms);
 
     std::vector<double> xOld;
     std::vector<double> xNew;
-    humidity_internal::initializeHumidityState(tGraph, xOld, xNew);
-    humidity_internal::solveHumidityImplicitStep(tGraph, terms, dt, xNew, xOld);
-    humidity_internal::applyHumidityStateToGraphs(tGraph, vGraph, vKeyToV, terms.updateVertices, xNew);
+    core::humidity::initializeHumidityState(tGraph, xOld, xNew);
+    core::humidity::solveHumidityImplicitStep(tGraph, terms, dt, xNew, xOld);
+    core::humidity::applyHumidityStateToGraphs(tGraph, vGraph, vKeyToV, terms.updateVertices, xNew);
 }
 
 } // namespace transport

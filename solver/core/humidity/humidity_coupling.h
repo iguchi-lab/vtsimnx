@@ -8,7 +8,7 @@
 #include <utility>
 #include <vector>
 
-namespace transport::humidity_internal {
+namespace core::humidity {
 
 using WeightedVertexLinks = std::vector<std::vector<std::pair<Vertex, double>>>;
 
@@ -41,5 +41,5 @@ void applyHumidityStateToGraphs(Graph& tGraph,
                                 const std::vector<Vertex>& updateVertices,
                                 const std::vector<double>& xNew);
 
-} // namespace transport::humidity_internal
+} // namespace core::humidity
 
