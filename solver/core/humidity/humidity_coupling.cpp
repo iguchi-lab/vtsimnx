@@ -93,14 +93,15 @@ void initializeHumidityState(const Graph& tGraph,
     }
 }
 
-void solveHumidityImplicitStep(const Graph& tGraph,
-                               const NetworkTerms& terms,
-                               double dt,
-                               std::vector<double>& xNew,
-                               const std::vector<double>& xOld) {
+SolveStats solveHumidityImplicitStep(const Graph& tGraph,
+                                     const NetworkTerms& terms,
+                                     double dt,
+                                     std::vector<double>& xNew,
+                                     const std::vector<double>& xOld) {
     constexpr double rho = PhysicalConstants::DENSITY_DRY_AIR; // [kg/m3]
     const int maxIter = 80;
     const double tol = 1e-9;
+    SolveStats stats{};
 
     for (int it = 0; it < maxIter; ++it) {
         double maxDiff = 0.0;
@@ -151,8 +152,15 @@ void solveHumidityImplicitStep(const Graph& tGraph,
             maxDiff = std::max(maxDiff, std::abs(x - xNew[i]));
             xNew[i] = x;
         }
-        if (maxDiff < tol) break;
+        stats.iterations = it + 1;
+        stats.finalMaxDiff = maxDiff;
+        if (maxDiff < tol) {
+            stats.converged = true;
+            return stats;
+        }
     }
+    stats.converged = false;
+    return stats;
 }
 
 void applyHumidityStateToGraphs(Graph& tGraph,

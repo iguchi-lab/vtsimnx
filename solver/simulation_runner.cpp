@@ -513,6 +513,7 @@ void runSimulation(VentilationNetwork& ventNetwork,
                 std::vector<double> baseHeatSourceByVertex;
                 CoupledDelta lastDelta{};
                 double lastLatentAppliedW = 0.0;
+                core::humidity::HumiditySolveStats lastHumiditySolveStats{};
                 int coupledIter = 0;
                 while (true) {
                     ++coupledIter;
@@ -554,10 +555,17 @@ void runSimulation(VentilationNetwork& ventNetwork,
                         // 同一タイムステップ内反復なので、毎回 x_prev / w_prev に戻して再評価する。
                         restoreXPrevToGraph(thermalNetwork.getGraph(), ventNetwork, xPrevByVertex);
                         restoreWPrevToGraph(thermalNetwork.getGraph(), wPrevByVertex);
-                        core::humidity::updateHumidityIfEnabled(
+                        lastHumiditySolveStats = core::humidity::updateHumidityIfEnabled(
                             constants, ventNetwork, thermalNetwork, step.flowRates, logs, timings,
                             meta + ",iteration=" + std::to_string(iteration + 1) +
                                        ",coupledIter=" + std::to_string(coupledIter));
+                        if (logEnabled && !lastHumiditySolveStats.converged) {
+                            writeLog(
+                                logs,
+                                "湿気ソルバ未収束(内側反復継続): iter=" + std::to_string(lastHumiditySolveStats.iterations) +
+                                    ", maxDiff=" + std::to_string(lastHumiditySolveStats.finalMaxDiff) +
+                                    ", active=" + std::to_string(lastHumiditySolveStats.activeVertices));
+                        }
                         relaxHumidityByVertex(thermalNetwork.getGraph(), ventNetwork, prevHumidityByVertex, constants.humidityRelaxation);
                     }
 
@@ -595,7 +603,9 @@ void runSimulation(VentilationNetwork& ventNetwork,
                             "圧力変化量: " + std::to_string(delta.pressureChange) +
                                 " Pa, 温度変化量: " + std::to_string(delta.temperatureChange) +
                                 " K, 湿気変化量: " + std::to_string(delta.humidityChange) +
-                                " kg/kg(DA), 潜熱反映: " + std::to_string(latentStats.maxAppliedHeatW) + " W");
+                                " kg/kg(DA), 潜熱反映: " + std::to_string(latentStats.maxAppliedHeatW) +
+                                " W, 湿気反復: " + std::to_string(lastHumiditySolveStats.iterations) +
+                                ", 湿気残差: " + std::to_string(lastHumiditySolveStats.finalMaxDiff));
                     }
 
                     // 収束判定（2回目以降）
@@ -636,7 +646,9 @@ void runSimulation(VentilationNetwork& ventNetwork,
                                 << ", pressure=" << lastDelta.pressureChange << "/" << pTol
                                 << ", temperature=" << lastDelta.temperatureChange << "/" << tTol
                                 << ", humidity=" << lastDelta.humidityChange << "/" << xTol
-                                << ", latentApplied=" << lastLatentAppliedW << " W";
+                                << ", latentApplied=" << lastLatentAppliedW << " W"
+                                << ", humidityIter=" << lastHumiditySolveStats.iterations
+                                << ", humidityResidual=" << lastHumiditySolveStats.finalMaxDiff;
                             writeLog(logs, oss.str());
                         }
                         throw std::runtime_error("Maximum iteration count reached: stopping after maximum iteration count");
@@ -652,8 +664,8 @@ void runSimulation(VentilationNetwork& ventNetwork,
                 // 連成OFF時は従来互換: 外側ループごとに1回のみ湿気更新
                 restoreXPrevToGraph(thermalNetwork.getGraph(), ventNetwork, xPrevByVertex);
                 restoreWPrevToGraph(thermalNetwork.getGraph(), wPrevByVertex);
-                core::humidity::updateHumidityIfEnabled(constants, ventNetwork, thermalNetwork, step.flowRates, logs, timings,
-                                                        meta + ",iteration=" + std::to_string(iteration + 1));
+                (void)core::humidity::updateHumidityIfEnabled(constants, ventNetwork, thermalNetwork, step.flowRates, logs, timings,
+                                                              meta + ",iteration=" + std::to_string(iteration + 1));
             }
 
             // エアコン制御ロジック（連成計算後）

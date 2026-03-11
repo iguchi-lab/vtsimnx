@@ -20,6 +20,12 @@ struct NetworkTerms {
     std::vector<Vertex> updateVertices;
 };
 
+struct SolveStats {
+    int iterations = 0;
+    double finalMaxDiff = 0.0;
+    bool converged = true;
+};
+
 void buildHumidityNetworkTerms(const Graph& vGraph,
                                const Graph& tGraph,
                                const std::unordered_map<std::string, Vertex>& tKeyToV,
@@ -29,11 +35,11 @@ void initializeHumidityState(const Graph& tGraph,
                              std::vector<double>& xOld,
                              std::vector<double>& xNew);
 
-void solveHumidityImplicitStep(const Graph& tGraph,
-                               const NetworkTerms& terms,
-                               double dt,
-                               std::vector<double>& xNew,
-                               const std::vector<double>& xOld);
+SolveStats solveHumidityImplicitStep(const Graph& tGraph,
+                                     const NetworkTerms& terms,
+                                     double dt,
+                                     std::vector<double>& xNew,
+                                     const std::vector<double>& xOld);
 
 void applyHumidityStateToGraphs(Graph& tGraph,
                                 Graph& vGraph,

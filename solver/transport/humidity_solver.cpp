@@ -11,7 +11,7 @@ void updateHumidityIfEnabled(const SimulationConstants& constants,
                              TimingList& timings,
                              const std::string& meta) {
     // 互換レイヤ: transport API は維持しつつ、実体は core/humidity へ委譲する。
-    core::humidity::updateHumidityIfEnabled(constants, ventNetwork, thermalNetwork, flowRates, logs, timings, meta);
+    (void)core::humidity::updateHumidityIfEnabled(constants, ventNetwork, thermalNetwork, flowRates, logs, timings, meta);
 }
 
 } // namespace transport
