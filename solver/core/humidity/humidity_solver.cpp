@@ -1,6 +1,7 @@
 #include "core/humidity/humidity_solver.h"
 
 #include "core/humidity/humidity_coupling.h"
+#include "network/humidity_network.h"
 #include "network/thermal_network.h"
 #include "network/ventilation_network.h"
 
@@ -30,7 +31,10 @@ HumiditySolveStats updateHumidityIfEnabled(const SimulationConstants& constants,
 
     (void)flowRates; // エッジ直接走査方式に統一したため FlowRateMap は不使用
     HumidityNetworkTerms terms;
-    thermalNetwork.buildHumidityNetworkTerms(ventNetwork, terms);
+    HumidityNetwork::buildTerms(thermalNetwork.getGraph(),
+                                thermalNetwork.getKeyToVertex(),
+                                ventNetwork,
+                                terms);
     stats.activeVertices = static_cast<int>(terms.updateVertices.size());
     if (stats.activeVertices == 0) return stats;
 

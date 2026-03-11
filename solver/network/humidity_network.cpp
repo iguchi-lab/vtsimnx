@@ -1,15 +1,18 @@
-#include "network/thermal_network.h"
+#include "network/humidity_network.h"
 #include "network/ventilation_network.h"
+#include "types/common_types.h"
 
 #include <algorithm>
 
 #include <boost/range/iterator_range.hpp>
 
-void ThermalNetwork::buildHumidityNetworkTerms(const VentilationNetwork& ventNetwork,
-                                               HumidityNetworkTerms& terms) const {
-    const auto& tGraph = graph;
+void HumidityNetwork::buildTerms(const Graph& nodeGraph,
+                                 const std::unordered_map<std::string, Vertex>& nodeKeyToVertex,
+                                 const VentilationNetwork& ventNetwork,
+                                 HumidityNetworkTerms& terms) {
+    const auto& tGraph = nodeGraph;
     const auto& vGraph = ventNetwork.getGraph();
-    const auto& tKeyToV = keyToVertex;
+    const auto& tKeyToV = nodeKeyToVertex;
     const size_t nV = static_cast<size_t>(boost::num_vertices(tGraph));
 
     terms.genByVertex.clear();
