@@ -175,7 +175,9 @@ SimulationConstants parseSimulationConstants(const nlohmann::json& config,
             if (!cp["humidity_solver_max_iter"].is_number_integer()) {
                 throw std::runtime_error("Missing or invalid 'simulation.coupling.humidity_solver_max_iter' (integer required)");
             }
-            outConstants.humiditySolverMaxIter = cp["humidity_solver_max_iter"];
+            logLine([&](std::ostringstream& oss) {
+                oss << "  [WARN] simulation.coupling.humidity_solver_max_iter は廃止予定です（直接法のため無視されます）";
+            });
         }
         if (cp.contains("humidity_solver_tolerance")) {
             if (!cp["humidity_solver_tolerance"].is_number()) {
@@ -190,9 +192,6 @@ SimulationConstants parseSimulationConstants(const nlohmann::json& config,
     if (!(outConstants.latentRelaxation > 0.0 && outConstants.latentRelaxation <= 1.0)) {
         throw std::runtime_error("'simulation.coupling.latent_relaxation' must be in (0, 1]");
     }
-    if (!(outConstants.humiditySolverMaxIter > 0)) {
-        throw std::runtime_error("'simulation.coupling.humidity_solver_max_iter' must be > 0");
-    }
     if (!(outConstants.humiditySolverTolerance > 0.0)) {
         throw std::runtime_error("'simulation.coupling.humidity_solver_tolerance' must be > 0");
     }
@@ -200,7 +199,6 @@ SimulationConstants parseSimulationConstants(const nlohmann::json& config,
         oss << "  3ネットワーク連成: " << parser_utils::boolToString(outConstants.moistureCouplingEnabled)
             << ", humidity_relaxation=" << outConstants.humidityRelaxation
             << ", latent_relaxation=" << outConstants.latentRelaxation
-            << ", humidity_solver_max_iter=" << outConstants.humiditySolverMaxIter
             << ", humidity_solver_tolerance=" << outConstants.humiditySolverTolerance;
     });
 

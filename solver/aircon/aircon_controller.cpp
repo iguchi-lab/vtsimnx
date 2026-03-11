@@ -906,6 +906,29 @@ AirconController::applyLatentFeedbackToThermal(ThermalNetwork& thermalNetwork,
             if (!(latentQ > 0.0)) continue;
             if (nodeProps.in_node.empty()) continue;
 
+            // set_node が固定温度行で拘束されるケースでは、
+            // in_node への heat_source 注入が熱収支残差として残りやすい。
+            // （制御ノードの熱負荷は別経路で評価されるため、ここでは注入を抑止）
+            bool targetIsActiveSetpointNode = false;
+            for (const auto& key : getAirconKeys()) {
+                const auto& ac = thermalNetwork.getNode(key);
+                if (!ac.on) continue;
+                if (!ac.set_node.empty() && ac.set_node == nodeProps.in_node) {
+                    targetIsActiveSetpointNode = true;
+                    break;
+                }
+            }
+            if (targetIsActiveSetpointNode) {
+                if (logVerbosity_ >= 1) {
+                    std::ostringstream oss;
+                    oss << "　潜熱フィードバック: " << airconKey
+                        << " は setpoint 固定ノード(" << nodeProps.in_node
+                        << ")への注入をスキップ";
+                    writeLog(logs, oss.str());
+                }
+                continue;
+            }
+
             auto& inNode = thermalNetwork.getNode(nodeProps.in_node);
             const double deltaQ = -alpha * latentQ; // 冷房除湿は室側の熱源としては負（除熱）
             inNode.heat_source += deltaQ;

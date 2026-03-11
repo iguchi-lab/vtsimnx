@@ -42,7 +42,6 @@ HumiditySolveStats updateHumidityIfEnabled(const SimulationConstants& constants,
         tGraph,
         terms,
         dt,
-        constants.humiditySolverMaxIter,
         constants.humiditySolverTolerance,
         xNew,
         xOld);
