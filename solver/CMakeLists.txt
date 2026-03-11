@@ -22,6 +22,7 @@ set(PARSER_SOURCES
 
 set(NETWORK_SOURCES
     network/contaminant_network.cpp
+    network/contaminant_network_outputs.cpp
     network/ventilation_network.cpp
     network/ventilation_network_outputs.cpp
     network/thermal_network.cpp
