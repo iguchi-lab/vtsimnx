@@ -22,16 +22,20 @@ struct ContaminantNetworkTerms {
 class ContaminantNetwork {
 public:
     void buildTerms(const Graph& nodeGraph,
-                    const std::unordered_map<std::string, Vertex>& nodeKeyToVertex,
+                    const ThermalNetwork& thermalNetwork,
                     const VentilationNetwork& ventNetwork,
                     ContaminantNetworkTerms& terms) const;
 
     // 汚染物質濃度(c)の出力取得窓口
     const std::vector<std::string>& getOutputKeys(const ThermalNetwork& thermalNetwork) const;
     std::vector<double> collectOutputValues(const ThermalNetwork& thermalNetwork) const;
-    void invalidateOutputCache();
+    void invalidateCaches();
 
 private:
+    void ensureNodeIndex(const ThermalNetwork& thermalNetwork) const;
+
+    mutable bool nodeIndexInitialized = false;
+    mutable std::unordered_map<std::string, Vertex> nodeKeyToVertex;
     mutable bool outputCacheInitialized = false;
     mutable std::vector<Vertex> outputVerticesOrdered;
     mutable std::vector<std::string> outputKeysOrdered;

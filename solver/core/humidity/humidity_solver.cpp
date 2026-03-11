@@ -33,7 +33,7 @@ HumiditySolveStats updateHumidityIfEnabled(const SimulationConstants& constants,
     (void)flowRates; // エッジ直接走査方式に統一したため FlowRateMap は不使用
     HumidityNetworkTerms terms;
     humidityNetwork.buildTerms(thermalNetwork.getGraph(),
-                               thermalNetwork.getKeyToVertex(),
+                               thermalNetwork,
                                ventNetwork,
                                terms);
     stats.activeVertices = static_cast<int>(terms.updateVertices.size());

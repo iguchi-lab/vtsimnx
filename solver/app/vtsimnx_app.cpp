@@ -237,8 +237,8 @@ static bool runSimulationLoop(const InputData& inputData,
                 ScopedTimer timer(timings, "build_networks");
                 ventNetwork.buildFromData(allNodes, allVentilationBranches, simConstants, logs);
                 thermalNetwork.buildFromData(allNodes, allThermalBranches, allVentilationBranches, simConstants, logs);
-                humidityNetwork.invalidateOutputCache();
-                contaminantNetwork.invalidateOutputCache();
+                humidityNetwork.invalidateCaches();
+                contaminantNetwork.invalidateCaches();
             }
 
             if (simConstants.temperatureCalc) {

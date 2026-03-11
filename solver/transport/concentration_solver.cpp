@@ -26,7 +26,6 @@ void updateConcentrationIfEnabled(const SimulationConstants& constants,
 
     auto& tGraph = thermalNetwork.getGraph();
     auto& vGraph = ventNetwork.getGraph();
-    const auto& tKeyToV = thermalNetwork.getKeyToVertex();
     const auto& vKeyToV = ventNetwork.getKeyToVertex();
 
     const double dt = static_cast<double>(constants.timestep);
@@ -42,7 +41,7 @@ void updateConcentrationIfEnabled(const SimulationConstants& constants,
     }
 
     ContaminantNetworkTerms terms;
-    contaminantNetwork.buildTerms(tGraph, tKeyToV, ventNetwork, terms);
+    contaminantNetwork.buildTerms(tGraph, thermalNetwork, ventNetwork, terms);
 
     std::vector<double> cNew = cOld;
     for (Vertex v : terms.updateVertices) {

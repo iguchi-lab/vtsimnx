@@ -9,6 +9,7 @@
 #include <boost/range/iterator_range.hpp>
 
 const std::vector<std::string>& ContaminantNetwork::getOutputKeys(const ThermalNetwork& thermalNetwork) const {
+    ensureNodeIndex(thermalNetwork);
     if (!outputCacheInitialized) {
         const auto& graph = thermalNetwork.getGraph();
         std::vector<std::pair<std::string, Vertex>> items;
@@ -45,7 +46,9 @@ std::vector<double> ContaminantNetwork::collectOutputValues(const ThermalNetwork
     return values;
 }
 
-void ContaminantNetwork::invalidateOutputCache() {
+void ContaminantNetwork::invalidateCaches() {
+    nodeIndexInitialized = false;
+    nodeKeyToVertex.clear();
     outputCacheInitialized = false;
     outputVerticesOrdered.clear();
     outputKeysOrdered.clear();

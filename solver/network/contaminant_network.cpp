@@ -1,5 +1,6 @@
 #include "network/contaminant_network.h"
 
+#include "network/thermal_network.h"
 #include "network/ventilation_network.h"
 
 #include <algorithm>
@@ -7,9 +8,10 @@
 #include <boost/range/iterator_range.hpp>
 
 void ContaminantNetwork::buildTerms(const Graph& nodeGraph,
-                                    const std::unordered_map<std::string, Vertex>& nodeKeyToVertex,
+                                    const ThermalNetwork& thermalNetwork,
                                     const VentilationNetwork& ventNetwork,
                                     ContaminantNetworkTerms& terms) const {
+    ensureNodeIndex(thermalNetwork);
     const auto& tGraph = nodeGraph;
     const auto& vGraph = ventNetwork.getGraph();
     const auto& tKeyToV = nodeKeyToVertex;
@@ -74,5 +76,16 @@ void ContaminantNetwork::buildTerms(const Graph& nodeGraph,
     std::sort(terms.updateVertices.begin(), terms.updateVertices.end(), [&](Vertex a, Vertex b) {
         return tGraph[a].key < tGraph[b].key;
     });
+}
+
+void ContaminantNetwork::ensureNodeIndex(const ThermalNetwork& thermalNetwork) const {
+    if (nodeIndexInitialized) return;
+    nodeKeyToVertex.clear();
+    const auto& graph = thermalNetwork.getGraph();
+    nodeKeyToVertex.reserve(boost::num_vertices(graph));
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        nodeKeyToVertex.emplace(graph[v].key, v);
+    }
+    nodeIndexInitialized = true;
 }
 

@@ -9,6 +9,7 @@
 #include <boost/range/iterator_range.hpp>
 
 const std::vector<std::string>& HumidityNetwork::getOutputKeys(const ThermalNetwork& thermalNetwork) const {
+    ensureNodeIndex(thermalNetwork);
     if (!outputCacheInitialized) {
         const auto& graph = thermalNetwork.getGraph();
         std::vector<std::pair<std::string, Vertex>> items;
@@ -47,7 +48,9 @@ std::vector<double> HumidityNetwork::collectOutputValues(const ThermalNetwork& t
     return values;
 }
 
-void HumidityNetwork::invalidateOutputCache() {
+void HumidityNetwork::invalidateCaches() {
+    nodeIndexInitialized = false;
+    nodeKeyToVertex.clear();
     outputCacheInitialized = false;
     outputVerticesOrdered.clear();
     outputKeysOrdered.clear();
