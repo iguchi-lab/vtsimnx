@@ -137,6 +137,15 @@ static inline void captureXPrevByVertex(const Graph& graph, std::vector<double>&
     }
 }
 
+// タイムステップ開始時点の材料側含湿状態 w を保存する。
+static inline void captureWPrevByVertex(const Graph& graph, std::vector<double>& wPrev) {
+    const size_t vCount = static_cast<size_t>(boost::num_vertices(graph));
+    wPrev.resize(vCount);
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        wPrev[static_cast<size_t>(v)] = graph[v].current_w;
+    }
+}
+
 // 保存した x_prev を thermal/vent 両グラフへ復元する。
 // これにより、どのループ反復でも湿度計算は「タイムステップ開始時点から」スタートする。
 static inline void restoreXPrevToGraph(Graph& graph, VentilationNetwork& ventNetwork,
@@ -152,6 +161,16 @@ static inline void restoreXPrevToGraph(Graph& graph, VentilationNetwork& ventNet
             if (itV != vKeyToV.end()) {
                 vGraph[itV->second].current_x = xPrev[i];
             }
+        }
+    }
+}
+
+// 保存した w_prev を thermal 側へ復元する。
+static inline void restoreWPrevToGraph(Graph& graph, const std::vector<double>& wPrev) {
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        const size_t i = static_cast<size_t>(v);
+        if (i < wPrev.size()) {
+            graph[v].current_w = wPrev[i];
         }
     }
 }
@@ -389,8 +408,10 @@ void runSimulation(VentilationNetwork& ventNetwork,
     // エアコン制御ループが複数回まわる場合に、毎回同じ出発点から x を積分し直すために必要。
     // （ループ回数に関わらず計算結果が冪等になる）
     std::vector<double> xPrevByVertex;
+    std::vector<double> wPrevByVertex;
     if (constants.humidityCalc) {
         captureXPrevByVertex(thermalNetwork.getGraph(), xPrevByVertex);
+        captureWPrevByVertex(thermalNetwork.getGraph(), wPrevByVertex);
     }
 
     for (auto iteration = 0; iteration < static_cast<int>(constants.maxInnerIteration); iteration++) {
@@ -489,6 +510,7 @@ void runSimulation(VentilationNetwork& ventNetwork,
             //   x_prev を復元してから積分し直す。
             if (constants.humidityCalc) {
                 restoreXPrevToGraph(thermalNetwork.getGraph(), ventNetwork, xPrevByVertex);
+                restoreWPrevToGraph(thermalNetwork.getGraph(), wPrevByVertex);
             }
             transport::updateHumidityIfEnabled(constants, ventNetwork, thermalNetwork, step.flowRates, logs, timings,
                                                meta + ",iteration=" + std::to_string(iteration + 1));

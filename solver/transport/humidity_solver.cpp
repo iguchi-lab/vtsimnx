@@ -51,6 +51,7 @@ void updateHumidityIfEnabled(const SimulationConstants& constants,
     const size_t nV = static_cast<size_t>(boost::num_vertices(tGraph));
     std::vector<double> outSum(nV, 0.0);
     std::vector<std::vector<std::pair<Vertex, double>>> inflow(nV);
+    std::vector<std::vector<std::pair<Vertex, double>>> moistureLinks(nV);
 
     // ベントグラフのエッジを直接走査して inflow/outflow を構築する。
     // concentration_solver と同方式にすることで:
@@ -84,6 +85,19 @@ void updateHumidityIfEnabled(const SimulationConstants& constants,
         inflow[idxOf(dst)].push_back({src, mDot});
     }
 
+    // 湿気回路網（Phase1）:
+    // thermal_branches の moisture_conductance を「双方向の伝達係数」として扱う。
+    // 式の形: dxi/dt += (Kij/Ci) * (xj - xi)
+    for (auto e : boost::make_iterator_range(boost::edges(tGraph))) {
+        const auto& ep = tGraph[e];
+        const double k = ep.moisture_conductance;
+        if (!(k > 0.0)) continue;
+        const Vertex sv = boost::source(e, tGraph);
+        const Vertex tv = boost::target(e, tGraph);
+        moistureLinks[idxOf(sv)].push_back({tv, k});
+        moistureLinks[idxOf(tv)].push_back({sv, k});
+    }
+
     // 更新対象（calc_x=true）の頂点を key でソートして決定性を確保
     std::vector<Vertex> updateVertices;
     updateVertices.reserve(nV / 4 + 1);
@@ -112,13 +126,16 @@ void updateHumidityIfEnabled(const SimulationConstants& constants,
         for (Vertex v : updateVertices) {
             const size_t i = idxOf(v);
             const double V = tGraph[v].v; // [m3]
+            const double cap = (tGraph[v].moisture_capacity > 0.0)
+                                   ? tGraph[v].moisture_capacity
+                                   : (rho * V); // [kg/(kg/kg)] 相当
             const double g = [&]() -> double {
                 auto itG = genByVertex.find(v);
                 return (itG == genByVertex.end()) ? 0.0 : itG->second;
             }();
 
-            // v<=0 の場合は「流入混合のみ」（旧vtsim互換の安全側）で処理
-            if (!(V > 0.0)) {
+            // 容量が無い場合（境界ノード等）は流入混合のみ（既存互換）
+            if (!(cap > 0.0)) {
                 double sumIn = 0.0;
                 double sumInX = 0.0;
                 for (const auto& in : inflow[i]) {
@@ -134,16 +151,21 @@ void updateHumidityIfEnabled(const SimulationConstants& constants,
                 continue;
             }
 
-            const double mAir = rho * V;   // [kg]
             const double out = outSum[i];  // [kg/s]
-            const double denom = 1.0 + dt * out / mAir;
+            double denom = 1.0 + dt * out / cap;
 
             double rhs = xOld[i];
-            rhs += dt * (g / mAir); // g: [kg/s] -> kg/kg/s
+            rhs += dt * (g / cap); // g: [kg/s]
             for (const auto& in : inflow[i]) {
                 const Vertex sv = in.first;
                 const double md = in.second;
-                rhs += dt * (md / mAir) * xNew[idxOf(sv)];
+                rhs += dt * (md / cap) * xNew[idxOf(sv)];
+            }
+            for (const auto& lk : moistureLinks[i]) {
+                const Vertex ov = lk.first;
+                const double k = lk.second;
+                denom += dt * (k / cap);
+                rhs += dt * (k / cap) * xNew[idxOf(ov)];
             }
 
             const double x = rhs / denom;
@@ -157,6 +179,7 @@ void updateHumidityIfEnabled(const SimulationConstants& constants,
     for (Vertex v : updateVertices) {
         const size_t i = idxOf(v);
         tGraph[v].current_x = xNew[i];
+        tGraph[v].current_w = xNew[i];
         auto itV = vKeyToV.find(tGraph[v].key);
         if (itV != vKeyToV.end()) {
             vGraph[itV->second].current_x = xNew[i];

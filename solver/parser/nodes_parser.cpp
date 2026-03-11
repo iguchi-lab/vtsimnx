@@ -58,6 +58,7 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
         parser_utils::checkStringIfPresent(nodeJson, "set_node", nodePrefix);
         parser_utils::checkStringIfPresent(nodeJson, "outside_node", nodePrefix);
         parser_utils::checkStringIfPresent(nodeJson, "model", nodePrefix);
+        parser_utils::checkNumberIfPresent(nodeJson, "moisture_capacity", nodePrefix);
         node.key = nodeJson["key"].get<std::string>();
         if (nodeJson.contains("name"))   node.name = nodeJson["name"].get<std::string>();
         node.type = nodeJson["type"].get<std::string>();
@@ -103,6 +104,9 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
         if (nodeJson.contains("beta")) {
             node.current_beta = readSeries("beta", node.beta, 0.0);
         }
+        if (nodeJson.contains("w")) {
+            node.current_w = readSeries("w", node.w, 0.0);
+        }
         if (nodeJson.contains("pre_temp")) {
             node.current_pre_temp = readSeries("pre_temp", node.pre_temp, node.current_pre_temp);
         }
@@ -133,6 +137,10 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
         // 容積
         if (nodeJson.contains("v")) {
             node.v = parser_utils::getNumberIfPresent(nodeJson, "v", nodePrefix, 0.0);
+        }
+        if (nodeJson.contains("moisture_capacity")) {
+            node.moisture_capacity =
+                parser_utils::getNumberIfPresent(nodeJson, "moisture_capacity", nodePrefix, 0.0);
         }
 
         // エアコン仕様原本

@@ -14,6 +14,7 @@ from .heat_sources import build_heat_generation_branches
 from .moisture import build_humidity_generation_vents
 from .aircon import process_aircons
 from .thermal import process_capacities
+from .moisture_capacity import process_moisture_capacities
 from .validate import validate_dict, validate_dict_with_warnings, validate_dict_with_warning_details
 
 logger = get_logger(__name__)
@@ -30,6 +31,7 @@ def _resolve_builder_options(
     add_surface: bool | None,
     add_aircon: bool | None,
     add_capacity: bool | None,
+    add_moisture_capacity: bool | None,
     add_surface_solar: bool | None,
     add_surface_nocturnal: bool | None,
     add_surface_radiation: bool | None,
@@ -37,7 +39,7 @@ def _resolve_builder_options(
     surface_layer_method: str,
     response_method: str,
     response_terms: int | None,
-) -> tuple[bool, bool, bool, bool, bool, bool, bool, str, str, int | None]:
+) -> tuple[bool, bool, bool, bool, bool, bool, bool, bool, str, str, int | None]:
     builder_opt = raw.get("builder")
     if isinstance(builder_opt, dict):
         if add_surface is None:
@@ -46,6 +48,8 @@ def _resolve_builder_options(
             add_aircon = _pick_bool(builder_opt, "add_aircon")
         if add_capacity is None:
             add_capacity = _pick_bool(builder_opt, "add_capacity")
+        if add_moisture_capacity is None:
+            add_moisture_capacity = _pick_bool(builder_opt, "add_moisture_capacity")
         if add_surface_solar is None:
             add_surface_solar = _pick_bool(builder_opt, "add_surface_solar")
         if add_surface_nocturnal is None:
@@ -62,6 +66,8 @@ def _resolve_builder_options(
         add_aircon = raw.get("add_aircon")
     if add_capacity is None and isinstance(raw.get("add_capacity"), bool):
         add_capacity = raw.get("add_capacity")
+    if add_moisture_capacity is None and isinstance(raw.get("add_moisture_capacity"), bool):
+        add_moisture_capacity = raw.get("add_moisture_capacity")
     if add_surface_solar is None and isinstance(raw.get("add_surface_solar"), bool):
         add_surface_solar = raw.get("add_surface_solar")
     if add_surface_nocturnal is None and isinstance(raw.get("add_surface_nocturnal"), bool):
@@ -75,6 +81,7 @@ def _resolve_builder_options(
     add_surface = True if add_surface is None else bool(add_surface)
     add_aircon = True if add_aircon is None else bool(add_aircon)
     add_capacity = True if add_capacity is None else bool(add_capacity)
+    add_moisture_capacity = True if add_moisture_capacity is None else bool(add_moisture_capacity)
     add_surface_solar = True if add_surface_solar is None else bool(add_surface_solar)
     add_surface_nocturnal = True if add_surface_nocturnal is None else bool(add_surface_nocturnal)
     add_surface_radiation = True if add_surface_radiation is None else bool(add_surface_radiation)
@@ -116,6 +123,7 @@ def _resolve_builder_options(
         add_surface,
         add_aircon,
         add_capacity,
+        add_moisture_capacity,
         add_surface_solar,
         add_surface_nocturnal,
         add_surface_radiation,
@@ -132,6 +140,7 @@ def _build_output_json(
     add_surface: bool,
     add_aircon: bool,
     add_capacity: bool,
+    add_moisture_capacity: bool,
     add_surface_solar: bool,
     add_surface_nocturnal: bool,
     add_surface_radiation: bool,
@@ -224,6 +233,13 @@ def _build_output_json(
     else:
         logger.info("熱容量の処理をスキップします。")
 
+    if add_moisture_capacity:
+        add_nodes, add_thermal_branches = process_moisture_capacities(node_config, sim_config["index"]["timestep"])
+        node_config.extend(add_nodes)
+        thermal_config.extend(add_thermal_branches)
+    else:
+        logger.info("湿気容量の処理をスキップします。")
+
     logger.info("計算フラグの自動設定を開始します")
     for flag in ("p", "t", "x", "c"):
         has_flag = any(
@@ -260,6 +276,7 @@ def _build_core(
     add_surface: bool | None,
     add_aircon: bool | None,
     add_capacity: bool | None,
+    add_moisture_capacity: bool | None,
     add_surface_solar: bool | None,
     add_surface_nocturnal: bool | None,
     add_surface_radiation: bool | None,
@@ -278,6 +295,7 @@ def _build_core(
             add_surface,
             add_aircon,
             add_capacity,
+            add_moisture_capacity,
             add_surface_solar,
             add_surface_nocturnal,
             add_surface_radiation,
@@ -290,6 +308,7 @@ def _build_core(
             add_surface=add_surface,
             add_aircon=add_aircon,
             add_capacity=add_capacity,
+            add_moisture_capacity=add_moisture_capacity,
             add_surface_solar=add_surface_solar,
             add_surface_nocturnal=add_surface_nocturnal,
             add_surface_radiation=add_surface_radiation,
@@ -304,6 +323,7 @@ def _build_core(
             add_surface=add_surface,
             add_aircon=add_aircon,
             add_capacity=add_capacity,
+            add_moisture_capacity=add_moisture_capacity,
             add_surface_solar=add_surface_solar,
             add_surface_nocturnal=add_surface_nocturnal,
             add_surface_radiation=add_surface_radiation,
@@ -343,6 +363,7 @@ def build_config_with_warnings(
     add_surface: bool | None = None,
     add_aircon: bool | None = None,
     add_capacity: bool | None = None,
+    add_moisture_capacity: bool | None = None,
     add_surface_solar: bool | None = None,
     add_surface_nocturnal: bool | None = None,
     add_surface_radiation: bool | None = None,
@@ -367,6 +388,7 @@ def build_config_with_warnings(
             add_surface=add_surface,
             add_aircon=add_aircon,
             add_capacity=add_capacity,
+            add_moisture_capacity=add_moisture_capacity,
             add_surface_solar=add_surface_solar,
             add_surface_nocturnal=add_surface_nocturnal,
             add_surface_radiation=add_surface_radiation,
@@ -390,6 +412,7 @@ def build_config_with_warning_details(
     add_surface: bool | None = None,
     add_aircon: bool | None = None,
     add_capacity: bool | None = None,
+    add_moisture_capacity: bool | None = None,
     add_surface_solar: bool | None = None,
     add_surface_nocturnal: bool | None = None,
     add_surface_radiation: bool | None = None,
@@ -409,6 +432,7 @@ def build_config_with_warning_details(
         add_surface=add_surface,
         add_aircon=add_aircon,
         add_capacity=add_capacity,
+        add_moisture_capacity=add_moisture_capacity,
         add_surface_solar=add_surface_solar,
         add_surface_nocturnal=add_surface_nocturnal,
         add_surface_radiation=add_surface_radiation,
@@ -430,6 +454,7 @@ def build_config(
     add_surface: bool | None = None,
     add_aircon: bool | None = None,
     add_capacity: bool | None = None,
+    add_moisture_capacity: bool | None = None,
     add_surface_solar: bool | None = None,
     add_surface_nocturnal: bool | None = None,
     add_surface_radiation: bool | None = None,
@@ -451,6 +476,7 @@ def build_config(
         add_surface=add_surface,
         add_aircon=add_aircon,
         add_capacity=add_capacity,
+        add_moisture_capacity=add_moisture_capacity,
         add_surface_solar=add_surface_solar,
         add_surface_nocturnal=add_surface_nocturnal,
         add_surface_radiation=add_surface_radiation,

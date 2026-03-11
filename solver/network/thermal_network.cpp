@@ -117,7 +117,7 @@ void ThermalNetwork::buildFromData(const std::vector<VertexProperties>& allNodes
         if (verbosity < 0) verbosity = 1;
         // 熱ブランチの両端ノードを収集
         std::set<std::string> allNodeKeys;
-        if (simConstants.temperatureCalc) {
+        if (simConstants.temperatureCalc || simConstants.humidityCalc) {
             for (const auto& edge : thermalBranches) {
                 allNodeKeys.insert(edge.source);
                 allNodeKeys.insert(edge.target);
@@ -145,8 +145,10 @@ void ThermalNetwork::buildFromData(const std::vector<VertexProperties>& allNodes
             }
         }
 
-        // 熱ブランチを追加（温度計算が有効な場合のみ）
-        if (simConstants.temperatureCalc) {
+        // 熱ブランチを追加
+        // - 温度計算: 従来どおり全て利用
+        // - 湿度計算: moisture_conductance を持つ枝を humidity_solver が参照するため読み込む
+        if (simConstants.temperatureCalc || simConstants.humidityCalc) {
             for (const auto& edge : thermalBranches) {
                 addEdge(edge);
             }

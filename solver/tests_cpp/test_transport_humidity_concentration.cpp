@@ -332,6 +332,66 @@ int main() {
         expectNear(actual, expected, 1e-12, "duplicate edge flow must be summed (not overwritten)");
     }
 
+    // ------------------------------------------------------------------
+    // 5) humidity network (Phase1): moisture_conductance + moisture_capacity
+    //    空気ノードと材料ノードの間で湿気交換する（換気流なし）
+    // ------------------------------------------------------------------
+    {
+        auto ROOM = makeNode("ROOM");
+        ROOM.calc_x = true;
+        ROOM.current_x = 0.010;
+        ROOM.v = 100.0; // 空気側容量は rho*V
+
+        auto MAT = makeNode("MAT");
+        MAT.calc_x = true;
+        MAT.current_x = 0.002;
+        MAT.v = 0.0;
+        MAT.moisture_capacity = 50.0; // 材料側容量
+
+        std::vector<VertexProperties> nodes = {ROOM, MAT};
+        std::vector<EdgeProperties> ventEdges = {};
+        std::vector<EdgeProperties> thEdges = {};
+        EdgeProperties m{};
+        m.key = "MAT->ROOM";
+        m.unique_id = "MAT->ROOM";
+        m.type = "conductance";
+        m.source = "MAT";
+        m.target = "ROOM";
+        m.moisture_conductance = 0.002; // [kg/s]
+        thEdges.push_back(m);
+
+        VentilationNetwork vent;
+        ThermalNetwork thermal;
+        vent.buildFromData(nodes, ventEdges, constants, logs);
+        thermal.buildFromData(nodes, thEdges, ventEdges, constants, logs);
+
+        FlowRateMap emptyFlows;
+        transport::updateHumidityIfEnabled(constants, vent, thermal, emptyFlows, logs, timings, "test");
+
+        const auto& tG = thermal.getGraph();
+        const auto& tMap = thermal.getKeyToVertex();
+        const auto itRoom = tMap.find("ROOM");
+        const auto itMat = tMap.find("MAT");
+        if (itRoom == tMap.end() || itMat == tMap.end()) {
+            throw std::runtime_error("missing ROOM or MAT");
+        }
+        const double xRoom1 = tG[itRoom->second].current_x;
+        const double xMat1 = tG[itMat->second].current_x;
+        // 交換のみなので ROOM は減少、MAT は増加する
+        if (!(xRoom1 < ROOM.current_x)) {
+            throw std::runtime_error("moisture network: ROOM humidity must decrease");
+        }
+        if (!(xMat1 > MAT.current_x)) {
+            throw std::runtime_error("moisture network: MAT humidity must increase");
+        }
+        // 質量保存（容量重み平均がほぼ保存）
+        const double cRoom = PhysicalConstants::DENSITY_DRY_AIR * ROOM.v;
+        const double cMat = MAT.moisture_capacity;
+        const double m0 = cRoom * ROOM.current_x + cMat * MAT.current_x;
+        const double m1 = cRoom * xRoom1 + cMat * xMat1;
+        expectNear(m1, m0, 1e-7, "moisture network mass conservation");
+    }
+
     std::cout << "[OK] all tests passed\n";
     return 0;
 }

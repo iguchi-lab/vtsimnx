@@ -202,10 +202,14 @@ std::vector<EdgeProperties> parseThermalBranches(const json& config, std::ostrea
         branch.source = requireStringAndGet(branchJson, "source", branchPrefix);
         branch.target = requireStringAndGet(branchJson, "target", branchPrefix);
         parser_utils::checkNumberIfPresent(branchJson, "conductance", branchPrefix);
+        parser_utils::checkNumberIfPresent(branchJson, "moisture_conductance", branchPrefix);
         parser_utils::checkNumberIfPresent(branchJson, "area", branchPrefix);
         if (branchJson.contains("subtype"))      branch.subtype      = branchJson["subtype"].get<std::string>();
         if (branchJson.contains("comment"))      branch.comment      = branchJson["comment"].get<std::string>();
         if (branchJson.contains("conductance"))  branch.conductance  = branchJson["conductance"].get<double>();
+        if (branchJson.contains("moisture_conductance")) {
+            branch.moisture_conductance = branchJson["moisture_conductance"].get<double>();
+        }
         if (branchJson.contains("area"))         branch.area         = branchJson["area"].get<double>();
 
         // response_conduction 用係数（配列）

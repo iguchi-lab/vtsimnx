@@ -38,13 +38,18 @@ struct VertexProperties {
     bool calc_x = false;
     bool calc_c = false;
     std::vector<double> p;
-    double current_p;
+    double current_p = 0.0;
     std::vector<double> t;
-    double current_t;
+    double current_t = 0.0;
     std::vector<double> x;
-    double current_x;
+    double current_x = 0.0;
+    // 材料側などの含湿状態（Phase1 湿気回路網）
+    std::vector<double> w;
+    double current_w = 0.0;
+    // 湿気容量 [kg/(kg/kg)]（0以下は容量なしとして扱う）
+    double moisture_capacity = 0.0;
     std::vector<double> c;
-    double current_c;
+    double current_c = 0.0;
     // 濃度の沈着率 [1/s]（濃度計算用）
     std::vector<double> beta;
     double current_beta = 0.0;
@@ -67,6 +72,9 @@ struct VertexProperties {
         }
         if (!x.empty() && static_cast<size_t>(timestep) < x.size()) {
             current_x = x[timestep];
+        }
+        if (!w.empty() && static_cast<size_t>(timestep) < w.size()) {
+            current_w = w[timestep];
         }
         if (!c.empty() && static_cast<size_t>(timestep) < c.size()) {
             current_c = c[timestep];
@@ -151,6 +159,8 @@ struct EdgeProperties {
     double current_humidity_generation = 0.0;
     std::vector<double> dust_generation;
     double current_dust_generation = 0.0;
+    // 湿気回路網（Phase1）: source-target の湿気伝達コンダクタンス [kg/s]
+    double moisture_conductance = 0.0;
 
     // -----------------------------------------------------------------
     // 応答係数（CTF/応答係数法）用: 両端表面の熱流を別々に表現する二端子要素

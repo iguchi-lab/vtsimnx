@@ -226,6 +226,7 @@ class SimulationRequest(BaseModel):
     add_surface: Optional[bool] = None
     add_aircon: Optional[bool] = None
     add_capacity: Optional[bool] = None
+    add_moisture_capacity: Optional[bool] = None
     add_surface_solar: Optional[bool] = None
     add_surface_nocturnal: Optional[bool] = None
     add_surface_radiation: Optional[bool] = None
@@ -280,6 +281,7 @@ def run_simulation(req: SimulationRequest):
                     add_surface=req.add_surface,
                     add_aircon=req.add_aircon,
                     add_capacity=req.add_capacity,
+                    add_moisture_capacity=req.add_moisture_capacity,
                     add_surface_solar=req.add_surface_solar,
                     add_surface_nocturnal=req.add_surface_nocturnal,
                     add_surface_radiation=req.add_surface_radiation,
@@ -333,6 +335,7 @@ def _run_simulation_core(
     add_surface: Optional[bool] = None,
     add_aircon: Optional[bool] = None,
     add_capacity: Optional[bool] = None,
+    add_moisture_capacity: Optional[bool] = None,
     add_surface_solar: Optional[bool] = None,
     add_surface_nocturnal: Optional[bool] = None,
     add_surface_radiation: Optional[bool] = None,
@@ -353,6 +356,7 @@ def _run_simulation_core(
             add_surface=add_surface,
             add_aircon=add_aircon,
             add_capacity=add_capacity,
+            add_moisture_capacity=add_moisture_capacity,
             add_surface_solar=add_surface_solar,
             add_surface_nocturnal=add_surface_nocturnal,
             add_surface_radiation=add_surface_radiation,
