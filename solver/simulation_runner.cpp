@@ -2,7 +2,7 @@
 #include "network/ventilation_network.h"
 #include "network/thermal_network.h"
 #include "aircon/aircon_controller.h"
-#include "transport/humidity_solver.h"
+#include "core/humidity/humidity_solver.h"
 #include "transport/concentration_solver.h"
 #include "utils/utils.h"
 
@@ -554,7 +554,7 @@ void runSimulation(VentilationNetwork& ventNetwork,
                         // 同一タイムステップ内反復なので、毎回 x_prev / w_prev に戻して再評価する。
                         restoreXPrevToGraph(thermalNetwork.getGraph(), ventNetwork, xPrevByVertex);
                         restoreWPrevToGraph(thermalNetwork.getGraph(), wPrevByVertex);
-                        transport::updateHumidityIfEnabled(
+                        core::humidity::updateHumidityIfEnabled(
                             constants, ventNetwork, thermalNetwork, step.flowRates, logs, timings,
                             meta + ",iteration=" + std::to_string(iteration + 1) +
                                        ",coupledIter=" + std::to_string(coupledIter));
@@ -652,8 +652,8 @@ void runSimulation(VentilationNetwork& ventNetwork,
                 // 連成OFF時は従来互換: 外側ループごとに1回のみ湿気更新
                 restoreXPrevToGraph(thermalNetwork.getGraph(), ventNetwork, xPrevByVertex);
                 restoreWPrevToGraph(thermalNetwork.getGraph(), wPrevByVertex);
-                transport::updateHumidityIfEnabled(constants, ventNetwork, thermalNetwork, step.flowRates, logs, timings,
-                                                   meta + ",iteration=" + std::to_string(iteration + 1));
+                core::humidity::updateHumidityIfEnabled(constants, ventNetwork, thermalNetwork, step.flowRates, logs, timings,
+                                                        meta + ",iteration=" + std::to_string(iteration + 1));
             }
 
             // エアコン制御ロジック（連成計算後）
