@@ -10,23 +10,10 @@
 #include <sstream>
 #include <limits>
 #include <cmath>
-#include <tuple>
 #include <fstream>
 #include <ostream>
 #include <string>
 #include <boost/range/iterator_range.hpp>
-
-// 圧力変化量を計算
-double calculatePressureChange(const PressureMap& oldPressures, const PressureMap& newPressures) {
-    double maxChange = 0.0;
-    for (const auto& [name, newPress] : newPressures) {
-        auto it = oldPressures.find(name);
-        double oldPress = (it != oldPressures.end()) ? it->second : 0.0;
-        double change = std::abs(newPress - oldPress);
-        maxChange = std::max(maxChange, change);
-    }
-    return maxChange;
-}
 
 // 連成計算（pressure/thermal）1回分の「確定データ」をまとめる
 struct CoupledStepData {
@@ -335,20 +322,6 @@ static void buildTimestepResult(const SimulationConstants& constants,
 }
 
 } // namespace
-
-// 換気・熱計算の連成を行う関数（公開API互換: tuple を返す）
-std::tuple<PressureMap, FlowRateMap, FlowBalanceMap>
-performCoupledCalculation(VentilationNetwork& ventNetwork,
-                          ThermalNetwork& thermalNetwork,
-                          const SimulationConstants& constants,
-                          std::ostream& logs,
-                          int& totalIterations,
-                          TimingList& timings,
-                          const std::string& meta) {
-    CoupledStepData step = performCoupledStepCalculation(
-        ventNetwork, thermalNetwork, constants, logs, totalIterations, timings, meta);
-    return {step.pressureMap, step.flowRates, step.flowBalance};
-}
 
 // 換気・熱計算の「1回分」を実行する（runSimulation 側で収束反復を制御する）
 static CoupledStepData
