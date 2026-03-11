@@ -104,7 +104,15 @@ int main() {
         vent.updatePropertiesForTimestep(nodes, ventEdges, 0);
 
         FlowRateMap flowRates = vent.collectFlowRateMap(); // (A,B)->0.1
-        (void)core::humidity::updateHumidityIfEnabled(constants, vent, thermal, humidity, flowRates, logs, timings, "test");
+        (void)core::humidity::updateHumidityIfEnabled(constants,
+                                                      vent,
+                                                      thermal.getGraph(),
+                                                      static_cast<const ThermalNetwork&>(thermal).nodeStateView(),
+                                                      humidity,
+                                                      flowRates,
+                                                      logs,
+                                                      timings,
+                                                      "test");
 
         // humidity_x keys: calc_x=true の B に加え、v<=0 の void も出力対象になるはず
         const auto& humidityKeys = humidity.getOutputKeys(static_cast<const ThermalNetwork&>(thermal).nodeStateView());
@@ -184,7 +192,14 @@ int main() {
         vent.buildFromData(nodes, ventEdges, constants, logs);
         thermal.buildFromData(nodes, thEdges, ventEdges, constants, logs);
 
-        transport::updateConcentrationIfEnabled(constants, vent, thermal, contaminant, logs, timings, "test");
+        transport::updateConcentrationIfEnabled(constants,
+                                                vent,
+                                                thermal.getGraph(),
+                                                static_cast<const ThermalNetwork&>(thermal).nodeStateView(),
+                                                contaminant,
+                                                logs,
+                                                timings,
+                                                "test");
 
         const double dt = static_cast<double>(constants.timestep);
         const double expected = 100.0 * std::exp(-1e-5 * dt);
@@ -235,7 +250,14 @@ int main() {
         thermal.buildFromData(nodes, thEdges, ventEdges, constants, logs);
         vent.updatePropertiesForTimestep(nodes, ventEdges, 0);
 
-        transport::updateConcentrationIfEnabled(constants, vent, thermal, contaminant, logs, timings, "test");
+        transport::updateConcentrationIfEnabled(constants,
+                                                vent,
+                                                thermal.getGraph(),
+                                                static_cast<const ThermalNetwork&>(thermal).nodeStateView(),
+                                                contaminant,
+                                                logs,
+                                                timings,
+                                                "test");
 
         // k1 = m/V, k2 = beta
         const double dt = static_cast<double>(constants.timestep);
@@ -321,7 +343,15 @@ int main() {
             throw std::runtime_error(oss.str());
         }
 
-        (void)core::humidity::updateHumidityIfEnabled(constants, vent, thermal, humidity, flowRates, logs, timings, "test");
+        (void)core::humidity::updateHumidityIfEnabled(constants,
+                                                      vent,
+                                                      thermal.getGraph(),
+                                                      static_cast<const ThermalNetwork&>(thermal).nodeStateView(),
+                                                      humidity,
+                                                      flowRates,
+                                                      logs,
+                                                      timings,
+                                                      "test");
 
         // ROOM should approach SRC humidity (0.010), not decay toward 0
         const double dt = static_cast<double>(constants.timestep);
@@ -373,7 +403,15 @@ int main() {
         thermal.buildFromData(nodes, thEdges, ventEdges, constants, logs);
 
         FlowRateMap emptyFlows;
-        (void)core::humidity::updateHumidityIfEnabled(constants, vent, thermal, humidity, emptyFlows, logs, timings, "test");
+        (void)core::humidity::updateHumidityIfEnabled(constants,
+                                                      vent,
+                                                      thermal.getGraph(),
+                                                      static_cast<const ThermalNetwork&>(thermal).nodeStateView(),
+                                                      humidity,
+                                                      emptyFlows,
+                                                      logs,
+                                                      timings,
+                                                      "test");
 
         const auto& tG = thermal.getGraph();
         const auto& tMap = thermal.getKeyToVertex();

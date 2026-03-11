@@ -1,10 +1,11 @@
 #pragma once
 
 #include "types/common_types.h"
+#include "network/node_state_view.h"
+#include "types/graph_types.h"
 #include "vtsimnx_solver_timing.h"
 
 class VentilationNetwork;
-class ThermalNetwork;
 class HumidityNetwork;
 
 namespace core::humidity {
@@ -22,7 +23,8 @@ struct HumiditySolveStats {
 // - flowRates は現状未使用（換気グラフの枝流量を直接参照）だが、API互換のため受け取る。
 HumiditySolveStats updateHumidityIfEnabled(const SimulationConstants& constants,
                                            VentilationNetwork& ventNetwork,
-                                           ThermalNetwork& thermalNetwork,
+                                           Graph& nodeGraph,
+                                           ConstNodeStateView nodeState,
                                            HumidityNetwork& humidityNetwork,
                                            const FlowRateMap& flowRates,
                                            std::ostream& logs,

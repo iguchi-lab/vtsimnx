@@ -1,10 +1,11 @@
 #pragma once
 
 #include "types/common_types.h"
+#include "network/node_state_view.h"
+#include "types/graph_types.h"
 #include "vtsimnx_solver_timing.h"
 
 class VentilationNetwork;
-class ThermalNetwork;
 class ContaminantNetwork;
 
 namespace transport {
@@ -17,7 +18,8 @@ namespace transport {
 // - constants.concentrationCalc=false の場合は何もしない。
 void updateConcentrationIfEnabled(const SimulationConstants& constants,
                                   VentilationNetwork& ventNetwork,
-                                  ThermalNetwork& thermalNetwork,
+                                  Graph& nodeGraph,
+                                  ConstNodeStateView nodeState,
                                   ContaminantNetwork& contaminantNetwork,
                                   std::ostream& logs,
                                   TimingList& timings,

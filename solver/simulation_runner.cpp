@@ -174,7 +174,12 @@ static void runCoupledInnerLoop(VentilationNetwork& ventNetwork,
             restoreXPrevToGraph(thermalNetwork.getGraph(), ventNetwork, xPrevByVertex);
             restoreWPrevToGraph(thermalNetwork.getGraph(), wPrevByVertex);
             lastHumiditySolveStats = core::humidity::updateHumidityIfEnabled(
-                constants, ventNetwork, thermalNetwork, humidityNetwork, step.flowRates, logs, timings,
+                constants,
+                ventNetwork,
+                thermalNetwork.getGraph(),
+                static_cast<const ThermalNetwork&>(thermalNetwork).nodeStateView(),
+                humidityNetwork,
+                step.flowRates, logs, timings,
                 meta + ",iteration=" + std::to_string(outerIteration + 1) +
                            ",coupledIter=" + std::to_string(coupledIter));
             if (logEnabled && !lastHumiditySolveStats.converged) {
@@ -450,7 +455,9 @@ void runSimulation(VentilationNetwork& ventNetwork,
                 // 連成OFF時は従来互換: 外側ループごとに1回のみ湿気更新
                 restoreXPrevToGraph(thermalNetwork.getGraph(), ventNetwork, xPrevByVertex);
                 restoreWPrevToGraph(thermalNetwork.getGraph(), wPrevByVertex);
-                (void)core::humidity::updateHumidityIfEnabled(constants, ventNetwork, thermalNetwork, humidityNetwork,
+                (void)core::humidity::updateHumidityIfEnabled(constants, ventNetwork, thermalNetwork.getGraph(),
+                                                              static_cast<const ThermalNetwork&>(thermalNetwork).nodeStateView(),
+                                                              humidityNetwork,
                                                               step.flowRates, logs, timings,
                                                               meta + ",iteration=" + std::to_string(iteration + 1));
             }
@@ -500,7 +507,14 @@ void runSimulation(VentilationNetwork& ventNetwork,
     }
 
     // 濃度（c）更新：エアコン制御が完了した後でOK（エアコン制御には影響しない想定）
-    transport::updateConcentrationIfEnabled(constants, ventNetwork, thermalNetwork, contaminantNetwork, logs, timings, meta);
+    transport::updateConcentrationIfEnabled(constants,
+                                            ventNetwork,
+                                            thermalNetwork.getGraph(),
+                                            static_cast<const ThermalNetwork&>(thermalNetwork).nodeStateView(),
+                                            contaminantNetwork,
+                                            logs,
+                                            timings,
+                                            meta);
 
     // 1タイムステップ分の結果を構築（呼び出し側で即座に書き出す想定）
     buildTimestepResult(constants, ventNetwork, thermalNetwork, humidityNetwork, contaminantNetwork,

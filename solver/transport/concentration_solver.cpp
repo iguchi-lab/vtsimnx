@@ -1,7 +1,6 @@
 #include "transport/concentration_solver.h"
 
 #include "network/contaminant_network.h"
-#include "network/thermal_network.h"
 #include "network/ventilation_network.h"
 #include "utils/utils.h"
 
@@ -14,7 +13,8 @@ namespace transport {
 
 void updateConcentrationIfEnabled(const SimulationConstants& constants,
                                   VentilationNetwork& ventNetwork,
-                                  ThermalNetwork& thermalNetwork,
+                                  Graph& nodeGraph,
+                                  ConstNodeStateView nodeState,
                                   ContaminantNetwork& contaminantNetwork,
                                   std::ostream& logs,
                                   TimingList& timings,
@@ -24,7 +24,7 @@ void updateConcentrationIfEnabled(const SimulationConstants& constants,
 
     ScopedTimer timer(timings, "concentration_update", meta);
 
-    auto& tGraph = thermalNetwork.getGraph();
+    auto& tGraph = nodeGraph;
     auto& vGraph = ventNetwork.getGraph();
     const auto& vKeyToV = ventNetwork.getKeyToVertex();
 
@@ -41,7 +41,7 @@ void updateConcentrationIfEnabled(const SimulationConstants& constants,
     }
 
     ContaminantNetworkTerms terms;
-    contaminantNetwork.buildTerms(static_cast<const ThermalNetwork&>(thermalNetwork).nodeStateView(), ventNetwork, terms);
+    contaminantNetwork.buildTerms(nodeState, ventNetwork, terms);
 
     std::vector<double> cNew = cOld;
     for (Vertex v : terms.updateVertices) {

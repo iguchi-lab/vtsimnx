@@ -2,7 +2,6 @@
 
 #include "core/humidity/humidity_coupling.h"
 #include "network/humidity_network.h"
-#include "network/thermal_network.h"
 #include "network/ventilation_network.h"
 
 #include <vector>
@@ -11,7 +10,8 @@ namespace core::humidity {
 
 HumiditySolveStats updateHumidityIfEnabled(const SimulationConstants& constants,
                                            VentilationNetwork& ventNetwork,
-                                           ThermalNetwork& thermalNetwork,
+                                           Graph& nodeGraph,
+                                           ConstNodeStateView nodeState,
                                            HumidityNetwork& humidityNetwork,
                                            const FlowRateMap& flowRates,
                                            std::ostream& logs,
@@ -23,7 +23,7 @@ HumiditySolveStats updateHumidityIfEnabled(const SimulationConstants& constants,
 
     ScopedTimer timer(timings, "humidity_update", meta);
 
-    auto& tGraph = thermalNetwork.getGraph();
+    auto& tGraph = nodeGraph;
     auto& vGraph = ventNetwork.getGraph();
     const auto& vKeyToV = ventNetwork.getKeyToVertex();
 
@@ -32,7 +32,7 @@ HumiditySolveStats updateHumidityIfEnabled(const SimulationConstants& constants,
 
     (void)flowRates; // エッジ直接走査方式に統一したため FlowRateMap は不使用
     HumidityNetworkTerms terms;
-    humidityNetwork.buildTerms(static_cast<const ThermalNetwork&>(thermalNetwork).nodeStateView(), ventNetwork, terms);
+    humidityNetwork.buildTerms(nodeState, ventNetwork, terms);
     stats.activeVertices = static_cast<int>(terms.updateVertices.size());
     if (stats.activeVertices == 0) return stats;
 
