@@ -359,6 +359,38 @@ if(VTSIMNX_BUILD_CPP_TESTS)
     add_test(NAME vtsimnx_solver_cpp_test_transport_humidity_concentration
              COMMAND vtsimnx_solver_cpp_test_transport_humidity_concentration)
 
+    # 7c) core humidity entry: core API and transport wrapper must stay equivalent
+    add_executable(vtsimnx_solver_cpp_test_core_humidity_solver_entry
+        tests_cpp/test_core_humidity_solver_entry.cpp
+        core/humidity/humidity_solver.cpp
+        core/humidity/humidity_coupling.cpp
+        transport/humidity_solver.cpp
+        network/ventilation_network.cpp
+        network/thermal_network.cpp
+        core/ventilation/pressure_solver.cpp
+        core/ventilation/pressure_solver_ceres.cpp
+        core/ventilation/pressure_solver_fallback.cpp
+        core/ventilation/pressure_constraints.cpp
+        core/thermal/thermal_solver.cpp
+        core/thermal/thermal_solver_linear_direct.cpp
+        core/thermal/thermal_direct_internal.cpp
+        core/thermal/thermal_direct_topology.cpp
+        core/thermal/thermal_direct_rhs.cpp
+        core/thermal/thermal_direct_build.cpp
+        core/thermal/thermal_direct_solve.cpp
+        core/thermal/thermal_direct_postprocess.cpp
+    )
+    target_link_libraries(vtsimnx_solver_cpp_test_core_humidity_solver_entry
+        Boost::boost
+        ceres
+    )
+    target_compile_options(vtsimnx_solver_cpp_test_core_humidity_solver_entry PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_test_core_humidity_solver_entry
+             COMMAND vtsimnx_solver_cpp_test_core_humidity_solver_entry)
+
     # 8) acmodel: factory + logger basic behavior
     add_executable(vtsimnx_solver_cpp_test_acmodel_core
         tests_cpp/test_acmodel_core.cpp
