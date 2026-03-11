@@ -7,7 +7,7 @@
 
 #include "network/thermal_network.h"
 #include "network/ventilation_network.h"
-#include "transport/humidity_solver.h"
+#include "core/humidity/humidity_solver.h"
 #include "transport/concentration_solver.h"
 
 namespace {
@@ -101,7 +101,7 @@ int main() {
         vent.updatePropertiesForTimestep(nodes, ventEdges, 0);
 
         FlowRateMap flowRates = vent.collectFlowRateMap(); // (A,B)->0.1
-        transport::updateHumidityIfEnabled(constants, vent, thermal, flowRates, logs, timings, "test");
+        (void)core::humidity::updateHumidityIfEnabled(constants, vent, thermal, flowRates, logs, timings, "test");
 
         // humidity_x keys: calc_x=true の B に加え、v<=0 の void も出力対象になるはず
         const auto& humidityKeys = thermal.getHumidityKeys();
@@ -315,7 +315,7 @@ int main() {
             throw std::runtime_error(oss.str());
         }
 
-        transport::updateHumidityIfEnabled(constants, vent, thermal, flowRates, logs, timings, "test");
+        (void)core::humidity::updateHumidityIfEnabled(constants, vent, thermal, flowRates, logs, timings, "test");
 
         // ROOM should approach SRC humidity (0.010), not decay toward 0
         const double dt = static_cast<double>(constants.timestep);
@@ -366,7 +366,7 @@ int main() {
         thermal.buildFromData(nodes, thEdges, ventEdges, constants, logs);
 
         FlowRateMap emptyFlows;
-        transport::updateHumidityIfEnabled(constants, vent, thermal, emptyFlows, logs, timings, "test");
+        (void)core::humidity::updateHumidityIfEnabled(constants, vent, thermal, emptyFlows, logs, timings, "test");
 
         const auto& tG = thermal.getGraph();
         const auto& tMap = thermal.getKeyToVertex();
