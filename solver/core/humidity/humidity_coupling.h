@@ -38,6 +38,8 @@ void initializeHumidityState(const Graph& tGraph,
 SolveStats solveHumidityImplicitStep(const Graph& tGraph,
                                      const NetworkTerms& terms,
                                      double dt,
+                                     int maxIter,
+                                     double tolerance,
                                      std::vector<double>& xNew,
                                      const std::vector<double>& xOld);
 

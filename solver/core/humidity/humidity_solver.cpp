@@ -38,7 +38,14 @@ HumiditySolveStats updateHumidityIfEnabled(const SimulationConstants& constants,
     std::vector<double> xOld;
     std::vector<double> xNew;
     initializeHumidityState(tGraph, xOld, xNew);
-    const SolveStats solve = solveHumidityImplicitStep(tGraph, terms, dt, xNew, xOld);
+    const SolveStats solve = solveHumidityImplicitStep(
+        tGraph,
+        terms,
+        dt,
+        constants.humiditySolverMaxIter,
+        constants.humiditySolverTolerance,
+        xNew,
+        xOld);
     applyHumidityStateToGraphs(tGraph, vGraph, vKeyToV, terms.updateVertices, xNew);
     stats.updated = true;
     stats.iterations = solve.iterations;

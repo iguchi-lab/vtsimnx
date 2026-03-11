@@ -96,14 +96,16 @@ void initializeHumidityState(const Graph& tGraph,
 SolveStats solveHumidityImplicitStep(const Graph& tGraph,
                                      const NetworkTerms& terms,
                                      double dt,
+                                     int maxIter,
+                                     double tolerance,
                                      std::vector<double>& xNew,
                                      const std::vector<double>& xOld) {
     constexpr double rho = PhysicalConstants::DENSITY_DRY_AIR; // [kg/m3]
-    const int maxIter = 80;
-    const double tol = 1e-9;
+    const int maxIterSafe = (maxIter > 0) ? maxIter : 80;
+    const double tol = (tolerance > 0.0) ? tolerance : 1e-9;
     SolveStats stats{};
 
-    for (int it = 0; it < maxIter; ++it) {
+    for (int it = 0; it < maxIterSafe; ++it) {
         double maxDiff = 0.0;
         for (Vertex v : terms.updateVertices) {
             const size_t i = idxOf(v);

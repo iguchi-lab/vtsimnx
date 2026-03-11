@@ -59,6 +59,9 @@ struct SimulationConstants {
     // 内側反復での緩和係数（0<alpha<=1）。1.0=緩和なし
     double humidityRelaxation = 1.0;
     double latentRelaxation = 0.5;
+    // 湿気内部ソルバ（陰解法）の反復設定
+    int humiditySolverMaxIter = 80;
+    double humiditySolverTolerance = 1e-9;
     bool pressureCalc;
     bool temperatureCalc;
     bool humidityCalc = false;
