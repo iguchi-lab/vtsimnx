@@ -68,26 +68,22 @@ private:
     mutable std::unordered_map<std::string, Edge> advectionEdgeByVentUniqueId;
 
 public:
-    // ノード・エッジ操作
-    Vertex addNode(const VertexProperties& node);
-    void addEdge(const EdgeProperties& edge);
-
-    // ネットワーク情報
-    int getNodeCount() const;
-    int getEdgeCount() const;
-
-    // ノード・頂点アクセス
-    VertexProperties& getNode(const std::string& key);
-    const VertexProperties& getNode(const std::string& key) const;
-
-    // グラフアクセス
+    // 1) Node/Graph access
     const Graph& getGraph() const { return graph; }
     Graph& getGraph() { return graph; }
     const std::unordered_map<std::string, Vertex>& getKeyToVertex() const { return keyToVertex; }
     ConstNodeStateView nodeStateView() const { return ConstNodeStateView{graph, keyToVertex}; }
     NodeStateView nodeStateView() { return NodeStateView{graph, keyToVertex}; }
 
-    // データ構築（換気ブランチは別途同期）
+    // ノード・エッジ操作
+    Vertex addNode(const VertexProperties& node);
+    void addEdge(const EdgeProperties& edge);
+    int getNodeCount() const;
+    int getEdgeCount() const;
+    VertexProperties& getNode(const std::string& key);
+    const VertexProperties& getNode(const std::string& key) const;
+
+    // 2) Build / Update / Sync
     void buildFromData(const std::vector<VertexProperties>& allNodes,
                        const std::vector<EdgeProperties>& thermalBranches,
                        const std::vector<EdgeProperties>& ventilationBranches,
@@ -97,25 +93,16 @@ public:
     // 換気回路網から風量を同期
     void syncFlowRatesFromVentilationNetwork(const VentilationNetwork& ventNetwork);
 
-    // 計算（宣言のみ。実装は別途）
-    void calculateTemperature(const SimulationConstants& constants, std::ostream& logs);
-
-    // 直近の熱計算の収束情報（solver内部から set される）
-    void setLastThermalConvergence(bool ok, double rmseBalance, double maxBalance, const std::string& method);
-    bool getLastThermalConverged() const { return lastThermalConverged; }
-    double getLastThermalRmseBalance() const { return lastThermalRmseBalance; }
-    double getLastThermalMaxBalance() const { return lastThermalMaxBalance; }
-    const std::string& getLastThermalMethod() const { return lastThermalMethod; }
-
-    // 更新操作（互換性不要のため、計算結果は graph 内に反映される前提）
-    
     // タイムステップに応じてノードとエッジの時変プロパティを更新
     void updatePropertiesForTimestep(const std::vector<VertexProperties>& allNodes,
                                       const std::vector<EdgeProperties>& thermalBranches,
                                       const std::vector<EdgeProperties>& ventilationBranches,
                                       long timestep);
 
-    // 熱流量データ収集（個別ブランチの熱流量データを返す）
+    // 3) Solve
+    void calculateTemperature(const SimulationConstants& constants, std::ostream& logs);
+
+    // 4) Output APIs
     // 温度（3系列）
     const std::vector<std::string>& getTemperatureKeys() const;
     std::vector<double> collectTemperatureValues() const;
@@ -141,6 +128,14 @@ public:
     std::vector<double> collectHeatRateValuesRadiation() const;
     const std::vector<std::string>& getHeatRateKeysCapacity() const;
     std::vector<double> collectHeatRateValuesCapacity() const;
+
+    // 5) Diagnostics / cache controls
+    void invalidateCaches();
+    void setLastThermalConvergence(bool ok, double rmseBalance, double maxBalance, const std::string& method);
+    bool getLastThermalConverged() const { return lastThermalConverged; }
+    double getLastThermalRmseBalance() const { return lastThermalRmseBalance; }
+    double getLastThermalMaxBalance() const { return lastThermalMaxBalance; }
+    const std::string& getLastThermalMethod() const { return lastThermalMethod; }
 };
 
 

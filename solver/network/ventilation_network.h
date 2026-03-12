@@ -1,5 +1,6 @@
 #pragma once
 
+#include "network/node_state_view.h"
 #include "vtsim_solver.h"
 #include <vector>
 #include <fstream>
@@ -37,58 +38,43 @@ private:
     bool lastPressureConverged = false;
 
 public:
+    // 1) Node/Graph access
+    const Graph& getGraph() const { return graph; }
+    Graph& getGraph() { return graph; }
+    const std::unordered_map<std::string, Vertex>& getKeyToVertex() const { return keyToVertex; }
+    ConstNodeStateView nodeStateView() const { return ConstNodeStateView{graph, keyToVertex}; }
+    NodeStateView nodeStateView() { return NodeStateView{graph, keyToVertex}; }
+
     // ノード・エッジ操作
     Vertex addNode(const VertexProperties& node);
     void addEdge(const EdgeProperties& edge);
-
-    // ネットワーク情報
     int getNodeCount() const;
     int getEdgeCount() const;
-
-    // ノード・頂点アクセス
     VertexProperties& getNode(const std::string& key);
 
-    // グラフアクセス
-    const Graph& getGraph() const { return graph; }
-    Graph& getGraph() { return graph; }
-
-    // キーマッピングアクセス
-    const std::unordered_map<std::string, Vertex>& getKeyToVertex() const { return keyToVertex; }
-
-    // 収束フラグ操作
-    void setLastPressureConverged(bool v) { lastPressureConverged = v; }
-    bool getLastPressureConverged() const { return lastPressureConverged; }
-
-    // スーパーノードキャッシュ操作
-    void invalidateSupernodeCache() { supernodeCacheValid = false; supernodeGroupCache.clear(); }
-    bool hasSupernodeCache() const { return supernodeCacheValid; }
-    const std::map<Vertex, int>& getSupernodeGroupCache() const { return supernodeGroupCache; }
-    void setSupernodeGroupCache(const std::map<Vertex, int>& cache) { supernodeGroupCache = cache; supernodeCacheValid = true; }
-
-    // データ構築
+    // 2) Build / Update / Sync
     void buildFromData(const std::vector<VertexProperties>& allNodes,
                        const std::vector<EdgeProperties>& ventilationBranches,
                        const SimulationConstants& simConstants,
                        std::ostream& logs);
 
-    // 圧力計算メソッド（宣言のみ。実装は別途）
-    std::tuple<PressureMap, std::map<std::pair<std::string, std::string>, double>, FlowBalanceMap> calculatePressure(
-        const SimulationConstants& constants, std::ostream& logs);
-
-    // 更新操作
     void updateNodePressures(const PressureMap& pressureMap);
     void updateCalculationResults(const PressureMap& pressureMap, const FlowRateMap& flowRates);
     void updateFlowRatesInGraph(const FlowRateMap& flowRates);
     void updateNodeTemperatures(const TemperatureMap& tempMap);
-    // 温度マップを作らずに ThermalNetwork の graph から反映する
+    // 温度マップを作らずに ThermalNetwork の graph から反映する（推奨名）
+    void syncTemperaturesFromThermalNetwork(const ThermalNetwork& thermalNetwork);
+    // 互換ラッパ（段階移行中）
     void updateNodeTemperaturesFromThermalNetwork(const ThermalNetwork& thermalNetwork);
-    
-    // タイムステップに応じてノードとエッジの時変プロパティを更新
     void updatePropertiesForTimestep(const std::vector<VertexProperties>& allNodes,
                                      const std::vector<EdgeProperties>& ventilationBranches,
                                      long timestep);
 
-    // 風量データ収集（個別ブランチの風量データを返す）
+    // 3) Solve
+    std::tuple<PressureMap, std::map<std::pair<std::string, std::string>, double>, FlowBalanceMap> calculatePressure(
+        const SimulationConstants& constants, std::ostream& logs);
+
+    // 4) Output APIs
     const std::vector<std::string>& getPressureKeys() const;
     std::vector<double> collectPressureValues() const;
     const std::vector<std::string>& getFlowRateKeys() const;
@@ -97,6 +83,15 @@ public:
     // pressureCalc=false（固定流量など）の場合でも、aircon制御等が参照できるように
     // (sourceKey,targetKey)->flow_rate の map を生成する。
     FlowRateMap collectFlowRateMap() const;
+
+    // 5) Diagnostics / cache controls
+    void invalidateCaches();
+    void setLastPressureConverged(bool v) { lastPressureConverged = v; }
+    bool getLastPressureConverged() const { return lastPressureConverged; }
+    void invalidateSupernodeCache() { supernodeCacheValid = false; supernodeGroupCache.clear(); }
+    bool hasSupernodeCache() const { return supernodeCacheValid; }
+    const std::map<Vertex, int>& getSupernodeGroupCache() const { return supernodeGroupCache; }
+    void setSupernodeGroupCache(const std::map<Vertex, int>& cache) { supernodeGroupCache = cache; supernodeCacheValid = true; }
 
 };
 

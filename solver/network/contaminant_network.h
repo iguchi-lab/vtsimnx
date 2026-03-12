@@ -21,13 +21,16 @@ struct ContaminantNetworkTerms {
 // 汚染物質濃度(c)ネットワークの項組み立て責務を集約するヘルパー。
 class ContaminantNetwork {
 public:
+    // 2) Build / Update / Sync
     void buildTerms(ConstNodeStateView nodeState,
                     const VentilationNetwork& ventNetwork,
                     ContaminantNetworkTerms& terms) const;
 
-    // 汚染物質濃度(c)の出力取得窓口
+    // 4) Output APIs
     const std::vector<std::string>& getOutputKeys(ConstNodeStateView nodeState) const;
     std::vector<double> collectOutputValues(ConstNodeStateView nodeState) const;
+
+    // 5) Diagnostics / cache controls
     void invalidateCaches();
 
 private:

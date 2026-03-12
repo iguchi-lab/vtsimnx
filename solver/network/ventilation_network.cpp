@@ -64,6 +64,16 @@ VertexProperties& VentilationNetwork::getNode(const std::string& key) {
     return graph[keyToVertex.at(key)];
 }
 
+void VentilationNetwork::invalidateCaches() {
+    pressureCacheInitialized = false;
+    pressureVerticesOrdered.clear();
+    pressureKeysOrdered.clear();
+    flowRateCacheInitialized = false;
+    flowRateEdgesOrdered.clear();
+    flowRateKeysOrdered.clear();
+    invalidateSupernodeCache();
+}
+
 // データから換気回路網を構築
 void VentilationNetwork::buildFromData(const std::vector<VertexProperties>& allNodes,
                                        const std::vector<EdgeProperties>& ventilationBranches,
@@ -72,13 +82,7 @@ void VentilationNetwork::buildFromData(const std::vector<VertexProperties>& allN
     // 再構築に備えて内部状態をリセット（積み増し防止）
     graph = Graph{};
     keyToVertex.clear();
-    pressureCacheInitialized = false;
-    pressureVerticesOrdered.clear();
-    pressureKeysOrdered.clear();
-    flowRateCacheInitialized = false;
-    flowRateEdgesOrdered.clear();
-    flowRateKeysOrdered.clear();
-    invalidateSupernodeCache();
+    invalidateCaches();
     lastPressureConverged = false;
 
     // pressureCalc=false でも、熱計算（移流）で換気ブランチの fixed_flow 等が必要になるため
@@ -158,7 +162,7 @@ void VentilationNetwork::updateNodeTemperatures(const TemperatureMap& tempMap) {
     }
 }
 
-void VentilationNetwork::updateNodeTemperaturesFromThermalNetwork(const ThermalNetwork& thermalNetwork) {
+void VentilationNetwork::syncTemperaturesFromThermalNetwork(const ThermalNetwork& thermalNetwork) {
     const auto& tKeyToV = thermalNetwork.getKeyToVertex();
     const auto& tGraph = thermalNetwork.getGraph();
     for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
@@ -168,6 +172,10 @@ void VentilationNetwork::updateNodeTemperaturesFromThermalNetwork(const ThermalN
             graph[v].current_t = tGraph[it->second].current_t;
         }
     }
+}
+
+void VentilationNetwork::updateNodeTemperaturesFromThermalNetwork(const ThermalNetwork& thermalNetwork) {
+    syncTemperaturesFromThermalNetwork(thermalNetwork);
 }
 
 // 圧力計算

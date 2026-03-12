@@ -62,22 +62,7 @@ const VertexProperties& ThermalNetwork::getNode(const std::string& key) const {
     return graph[keyToVertex.at(key)];
 }
 
-// データからネットワークを構築（熱ブランチのみ）
-void ThermalNetwork::buildFromData(const std::vector<VertexProperties>& allNodes,
-                                   const std::vector<EdgeProperties>& thermalBranches,
-                                   const std::vector<EdgeProperties>& ventilationBranches,
-                                   const SimulationConstants& simConstants,
-                                   std::ostream& logs) {
-
-    // 再構築に備えて内部状態をリセット（積み増し防止）
-    graph = Graph{};
-    keyToVertex.clear();
-    lastThermalConverged = true;
-    lastThermalRmseBalance = 0.0;
-    lastThermalMaxBalance = 0.0;
-    lastThermalMethod.clear();
-
-    // 出力/同期キャッシュを無効化
+void ThermalNetwork::invalidateCaches() {
     temperatureCacheInitialized = false;
     temperatureVerticesOrdered.clear();
     temperatureKeysOrdered.clear();
@@ -85,6 +70,7 @@ void ThermalNetwork::buildFromData(const std::vector<VertexProperties>& allNodes
     temperatureKeysOrderedCapacity.clear();
     temperatureVerticesOrderedLayer.clear();
     temperatureKeysOrderedLayer.clear();
+
     heatRateCacheInitialized = false;
     heatRateEdgesOrderedAdvection.clear();
     heatRateKeysOrderedAdvection.clear();
@@ -102,9 +88,27 @@ void ThermalNetwork::buildFromData(const std::vector<VertexProperties>& allNodes
     heatRateKeysOrderedRadiation.clear();
     heatRateEdgesOrderedCapacity.clear();
     heatRateKeysOrderedCapacity.clear();
+
     advectionEdgeCacheInitialized = false;
     advectionEdgesByVertexPair.clear();
     advectionEdgeByVentUniqueId.clear();
+}
+
+// データからネットワークを構築（熱ブランチのみ）
+void ThermalNetwork::buildFromData(const std::vector<VertexProperties>& allNodes,
+                                   const std::vector<EdgeProperties>& thermalBranches,
+                                   const std::vector<EdgeProperties>& ventilationBranches,
+                                   const SimulationConstants& simConstants,
+                                   std::ostream& logs) {
+
+    // 再構築に備えて内部状態をリセット（積み増し防止）
+    graph = Graph{};
+    keyToVertex.clear();
+    lastThermalConverged = true;
+    lastThermalRmseBalance = 0.0;
+    lastThermalMaxBalance = 0.0;
+    lastThermalMethod.clear();
+    invalidateCaches();
 
     if (simConstants.temperatureCalc || simConstants.humidityCalc || simConstants.concentrationCalc) {
         writeLog(logs, "  熱回路網を作成中...");
