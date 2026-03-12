@@ -1,48 +1,73 @@
-### VTSimNX API
+# VTSimNX API
 
-このリポジトリは VTSimNX の **Python（FastAPI）ラッパ + builder + C++ solver** を含みます。
+VTSimNX のシミュレーションを HTTP で実行するための FastAPI ラッパです。  
+`/run` に JSON を送ると、builder で設定を正規化した後に C++ solver を実行し、結果と artifact 情報を返します。
 
----
+## この API でできること
 
-### 使い方
+- `GET /ping`: ヘルスチェック
+- `POST /run`: シミュレーション実行
+- `GET /artifacts/...`: 実行後の `schema.json` / `solver.log` / バイナリ結果の取得
 
-- FastAPI 起動: `RUN_FASTAPI.md`
-- Python テスト: `tests_py/README.md`
-- C++ solver テスト:
-  - 通常: `solver/` 配下で `cmake --build build-solver && ctest --test-dir build-solver`
-  - **低負荷（推奨: SSH切断/CPU飽和を避けたい場合）**:
-    - ビルド並列を制限: `cmake --build build-solver -j1`（または `-j2`）
-    - テスト並列を制限: `ctest --test-dir build-solver -j1 --output-on-failure`
-- builder入力JSON: `docs/builder_json.md`
-- シミュレーション全体の概略: `docs/simulation_overview.md`
-- エアコンモデル（acmodel）: `docs/acmodel_overview.md`
-- エアコン制御（ON/OFF・能力上限制御）: `docs/aircon_control_overview.md`
-- 湿気回路網（Phase1: 線形RC）: `docs/moisture_network_phase1.md`
+詳細仕様は `docs/api_reference.md` を参照してください。
+
+## クイックスタート
+
+1. API を起動
+
+```bash
+python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+2. 動作確認
+
+```bash
+curl -sS http://127.0.0.1:8000/ping
+# {"status":"ok"}
+```
+
+3. シミュレーション実行
+
+```bash
+curl -sS -X POST http://127.0.0.1:8000/run \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "config": {
+      "simulation": {"step": 1, "timestep": 3600},
+      "nodes": [{"key": "outside"}, {"key": "room"}],
+      "ventilation_branches": [],
+      "thermal_branches": []
+    }
+  }'
+```
+
+レスポンス例（抜粋）:
+
+```json
+{
+  "result": {
+    "artifact_dir": "run_20260312_xxxxxxxx",
+    "result_files": {
+      "schema": "schema.json"
+    }
+  },
+  "warnings": [],
+  "warning_details": []
+}
+```
+
+## ドキュメント
+
+- API仕様: `docs/api_reference.md`
+- 起動・運用メモ: `RUN_FASTAPI.md`
+- builder 入力仕様: `docs/builder_json.md`
+- シミュレーション全体像: `docs/simulation_overview.md`
+- 空調モデル概要: `docs/acmodel_overview.md`
+- 空調制御仕様: `docs/aircon_control_overview.md`
+- 湿気回路網（Phase1）: `docs/moisture_network_phase1.md`
 - 物理・数学メモ: `docs/physics_math_notes.md`
 
----
+## 開発者向け情報
 
-### 熱の壁モデル（RC / 応答係数法）
-
-壁の層モデルは builder で生成します。
-
-- **RC法（従来）**: 層ノードを作って RC ネットワークで解く
-- **応答係数法（CTF）**: `response_conduction` ブランチで壁伝熱を表現（壁蓄熱により両面熱流が一致しないケースを扱える）
-
-入力仕様と単位の約束は以下を参照してください:
-
-- `docs/thermal_response_factor.md`
-- `docs/thermal_rc.md`
-
-
-
----
-
-### GitHub とローカルの対応
-
-- このディレクトリ `/home/ubuntu/vtsimnx/api` は **単独の Git リポジトリ** で、GitHub 上の [`iguchi-lab/vtsimnx-api`](https://github.com/iguchi-lab/vtsimnx-api) に対応します。
-- デフォルトブランチ: `main` （`origin/main` と追従）
-- **規則**:
-  - API 側のコード・builder・C++ solver（このリポジトリ配下の `solver/`）の変更は、必ずこのリポジトリで `git commit` `git push` します。
-  - 親ディレクトリ `/home/ubuntu/vtsimnx` には Git 管理を置かず、`git` コマンドはこのディレクトリ（または `core/` 側）から実行します。
-  - Python コアライブラリ（`vtsimnx` パッケージ）側の変更は `/home/ubuntu/vtsimnx/core` リポジトリで管理します（別リポジトリ）。
+- 参加方法・テスト・コミット方針: `CONTRIBUTING.md`
+- リポジトリ運用メモ: `docs/developer_notes.md`
