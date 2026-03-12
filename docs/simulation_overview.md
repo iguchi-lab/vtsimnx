@@ -86,10 +86,13 @@ builder は raw_config を正規化・展開して solver_config を作ります
 - `schema.json`: 出力系列（series）と各系列の `keys`（並び順）
 - `*.f32.bin`: 各系列の時系列バイナリ（float32）
 
-湿度/濃度の系列:
+代表的な湿度/濃度・空調系列:
 
-- `humidity_x`: `calc_x=true` のノードの `x`
-- `concentration_c`: `calc_c=true` のノードの `c`
+- `humidity_x`: `calc_x=true` のノードの絶対湿度 \(x\)
+- `humidity_flux`: 各換気ブランチの湿気移動量（kg/s, 水分基準）
+- `concentration_c`: `calc_c=true` のノードの濃度 \(c\)
+- `concentration_flux`: 各換気ブランチの汚染物質移動量（流量×濃度）
+- `aircon_sensible_heat` / `aircon_latent_heat`: エアコンごとの顕熱/潜熱処理量
 
 （系列名・ファイル名は `output.json` の `result_files` でも参照できます）
 

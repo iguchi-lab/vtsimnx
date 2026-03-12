@@ -32,14 +32,20 @@
 
 `ac_spec` では潜熱処理の方式を次で指定できます。
 
-- `latent_method: "rh95"`（**デフォルト**）
-  - 吹出温度 `Tout` から吹出空気 RH を 95% として `supplyX` を決める
-- `latent_method: "bf"`
-  - バイパスファクタ法で `supplyX` を計算
-  - BF は `bf` / `BF` / `bypass_factor` で指定（省略時 `0.2`、内部で `0.0..0.99` にクランプ）
-  - 計算結果の吹出 RH が 100% 超なら警告を出し、`rh95` へフォールバック
-- `latent_method: "none"`
-  - 潜熱処理なし（`Q_L=0`）
+- `latent_method: "rh95"`（**デフォルト**）  
+  吹出温度 `Tout` から吹出空気 RH を 95% として `supplyX` を決める
+- `latent_method: "bf"`  
+  バイパスファクタ法で `supplyX` を計算  
+  BF は `bf` / `BF` / `bypass_factor` で指定（省略時 `0.2`、内部で `0.0..0.99` にクランプ）。  
+  計算結果の吹出 RH が 100% 超なら警告を出し、`rh95` へフォールバック。
+- `latent_method: "coil_aoaf"`（別名: `"aoaf"`, `"literature"`）  
+  コイル前面風速・有効表面積を用いる文献式（4.2.1）に基づく潜熱評価。
+  - 追加パラメータ:
+    - `Af` または `coil_face_area` : 実質コイル前面面積 [m²]（既定 `0.133`）
+    - `Ao` または `coil_surface_area` : コイル有効表面積 [m²]（既定 `4.84`）
+  - 顕熱処理量 `Hs` [W] と吸込/吹出条件から `Hr` [W] を評価し、`Q_L` および `supplyX` を決定する
+- `latent_method: "none"`  
+  潜熱処理なし（`Q_L=0`、`supplyX = X_in`）
 
 補足:
 

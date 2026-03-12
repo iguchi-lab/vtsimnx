@@ -398,10 +398,26 @@ RC/CTFの詳細は以下:
 ### 13. solver 出力（artifact: schema.json + *.f32.bin）
 
 solver は `artifact_dir` に **schema（キー配列）** と **時系列バイナリ（float32 little-endian）**を出力します。
-湿度/濃度の系列は以下です:
 
-- `humidity_x`: 絶対湿度 \(x\)（`calc_x=true` のノード、キー順は昇順）
-- `concentration_c`: 濃度 \(c\)（`calc_c=true` のノード、キー順は昇順）
+代表的な系列:
+
+- 換気ネットワーク:
+  - `vent_pressure`: ノード圧力
+  - `vent_flow_rate`: ブランチ風量
+- 熱ネットワーク:
+  - `thermal_temperature` / `thermal_temperature_capacity` / `thermal_temperature_layer`
+  - `thermal_heat_rate_*`: 各種熱流量カテゴリ
+- 湿度・湿気移動:
+  - `humidity_x`: 絶対湿度 \(x\)（`calc_x=true` のノード、キー順は昇順）
+  - `humidity_flux`: 各換気ブランチの湿気移動量（kg/s, 水分基準）
+- 濃度・物質移動:
+  - `concentration_c`: 濃度 \(c\)（`calc_c=true` のノード、キー順は昇順）
+  - `concentration_flux`: 各換気ブランチの汚染物質移動量（流量×濃度）
+- エアコン:
+  - `aircon_sensible_heat`: 顕熱処理量 [W]
+  - `aircon_latent_heat`: 潜熱処理量 [W]
+  - `aircon_power`: 消費電力 [W]
+  - `aircon_cop`: COP
 
 
 ### 12. validationの挙動（知っておくと便利）

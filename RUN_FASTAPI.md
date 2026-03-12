@@ -76,7 +76,8 @@ python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 ## ログについて
 
-C++ソルバは `output.json` に `artifact_dir` と `log_file` を返します。ログ本体は **artifact 配下の `solver.log`** として出力されるため、ログは **ダウンロードAPIで取得**してください。
+- C++ソルバは `output.json` に `artifact_dir` と `log_file` を返します。ログ本体は **artifact 配下の `solver.log`** として出力されるため、ログは **ダウンロードAPIで取得**してください。
+- builder のログは、リクエストごとに一時ファイルへ出力したあと **artifact 直下の `builder.log` に取り込まれ、一時ファイルは自動削除**されます（`work/logs` は一時置き場として使われますが、残らない設計です）。
 
 ## 巨大な計算結果（artifact）をAPIで取得する
 
