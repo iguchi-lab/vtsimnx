@@ -123,6 +123,7 @@ static void runCoupledInnerLoop(VentilationNetwork& ventNetwork,
                                 const std::vector<double>& wPrevByVertex,
                                 CoupledStepData& step,
                                 int& totalIterations) {
+    (void)airconController;
     // 連成反復（air -> thermal -> moisture -> latent_feedback の収束まで回す）
     std::vector<double> prevTempsByVertex;
     std::vector<double> prevPressuresByKey;
@@ -192,12 +193,11 @@ static void runCoupledInnerLoop(VentilationNetwork& ventNetwork,
             relaxHumidityByVertex(thermalNetwork.getGraph(), ventNetwork, prevHumidityByVertex, constants.humidityRelaxation);
         }
 
-        // 潜熱フィードバックは内側反復ごとに「基準熱源 + 今回分」で再構成する。
-        // これにより反復回数依存の熱源積み上がりを防ぐ。
+        // 方針B: 除湿潜熱は熱ネットワークへフィードバックしない。
+        // 熱源は毎反復で基準値へ戻し、湿気→熱の注入は行わない。
         restoreHeatSourceByVertex(thermalNetwork.getGraph(), baseHeatSourceByVertex);
-        const auto latentStats = airconController.applyLatentFeedbackToThermal(
-            thermalNetwork, step.flowRates, constants.latentRelaxation, logs);
-        lastLatentAppliedW = latentStats.maxAppliedHeatW;
+        const double latentAppliedThisIter = 0.0;
+        lastLatentAppliedW = latentAppliedThisIter;
 
         // 1回目で pressure が未収束なら停止（従来と同じ）
         if (constants.pressureCalc && coupledIter == 1 && !ventNetwork.getLastPressureConverged()) {
@@ -226,7 +226,7 @@ static void runCoupledInnerLoop(VentilationNetwork& ventNetwork,
                 "圧力変化量: " + std::to_string(delta.pressureChange) +
                     " Pa, 温度変化量: " + std::to_string(delta.temperatureChange) +
                     " K, 湿気変化量: " + std::to_string(delta.humidityChange) +
-                    " kg/kg(DA), 潜熱反映: " + std::to_string(latentStats.maxAppliedHeatW) +
+                    " kg/kg(DA), 潜熱反映: " + std::to_string(latentAppliedThisIter) +
                     " W, 湿気反復: " + std::to_string(lastHumiditySolveStats.iterations) +
                     ", 湿気残差: " + std::to_string(lastHumiditySolveStats.finalMaxDiff));
         }
