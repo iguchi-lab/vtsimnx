@@ -1,4 +1,5 @@
 #include "network/ventilation_network.h"
+#include "types/common_types.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -112,6 +113,44 @@ std::vector<double> VentilationNetwork::collectFlowRateValues() const {
     values.resize(flowRateEdgesOrdered.size());
     for (size_t i = 0; i < flowRateEdgesOrdered.size(); ++i) {
         values[i] = graph[flowRateEdgesOrdered[i]].flow_rate;
+    }
+    return values;
+}
+
+std::vector<double> VentilationNetwork::collectHumidityFluxValues() const {
+    (void)getFlowRateKeys();
+    std::vector<double> values;
+    values.resize(flowRateEdgesOrdered.size(), 0.0);
+    for (size_t i = 0; i < flowRateEdgesOrdered.size(); ++i) {
+        const Edge e = flowRateEdgesOrdered[i];
+        const Vertex sv = boost::source(e, graph);
+        const Vertex tv = boost::target(e, graph);
+        const auto& ep = graph[e];
+        const double q = ep.flow_rate; // [m3/s], edge direction signed
+        if (q >= 0.0) {
+            values[i] = PhysicalConstants::DENSITY_DRY_AIR * q * graph[sv].current_x;
+        } else {
+            values[i] = PhysicalConstants::DENSITY_DRY_AIR * q * graph[tv].current_x;
+        }
+    }
+    return values;
+}
+
+std::vector<double> VentilationNetwork::collectConcentrationFluxValues() const {
+    (void)getFlowRateKeys();
+    std::vector<double> values;
+    values.resize(flowRateEdgesOrdered.size(), 0.0);
+    for (size_t i = 0; i < flowRateEdgesOrdered.size(); ++i) {
+        const Edge e = flowRateEdgesOrdered[i];
+        const Vertex sv = boost::source(e, graph);
+        const Vertex tv = boost::target(e, graph);
+        const auto& ep = graph[e];
+        const double qEff = ep.flow_rate * (1.0 - ep.eta); // [m3/s], edge direction signed
+        if (qEff >= 0.0) {
+            values[i] = qEff * graph[sv].current_c;
+        } else {
+            values[i] = qEff * graph[tv].current_c;
+        }
     }
     return values;
 }

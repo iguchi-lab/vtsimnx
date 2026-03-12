@@ -82,6 +82,10 @@ public:
     std::vector<double> collectPressureValues() const;
     const std::vector<std::string>& getFlowRateKeys() const;
     std::vector<double> collectFlowRateValues() const;
+    // 湿気移動量（kg/s, 水分基準）。キー順は getFlowRateKeys と同一。
+    std::vector<double> collectHumidityFluxValues() const;
+    // 汚染物質移動量（濃度×流量, count/s 相当）。キー順は getFlowRateKeys と同一。
+    std::vector<double> collectConcentrationFluxValues() const;
 
     // pressureCalc=false（固定流量など）の場合でも、aircon制御等が参照できるように
     // (sourceKey,targetKey)->flow_rate の map を生成する。

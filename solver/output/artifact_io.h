@@ -22,8 +22,12 @@ struct OutputSchema {
     std::vector<std::string> temperatureKeysLayer;    // layer
     // 湿度（絶対湿度 x）
     std::vector<std::string> humidityKeys;
+    // 湿気移動量（kg/s, 水分基準）
+    std::vector<std::string> humidityFluxKeys;
     // 濃度（c）
     std::vector<std::string> concentrationKeys;
+    // 汚染物質移動量（濃度×流量, count/s 相当）
+    std::vector<std::string> concentrationFluxKeys;
     // heat_rate はカテゴリ別に出力する
     std::vector<std::string> heatRateKeysAdvection;
     std::vector<std::string> heatRateKeysHeatGeneration;

@@ -325,11 +325,17 @@ static void buildTimestepResult(const SimulationConstants& constants,
         convertDoublesToF32(
             timestepResult.humidityX,
             humidityNetwork.collectOutputValues(static_cast<const ThermalNetwork&>(thermalNetwork).nodeStateView()));
+        convertDoublesToF32(
+            timestepResult.humidityFlux,
+            ventNetwork.collectHumidityFluxValues());
     }
     if (constants.concentrationCalc) {
         convertDoublesToF32(
             timestepResult.concentrationC,
             contaminantNetwork.collectOutputValues(static_cast<const ThermalNetwork&>(thermalNetwork).nodeStateView()));
+        convertDoublesToF32(
+            timestepResult.concentrationFlux,
+            ventNetwork.collectConcentrationFluxValues());
     }
 
     timestepResultOut = std::move(timestepResult);

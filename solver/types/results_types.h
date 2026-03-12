@@ -20,9 +20,13 @@ struct TimestepResult {
     // 湿度（絶対湿度 x）: calc_flag.x が true の場合に有効
     // 出力キー順は ThermalNetwork が提供（schema.humidity_x）
     std::vector<float> humidityX;
+    // 湿気移動量（kg/s, 水分基準）: キー順は VentilationNetwork.flow_rate と同一
+    std::vector<float> humidityFlux;
     // 濃度（c）: calc_flag.c が true の場合に有効
     // 出力キー順は ThermalNetwork が提供（schema.concentration_c）
     std::vector<float> concentrationC;
+    // 汚染物質移動量（濃度×流量, count/s 相当）: キー順は VentilationNetwork.flow_rate と同一
+    std::vector<float> concentrationFlux;
     // heat_rate はカテゴリ別に出力する
     std::vector<float> heatRateAdvection;
     std::vector<float> heatRateHeatGeneration;
