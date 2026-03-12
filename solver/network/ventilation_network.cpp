@@ -176,7 +176,7 @@ void VentilationNetwork::syncTemperaturesFromThermalNetwork(const ThermalNetwork
 
 // 圧力計算
 std::tuple<PressureMap, std::map<std::pair<std::string, std::string>, double>, FlowBalanceMap>
-VentilationNetwork::calculatePressure(const SimulationConstants& constants, std::ostream& logs) {
+VentilationNetwork::solvePressure(const SimulationConstants& constants, std::ostream& logs) {
     PressureSolver solver(*this, logs);
     auto [pressureMap, flowRates, balanceMap] = solver.solvePressures(constants);
     return {pressureMap, flowRates, balanceMap};

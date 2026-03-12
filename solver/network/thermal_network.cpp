@@ -253,7 +253,7 @@ void ThermalNetwork::syncFlowRatesFromVentilationNetwork(const VentilationNetwor
 }
 
 // 温度計算
-void ThermalNetwork::calculateTemperature(const SimulationConstants& constants, std::ostream& logs) {
+void ThermalNetwork::solveTemperature(const SimulationConstants& constants, std::ostream& logs) {
     ThermalSolver solver(*this, logs);
     solver.solveTemperatures(constants);
 }

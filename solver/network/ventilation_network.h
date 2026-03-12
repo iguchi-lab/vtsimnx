@@ -69,7 +69,7 @@ public:
                                      long timestep);
 
     // 3) Solve
-    std::tuple<PressureMap, std::map<std::pair<std::string, std::string>, double>, FlowBalanceMap> calculatePressure(
+    std::tuple<PressureMap, std::map<std::pair<std::string, std::string>, double>, FlowBalanceMap> solvePressure(
         const SimulationConstants& constants, std::ostream& logs);
 
     // 4) Output APIs

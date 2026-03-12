@@ -357,7 +357,7 @@ performCoupledStepCalculation(VentilationNetwork& ventNetwork,
             {
                 ScopedTimer timer(timings, "pressure_solve_iteration", meta);
                 std::tie(step.pressureMap, step.flowRates, step.flowBalance) =
-                    ventNetwork.calculatePressure(constants, logs);
+                    ventNetwork.solvePressure(constants, logs);
             }
             ventNetwork.updateCalculationResults(step.pressureMap, step.flowRates);
 
@@ -378,7 +378,7 @@ performCoupledStepCalculation(VentilationNetwork& ventNetwork,
             if (logEnabled) thermalScope = std::make_unique<ScopedLogSection>(logs, "熱計算");
             {
                 ScopedTimer timer(timings, "thermal_solve_iteration", meta);
-                thermalNetwork.calculateTemperature(constants, logs);
+                thermalNetwork.solveTemperature(constants, logs);
             }
 
             // pressureCalc=false の場合、換気側で温度（密度）を参照する計算が走らないため更新不要

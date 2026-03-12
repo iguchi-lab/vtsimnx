@@ -100,7 +100,7 @@ public:
                                       long timestep);
 
     // 3) Solve
-    void calculateTemperature(const SimulationConstants& constants, std::ostream& logs);
+    void solveTemperature(const SimulationConstants& constants, std::ostream& logs);
 
     // 4) Output APIs
     // 温度（3系列）
