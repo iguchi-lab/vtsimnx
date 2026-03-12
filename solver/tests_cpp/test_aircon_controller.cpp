@@ -153,6 +153,47 @@ int main() {
             expectNear(in.Q, in.Q_S + in.Q_L, 1e-6, "Q should equal Q_S + Q_L");
         }
     }
+    // 潜熱4方式目(coil_aoaf): 計算が有効になり、Af/Ao を変えると Q_L が変化すること
+    {
+        auto& b = thermal.getNode("B");
+        b.on = true;
+        b.current_mode = "COOLING";
+        b.current_t = 20.0;
+        b.ac_spec = nlohmann::json{
+            {"latent_method", "coil_aoaf"},
+            {"Af", 0.133},
+            {"Ao", 4.84},
+        };
+
+        calls = 0;
+        history.clear();
+        (void)controller.calculatePowerValues(thermal, flowRates, std::cout);
+        expectTrue(calls == 1, "coil_aoaf: estimateCOP should be called for ON aircon");
+        expectTrue(!history.empty(), "coil_aoaf: history should have one entry");
+        double qlDefault = 0.0;
+        if (!history.empty()) {
+            qlDefault = history.back().input.Q_L;
+            expectTrue(qlDefault >= 0.0, "coil_aoaf: Q_L should be non-negative");
+        }
+
+        // Ao を大きくすると潜熱側の処理量が増える傾向になることを確認
+        b.ac_spec = nlohmann::json{
+            {"latent_method", "coil_aoaf"},
+            {"Af", 0.133},
+            {"Ao", 9.68},
+        };
+        calls = 0;
+        history.clear();
+        (void)controller.calculatePowerValues(thermal, flowRates, std::cout);
+        expectTrue(calls == 1, "coil_aoaf(Ao=9.68): estimateCOP should be called");
+        expectTrue(!history.empty(), "coil_aoaf(Ao=9.68): history should have one entry");
+        if (!history.empty()) {
+            const double qlLargeAo = history.back().input.Q_L;
+            expectTrue(qlLargeAo >= 0.0, "coil_aoaf: Q_L should stay non-negative when Ao changes");
+            expectTrue(std::abs(qlLargeAo - qlDefault) > 1e-9,
+                       "coil_aoaf: Q_L should change when Ao changes");
+        }
+    }
     {
         calls = 0;
         history.clear();

@@ -24,6 +24,8 @@ constexpr double kAirSpecificHeat = archenv::SPECIFIC_HEAT_AIR;   // [J/(kg·K)]
 constexpr double kDefaultOuterFlowRate = 25.5 / 60.0;             // m^3/s
 constexpr double kDefaultBypassFactor = 0.2;                      // [-]
 constexpr double kDefaultSupplyRhPercent = 95.0;                  // [%]
+constexpr double kDefaultCoilFaceArea = 0.133;                    // [m^2]
+constexpr double kDefaultCoilSurfaceArea = 4.84;                  // [m^2]
 constexpr int kSetpointSearchMaxIterations = 32;
 constexpr double kSetpointSearchTolerance = 1e-3;                 // [degC]
 constexpr double kSetpointFloor = 0.0;
@@ -178,6 +180,45 @@ inline std::string readLatentMethod(const VertexProperties& nodeProps) {
     return toLowerCopy(spec["latent_method"].get<std::string>());
 }
 
+inline std::optional<double> readFinitePositiveSpecNumber(const nlohmann::json& spec, const char* key) {
+    if (!spec.is_object() || !spec.contains(key) || !spec[key].is_number()) return std::nullopt;
+    const double v = spec[key].get<double>();
+    if (!std::isfinite(v) || !(v > 0.0)) return std::nullopt;
+    return v;
+}
+
+inline double readCoilFaceArea(const VertexProperties& nodeProps) {
+    const auto& spec = nodeProps.ac_spec;
+    if (auto v = readFinitePositiveSpecNumber(spec, "Af")) return *v;
+    if (auto v = readFinitePositiveSpecNumber(spec, "coil_face_area")) return *v;
+    return kDefaultCoilFaceArea;
+}
+
+inline double readCoilSurfaceArea(const VertexProperties& nodeProps) {
+    const auto& spec = nodeProps.ac_spec;
+    if (auto v = readFinitePositiveSpecNumber(spec, "Ao")) return *v;
+    if (auto v = readFinitePositiveSpecNumber(spec, "coil_surface_area")) return *v;
+    return kDefaultCoilSurfaceArea;
+}
+
+inline double dewPointFromAbsoluteHumidity(double x) {
+    // x_sat(T)=x を二分探索で解く。温度範囲は空調計算で実用的な -40..80 degC を採用。
+    const double xx = std::max(0.0, x);
+    double lo = -40.0;
+    double hi = 80.0;
+    for (int i = 0; i < 60; ++i) {
+        const double mid = 0.5 * (lo + hi);
+        const double xSat = std::max(0.0, archenv::absolute_humidity_from_vapor_pressure(
+                                              archenv::saturation_vapor_pressure(mid)));
+        if (xSat < xx) {
+            lo = mid;
+        } else {
+            hi = mid;
+        }
+    }
+    return 0.5 * (lo + hi);
+}
+
 inline LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
                                                  const std::string& operationMode,
                                                  double sensibleHeatCapacity,
@@ -250,14 +291,85 @@ inline LatentProcessResult estimateLatentProcess(const AirconValidationData& val
             result.rhExceeded = false;
         }
     } else {
-        applyRh95();
+        // 文献式（4.2.1）:
+        // - latent_method == "coil_aoaf" / "aoaf" / "literature" を受け付ける
+        // - Hs は顕熱処理量 [W]（冷房正）を使用
+        if (latentMethod == "coil_aoaf" || latentMethod == "aoaf" || latentMethod == "literature") {
+            const double V = std::abs(airFlowRate);            // [m3/s]
+            const double Af = readCoilFaceArea(nodeProps);     // [m2]
+            const double Ao = readCoilSurfaceArea(nodeProps);  // [m2]
+            const double HsW = std::max(0.0, result.sensibleHeatCapacity); // [W]
+            if (V <= std::numeric_limits<double>::epsilon() ||
+                Af <= std::numeric_limits<double>::epsilon() ||
+                Ao <= std::numeric_limits<double>::epsilon() ||
+                HsW <= std::numeric_limits<double>::epsilon()) {
+                result.supplyX = xIn;
+            } else {
+                // 2) 吸込状態（Tr, Xr）から露点を求める
+                const double tr = tIn;
+                const double xr = xIn;
+                const double trDp = dewPointFromAbsoluteHumidity(xr);
+
+                // 4) Te, Xe
+                const double te = tr - HsW / (kAirSpecificHeat * kAirDensity * V);
+                const double xe = std::max(0.0, archenv::absolute_humidity(te, 100.0));
+
+                // 5) T*, X*
+                const double tStar = 0.5 * (tr + te);
+                const double xStar = 0.5 * (xr + xe);
+
+                // 6) Vx, Kx, alpha_c
+                const double vx = V / Af; // [m/s]
+                if (vx > 0.0) {
+                    const double kx = std::max(0.0, 0.037 * std::log(vx) + 0.0637); // [kg/m2s]
+                    const double alphaC = kx * (archenv::SPECIFIC_HEAT_AIR +
+                                                archenv::SPECIFIC_HEAT_WATER_VAPOR * xStar); // [W/m2K]
+                    if (alphaC > std::numeric_limits<double>::epsilon()) {
+                        // 7) Td, Xd
+                        const double td = tStar - HsW / (alphaC * Ao);
+                        const double xd = std::max(0.0, archenv::absolute_humidity(td, 100.0));
+
+                        // 8) Hr
+                        double hrW = 0.0;
+                        if (trDp > td) {
+                            const double dx = std::max(0.0, xStar - xd);
+                            hrW = std::max(0.0, (archenv::LATENT_HEAT_VAPORIZATION +
+                                                 archenv::SPECIFIC_HEAT_WATER_VAPOR * td) *
+                                                kx * dx * Ao);
+                        }
+                        result.latentHeatCapacity = hrW;
+
+                        // 出口絶対湿度（出力/次時刻初期値向け）を質量収支から与える
+                        // m_w = Hr / (r + Cpv*Td),  deltaX = m_w / (rho*V)
+                        const double denom = (archenv::LATENT_HEAT_VAPORIZATION +
+                                              archenv::SPECIFIC_HEAT_WATER_VAPOR * td);
+                        if (denom > std::numeric_limits<double>::epsilon()) {
+                            const double mWater = hrW / denom; // [kg/s]
+                            const double deltaX = mWater / (kAirDensity * V);
+                            result.supplyX = std::clamp(xr - std::max(0.0, deltaX), 0.0, xr);
+                        } else {
+                            result.supplyX = xr;
+                        }
+                    } else {
+                        result.supplyX = xr;
+                    }
+                } else {
+                    result.supplyX = xr;
+                }
+            }
+        } else {
+            applyRh95();
+        }
     }
 
-    const double deltaX = std::max(0.0, xIn - result.supplyX);
-    result.latentHeatCapacity =
-        std::max(0.0,
-                 kAirDensity * std::abs(airFlowRate) *
-                     archenv::vapor_latent_heat(tOut) * deltaX);
+    // 新方式(coil_aoaf)は latentHeatCapacity を直接算出済み。
+    if (!(result.latentHeatCapacity > 0.0)) {
+        const double deltaX = std::max(0.0, xIn - result.supplyX);
+        result.latentHeatCapacity =
+            std::max(0.0,
+                     kAirDensity * std::abs(airFlowRate) *
+                         archenv::vapor_latent_heat(tOut) * deltaX);
+    }
     return result;
 }
 
