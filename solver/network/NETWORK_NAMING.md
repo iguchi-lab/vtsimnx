@@ -16,14 +16,14 @@
 
 1. 構築: `buildFromData(...)`
 2. 時変更新: `updatePropertiesForTimestep(...)`
-3. 計算: `calculateXxx(...)` または `solveXxx(...)`
+3. 計算: `solveXxx(...)`
 4. 出力: `get*Keys()` / `collect*Values()`
 5. キャッシュ無効化: `invalidateCaches()`
 
 補足:
 
-- 既存 API 互換のため `calculatePressure`, `calculateTemperature` のようなドメイン名付きは維持してよい。
-- 将来共通化する場合は薄い統一ラッパ（例: `solveStep`）を追加し、既存 API は内部委譲にする。
+- solve 後の結果反映が必要な場合は `applySolveResults(...)` を使う。
+- 将来共通化する場合は薄い統一ラッパ（例: `solveStep`）を追加し、ドメイン別 solve を内部委譲にする。
 
 ## 3. Cross-Network API の命名
 
