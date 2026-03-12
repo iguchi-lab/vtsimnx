@@ -62,10 +62,8 @@ public:
     void updateCalculationResults(const PressureMap& pressureMap, const FlowRateMap& flowRates);
     void updateFlowRatesInGraph(const FlowRateMap& flowRates);
     void updateNodeTemperatures(const TemperatureMap& tempMap);
-    // 温度マップを作らずに ThermalNetwork の graph から反映する（推奨名）
+    // 温度マップを作らずに ThermalNetwork の graph から反映する
     void syncTemperaturesFromThermalNetwork(const ThermalNetwork& thermalNetwork);
-    // 互換ラッパ（段階移行中）
-    void updateNodeTemperaturesFromThermalNetwork(const ThermalNetwork& thermalNetwork);
     void updatePropertiesForTimestep(const std::vector<VertexProperties>& allNodes,
                                      const std::vector<EdgeProperties>& ventilationBranches,
                                      long timestep);

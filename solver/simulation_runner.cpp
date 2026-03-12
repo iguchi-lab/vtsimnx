@@ -383,7 +383,7 @@ performCoupledStepCalculation(VentilationNetwork& ventNetwork,
 
             // pressureCalc=false の場合、換気側で温度（密度）を参照する計算が走らないため更新不要
             if (constants.pressureCalc) {
-                ventNetwork.updateNodeTemperaturesFromThermalNetwork(thermalNetwork);
+                ventNetwork.syncTemperaturesFromThermalNetwork(thermalNetwork);
             }
         }
 

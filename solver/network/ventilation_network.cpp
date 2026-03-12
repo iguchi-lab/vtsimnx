@@ -174,10 +174,6 @@ void VentilationNetwork::syncTemperaturesFromThermalNetwork(const ThermalNetwork
     }
 }
 
-void VentilationNetwork::updateNodeTemperaturesFromThermalNetwork(const ThermalNetwork& thermalNetwork) {
-    syncTemperaturesFromThermalNetwork(thermalNetwork);
-}
-
 // 圧力計算
 std::tuple<PressureMap, std::map<std::pair<std::string, std::string>, double>, FlowBalanceMap>
 VentilationNetwork::calculatePressure(const SimulationConstants& constants, std::ostream& logs) {
