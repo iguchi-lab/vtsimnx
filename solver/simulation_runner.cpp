@@ -36,6 +36,18 @@ performCoupledStepCalculation(VentilationNetwork& ventNetwork,
 namespace {
 using namespace simulation::detail;
 
+struct SharedNodeStateArgs {
+    Graph& nodeGraph;
+    ConstNodeStateView nodeState;
+};
+
+static SharedNodeStateArgs makeSharedNodeStateArgs(ThermalNetwork& thermalNetwork) {
+    return SharedNodeStateArgs{
+        thermalNetwork.getGraph(),
+        static_cast<const ThermalNetwork&>(thermalNetwork).nodeStateView(),
+    };
+}
+
 static inline CoupledDelta computeCoupledDelta(const SimulationConstants& constants,
                                                VentilationNetwork& ventNetwork,
                                                ThermalNetwork& thermalNetwork,
@@ -171,14 +183,15 @@ static void runCoupledInnerLoop(VentilationNetwork& ventNetwork,
         }
 
         if (humidityActive) {
+            const auto sharedNodeState = makeSharedNodeStateArgs(thermalNetwork);
             // 同一タイムステップ内反復なので、毎回 x_prev / w_prev に戻して再評価する。
-            restoreXPrevToGraph(thermalNetwork.getGraph(), ventNetwork, xPrevByVertex);
-            restoreWPrevToGraph(thermalNetwork.getGraph(), wPrevByVertex);
+            restoreXPrevToGraph(sharedNodeState.nodeGraph, ventNetwork, xPrevByVertex);
+            restoreWPrevToGraph(sharedNodeState.nodeGraph, wPrevByVertex);
             lastHumiditySolveStats = core::humidity::updateHumidityIfEnabled(
                 constants,
                 ventNetwork,
-                thermalNetwork.getGraph(),
-                static_cast<const ThermalNetwork&>(thermalNetwork).nodeStateView(),
+                sharedNodeState.nodeGraph,
+                sharedNodeState.nodeState,
                 humidityNetwork,
                 step.flowRates, logs, timings,
                 meta + ",iteration=" + std::to_string(outerIteration + 1) +
@@ -458,11 +471,12 @@ void runSimulation(VentilationNetwork& ventNetwork,
                 step.flowRates = ventNetwork.collectFlowRateMap();
             }
             if (constants.humidityCalc && !constants.moistureCouplingEnabled) {
+                const auto sharedNodeState = makeSharedNodeStateArgs(thermalNetwork);
                 // 連成OFF時は従来互換: 外側ループごとに1回のみ湿気更新
-                restoreXPrevToGraph(thermalNetwork.getGraph(), ventNetwork, xPrevByVertex);
-                restoreWPrevToGraph(thermalNetwork.getGraph(), wPrevByVertex);
-                (void)core::humidity::updateHumidityIfEnabled(constants, ventNetwork, thermalNetwork.getGraph(),
-                                                              static_cast<const ThermalNetwork&>(thermalNetwork).nodeStateView(),
+                restoreXPrevToGraph(sharedNodeState.nodeGraph, ventNetwork, xPrevByVertex);
+                restoreWPrevToGraph(sharedNodeState.nodeGraph, wPrevByVertex);
+                (void)core::humidity::updateHumidityIfEnabled(constants, ventNetwork, sharedNodeState.nodeGraph,
+                                                              sharedNodeState.nodeState,
                                                               humidityNetwork,
                                                               step.flowRates, logs, timings,
                                                               meta + ",iteration=" + std::to_string(iteration + 1));
@@ -513,10 +527,11 @@ void runSimulation(VentilationNetwork& ventNetwork,
     }
 
     // 濃度（c）更新：エアコン制御が完了した後でOK（エアコン制御には影響しない想定）
+    const auto sharedNodeState = makeSharedNodeStateArgs(thermalNetwork);
     transport::updateConcentrationIfEnabled(constants,
                                             ventNetwork,
-                                            thermalNetwork.getGraph(),
-                                            static_cast<const ThermalNetwork&>(thermalNetwork).nodeStateView(),
+                                            sharedNodeState.nodeGraph,
+                                            sharedNodeState.nodeState,
                                             contaminantNetwork,
                                             logs,
                                             timings,

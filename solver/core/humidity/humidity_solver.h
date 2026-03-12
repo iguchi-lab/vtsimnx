@@ -20,7 +20,8 @@ struct HumiditySolveStats {
 
 // 湿度（絶対湿度 x）を 1 タイムステップ分だけ更新する。
 // - constants.humidityCalc=false の場合は何もしない。
-// - flowRates は現状未使用（換気グラフの枝流量を直接参照）だが、API互換のため受け取る。
+// - flowRates は現状未使用（換気グラフの枝流量を直接参照）だが、runner との
+//   インターフェース互換を保つため受け取る（将来の差分流量連携に備える）。
 HumiditySolveStats updateHumidityIfEnabled(const SimulationConstants& constants,
                                            VentilationNetwork& ventNetwork,
                                            Graph& nodeGraph,
