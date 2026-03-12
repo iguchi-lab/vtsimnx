@@ -71,3 +71,7 @@ curl -sS -X POST http://127.0.0.1:8000/run \
 
 - 参加方法・テスト・コミット方針: `CONTRIBUTING.md`
 - リポジトリ運用メモ: `docs/developer_notes.md`
+
+## License
+
+This project is licensed under the MIT License. See `LICENSE`.
