@@ -359,7 +359,7 @@ performCoupledStepCalculation(VentilationNetwork& ventNetwork,
                 std::tie(step.pressureMap, step.flowRates, step.flowBalance) =
                     ventNetwork.solvePressure(constants, logs);
             }
-            ventNetwork.updateCalculationResults(step.pressureMap, step.flowRates);
+            ventNetwork.applySolveResults(step.pressureMap, step.flowRates);
 
         // runSimulation 側の1回目チェックと同じ条件で止めたいので、ここでは totalIterations を見ない
         // （未収束フラグは solve 後に network 側に保持される）

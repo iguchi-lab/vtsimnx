@@ -59,7 +59,7 @@ public:
                        std::ostream& logs);
 
     void updateNodePressures(const PressureMap& pressureMap);
-    void updateCalculationResults(const PressureMap& pressureMap, const FlowRateMap& flowRates);
+    void applySolveResults(const PressureMap& pressureMap, const FlowRateMap& flowRates);
     void updateFlowRatesInGraph(const FlowRateMap& flowRates);
     void updateNodeTemperatures(const TemperatureMap& tempMap);
     // 温度マップを作らずに ThermalNetwork の graph から反映する

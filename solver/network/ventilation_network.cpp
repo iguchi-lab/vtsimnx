@@ -220,7 +220,7 @@ void VentilationNetwork::updateFlowRatesInGraph(const FlowRateMap& flowRates) {
 }
 
 // 圧力と風量を同時に更新
-void VentilationNetwork::updateCalculationResults(const PressureMap& pressureMap, const FlowRateMap& flowRates) {
+void VentilationNetwork::applySolveResults(const PressureMap& pressureMap, const FlowRateMap& flowRates) {
     // 圧力を更新
     updateNodePressures(pressureMap);
     
