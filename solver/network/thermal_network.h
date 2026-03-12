@@ -103,6 +103,11 @@ public:
     void solveTemperature(const SimulationConstants& constants, std::ostream& logs);
 
     // 4) Output APIs
+    // 汎用出力（主系列: temperature main）
+    const std::vector<std::string>& getOutputKeys() const;
+    std::vector<double> collectOutputValues() const;
+
+    // 専用出力
     // 温度（3系列）
     const std::vector<std::string>& getTemperatureKeys() const;
     std::vector<double> collectTemperatureValues() const;

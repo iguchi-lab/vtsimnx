@@ -8,6 +8,14 @@
 
 #include <boost/range/iterator_range.hpp>
 
+const std::vector<std::string>& ThermalNetwork::getOutputKeys() const {
+    return getTemperatureKeys();
+}
+
+std::vector<double> ThermalNetwork::collectOutputValues() const {
+    return collectTemperatureValues();
+}
+
 const std::vector<std::string>& ThermalNetwork::getTemperatureKeys() const {
     if (!temperatureCacheInitialized) {
         // directedS のため in_degree が使えない（in-edge リストを持たない）ので、

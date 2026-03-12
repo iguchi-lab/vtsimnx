@@ -8,6 +8,14 @@
 
 #include <boost/range/iterator_range.hpp>
 
+const std::vector<std::string>& VentilationNetwork::getOutputKeys() const {
+    return getPressureKeys();
+}
+
+std::vector<double> VentilationNetwork::collectOutputValues() const {
+    return collectPressureValues();
+}
+
 const std::vector<std::string>& VentilationNetwork::getPressureKeys() const {
     if (!pressureCacheInitialized) {
         // directedS のため in_degree が使えない（in-edge リストを持たない）ので、
