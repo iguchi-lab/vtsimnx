@@ -32,7 +32,7 @@ from app.solver_runner import run_solver, force_log_verbosity
 from app.solver_runner import attach_builder_log_to_artifacts, write_artifact_manifest
 from app.builder import build_config_with_warning_details
 from app.builder.validate import ValidationError, ConfigFileError
-from app.builder.logger import use_builder_log_file
+from app.builder.logger import use_builder_log_file, cleanup_default_work_logs
 
 # Uvicorn のロガー設定に追従して出す（traceback を残すため）
 logger = logging.getLogger(__name__)
@@ -323,6 +323,9 @@ def run_simulation(req: SimulationRequest):
         # エラー時は 500 を返す
         logger.exception("internal error in /run")
         raise HTTPException(status_code=500, detail=_build_internal_error_detail(e, run_id=run_id))
+    finally:
+        # 既定の work/logs は一次置き場として扱い、都度クリーンアップする。
+        cleanup_default_work_logs()
 
     return SimulationResponse(result=output, warnings=warnings, warning_details=warning_details)
 
@@ -345,35 +348,39 @@ def _run_simulation_core(
     /run と同じ経路で単発実行したいときの共通ロジック（CLI/テスト用）。
     FastAPI の依存注入や HTTP レイヤに依存しない。
     """
-    run_id = uuid.uuid4().hex
-    tmp_dir = os.getenv("VTSIMNX_BUILDER_TMP_DIR") or tempfile.gettempdir()
-    builder_log_tmp = Path(tmp_dir) / f"vtsimnx.builder.{run_id}.log"
-    build_stats_out: list = []
-    with use_builder_log_file(builder_log_tmp):
-        built_config, warnings, warning_details = build_config_with_warning_details(
-            raw_config,
-            output_path=None,
-            add_surface=add_surface,
-            add_aircon=add_aircon,
-            add_capacity=add_capacity,
-            add_moisture_capacity=add_moisture_capacity,
-            add_surface_solar=add_surface_solar,
-            add_surface_nocturnal=add_surface_nocturnal,
-            add_surface_radiation=add_surface_radiation,
-            add_surface_radiation_exclude_glass=add_surface_radiation_exclude_glass,
-            build_stats_out=build_stats_out,
+    try:
+        run_id = uuid.uuid4().hex
+        tmp_dir = os.getenv("VTSIMNX_BUILDER_TMP_DIR") or tempfile.gettempdir()
+        builder_log_tmp = Path(tmp_dir) / f"vtsimnx.builder.{run_id}.log"
+        build_stats_out: list = []
+        with use_builder_log_file(builder_log_tmp):
+            built_config, warnings, warning_details = build_config_with_warning_details(
+                raw_config,
+                output_path=None,
+                add_surface=add_surface,
+                add_aircon=add_aircon,
+                add_capacity=add_capacity,
+                add_moisture_capacity=add_moisture_capacity,
+                add_surface_solar=add_surface_solar,
+                add_surface_nocturnal=add_surface_nocturnal,
+                add_surface_radiation=add_surface_radiation,
+                add_surface_radiation_exclude_glass=add_surface_radiation_exclude_glass,
+                build_stats_out=build_stats_out,
+            )
+        force_log_verbosity(built_config, debug=debug, debug_verbosity=debug_verbosity, default_verbosity=1)
+        output = run_solver(built_config, run_id=run_id, write_manifest=False)
+        attach_builder_log_to_artifacts(
+            output,
+            builder_log_path=builder_log_tmp,
+            artifact_filename="builder.log",
+            delete_source=True,
+            build_config=built_config,
         )
-    force_log_verbosity(built_config, debug=debug, debug_verbosity=debug_verbosity, default_verbosity=1)
-    output = run_solver(built_config, run_id=run_id, write_manifest=False)
-    attach_builder_log_to_artifacts(
-        output,
-        builder_log_path=builder_log_tmp,
-        artifact_filename="builder.log",
-        delete_source=True,
-        build_config=built_config,
-    )
-    write_artifact_manifest(output)
-    return SimulationResponse(result=output, warnings=warnings, warning_details=warning_details)
+        write_artifact_manifest(output)
+        return SimulationResponse(result=output, warnings=warnings, warning_details=warning_details)
+    finally:
+        # CLI/テスト経路でも work/logs の一時ログを残さない。
+        cleanup_default_work_logs()
 
 @app.get("/artifacts/{artifact_dir}/manifest")
 def get_artifact_manifest(artifact_dir: str):

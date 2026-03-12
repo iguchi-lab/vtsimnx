@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from app.builder import build_config_with_warning_details
-from app.builder.logger import use_builder_log_file
+from app.builder.logger import use_builder_log_file, cleanup_default_work_logs
 from app.solver_runner import attach_builder_log_to_artifacts
 
 
@@ -73,3 +73,18 @@ def test_attach_builder_log_appends_build_result_line(tmp_path: Path):
     content = dest.read_text(encoding="utf-8")
     assert "ビルド結果: ノード=2, 熱ブランチ=3, 換気ブランチ=1" in content
     assert "設定データの読み込み開始" in content
+
+
+def test_cleanup_default_work_logs_removes_only_builder_temp_logs():
+    work_logs = Path(__file__).resolve().parents[2] / "work" / "logs"
+    work_logs.mkdir(parents=True, exist_ok=True)
+    target = work_logs / "vtsimNx_20990101_000000.log"
+    keep = work_logs / "keep_me.log"
+    target.write_text("", encoding="utf-8")
+    keep.write_text("keep", encoding="utf-8")
+
+    cleanup_default_work_logs()
+
+    assert not target.exists()
+    assert keep.exists()
+    keep.unlink(missing_ok=True)

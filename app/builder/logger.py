@@ -12,6 +12,26 @@ APP_LOGGER_NAME = "vtsim_config"
 _CONFIG_LOCK = threading.RLock()
 
 
+def cleanup_default_work_logs() -> None:
+    """
+    デフォルト出力先 `work/logs` に残った builder 一時ログを削除する。
+    - 対象は `vtsimNx_*.log` のみ（他ファイルは触らない）。
+    - 削除失敗は無視（運用中プロセスの open handle などを想定）。
+    """
+    try:
+        repo_root = Path(__file__).resolve().parents[2]
+        log_dir = repo_root / "work" / "logs"
+        if not log_dir.exists():
+            return
+        for p in log_dir.glob("vtsimNx_*.log"):
+            try:
+                p.unlink(missing_ok=True)
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+
 def _handlers_usable(parent: logging.Logger) -> bool:
     """
     既存ハンドラが「今もファイルへ出力できる状態」かを判定する。
