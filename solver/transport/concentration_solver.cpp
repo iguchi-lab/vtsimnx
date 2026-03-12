@@ -51,7 +51,7 @@ void updateConcentrationIfEnabled(const SimulationConstants& constants,
             // v<=0 は安全側: 流入混合のみ（沈着・発生は無視）
             double sumIn = 0.0;
             double sumInC = 0.0;
-            for (const auto& in : terms.inflowCoeff[i]) {
+            for (const auto& in : terms.inflow[i]) {
                 const Vertex sv = in.first;
                 const double qEff = in.second; // q*(1-eta)
                 sumIn += qEff;
@@ -72,7 +72,7 @@ void updateConcentrationIfEnabled(const SimulationConstants& constants,
         double k1 = m / V;
         double k2 = beta;
         k2 += terms.outSum[i] / V;
-        for (const auto& in : terms.inflowCoeff[i]) {
+        for (const auto& in : terms.inflow[i]) {
             const Vertex sv = in.first;
             const double qEff = in.second; // q*(1-eta)
             k1 += (qEff / V) * cOld[idxOf(sv)];

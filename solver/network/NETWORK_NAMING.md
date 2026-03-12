@@ -48,7 +48,7 @@
 - 係数・更新対象のフィールド名:
   - `genByVertex`
   - `outSum`
-  - `inflow` / `inflowCoeff`
+  - `inflow`
   - `updateVertices`
 
 `ensureNodeIndex(...)` は private ヘルパーとして許可する。

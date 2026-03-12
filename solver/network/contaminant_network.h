@@ -14,7 +14,7 @@ using WeightedContaminantLinks = std::vector<std::vector<std::pair<Vertex, doubl
 struct ContaminantNetworkTerms {
     std::unordered_map<Vertex, double> genByVertex;
     std::vector<double> outSum;
-    WeightedContaminantLinks inflowCoeff;
+    WeightedContaminantLinks inflow;
     std::vector<Vertex> updateVertices;
 };
 

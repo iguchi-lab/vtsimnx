@@ -31,8 +31,8 @@ void ContaminantNetwork::buildTerms(ConstNodeStateView nodeState,
 
     // 流量（m3/s）から inflow/outflow を構築（eta は inflow のみに適用）
     terms.outSum.assign(nV, 0.0); // Σ(outflow) [m3/s]
-    terms.inflowCoeff.assign(nV, {});
-    terms.inflowCoeff.reserve(nV);
+    terms.inflow.assign(nV, {});
+    terms.inflow.reserve(nV);
 
     for (auto e : boost::make_iterator_range(boost::edges(vGraph))) {
         const Vertex vSv = boost::source(e, vGraph);
@@ -62,7 +62,7 @@ void ContaminantNetwork::buildTerms(ConstNodeStateView nodeState,
         }
 
         terms.outSum[idxOf(src)] += q;
-        terms.inflowCoeff[idxOf(dst)].push_back({src, q * (1.0 - eta)});
+        terms.inflow[idxOf(dst)].push_back({src, q * (1.0 - eta)});
     }
 
     // 更新対象（calc_c=true）の頂点を key でソートして決定性を確保
