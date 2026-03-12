@@ -6,6 +6,7 @@
 #include <cmath>
 
 #include "acmodel/acmodel.h"
+#include "../archenv/include/archenv.h"
 
 namespace {
 
@@ -135,6 +136,48 @@ int main() {
                 }
             } catch (const std::exception& e) {
                 fail("CRIEPI params access failed (" + name + "): " + e.what());
+            }
+
+            // JIS条件での回帰:
+            // highspec / standard から生成したモデルに JIS 条件を与えたとき、
+            // 各 rating(min/rtd/max) の入力能力 Q に対する推定電力 power[kW] が
+            // 元 spec の P に十分近いことを確認する。
+            const auto runJisPoint = [&](const std::string& mode,
+                                         const std::string& rating,
+                                         double tIn, double tEx,
+                                         double xIn, double xEx) {
+                InputData in{};
+                in.T_in = tIn;
+                in.T_ex = tEx;
+                in.X_in = xIn;
+                in.X_ex = xEx;
+                in.Q = spec.at("Q").at(mode).at(rating).get<double>() * 1000.0; // kW -> W
+                // spec上は rtd 風量のみ保持しているため、全 rating で同じ値を使用
+                in.V_inner = spec.at("V_inner").at(mode).at("rtd").get<double>();
+                in.V_outer = spec.at("V_outer").at(mode).at("rtd").get<double>();
+
+                COPResult out{};
+                try {
+                    out = model->estimateCOP(mode, in);
+                } catch (const std::exception& e) {
+                    fail("CRIEPI estimateCOP failed (" + name + ", " + mode + ", " + rating + "): " + e.what());
+                    return;
+                }
+                expectTrue(out.valid, "CRIEPI estimateCOP valid (" + name + ", " + mode + ", " + rating + ")");
+
+                const double expectedPowerKw = spec.at("P").at(mode).at(rating).get<double>();
+                const double powerTolKw = 7.0e-2; // JIS点の回帰許容（収束/近似差を吸収）
+                expectNear(out.power, expectedPowerKw, powerTolKw,
+                           "CRIEPI JIS power (" + name + ", " + mode + ", " + rating + ")");
+            };
+
+            for (const auto& rating : {"min", "rtd", "max"}) {
+                runJisPoint("cooling", rating,
+                            archenv::jis::T_C_IN, archenv::jis::T_C_EX,
+                            archenv::jis::X_C_IN, archenv::jis::X_C_EX);
+                runJisPoint("heating", rating,
+                            archenv::jis::T_H_IN, archenv::jis::T_H_EX,
+                            archenv::jis::X_H_IN, archenv::jis::X_H_EX);
             }
         };
 
