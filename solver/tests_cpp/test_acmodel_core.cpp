@@ -213,6 +213,77 @@ int main() {
     }
 
     // -----------------------------
+    // CRIEPI: 暖房の係数テーブル値（R, Pc）回帰
+    // ユーザー提示の表値に対して、暖房側を明示チェックする。
+    // -----------------------------
+    {
+        setLogger(nullptr);
+
+        const nlohmann::json highspec = {
+            {"Q", {{"cooling", {{"min", 0.700}, {"rtd", 2.200}, {"max", 3.300}}},
+                   {"heating", {{"min", 0.700}, {"rtd", 2.500}, {"max", 5.400}}}}},
+            {"P", {{"cooling", {{"min", 0.095}, {"rtd", 0.395}, {"max", 0.780}}},
+                   {"heating", {{"min", 0.095}, {"rtd", 0.390}, {"max", 1.360}}}}},
+            {"V_inner", {{"cooling", {{"rtd", 12.1 / 60.0}}}, {"heating", {{"rtd", 13.1 / 60.0}}}}},
+            {"V_outer", {{"cooling", {{"rtd", 28.2 / 60.0}}}, {"heating", {{"rtd", 25.5 / 60.0}}}}}
+        };
+
+        const nlohmann::json standard = {
+            {"Q", {{"cooling", {{"min", 0.900}, {"rtd", 2.200}, {"max", 2.800}}},
+                   {"heating", {{"min", 0.900}, {"rtd", 2.200}, {"max", 3.600}}}}},
+            {"P", {{"cooling", {{"min", 0.170}, {"rtd", 0.455}, {"max", 0.745}}},
+                   {"heating", {{"min", 0.135}, {"rtd", 0.385}, {"max", 1.070}}}}},
+            {"V_inner", {{"cooling", {{"rtd", 12.0 / 60.0}}}, {"heating", {{"rtd", 12.0 / 60.0}}}}},
+            {"V_outer", {{"cooling", {{"rtd", 27.6 / 60.0}}}, {"heating", {{"rtd", 22.5 / 60.0}}}}}
+        };
+
+        const auto checkHeatingTable = [&](const std::string& name,
+                                           const nlohmann::json& spec,
+                                           double pcHeatingKw,
+                                           const std::vector<double>& coeffHeating) {
+            std::unique_ptr<AirconSpec> model;
+            try {
+                model = AirconModelFactory::createModel("CRIEPI", spec);
+            } catch (const std::exception& e) {
+                fail("CRIEPI heating table createModel failed (" + name + "): " + e.what());
+                return;
+            }
+
+            nlohmann::json params;
+            try {
+                params = model->getModelParameters();
+            } catch (const std::exception& e) {
+                fail("CRIEPI heating table getModelParameters failed (" + name + "): " + e.what());
+                return;
+            }
+
+            const double pcTol = 1.3e-3;
+            const double coeffTol = 1.3e-2;
+            try {
+                expectNear(params.at("constant_power").at("heating").get<double>(),
+                           pcHeatingKw, pcTol,
+                           "CRIEPI heating table Pc (" + name + ")");
+
+                auto coeffH = params.at("coefficients").at("heating");
+                expectTrue(coeffH.is_array() && coeffH.size() == 3,
+                           "CRIEPI heating table coeff shape (" + name + ")");
+                for (int i = 0; i < 3; i++) {
+                    expectNear(coeffH.at(i).get<double>(), coeffHeating.at(i), coeffTol,
+                               "CRIEPI heating table coeff[" + std::to_string(i) + "] (" + name + ")");
+                }
+            } catch (const std::exception& e) {
+                fail("CRIEPI heating table params access failed (" + name + "): " + e.what());
+            }
+        };
+
+        // 表値:
+        // - highspec heating: R = -0.006 Q^2 + 0.019 Q + 0.636, Pc=30.3W(=0.0303kW)
+        // - standard heating: R = -0.044 Q^2 + 0.136 Q + 0.479, Pc=30.0W(=0.0300kW)
+        checkHeatingTable("highspec", highspec, 0.0303, {-0.006, 0.019, 0.636});
+        checkHeatingTable("standard", standard, 0.0300, {-0.044, 0.136, 0.479});
+    }
+
+    // -----------------------------
     // CRIEPI highspec: 図ベース近似回帰（冷房 COP-負荷曲線）
     // 画像から読み取った近似点を使い、過度に厳密でない回帰チェックを行う。
     // -----------------------------
