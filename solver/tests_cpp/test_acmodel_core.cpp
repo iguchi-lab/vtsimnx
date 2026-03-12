@@ -461,6 +461,57 @@ int main() {
         }
     }
 
+    // -----------------------------
+    // RAC: 元コード式との整合回帰（冷房 Q_dash_T_C 補正式）
+    // -----------------------------
+    {
+        setLogger(nullptr);
+
+        const nlohmann::json racStandard = {
+            {"Q", {{"cooling", {{"rtd", 5.60000}, {"max", 5.94462}}},
+                   {"heating", {{"rtd", 6.68530}, {"max", 10.04705}}}}},
+            {"P", {{"cooling", {{"rtd", 5.60000 / 3.2432}}},
+                   {"heating", {{"rtd", 6.68530 / 4.1573}}}}},
+            {"dualcompressor", false}
+        };
+
+        std::unique_ptr<AirconSpec> model;
+        try {
+            model = AirconModelFactory::createModel("RAC", racStandard);
+        } catch (const std::exception& e) {
+            fail(std::string("RAC createModel failed: ") + e.what());
+            model.reset();
+        }
+
+        if (model) {
+            InputData in{};
+            in.T_ex = 25.3;
+            in.X_ex = 0.0180;        // 18.0 g/kg' -> 0.018 kg/kg'
+            in.Q_S = 499.05856;      // W
+            in.Q_L = 0.0;            // W
+            // RACModelでは冷房/暖房で主に Q_S/Q_L を使うため、他入力はこのテストで未使用
+            in.T_in = 27.0;
+            in.X_in = 0.010;
+            in.Q = 0.0;
+            in.V_inner = 0.0;
+            in.V_outer = 0.0;
+
+            COPResult out{};
+            try {
+                out = model->estimateCOP("cooling", in);
+            } catch (const std::exception& e) {
+                fail(std::string("RAC estimateCOP(cooling) failed: ") + e.what());
+                out.valid = false;
+            }
+            expectTrue(out.valid, "RAC baseline: estimateCOP valid");
+
+            // 元コード式での基準値（kW）
+            const double expectedPowerKw = 0.0606481310760;
+            const double tolKw = 1.0e-6;
+            expectNear(out.power, expectedPowerKw, tolKw, "RAC baseline: power regression");
+        }
+    }
+
     if (g_failures == 0) {
         std::cout << "[OK] all tests passed\n";
         return 0;

@@ -283,7 +283,8 @@ COPResult RACModel::estimateCoolingCOP(const InputData& in) {
                                "MJ/h, Q_T_CL=" + std::to_string(Q_T_CL) + "MJ/h");
 
     // ---- 補正処理冷房負荷 [MJ/h] ----
-    const double Q_dash_T_C = (Q_T_CS + Q_T_CL) * (1.0 / C_AF_C) * C_HM_C;
+    // 元式（Python実装）: Q_dash_T_C = (Q_T_CS + Q_T_CL) / (C_HM_C * C_AF_C)
+    const double Q_dash_T_C = (Q_T_CS + Q_T_CL) * (1.0 / (C_HM_C * C_AF_C));
     calculationLogs_.push_back("　　　補正処理負荷: Q_dash_T_C=" + std::to_string(Q_dash_T_C) + "MJ/h");
 
     // ---- 部分負荷電力係数 → 電力[kW] ----
