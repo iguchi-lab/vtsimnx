@@ -75,3 +75,16 @@ curl -sS -X POST http://127.0.0.1:8000/run \
 ## License
 
 This project is licensed under the MIT License. See `LICENSE`.
+
+## Disclaimer
+
+- This software is provided for research and development purposes.  
+  本ソフトウェアは研究・開発目的で提供されます。
+- Results from simulation are not guaranteed to be accurate, complete, or fit for any specific purpose.  
+  シミュレーション結果の正確性、完全性、特定目的への適合性は保証されません。
+- Users are responsible for validating inputs, assumptions, and outputs before operational use.  
+  運用利用前の入力条件・仮定・出力結果の妥当性確認は利用者の責任で実施してください。
+- The authors and contributors are not liable for any direct or indirect damages arising from use of this software.  
+  本ソフトウェアの利用に起因する直接的または間接的な損害について、著者および貢献者は責任を負いません。
+- The legally binding warranty and liability terms are defined by `LICENSE` (MIT License).  
+  法的拘束力を持つ保証・責任条件は `LICENSE`（MIT License）に従います。
