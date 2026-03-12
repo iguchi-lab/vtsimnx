@@ -212,6 +212,184 @@ int main() {
                 /*Pc heating*/ 0.0300, /*coeff heating*/ {-0.044, 0.136, 0.479});
     }
 
+    // -----------------------------
+    // CRIEPI highspec: 図ベース近似回帰（冷房 COP-負荷曲線）
+    // 画像から読み取った近似点を使い、過度に厳密でない回帰チェックを行う。
+    // -----------------------------
+    {
+        setLogger(nullptr);
+
+        const nlohmann::json highspec = {
+            {"Q", {{"cooling", {{"min", 0.700}, {"rtd", 2.200}, {"max", 3.300}}},
+                   {"heating", {{"min", 0.700}, {"rtd", 2.500}, {"max", 5.400}}}}},
+            {"P", {{"cooling", {{"min", 0.095}, {"rtd", 0.395}, {"max", 0.780}}},
+                   {"heating", {{"min", 0.095}, {"rtd", 0.390}, {"max", 1.360}}}}},
+            {"V_inner", {{"cooling", {{"rtd", 12.1 / 60.0}}}, {"heating", {{"rtd", 13.1 / 60.0}}}}},
+            {"V_outer", {{"cooling", {{"rtd", 28.2 / 60.0}}}, {"heating", {{"rtd", 25.5 / 60.0}}}}}
+        };
+
+        std::unique_ptr<AirconSpec> model;
+        try {
+            model = AirconModelFactory::createModel("CRIEPI", highspec);
+        } catch (const std::exception& e) {
+            fail(std::string("CRIEPI highspec createModel failed (figure approx): ") + e.what());
+            model.reset();
+        }
+
+        if (model) {
+            const double tIn = 27.0;
+            const double rhIn = 47.1;
+            const double xIn = archenv::absolute_humidity(tIn, rhIn);
+            const double vInner = highspec.at("V_inner").at("cooling").at("rtd").get<double>();
+            const double vOuter = highspec.at("V_outer").at("cooling").at("rtd").get<double>();
+
+            const auto estimateCopAt = [&](double tEx, double rhEx, double qKw) -> double {
+                InputData in{};
+                in.T_in = tIn;
+                in.T_ex = tEx;
+                in.X_in = xIn;
+                in.X_ex = archenv::absolute_humidity(tEx, rhEx);
+                in.Q = qKw * 1000.0; // kW -> W
+                in.V_inner = vInner;
+                in.V_outer = vOuter;
+                COPResult out = model->estimateCOP("cooling", in);
+                expectTrue(out.valid, "CRIEPI highspec figure approx: estimateCOP valid");
+                return out.COP;
+            };
+
+            // 図からの近似読み取り点（冷房, 室温27℃/室内RH47.1%/外気RH40.5%）
+            // 25℃, 30℃, 35℃ それぞれ Q=[0.7, 2.2, 3.3]kW で評価
+            const double rhEx = 40.5;
+            const double qMin = 0.7;
+            const double qRtd = 2.2;
+            const double qMax = 3.3;
+
+            const double cop25Min = estimateCopAt(25.0, rhEx, qMin);
+            const double cop25Rtd = estimateCopAt(25.0, rhEx, qRtd);
+            const double cop25Max = estimateCopAt(25.0, rhEx, qMax);
+
+            const double cop30Min = estimateCopAt(30.0, rhEx, qMin);
+            const double cop30Rtd = estimateCopAt(30.0, rhEx, qRtd);
+            const double cop30Max = estimateCopAt(30.0, rhEx, qMax);
+
+            const double cop35Min = estimateCopAt(35.0, rhEx, qMin);
+            const double cop35Rtd = estimateCopAt(35.0, rhEx, qRtd);
+            const double cop35Max = estimateCopAt(35.0, rhEx, qMax);
+
+            // 図の○点（メーカー公表値）近傍: 35℃線の min/rtd/max
+            const double figTolCop = 0.8;
+            expectNear(cop35Min, 7.4, figTolCop, "CRIEPI highspec figure approx: COP35@0.7kW");
+            expectNear(cop35Rtd, 5.6, figTolCop, "CRIEPI highspec figure approx: COP35@2.2kW");
+            expectNear(cop35Max, 4.3, figTolCop, "CRIEPI highspec figure approx: COP35@3.3kW");
+
+            // 温度依存の序列（同一負荷で 25℃ > 30℃ > 35℃）
+            expectTrue(cop25Min > cop30Min && cop30Min > cop35Min,
+                       "CRIEPI highspec figure approx: COP order at 0.7kW");
+            expectTrue(cop25Rtd > cop30Rtd && cop30Rtd > cop35Rtd,
+                       "CRIEPI highspec figure approx: COP order at 2.2kW");
+            expectTrue(cop25Max > cop30Max && cop30Max > cop35Max,
+                       "CRIEPI highspec figure approx: COP order at 3.3kW");
+
+            // 各温度線で、負荷増加に伴って COP が低下（図の右下がり傾向）
+            expectTrue(cop25Min > cop25Rtd && cop25Rtd > cop25Max,
+                       "CRIEPI highspec figure approx: COP slope at 25C");
+            expectTrue(cop30Min > cop30Rtd && cop30Rtd > cop30Max,
+                       "CRIEPI highspec figure approx: COP slope at 30C");
+            expectTrue(cop35Min > cop35Rtd && cop35Rtd > cop35Max,
+                       "CRIEPI highspec figure approx: COP slope at 35C");
+        }
+    }
+
+    // -----------------------------
+    // CRIEPI highspec: 図ベース近似回帰（冷房 COP-室内温度曲線）
+    // Q=2.2kW 一定で、室内温度上昇に伴う COP 上昇傾向を確認。
+    // -----------------------------
+    {
+        setLogger(nullptr);
+
+        const nlohmann::json highspec = {
+            {"Q", {{"cooling", {{"min", 0.700}, {"rtd", 2.200}, {"max", 3.300}}},
+                   {"heating", {{"min", 0.700}, {"rtd", 2.500}, {"max", 5.400}}}}},
+            {"P", {{"cooling", {{"min", 0.095}, {"rtd", 0.395}, {"max", 0.780}}},
+                   {"heating", {{"min", 0.095}, {"rtd", 0.390}, {"max", 1.360}}}}},
+            {"V_inner", {{"cooling", {{"rtd", 12.1 / 60.0}}}, {"heating", {{"rtd", 13.1 / 60.0}}}}},
+            {"V_outer", {{"cooling", {{"rtd", 28.2 / 60.0}}}, {"heating", {{"rtd", 25.5 / 60.0}}}}}
+        };
+
+        std::unique_ptr<AirconSpec> model;
+        try {
+            model = AirconModelFactory::createModel("CRIEPI", highspec);
+        } catch (const std::exception& e) {
+            fail(std::string("CRIEPI highspec createModel failed (figure Tin sweep): ") + e.what());
+            model.reset();
+        }
+
+        if (model) {
+            const double rhIn = 47.1;
+            const double rhEx = 40.5;
+            const double qKw = 2.2; // 熱処理量固定
+            const double vInner = highspec.at("V_inner").at("cooling").at("rtd").get<double>();
+            const double vOuter = highspec.at("V_outer").at("cooling").at("rtd").get<double>();
+
+            const auto estimateCopAtTin = [&](double tIn, double tEx) -> double {
+                InputData in{};
+                in.T_in = tIn;
+                in.T_ex = tEx;
+                in.X_in = archenv::absolute_humidity(tIn, rhIn);
+                in.X_ex = archenv::absolute_humidity(tEx, rhEx);
+                in.Q = qKw * 1000.0; // kW -> W
+                in.V_inner = vInner;
+                in.V_outer = vOuter;
+                COPResult out = model->estimateCOP("cooling", in);
+                expectTrue(out.valid, "CRIEPI highspec Tin sweep: estimateCOP valid");
+                return out.COP;
+            };
+
+            // 室内温度 15/20/25/30℃
+            const double c25_t15 = estimateCopAtTin(15.0, 25.0);
+            const double c25_t20 = estimateCopAtTin(20.0, 25.0);
+            const double c25_t25 = estimateCopAtTin(25.0, 25.0);
+            const double c25_t30 = estimateCopAtTin(30.0, 25.0);
+
+            const double c30_t15 = estimateCopAtTin(15.0, 30.0);
+            const double c30_t20 = estimateCopAtTin(20.0, 30.0);
+            const double c30_t25 = estimateCopAtTin(25.0, 30.0);
+            const double c30_t30 = estimateCopAtTin(30.0, 30.0);
+
+            const double c35_t15 = estimateCopAtTin(15.0, 35.0);
+            const double c35_t20 = estimateCopAtTin(20.0, 35.0);
+            const double c35_t25 = estimateCopAtTin(25.0, 35.0);
+            const double c35_t30 = estimateCopAtTin(30.0, 35.0);
+
+            // 図の近似端点チェック（画像読み取り値なので余裕を持たせる）
+            const double figTolCop = 1.0;
+            expectNear(c25_t15, 5.1, figTolCop, "CRIEPI highspec Tin sweep: COP25C@Tin15");
+            expectNear(c25_t30, 10.9, figTolCop, "CRIEPI highspec Tin sweep: COP25C@Tin30");
+            expectNear(c30_t15, 4.4, figTolCop, "CRIEPI highspec Tin sweep: COP30C@Tin15");
+            expectNear(c30_t30, 8.0, figTolCop, "CRIEPI highspec Tin sweep: COP30C@Tin30");
+            expectNear(c35_t15, 3.8, figTolCop, "CRIEPI highspec Tin sweep: COP35C@Tin15");
+            expectNear(c35_t30, 6.3, figTolCop, "CRIEPI highspec Tin sweep: COP35C@Tin30");
+
+            // 同一外気温で Tin が上がると COP は単調増加
+            expectTrue(c25_t15 < c25_t20 && c25_t20 < c25_t25 && c25_t25 < c25_t30,
+                       "CRIEPI highspec Tin sweep: COP increases with Tin at 25C");
+            expectTrue(c30_t15 < c30_t20 && c30_t20 < c30_t25 && c30_t25 < c30_t30,
+                       "CRIEPI highspec Tin sweep: COP increases with Tin at 30C");
+            expectTrue(c35_t15 < c35_t20 && c35_t20 < c35_t25 && c35_t25 < c35_t30,
+                       "CRIEPI highspec Tin sweep: COP increases with Tin at 35C");
+
+            // 同一 Tin で 25℃線 > 30℃線 > 35℃線
+            expectTrue(c25_t15 > c30_t15 && c30_t15 > c35_t15,
+                       "CRIEPI highspec Tin sweep: COP order at Tin15");
+            expectTrue(c25_t20 > c30_t20 && c30_t20 > c35_t20,
+                       "CRIEPI highspec Tin sweep: COP order at Tin20");
+            expectTrue(c25_t25 > c30_t25 && c30_t25 > c35_t25,
+                       "CRIEPI highspec Tin sweep: COP order at Tin25");
+            expectTrue(c25_t30 > c30_t30 && c30_t30 > c35_t30,
+                       "CRIEPI highspec Tin sweep: COP order at Tin30");
+        }
+    }
+
     if (g_failures == 0) {
         std::cout << "[OK] all tests passed\n";
         return 0;
