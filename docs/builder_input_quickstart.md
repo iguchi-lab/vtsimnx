@@ -102,6 +102,7 @@ result = vt.run_calc("http://127.0.0.1:8000", input_data)
 ## 7. 関連ドキュメント
 
 - 全体導線: `README.md`
+- 実サンプルコード: `../examples/README.md`, `../examples/vs_simheat_r15.py`
 - ノード/ブランチ早見表: `node_branch_schema.md`
 - `surfaces` の実務ガイド: `surface_usage.md`
 - スケジュール作成: `schedule_usage.md`

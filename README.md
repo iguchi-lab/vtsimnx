@@ -5,6 +5,7 @@
 ## 利用目的別クイックリンク
 
 - ライブラリ利用（外部実行クライアント）: `vtsimnx/`, `docs/README.md`
+- サンプルコード置き場: `examples/README.md`
 - 入力JSONの書き方（`vt.run_calc` 利用者向け）: `docs/builder_input_quickstart.md`, `docs/node_branch_schema.md`
 - APIサーバー運用（計算実行）: `engine/README.md`, `engine/RUN_FASTAPI.md`
 - API仕様・入力契約: `engine/docs/api_reference.md`, `engine/docs/builder_json.md`
@@ -50,6 +51,7 @@ python -m vtsimnx.tools.run_calc_smoke --base-url http://127.0.0.1:8000
 ## リポジトリ構成
 
 - `vtsimnx/`: 外部実行者が利用する Python ライブラリ群
+- `examples/`: 利用者向けのサンプル Python コード
 - `docs/`: ライブラリ利用ドキュメント（理論・使用例）
 - `engine/`: FastAPI + builder + C++ solver（計算サーバー）
 

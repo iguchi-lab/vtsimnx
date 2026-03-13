@@ -1,11 +1,12 @@
-## SimHeat 比較用入力例（vs_simheat_r14 の要約）
+## SimHeat 比較用入力例（`examples/vs_simheat_r15.py` の要約）
 
-このドキュメントは、`vtsimnx_test/vs_simheat_r14.ipynb` で行っている **SimHeat との比較ケース**のうち、
+このドキュメントは、`examples/vs_simheat_r15.py` で行っている **SimHeat との比較ケース**のうち、
 「VTSimNX に渡している入力 JSON（`input_data`）」の組み立て方を、高レベルでまとめたものです。
 
-ノートブック本体は GitHub 上の次を参照してください。
+対応するサンプルファイルは次です。
 
-- `iguchi-lab/vtsimnx_test` リポジトリ: `vs_simheat_r14.ipynb`
+- `../examples/vs_simheat_r15.py`
+- 気象データ: `../examples/3639999.has`
 
 ここでは、「どの情報をどう組み合わせて builder 入力を作っているか」に絞って説明します。
 
@@ -70,7 +71,7 @@ surface = {
 
 ### 4. builder 入力 `input_data` の構成
 
-ノートブック内では、次のような dict を組み立てて `vt.run_calc(base_url, input_data, ...)` に渡しています。
+サンプルでは、次のような dict を組み立てて `vt.run_calc(base_url, input_data, ...)` に渡しています。
 
 ```python
 input_data = {
@@ -153,19 +154,22 @@ input_data["nodes"] = [
 
 ---
 
-### 5. 実行と結果取得
+### 5. 実行と結果取得（`run_calc`）
 
-最後に、環境変数 `VTSIMNX_API_URL` から API ベースURLを取得し、次のように呼び出します。
+最後に API ベースURLを設定して、次のように呼び出します。
 
 ```python
-from google.colab import userdata
+import os
 
-base_url = userdata.get("VTSIMNX_API_URL")
+base_url = os.environ["VTSIMNX_API_URL"]
 result = vt.run_calc(base_url, input_data, request_output_path="result_vs_simheat.json")
 print(result.log)
 ```
 
 `result` からは `get_series_df("thermal_temperature")` などで各種系列を取り出し、SimHeat 側の出力と比較しています。
+
+> `examples/vs_simheat_r15.py` は Colab 由来コード（`!pip`、`google.colab` 依存部分）を含むため、
+> ローカル実行時は環境に合わせて読み替えてください。
 
 ---
 
