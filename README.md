@@ -2,6 +2,8 @@
 熱・換気回路網計算に基づくシミュレーション基盤です。  
 このリポジトリは `vtsimnx` Python ライブラリと FastAPI 計算サーバー（`engine/`）を同居させています。
 
+最新リリース: [`v1.0.0`](https://github.com/iguchi-lab/vtsimnx/releases/tag/v1.0.0)
+
 ## 利用目的別クイックリンク
 
 - ライブラリ利用（外部実行クライアント）: `vtsimnx/`, `docs/README.md`
