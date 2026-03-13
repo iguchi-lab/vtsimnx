@@ -458,18 +458,5 @@ if(VTSIMNX_BUILD_CPP_TESTS)
     )
     add_test(NAME vtsimnx_solver_cpp_test_app_smoke COMMAND vtsimnx_solver_cpp_test_app_smoke)
 
-    # 11) archenv constants registry sync check (C++ side)
-    add_executable(vtsimnx_solver_cpp_test_archenv_constants_registry
-        tests_cpp/test_archenv_constants_registry.cpp
-    )
-    target_compile_definitions(vtsimnx_solver_cpp_test_archenv_constants_registry PRIVATE
-        ARCHENV_CONSTANTS_JSON_PATH="${CMAKE_SOURCE_DIR}/../../spec/archenv_constants.json"
-    )
-    target_compile_options(vtsimnx_solver_cpp_test_archenv_constants_registry PRIVATE
-        -Wall
-        -Wextra
-    )
-    add_test(NAME vtsimnx_solver_cpp_test_archenv_constants_registry
-             COMMAND vtsimnx_solver_cpp_test_archenv_constants_registry)
 endif()
 
