@@ -7,25 +7,22 @@
       "cpp_unit": "Pa"
     },
     "SPECIFIC_HEAT_AIR": {
-      "python_value": 1.005,
+      "python_value": 1.006,
       "python_unit": "kJ/(kg*K)",
       "cpp_value": 1006.0,
-      "cpp_unit": "J/(kg*K)",
-      "cross_check_converted_abs_tol": 2.0
+      "cpp_unit": "J/(kg*K)"
     },
     "SPECIFIC_HEAT_WATER_VAPOR": {
       "python_value": 1.846,
       "python_unit": "kJ/(kg*K)",
       "cpp_value": 1846.0,
-      "cpp_unit": "J/(kg*K)",
-      "cross_check_converted_abs_tol": 1.0
+      "cpp_unit": "J/(kg*K)"
     },
     "LATENT_HEAT_VAPORIZATION": {
-      "python_value": 2501.1,
+      "python_value": 2500.8,
       "python_unit": "kJ/kg",
       "cpp_value": 2500800.0,
-      "cpp_unit": "J/kg",
-      "cross_check_converted_abs_tol": 400.0
+      "cpp_unit": "J/kg"
     },
     "SIGMA": {
       "python_value": 4.88e-8,

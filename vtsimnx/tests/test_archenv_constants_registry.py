@@ -28,17 +28,17 @@ def test_archenv_python_cpp_crosscheck_with_tolerance():
         ae.Air_Cp * 1000.0,
         c["SPECIFIC_HEAT_AIR"]["cpp_value"],
         rel_tol=0.0,
-        abs_tol=c["SPECIFIC_HEAT_AIR"]["cross_check_converted_abs_tol"],
+        abs_tol=1e-12,
     )
     assert math.isclose(
         ae.Vap_Cp * 1000.0,
         c["SPECIFIC_HEAT_WATER_VAPOR"]["cpp_value"],
         rel_tol=0.0,
-        abs_tol=c["SPECIFIC_HEAT_WATER_VAPOR"]["cross_check_converted_abs_tol"],
+        abs_tol=1e-12,
     )
     assert math.isclose(
         ae.Vap_L * 1000.0,
         c["LATENT_HEAT_VAPORIZATION"]["cpp_value"],
         rel_tol=0.0,
-        abs_tol=c["LATENT_HEAT_VAPORIZATION"]["cross_check_converted_abs_tol"],
+        abs_tol=1e-12,
     )
