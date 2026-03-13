@@ -1,9 +1,9 @@
-# VTSimNX API
+# VTSimNX Engine Service
 
 VTSimNX のシミュレーションを HTTP で実行するための FastAPI ラッパです。  
 `/run` に JSON を送ると、builder で設定を正規化した後に C++ solver を実行し、結果と artifact 情報を返します。
 
-この `api/` はモノレポ内の計算サーバー実装です。  
+この `engine/` はモノレポ内の計算サーバー実装です。  
 ルートの全体導線は `../README.md`、core側解説は `../docs/README.md` を参照してください。
 
 ## この API でできること

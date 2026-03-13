@@ -10,7 +10,7 @@
 ## About: Website 候補
 
 - ドキュメント入口（推奨）: `README.md`
-- API運用入口: `api/README.md`
+- API運用入口: `engine/README.md`
 
 ## About: Topics 候補
 

@@ -1,13 +1,13 @@
 # vtsimnx monorepo
 熱・換気回路網計算に基づくシミュレーション基盤です。  
-このリポジトリは `vtsimnx` Python ライブラリ（core）と FastAPI 計算サーバー（`api/`）を同居させています。
+このリポジトリは `vtsimnx` Python ライブラリ（core）と FastAPI 計算サーバー（`engine/`）を同居させています。
 
 ## 利用目的別クイックリンク
 
 - ライブラリ利用（外部実行クライアント）: `vtsimnx/`, `docs/README.md`
-- APIサーバー運用（計算実行）: `api/README.md`, `api/RUN_FASTAPI.md`
-- API仕様・入力契約: `api/docs/api_reference.md`, `api/docs/builder_json.md`
-- 開発者向け: `api/CONTRIBUTING.md`
+- APIサーバー運用（計算実行）: `engine/README.md`, `engine/RUN_FASTAPI.md`
+- API仕様・入力契約: `engine/docs/api_reference.md`, `engine/docs/builder_json.md`
+- 開発者向け: `engine/CONTRIBUTING.md`
 
 ## クイックスタート（core ライブラリ）
 
@@ -34,22 +34,22 @@ python -m vtsimnx.tools.run_calc_smoke --base-url http://127.0.0.1:8000
 
 ## API連携の前提
 
-- `vt.run_calc(...)` は `api/` の `/run` エンドポイントを呼び出します。
+- `vt.run_calc(...)` は `engine/` の `/run` エンドポイントを呼び出します。
 - API URL は引数で直接渡すか、`VTSIMNX_API_URL` を利用します。
-- APIの起動・常駐運用は `api/RUN_FASTAPI.md` を参照してください。
+- APIの起動・常駐運用は `engine/RUN_FASTAPI.md` を参照してください。
 
 ## ドキュメント構成
 
 - core側の理論・ユーティリティ: `docs/README.md`
-- API側の実装/契約ドキュメント: `api/docs/README.md`
+- API側の実装/契約ドキュメント: `engine/docs/README.md`
 - ノード/枝の利用者向け整理: `docs/node_branch_schema.md`
-- builder厳密仕様（正本）: `api/docs/builder_json.md`
+- builder厳密仕様（正本）: `engine/docs/builder_json.md`
 
 ## リポジトリ構成（モノレポ）
 
 - `vtsimnx/`: 外部実行者が利用する Python ライブラリ群
 - `docs/`: core側ドキュメント（理論・使用例）
-- `api/`: FastAPI + builder + C++ solver（計算サーバー）
+- `engine/`: FastAPI + builder + C++ solver（計算サーバー）
 
 ## License / Disclaimer
 

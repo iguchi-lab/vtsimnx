@@ -3,7 +3,7 @@
 このドキュメントでは、`vtsimnx` で使う **`surfaces` 入力** と、サンプル入力構築における表面定義の考え方をまとめます。
 
 - 物理背景（外皮伝熱・窓の日射熱取得）は `building_environment_engineering_basics.md` を参照してください。
-- API 側の RC/応答係数法・builder の展開ロジックは `api/docs/thermal_rc.md` / `api/docs/thermal_response_factor.md` / `api/docs/builder_json.md` を参照してください。
+- API 側の RC/応答係数法・builder の展開ロジックは `engine/docs/thermal_rc.md` / `engine/docs/thermal_response_factor.md` / `engine/docs/builder_json.md` を参照してください。
 
 ---
 
@@ -167,11 +167,11 @@ input_data["surfaces"] = [
 
 などと組み合わせて、`surfaces` を構成します。
 
-**実運用での surface 入力仕様（builder → solver への展開）や RC/応答係数法の詳細** は、`api/docs/` 配下に集約しています。
+**実運用での surface 入力仕様（builder → solver への展開）や RC/応答係数法の詳細** は、`engine/docs/` 配下に集約しています。
 
-- surface 入力と RC 法: `api/docs/thermal_rc.md`
-- 応答係数法（CTF）: `api/docs/thermal_response_factor.md`
-- builder の `surfaces` 展開ルール: `api/docs/builder_json.md`
+- surface 入力と RC 法: `engine/docs/thermal_rc.md`
+- 応答係数法（CTF）: `engine/docs/thermal_response_factor.md`
+- builder の `surfaces` 展開ルール: `engine/docs/builder_json.md`
 
 core/docs では「**表面をどう分解し、どのようなパラメータを与えるか**」の例を中心に押さえてください。
 
