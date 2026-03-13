@@ -50,6 +50,14 @@ Desktop.ini
 calc_result.json
 output.artifacts.*/
 work/
+build-solver/
+engine/build-solver/
+result_request_minimal.json
+result_vs_simheat.json
+vs_simheat_8760.json
+temp.csv
+ac_sensible_heat.csv
+LD_aircon.csv
 
 # OS/Editor
 .DS_Store
