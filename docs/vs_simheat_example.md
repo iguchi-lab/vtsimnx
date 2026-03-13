@@ -174,5 +174,5 @@ print(result.log)
 - 日射 / 夜間放射の詳細: `solar_usage.md`, `archenv_comfort_nocturnal_wind_usage.md`
 - スケジュール（空調・換気・発熱）: `schedule_usage.md`
 - surface / materials / layers: `surface_usage.md`
-- builder・API 側の正確な JSON 仕様: `vtsimnx-api/docs/builder_json.md`
+- builder・API 側の正確な JSON 仕様: `api/docs/builder_json.md`
 

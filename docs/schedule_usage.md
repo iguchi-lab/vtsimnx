@@ -232,5 +232,5 @@ custom_pre_tmp = vt.schedule.build_pre_tmp()
 を中心に説明しています。
 
 実際に builder 入力 JSON にどう埋め込むか（`simulation.index` や `nodes[].mode` / `pre_temp` への反映）は、  
-API 側 `vtsimnx-api` の `docs/builder_json.md` / `docs/aircon_control_overview.md` を参照してください。
+`api/docs/builder_json.md` / `api/docs/aircon_control_overview.md` を参照してください。
 
