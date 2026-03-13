@@ -45,6 +45,14 @@
 
 しきい値はケース種別ごとに定義し、検証ケース追加時に更新します。
 
+## Python / C++ の定数整合
+
+- 共有レジストリ: `../spec/archenv_constants.json`
+- Python 側クロスチェック: `../vtsimnx/tests/test_archenv_constants_registry.py`
+- C++ 側クロスチェック: `../engine/solver/tests_cpp/test_archenv_constants_registry.cpp`
+
+このテストにより、`engine/archenv` と `vtsimnx/archenv` の定数差分ドリフトを早期検知します。
+
 ## ドキュメントとの対応
 
 - 利用者向け入力導線: `builder_input_quickstart.md`

@@ -52,6 +52,8 @@ output.artifacts.*/
 work/
 build-solver/
 engine/build-solver/
+build-solver*/
+engine/build-solver*/
 result_request_minimal.json
 result_vs_simheat.json
 vs_simheat_8760.json
