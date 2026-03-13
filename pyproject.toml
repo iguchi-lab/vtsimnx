@@ -1,6 +1,6 @@
 [project]
 name = "vtsimnx"
-version = "0.1.0"
+version = "1.0.0"
 description = "Network-based ventilation and thermal simulation tool"
 license = "MIT"
 authors = [
