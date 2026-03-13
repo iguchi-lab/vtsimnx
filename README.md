@@ -1,6 +1,6 @@
 # vtsimnx
 熱・換気回路網計算に基づくシミュレーション基盤です。  
-このリポジトリは `vtsimnx` Python ライブラリ（core）と FastAPI 計算サーバー（`engine/`）を同居させています。
+このリポジトリは `vtsimnx` Python ライブラリと FastAPI 計算サーバー（`engine/`）を同居させています。
 
 ## 利用目的別クイックリンク
 
@@ -10,7 +10,7 @@
 - API仕様・入力契約: `engine/docs/api_reference.md`, `engine/docs/builder_json.md`
 - 開発者向け: `engine/CONTRIBUTING.md`
 
-## クイックスタート（core ライブラリ）
+## クイックスタート（Python ライブラリ）
 
 1) 仮想環境の作成と依存導入
 
@@ -41,7 +41,7 @@ python -m vtsimnx.tools.run_calc_smoke --base-url http://127.0.0.1:8000
 
 ## ドキュメント構成
 
-- core側の理論・ユーティリティ: `docs/README.md`
+- ライブラリ利用の理論・ユーティリティ: `docs/README.md`
 - 利用者向けの入力組み立て導線: `docs/builder_input_quickstart.md`
 - API側の実装/契約ドキュメント: `engine/docs/README.md`
 - ノード/枝の利用者向け整理: `docs/node_branch_schema.md`
@@ -50,7 +50,7 @@ python -m vtsimnx.tools.run_calc_smoke --base-url http://127.0.0.1:8000
 ## リポジトリ構成
 
 - `vtsimnx/`: 外部実行者が利用する Python ライブラリ群
-- `docs/`: core側ドキュメント（理論・使用例）
+- `docs/`: ライブラリ利用ドキュメント（理論・使用例）
 - `engine/`: FastAPI + builder + C++ solver（計算サーバー）
 
 ## License / Disclaimer
