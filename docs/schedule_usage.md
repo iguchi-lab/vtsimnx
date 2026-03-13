@@ -222,7 +222,7 @@ custom_pre_tmp = vt.schedule.build_pre_tmp()
 
 ---
 
-### 8. どこまで core/docs で書くか
+### 8. このドキュメントの対象範囲
 
 `vtsimnx` 側では、
 

@@ -149,7 +149,7 @@ input_data["nodes"] = [
 - エアコン: `vt.schedule.ac_mode` / `pre_tmp` などのスケジュールを用いて、個別空調を再現。
 - 発熱: `vt.schedule.sensible_heat` を元に、室ごとの内部発熱プロファイルを `heat_source` に設定。
 
-（具体的な JSON 形は API 側 `builder_json.md` と core 側 `schedule_usage.md` を参照してください。）
+（具体的な JSON 形は API 側 `builder_json.md` と `schedule_usage.md` を参照してください。）
 
 ---
 
@@ -169,7 +169,7 @@ print(result.log)
 
 ---
 
-### 6. どこまで core/docs で書くか
+### 6. このドキュメントの対象範囲
 
 このドキュメントはあくまで「**大規模ケースの入力をどう組み立てているか**」を俯瞰するためのものです。
 

@@ -4,8 +4,8 @@
 
 ## About: Description 候補
 
-- Network-based ventilation and thermal simulation platform with Python core and FastAPI/solver backend.
-- Python core library and API solver stack for building thermal and airflow simulation.
+- Network-based ventilation and thermal simulation platform with a Python library and FastAPI/solver backend.
+- Python library and API solver stack for building thermal and airflow simulation.
 
 ## About: Website 候補
 

@@ -1,4 +1,4 @@
-# vtsimnx monorepo
+# vtsimnx
 熱・換気回路網計算に基づくシミュレーション基盤です。  
 このリポジトリは `vtsimnx` Python ライブラリ（core）と FastAPI 計算サーバー（`engine/`）を同居させています。
 
@@ -47,7 +47,7 @@ python -m vtsimnx.tools.run_calc_smoke --base-url http://127.0.0.1:8000
 - ノード/枝の利用者向け整理: `docs/node_branch_schema.md`
 - builder厳密仕様（正本）: `engine/docs/builder_json.md`
 
-## リポジトリ構成（モノレポ）
+## リポジトリ構成
 
 - `vtsimnx/`: 外部実行者が利用する Python ライブラリ群
 - `docs/`: core側ドキュメント（理論・使用例）
