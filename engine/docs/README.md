@@ -1,32 +1,37 @@
-### docs
+# engine docs index
 
-- `docs/theory_basics.md`: 建築環境工学の基礎（換気回路網/熱回路網/日射・放射/湿気・濃度）と、本実装での扱い方
-- `docs/builder_json.md`: builder入力JSON（raw_config）の作り方（トップレベル構造、key記法、時系列、surface/aircon展開、validation）
-- `docs/simulation_overview.md`: シミュレーション全体の概略（builder→solver、1タイムステップの処理順、出力artifact）
-- `docs/acmodel_overview.md`: エアコンモデル（acmodel）の概要（CRIEPI/RAC/DUCT_CENTRAL/LATENT_EVALUATE、ac_spec、solver入力、出力）
-- `docs/aircon_control_overview.md`: エアコン制御の概要（ON/OFF判定、fixed-row、顕熱/潜熱、全熱での能力上限判定、超過時の設定温度補正・二分探索）
-- `docs/aircon_spec_reference.md`: エアコン仕様（ac_spec）リファレンス（モデル別の必須キー、能力上限に使う max/mid、`latent_method`/`bf`）
-- `docs/physics_math_notes.md`: 物理・数学メモ（符号/単位/離散化/安定性の注意点）
-- `docs/thermal_rc.md`: 壁モデル（RC法）
-- `docs/thermal_response_factor.md`: 壁モデル（応答係数法/CTF, `response_conduction`）
-- `docs/constants_and_spec.md`, `docs/check_outer_surface_colder_than_air.md`: その他仕様・検証メモ
+このディレクトリは、`engine/` 実装の仕様・設計メモ（API/builder/solver/aircon）の正本です。  
+`vt.run_calc` の入力を作る利用者向けガイドは `../../docs/README.md` を参照してください。
 
----
+## 主要ドキュメント
 
-### 読み方ガイド（目的別）
+- `api_reference.md`: APIエンドポイント契約
+- `builder_json.md`: builder入力JSON（raw_config）の作り方
+- `simulation_overview.md`: シミュレーション全体の概略（builder→solver）
+- `aircon_control_overview.md`: エアコン制御ロジックの概要
+- `acmodel_overview.md`: エアコンモデル（CRIEPI/RAC/DUCT_CENTRAL など）
+- `aircon_spec_reference.md`: `ac_spec` の必須キー・モデル別仕様
+- `thermal_rc.md`: 壁モデル（RC法）
+- `thermal_response_factor.md`: 壁モデル（応答係数法/CTF）
+- `theory_basics.md`, `physics_math_notes.md`: 理論・数理メモ
+- `constants_and_spec.md`, `check_outer_surface_colder_than_air.md`: 補助仕様・検証メモ
 
-- 初めて使う: `docs/theory_basics.md` → `docs/simulation_overview.md` → `docs/builder_json.md`
-- 入力JSONを作る: `docs/builder_json.md` → `docs/thermal_rc.md` / `docs/thermal_response_factor.md`
-- エアコン・COP/電力: `docs/aircon_control_overview.md` → `docs/acmodel_overview.md` → `docs/aircon_spec_reference.md`
-- 実装寄りに理解する: `docs/simulation_overview.md` → `docs/aircon_control_overview.md` → `docs/acmodel_overview.md`
+## 読み方ガイド（目的別）
 
----
+- 初めて全体像を把握する: `theory_basics.md` → `simulation_overview.md` → `builder_json.md`
+- 入力JSON仕様を深掘りする: `builder_json.md` → `thermal_rc.md` / `thermal_response_factor.md`
+- 空調の挙動を確認する: `aircon_control_overview.md` → `acmodel_overview.md` → `aircon_spec_reference.md`
+- 実装寄りに追う: `simulation_overview.md` → `aircon_control_overview.md` → `acmodel_overview.md`
 
-### 低負荷でビルド/テストしたいとき（メモ）
+## 導線
 
-CPU/RAMを抑えたい場合は並列数を下げます:
+- 利用者向けドキュメント: `../../docs/README.md`
+- リポジトリ入口: `../../README.md`
+- API運用入口: `../README.md`
+
+## 低負荷でビルド/テストしたいとき（メモ）
+
+CPU/RAMを抑えたい場合は並列数を下げます。
 
 - build: `cmake --build build-solver -j1`（または `-j2`）
 - test: `ctest --test-dir build-solver -j1 --output-on-failure`
-
-
