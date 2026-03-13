@@ -1,0 +1,19 @@
+---
+description: Enforce reproducible low-load solver build defaults
+alwaysApply: true
+---
+
+# Solver Build Policy
+
+When working in this repository, use the following defaults for C++ solver builds.
+
+- Prefer explicit configure/build dirs:
+  - `cmake -S solver -B build-solver ...`
+- Default build type:
+  - `-DCMAKE_BUILD_TYPE=Release`
+- Default parallelism on shared/remote machines:
+  - `cmake --build build-solver -j1`
+  - `ctest --test-dir build-solver -j1 --output-on-failure`
+- Use higher `-j` only if the user explicitly requests faster build at higher load.
+- If changing build commands/docs, keep `CONTRIBUTING.md` aligned with this policy.
+- After running build/test commands, report the exact commands used.

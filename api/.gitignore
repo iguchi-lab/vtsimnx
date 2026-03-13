@@ -1,0 +1,42 @@
+# --- build artifacts ---
+/build/
+/build-solver/
+/solver/build/
+/solver/build-solver/
+**/CMakeFiles/
+**/CMakeCache.txt
+**/cmake_install.cmake
+**/Makefile
+**/*.o
+**/*.obj
+**/*.a
+**/*.so
+**/*.dylib
+**/*.exe
+
+# --- solver runtime outputs ---
+/work/
+/work_test/
+**/*.artifacts.*/
+**/*.f32.bin
+**/*.bin
+**/*.jsonl
+
+# --- python / pytest ---
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# --- virtualenv ---
+/venv/
+.venv/
+
+# --- local runtime logs ---
+.uvicorn.log
+.uvicorn.pid
+
+# --- local archived folders ---
+/old_solver/
+/old_vtsim/
+
+

@@ -1,0 +1,1189 @@
+{
+    "simulation": {
+        "index": {
+            "start": "2025-08-24 00:00:00",
+            "end": "2025-08-24 01:00:00",
+            "timestep": 3600,
+            "length": 24
+        },
+        "tolerance": {
+            "ventilation": 1e-06,
+            "thermal": 1e-06,
+            "convergence": 1e-06
+        },
+        "calc_flag": {
+            "p": true,
+            "t": true,
+            "x": false,
+            "c": false
+        }
+    },
+    "nodes": [
+        {
+            "key": "void",
+            "type": "normal",
+            "t": 20.0
+        },
+        {
+            "key": "outside",
+            "p": [
+                8.0,
+                7.5,
+                7.0,
+                6.5,
+                6.0,
+                5.5,
+                5.0,
+                5.5,
+                6.0,
+                6.5,
+                7.0,
+                7.5,
+                8.0,
+                8.5,
+                9.0,
+                9.5,
+                10.0,
+                9.5,
+                9.0,
+                8.5,
+                8.0,
+                7.5,
+                7.0,
+                6.5
+            ],
+            "t": [
+                5,
+                4,
+                3,
+                2,
+                1,
+                2,
+                3,
+                4,
+                5,
+                7,
+                9,
+                11,
+                13,
+                15,
+                16,
+                15,
+                14,
+                12,
+                10,
+                9,
+                8,
+                7,
+                6,
+                5
+            ],
+            "comment": "",
+            "type": "normal"
+        },
+        {
+            "key": "room1",
+            "calc_p": true,
+            "calc_t": true,
+            "t": 18.0,
+            "comment": "mainroom",
+            "type": "normal",
+            "p": 0.0
+        },
+        {
+            "key": "room3",
+            "calc_p": true,
+            "calc_t": true,
+            "t": 18.0,
+            "comment": "mainroom",
+            "type": "normal",
+            "p": 0.0
+        },
+        {
+            "key": "room2",
+            "calc_p": true,
+            "calc_t": true,
+            "t": 20.0,
+            "comment": "",
+            "type": "normal",
+            "p": 0.0
+        },
+        {
+            "key": "room3-outside_wall_s",
+            "calc_t": true,
+            "type": "layer",
+            "subtype": "surface",
+            "t": 18.0
+        },
+        {
+            "key": "outside-room3_wall_s",
+            "calc_t": true,
+            "type": "layer",
+            "subtype": "surface",
+            "t": 5.0
+        },
+        {
+            "key": "room3-room2_wall_s",
+            "calc_t": true,
+            "type": "layer",
+            "subtype": "surface",
+            "t": 18.0
+        },
+        {
+            "key": "room2-room3_wall_s",
+            "calc_t": true,
+            "type": "layer",
+            "subtype": "surface",
+            "t": 20.0
+        },
+        {
+            "key": "room3-outside_floor_s",
+            "calc_t": true,
+            "type": "layer",
+            "subtype": "surface",
+            "t": 18.0
+        },
+        {
+            "key": "room3-outside_floor_1-2",
+            "calc_t": true,
+            "type": "layer",
+            "subtype": "internal",
+            "t": 18.0
+        },
+        {
+            "key": "room3-outside_floor_2-3",
+            "calc_t": true,
+            "type": "layer",
+            "subtype": "internal",
+            "t": 18.0
+        },
+        {
+            "key": "outside-room3_ceiling_s",
+            "calc_t": true,
+            "type": "layer",
+            "subtype": "surface",
+            "t": 5.0
+        },
+        {
+            "key": "room3-outside_ceiling_s",
+            "calc_t": true,
+            "type": "layer",
+            "subtype": "surface",
+            "t": 18.0
+        },
+        {
+            "key": "outside-room3_floor_s",
+            "calc_t": true,
+            "type": "layer",
+            "subtype": "surface",
+            "t": 5.0
+        },
+        {
+            "key": "room3-outside_glass_s",
+            "calc_t": true,
+            "type": "layer",
+            "subtype": "surface",
+            "t": 18.0
+        },
+        {
+            "key": "outside-room3_glass_s",
+            "calc_t": true,
+            "type": "layer",
+            "subtype": "surface",
+            "t": 5.0
+        },
+        {
+            "key": "aircon1",
+            "calc_t": true,
+            "in_node": "room1",
+            "set_node": "room1",
+            "outside_node": "outside",
+            "type": "aircon",
+            "pre_temp": 30.0,
+            "model": "CRIEPI",
+            "mode": [
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING"
+            ],
+            "ac_spec": {
+                "Q": {
+                    "cooling": {
+                        "min": 0.7,
+                        "rtd": 2.2,
+                        "max": 3.3
+                    },
+                    "heating": {
+                        "min": 0.7,
+                        "rtd": 2.5,
+                        "max": 5.4
+                    }
+                },
+                "P": {
+                    "cooling": {
+                        "min": 0.095,
+                        "rtd": 0.395,
+                        "max": 0.78
+                    },
+                    "heating": {
+                        "min": 0.095,
+                        "rtd": 0.39,
+                        "max": 1.36
+                    }
+                },
+                "V_inner": {
+                    "cooling": {
+                        "rtd": 0.2016666666667
+                    },
+                    "heating": {
+                        "rtd": 0.2016666666667
+                    }
+                },
+                "V_outer": {
+                    "cooling": {
+                        "rtd": 0.47
+                    },
+                    "heating": {
+                        "rtd": 0.47
+                    }
+                }
+            },
+            "p": 0.0,
+            "t": 20.0
+        },
+        {
+            "key": "aircon2",
+            "calc_t": true,
+            "in_node": "room2",
+            "set_node": "room2",
+            "outside_node": "outside",
+            "type": "aircon",
+            "pre_temp": 30.0,
+            "model": "RAC",
+            "mode": [
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING"
+            ],
+            "ac_spec": {
+                "Q": {
+                    "cooling": {
+                        "rtd": 5.6,
+                        "max": 5.94462
+                    },
+                    "heating": {
+                        "rtd": 6.6853,
+                        "max": 10.047048
+                    }
+                },
+                "P": {
+                    "cooling": {
+                        "rtd": 1.726732
+                    },
+                    "heating": {
+                        "rtd": 1.608101
+                    }
+                }
+            },
+            "p": 0.0,
+            "t": 20.0
+        },
+        {
+            "key": "aircon3",
+            "calc_t": true,
+            "in_node": "room3",
+            "set_node": "room3",
+            "outside_node": "outside",
+            "type": "aircon",
+            "pre_temp": 30.0,
+            "model": "DUCT_CENTRAL",
+            "mode": [
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING",
+                "HEATING"
+            ],
+            "ac_spec": {
+                "Q": {
+                    "cooling": {
+                        "min": 2.682626,
+                        "mid": 3.832323,
+                        "rtd": 7.664646
+                    },
+                    "heating": {
+                        "min": 2.706897,
+                        "mid": 3.866996,
+                        "rtd": 7.733992
+                    }
+                },
+                "P": {
+                    "cooling": {
+                        "rtd": 2.41787
+                    },
+                    "heating": {
+                        "rtd": 2.056912
+                    }
+                },
+                "P_fan": {
+                    "cooling": {
+                        "mid": 0.188513,
+                        "rtd": 0.240326
+                    },
+                    "heating": {
+                        "mid": 0.188981,
+                        "rtd": 0.241263
+                    }
+                },
+                "V_inner": {
+                    "cooling": {
+                        "mid": 0.349611,
+                        "dsgn": 0.361468,
+                        "rtd": 0.457554
+                    },
+                    "heating": {
+                        "mid": 0.350587,
+                        "dsgn": 0.363011,
+                        "rtd": 0.459508
+                    }
+                }
+            },
+            "p": 0.0,
+            "t": 20.0
+        },
+        {
+            "key": "room2_c",
+            "calc_t": false,
+            "type": "capacity",
+            "ref_node": "room2",
+            "t": 20.0
+        },
+        {
+            "key": "room3-outside_wall_s_c",
+            "calc_t": false,
+            "type": "capacity",
+            "ref_node": "room3-outside_wall_s",
+            "t": 18.0
+        },
+        {
+            "key": "outside-room3_wall_s_c",
+            "calc_t": false,
+            "type": "capacity",
+            "ref_node": "outside-room3_wall_s",
+            "t": 5.0
+        },
+        {
+            "key": "room3-room2_wall_s_c",
+            "calc_t": false,
+            "type": "capacity",
+            "ref_node": "room3-room2_wall_s",
+            "t": 18.0
+        },
+        {
+            "key": "room2-room3_wall_s_c",
+            "calc_t": false,
+            "type": "capacity",
+            "ref_node": "room2-room3_wall_s",
+            "t": 20.0
+        },
+        {
+            "key": "room3-outside_floor_s_c",
+            "calc_t": false,
+            "type": "capacity",
+            "ref_node": "room3-outside_floor_s",
+            "t": 18.0
+        },
+        {
+            "key": "room3-outside_floor_1-2_c",
+            "calc_t": false,
+            "type": "capacity",
+            "ref_node": "room3-outside_floor_1-2",
+            "t": 18.0
+        },
+        {
+            "key": "room3-outside_floor_2-3_c",
+            "calc_t": false,
+            "type": "capacity",
+            "ref_node": "room3-outside_floor_2-3",
+            "t": 18.0
+        },
+        {
+            "key": "outside-room3_ceiling_s_c",
+            "calc_t": false,
+            "type": "capacity",
+            "ref_node": "outside-room3_ceiling_s",
+            "t": 5.0
+        },
+        {
+            "key": "room3-outside_ceiling_s_c",
+            "calc_t": false,
+            "type": "capacity",
+            "ref_node": "room3-outside_ceiling_s",
+            "t": 18.0
+        },
+        {
+            "key": "outside-room3_floor_s_c",
+            "calc_t": false,
+            "type": "capacity",
+            "ref_node": "outside-room3_floor_s",
+            "t": 5.0
+        },
+        {
+            "key": "room3-outside_glass_s_c",
+            "calc_t": false,
+            "type": "capacity",
+            "ref_node": "room3-outside_glass_s",
+            "t": 18.0
+        },
+        {
+            "key": "outside-room3_glass_s_c",
+            "calc_t": false,
+            "type": "capacity",
+            "ref_node": "outside-room3_glass_s",
+            "t": 5.0
+        }
+    ],
+    "ventilation_branches": [
+        {
+            "key": "outside->room1",
+            "alpha": 0.6,
+            "area": 0.01,
+            "eta": 0.8,
+            "comment": "outside opening",
+            "source": "outside",
+            "target": "room1",
+            "enable": true,
+            "type": "simple_opening",
+            "h_from": 0.0,
+            "h_to": 0.0
+        },
+        {
+            "key": "room1->room2",
+            "alpha": 0.6,
+            "area": 0.02,
+            "comment": "",
+            "source": "room1",
+            "target": "room2",
+            "enable": true,
+            "type": "simple_opening",
+            "h_from": 0.0,
+            "h_to": 0.0
+        },
+        {
+            "key": "room2->room3",
+            "alpha": 0.6,
+            "area": 0.02,
+            "comment": "",
+            "source": "room2",
+            "target": "room3",
+            "enable": true,
+            "type": "simple_opening",
+            "h_from": 0.0,
+            "h_to": 0.0
+        },
+        {
+            "key": "room3->outside",
+            "p_max": 80,
+            "p1": 50,
+            "q_max": 0.05,
+            "q1": 0.03,
+            "h_from": 2.4,
+            "h_to": 2.4,
+            "comment": "fan",
+            "source": "room3",
+            "target": "outside",
+            "enable": true,
+            "type": "fan"
+        },
+        {
+            "key": "room1->aircon1",
+            "vol": 0.2777777777777778,
+            "subtype": "aircon",
+            "source": "room1",
+            "target": "aircon1",
+            "enable": true,
+            "type": "fixed_flow",
+            "h_from": 0.0,
+            "h_to": 0.0
+        },
+        {
+            "key": "aircon1->room1",
+            "vol": 0.2777777777777778,
+            "subtype": "aircon",
+            "source": "aircon1",
+            "target": "room1",
+            "enable": true,
+            "type": "fixed_flow",
+            "h_from": 0.0,
+            "h_to": 0.0
+        },
+        {
+            "key": "room2->aircon2",
+            "vol": 0.2777777777777778,
+            "subtype": "aircon",
+            "source": "room2",
+            "target": "aircon2",
+            "enable": true,
+            "type": "fixed_flow",
+            "h_from": 0.0,
+            "h_to": 0.0
+        },
+        {
+            "key": "aircon2->room2",
+            "vol": 0.2777777777777778,
+            "subtype": "aircon",
+            "source": "aircon2",
+            "target": "room2",
+            "enable": true,
+            "type": "fixed_flow",
+            "h_from": 0.0,
+            "h_to": 0.0
+        },
+        {
+            "key": "room3->aircon3",
+            "vol": 0.2777777777777778,
+            "subtype": "aircon",
+            "source": "room3",
+            "target": "aircon3",
+            "enable": true,
+            "type": "fixed_flow",
+            "h_from": 0.0,
+            "h_to": 0.0
+        },
+        {
+            "key": "aircon3->room3",
+            "vol": 0.2777777777777778,
+            "subtype": "aircon",
+            "source": "aircon3",
+            "target": "room3",
+            "enable": true,
+            "type": "fixed_flow",
+            "h_from": 0.0,
+            "h_to": 0.0
+        }
+    ],
+    "thermal_branches": [
+        {
+            "key": "room1->outside",
+            "u_value": 0.87,
+            "area": 100,
+            "comment": "",
+            "source": "room1",
+            "target": "outside",
+            "enable": true,
+            "type": "conductance",
+            "conductance": 87.0
+        },
+        {
+            "key": "room2->outside",
+            "u_value": 0.87,
+            "area": 50,
+            "comment": "",
+            "source": "room2",
+            "target": "outside",
+            "enable": true,
+            "type": "conductance",
+            "conductance": 43.5
+        },
+        {
+            "key": "void->room2",
+            "heat_generation": 1000.0,
+            "comment": "",
+            "source": "void",
+            "target": "room2",
+            "enable": true,
+            "type": "heat_generation"
+        },
+        {
+            "key": "room3->room3-outside_wall_s",
+            "conductance": 440.00000000000006,
+            "subtype": "convection",
+            "source": "room3",
+            "target": "room3-outside_wall_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3-outside_wall_s->outside-room3_wall_s",
+            "conductance": 87.0,
+            "subtype": "conduction",
+            "source": "room3-outside_wall_s",
+            "target": "outside-room3_wall_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "outside-room3_wall_s->outside",
+            "conductance": 2030.0,
+            "subtype": "convection",
+            "source": "outside-room3_wall_s",
+            "target": "outside",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3->room3-room2_wall_s",
+            "conductance": 220.00000000000003,
+            "subtype": "convection",
+            "source": "room3",
+            "target": "room3-room2_wall_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3-room2_wall_s->room2-room3_wall_s",
+            "conductance": 43.5,
+            "subtype": "conduction",
+            "source": "room3-room2_wall_s",
+            "target": "room2-room3_wall_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room2-room3_wall_s->room2",
+            "conductance": 1015.0,
+            "subtype": "convection",
+            "source": "room2-room3_wall_s",
+            "target": "room2",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3->room3-outside_floor_s",
+            "conductance": 440.00000000000006,
+            "subtype": "convection",
+            "source": "room3",
+            "target": "room3-outside_floor_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3-outside_floor_s->room3-outside_floor_1-2",
+            "conductance": 35.0,
+            "subtype": "conduction",
+            "source": "room3-outside_floor_s",
+            "target": "room3-outside_floor_1-2",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3-outside_floor_1-2->room3-outside_floor_2-3",
+            "conductance": 850.0,
+            "subtype": "conduction",
+            "source": "room3-outside_floor_1-2",
+            "target": "room3-outside_floor_2-3",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3-outside_floor_2-3->outside-room3_ceiling_s",
+            "conductance": 1300.0,
+            "subtype": "conduction",
+            "source": "room3-outside_floor_2-3",
+            "target": "outside-room3_ceiling_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "outside-room3_ceiling_s->outside",
+            "conductance": 2030.0,
+            "subtype": "convection",
+            "source": "outside-room3_ceiling_s",
+            "target": "outside",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3->room3-outside_ceiling_s",
+            "conductance": 440.00000000000006,
+            "subtype": "convection",
+            "source": "room3",
+            "target": "room3-outside_ceiling_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3-outside_ceiling_s->outside-room3_floor_s",
+            "conductance": 87.0,
+            "subtype": "conduction",
+            "source": "room3-outside_ceiling_s",
+            "target": "outside-room3_floor_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "outside-room3_floor_s->outside",
+            "conductance": 2030.0,
+            "subtype": "convection",
+            "source": "outside-room3_floor_s",
+            "target": "outside",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3->room3-outside_glass_s",
+            "conductance": 44.0,
+            "subtype": "convection",
+            "source": "room3",
+            "target": "room3-outside_glass_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3-outside_glass_s->outside-room3_glass_s",
+            "conductance": 23.3,
+            "subtype": "conduction",
+            "source": "room3-outside_glass_s",
+            "target": "outside-room3_glass_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "outside-room3_glass_s->outside",
+            "conductance": 203.0,
+            "subtype": "convection",
+            "source": "outside-room3_glass_s",
+            "target": "outside",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "void->outside-room3_wall_s",
+            "heat_generation": [
+                4000.0,
+                3200.0,
+                2400.0,
+                1600.0,
+                800.0,
+                1600.0,
+                2400.0,
+                3200.0,
+                4000.0,
+                5600.0,
+                7200.0,
+                8800.0,
+                10400.0,
+                12000.0,
+                12800.0,
+                12000.0,
+                11200.0,
+                9600.0,
+                8000.0,
+                7200.0,
+                6400.0,
+                5600.0,
+                4800.0,
+                4000.0
+            ],
+            "subtype": "solar_gain",
+            "source": "void",
+            "target": "outside-room3_wall_s",
+            "enable": true,
+            "type": "heat_generation"
+        },
+        {
+            "key": "void->room3-outside_wall_s",
+            "heat_generation": [
+                68.0,
+                54.4,
+                40.8,
+                27.2,
+                13.6,
+                27.2,
+                40.8,
+                54.4,
+                68.0,
+                95.2,
+                122.4,
+                149.6,
+                176.8,
+                204.0,
+                217.6,
+                204.0,
+                190.4,
+                163.2,
+                136.0,
+                122.4,
+                108.8,
+                95.2,
+                81.6,
+                68.0
+            ],
+            "subtype": "solar_gain",
+            "source": "void",
+            "target": "room3-outside_wall_s",
+            "enable": true,
+            "type": "heat_generation"
+        },
+        {
+            "key": "void->room3-room2_wall_s",
+            "heat_generation": [
+                34.0,
+                27.2,
+                20.4,
+                13.6,
+                6.8,
+                13.6,
+                20.4,
+                27.2,
+                34.0,
+                47.6,
+                61.2,
+                74.8,
+                88.4,
+                102.0,
+                108.8,
+                102.0,
+                95.2,
+                81.6,
+                68.0,
+                61.2,
+                54.4,
+                47.6,
+                40.8,
+                34.0
+            ],
+            "subtype": "solar_gain",
+            "source": "void",
+            "target": "room3-room2_wall_s",
+            "enable": true,
+            "type": "heat_generation"
+        },
+        {
+            "key": "void->room3-outside_floor_s",
+            "heat_generation": [
+                170.0,
+                136.0,
+                102.0,
+                68.0,
+                34.0,
+                68.0,
+                102.0,
+                136.0,
+                170.0,
+                238.0,
+                306.0,
+                374.0,
+                442.0,
+                510.0,
+                544.0,
+                510.0,
+                476.0,
+                408.0,
+                340.0,
+                306.0,
+                272.0,
+                238.0,
+                204.0,
+                170.0
+            ],
+            "subtype": "solar_gain",
+            "source": "void",
+            "target": "room3-outside_floor_s",
+            "enable": true,
+            "type": "heat_generation"
+        },
+        {
+            "key": "void->room3-outside_ceiling_s",
+            "heat_generation": [
+                68.0,
+                54.4,
+                40.8,
+                27.2,
+                13.6,
+                27.2,
+                40.8,
+                54.4,
+                68.0,
+                95.2,
+                122.4,
+                149.6,
+                176.8,
+                204.0,
+                217.6,
+                204.0,
+                190.4,
+                163.2,
+                136.0,
+                122.4,
+                108.8,
+                95.2,
+                81.6,
+                68.0
+            ],
+            "subtype": "solar_gain",
+            "source": "void",
+            "target": "room3-outside_ceiling_s",
+            "enable": true,
+            "type": "heat_generation"
+        },
+        {
+            "key": "room3-outside_wall_s->room3-room2_wall_s",
+            "conductance": 65.27777777777777,
+            "subtype": "radiation",
+            "source": "room3-outside_wall_s",
+            "target": "room3-room2_wall_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3-outside_wall_s->room3-outside_floor_s",
+            "conductance": 130.55555555555554,
+            "subtype": "radiation",
+            "source": "room3-outside_wall_s",
+            "target": "room3-outside_floor_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3-outside_wall_s->room3-outside_ceiling_s",
+            "conductance": 130.55555555555554,
+            "subtype": "radiation",
+            "source": "room3-outside_wall_s",
+            "target": "room3-outside_ceiling_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3-outside_wall_s->room3-outside_glass_s",
+            "conductance": 13.055555555555555,
+            "subtype": "radiation",
+            "source": "room3-outside_wall_s",
+            "target": "room3-outside_glass_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3-room2_wall_s->room3-outside_floor_s",
+            "conductance": 65.27777777777777,
+            "subtype": "radiation",
+            "source": "room3-room2_wall_s",
+            "target": "room3-outside_floor_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3-room2_wall_s->room3-outside_ceiling_s",
+            "conductance": 65.27777777777777,
+            "subtype": "radiation",
+            "source": "room3-room2_wall_s",
+            "target": "room3-outside_ceiling_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3-room2_wall_s->room3-outside_glass_s",
+            "conductance": 6.527777777777778,
+            "subtype": "radiation",
+            "source": "room3-room2_wall_s",
+            "target": "room3-outside_glass_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3-outside_floor_s->room3-outside_ceiling_s",
+            "conductance": 130.55555555555554,
+            "subtype": "radiation",
+            "source": "room3-outside_floor_s",
+            "target": "room3-outside_ceiling_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3-outside_floor_s->room3-outside_glass_s",
+            "conductance": 13.055555555555555,
+            "subtype": "radiation",
+            "source": "room3-outside_floor_s",
+            "target": "room3-outside_glass_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3-outside_ceiling_s->room3-outside_glass_s",
+            "conductance": 13.055555555555555,
+            "subtype": "radiation",
+            "source": "room3-outside_ceiling_s",
+            "target": "room3-outside_glass_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room2_c->room2",
+            "conductance": 0.2777777777777778,
+            "subtype": "capacity",
+            "source": "room2_c",
+            "target": "room2",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3-outside_wall_s_c->room3-outside_wall_s",
+            "conductance": 0.0001388888888888889,
+            "subtype": "capacity",
+            "source": "room3-outside_wall_s_c",
+            "target": "room3-outside_wall_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "outside-room3_wall_s_c->outside-room3_wall_s",
+            "conductance": 0.0001388888888888889,
+            "subtype": "capacity",
+            "source": "outside-room3_wall_s_c",
+            "target": "outside-room3_wall_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3-room2_wall_s_c->room3-room2_wall_s",
+            "conductance": 6.944444444444444e-05,
+            "subtype": "capacity",
+            "source": "room3-room2_wall_s_c",
+            "target": "room3-room2_wall_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room2-room3_wall_s_c->room2-room3_wall_s",
+            "conductance": 6.944444444444444e-05,
+            "subtype": "capacity",
+            "source": "room2-room3_wall_s_c",
+            "target": "room2-room3_wall_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3-outside_floor_s_c->room3-outside_floor_s",
+            "conductance": 0.041666666666666664,
+            "subtype": "capacity",
+            "source": "room3-outside_floor_s_c",
+            "target": "room3-outside_floor_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3-outside_floor_1-2_c->room3-outside_floor_1-2",
+            "conductance": 6.430555555555555,
+            "subtype": "capacity",
+            "source": "room3-outside_floor_1-2_c",
+            "target": "room3-outside_floor_1-2",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3-outside_floor_2-3_c->room3-outside_floor_2-3",
+            "conductance": 6.444444444444445,
+            "subtype": "capacity",
+            "source": "room3-outside_floor_2-3_c",
+            "target": "room3-outside_floor_2-3",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "outside-room3_ceiling_s_c->outside-room3_ceiling_s",
+            "conductance": 0.05555555555555555,
+            "subtype": "capacity",
+            "source": "outside-room3_ceiling_s_c",
+            "target": "outside-room3_ceiling_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3-outside_ceiling_s_c->room3-outside_ceiling_s",
+            "conductance": 0.0001388888888888889,
+            "subtype": "capacity",
+            "source": "room3-outside_ceiling_s_c",
+            "target": "room3-outside_ceiling_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "outside-room3_floor_s_c->outside-room3_floor_s",
+            "conductance": 0.0001388888888888889,
+            "subtype": "capacity",
+            "source": "outside-room3_floor_s_c",
+            "target": "outside-room3_floor_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "room3-outside_glass_s_c->room3-outside_glass_s",
+            "conductance": 1.388888888888889e-05,
+            "subtype": "capacity",
+            "source": "room3-outside_glass_s_c",
+            "target": "room3-outside_glass_s",
+            "enable": true,
+            "type": "conductance"
+        },
+        {
+            "key": "outside-room3_glass_s_c->outside-room3_glass_s",
+            "conductance": 1.388888888888889e-05,
+            "subtype": "capacity",
+            "source": "outside-room3_glass_s_c",
+            "target": "outside-room3_glass_s",
+            "enable": true,
+            "type": "conductance"
+        }
+    ]
+}
