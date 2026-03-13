@@ -13,7 +13,7 @@
 
 ### 1. 気象と SimHeat 出力の読み込み
 
-1. `vt.read_hasp("3639999.has")` で気象データを読み込む。  
+1. `vt.read_hasp("<weather>.has")` で気象データを読み込む。  
    - 列: 外気温・地下温度・水平面日射・夜間放射など。
 2. 独自関数 `read_simheat_csv(...)` で SimHeat の CSV 出力（室温、熱流、換気、透過日射、冷暖房負荷など）を読み込む。
    - `Output室温湿度.csv`
@@ -159,7 +159,7 @@ input_data["nodes"] = [
 from google.colab import userdata
 
 base_url = userdata.get("VTSIMNX_API_URL")
-result = vt.run_calc(base_url, input_data, request_output_path="vs_simheat_8760.json")
+result = vt.run_calc(base_url, input_data, request_output_path="result_vs_simheat.json")
 print(result.log)
 ```
 

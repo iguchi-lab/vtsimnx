@@ -1,5 +1,7 @@
 # Nodes / Branches 入力仕様メモ（ユーザー向け）
 
+> このページは core 側の「早見表」です。builder が受け付ける厳密仕様は `api/docs/builder_json.md` を正本として参照してください。
+
 このドキュメントは、`config`（入力JSON）内の **nodes / ventilation_branches / thermal_branches** のキー仕様を、ユーザーが迷わない形でまとめたものです。
 
 ## 共通ルール

@@ -1,58 +1,58 @@
-# vtsimnx
-熱・換気回路網計算による温熱シミュレーションプログラム
+# vtsimnx monorepo
+熱・換気回路網計算に基づくシミュレーション基盤です。  
+このリポジトリは `vtsimnx` Python ライブラリ（core）と FastAPI 計算サーバー（`api/`）を同居させています。
 
-## クイックスタート
+## 利用目的別クイックリンク
 
-1) 仮想環境の作成・有効化（Windows PowerShell）
+- ライブラリ利用（外部実行クライアント）: `vtsimnx/`, `docs/README.md`
+- APIサーバー運用（計算実行）: `api/README.md`, `api/RUN_FASTAPI.md`
+- API仕様・入力契約: `api/docs/api_reference.md`, `api/docs/builder_json.md`
+- 開発者向け: `api/CONTRIBUTING.md`
 
-```powershell
+## クイックスタート（core ライブラリ）
+
+1) 仮想環境の作成と依存導入
+
+```bash
 python -m venv .venv
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\.venv\Scripts\Activate.ps1
-```
-
-2) 依存のインストール
-
-```powershell
+source .venv/bin/activate
 python -m pip install --upgrade pip
 pip install -e .[dev]
-# astropy を使う機能/テストも有効にする場合
-# pip install -e .[dev,astro]
 ```
 
-3) テストを実行
+2) テスト実行
 
-```powershell
+```bash
 python -m pytest
 ```
 
-4) サンプル実行
+3) `run_calc` 疎通確認（API稼働前提）
 
-```powershell
-python run.py
+```bash
+python -m vtsimnx.tools.run_calc_smoke --base-url http://127.0.0.1:8000
 ```
 
-`run.py` は `3639999.has` を読み込み、日射・表面設定・ノード/分岐などの入力データを作って、`run_calc` 経由でAPI（`/run`）に渡します（builderはAPI側で実行されます）。
+## API連携の前提
 
-補足:
-- `vt.schedule` にスケジュール一式（aircon/vol/sensible_heat/latent_moisture）をまとめています
-- `vt.materials` は材料物性テーブル（dict）です
-- ドキュメント一覧は `docs/README.md` を参照してください
-- 建築環境工学の基礎解説は `docs/building_environment_engineering_basics.md` を参照してください
-- 日射計算 API (`solar_gain_by_angles` / `solar_gain_by_angles_with_shade`) の使い方は `docs/solar_usage.md` を参照してください
-- 風圧/夜間放射/快適性 API (`make_wind` / `nocturnal_gain_by_angles` / `calc_PMV` など) の使い方は `docs/archenv_comfort_nocturnal_wind_usage.md` を参照してください
+- `vt.run_calc(...)` は `api/` の `/run` エンドポイントを呼び出します。
+- API URL は引数で直接渡すか、`VTSIMNX_API_URL` を利用します。
+- APIの起動・常駐運用は `api/RUN_FASTAPI.md` を参照してください。
 
-APIサーバーを使用する場合は、環境変数 `VTSIMNX_API_URL` を設定してください（例: `VTSIMNX_API_URL=http://localhost:8000`）。未設定の場合、`run.py` は入力生成のみ行い `run_calc` をスキップします。
+## ドキュメント構成
 
-※ `hasp/lat/lon` を変更したい場合は、現在は `run.py` 内の固定値（`hasp_path`, `lat`, `lon`）を編集してください。
+- core側の理論・ユーティリティ: `docs/README.md`
+- API側の実装/契約ドキュメント: `api/docs/README.md`
+- ノード/枝の利用者向け整理: `docs/node_branch_schema.md`
+- builder厳密仕様（正本）: `api/docs/builder_json.md`
 
----
+## リポジトリ構成（モノレポ）
 
-### リポジトリ構成（モノレポ）
+- `vtsimnx/`: 外部実行者が利用する Python ライブラリ群
+- `docs/`: core側ドキュメント（理論・使用例）
+- `api/`: FastAPI + builder + C++ solver（計算サーバー）
 
-- 本リポジトリは `core`（Python ライブラリ）と `api/`（FastAPI + builder + C++ solver）を同居させたモノレポです。
-- デフォルトブランチは `main` です（`origin/main` 追従）。
-- **運用の境界**:
-  - 外部利用者向けのライブラリ公開・利用対象は `core` 側（`vtsimnx` パッケージ / `vt.*` モジュール）。
-  - 計算サーバーとして配備する対象は `api/` 側。
-  - 仕様変更が両者にまたがる場合は、同一PR/同一コミット系列で整合をとります。
+## License / Disclaimer
+
+- ライセンス: MIT (`LICENSE`)
+- 本ソフトウェアは研究・開発目的で提供され、結果の正確性・完全性・特定目的適合性は保証されません。
+- 運用利用前の入力条件・仮定・出力結果の妥当性確認は利用者の責任で実施してください。

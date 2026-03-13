@@ -1,6 +1,6 @@
-## `surfaces` 入力と run.py の例
+## `surfaces` 入力の実装ガイド
 
-このドキュメントでは、`vtsimnx` で使う **`surfaces` 入力** と、サンプル `run.py` における表面定義の考え方をまとめます。
+このドキュメントでは、`vtsimnx` で使う **`surfaces` 入力** と、サンプル入力構築における表面定義の考え方をまとめます。
 
 - 物理背景（外皮伝熱・窓の日射熱取得）は `building_environment_engineering_basics.md` を参照してください。
 - API 側の RC/応答係数法・builder の展開ロジックは `api/docs/thermal_rc.md` / `api/docs/thermal_response_factor.md` / `api/docs/builder_json.md` を参照してください。
@@ -14,7 +14,7 @@
 - 入力 JSON では `surfaces: []` として与えます。
 - builder/API 側で RC/CTF などのネットワークに展開され、最終的には `thermal_branches` + 追加ノードに変換されます。
 
-run.py の最終的なイメージ:
+入力構築時の最終イメージ:
 
 - `nodes`: 室や床下・屋根などの**空気ノード**
 - `surfaces`: `"<室A>-><室B>||<面ID>"` という `key` で、**どの室とどの室/外部を結ぶ面か**を指定
@@ -23,7 +23,7 @@ run.py の最終的なイメージ:
 
 ### 2. 表面カタログと `surfaces` の関係
 
-`run.py` では、まず「表面カタログ」として `layers` / `surface` を定義し、その後で `surfaces` に面積と接続先を展開しています。
+一般的には、まず「表面カタログ」として `layers` / `surface` を定義し、その後で `surfaces` に面積と接続先を展開します。
 
 #### 2.1 材料テーブルと層定義
 
@@ -165,7 +165,7 @@ input_data["surfaces"] = [
 - 日射取得 `vt.solar_gain_by_angles`（`docs/solar_usage.md`）
 - 地盤・夜間放射の係数 `solar_to_surface_temp_coeff` / `nocturnal_to_surface_temp_coeff`（`docs/archenv_comfort_nocturnal_wind_usage.md`）
 
-などと組み合わせて、`run.py` で `surfaces` を構成しています。
+などと組み合わせて、`surfaces` を構成します。
 
 **実運用での surface 入力仕様（builder → solver への展開）や RC/応答係数法の詳細** は、`api/docs/` 配下に集約しています。
 

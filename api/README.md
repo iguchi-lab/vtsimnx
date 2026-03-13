@@ -3,6 +3,9 @@
 VTSimNX のシミュレーションを HTTP で実行するための FastAPI ラッパです。  
 `/run` に JSON を送ると、builder で設定を正規化した後に C++ solver を実行し、結果と artifact 情報を返します。
 
+この `api/` はモノレポ内の計算サーバー実装です。  
+ルートの全体導線は `../README.md`、core側解説は `../docs/README.md` を参照してください。
+
 ## この API でできること
 
 - `GET /ping`: ヘルスチェック
@@ -72,19 +75,24 @@ curl -sS -X POST http://127.0.0.1:8000/run \
 - 参加方法・テスト・コミット方針: `CONTRIBUTING.md`
 - リポジトリ運用メモ: `docs/developer_notes.md`
 
+## 読み始めガイド
+
+- 初回導入: `RUN_FASTAPI.md` -> `docs/api_reference.md`
+- 入力JSONを作る: `docs/builder_json.md` -> `docs/simulation_overview.md`
+- 空調モデルを調整する: `docs/aircon_control_overview.md` -> `docs/acmodel_overview.md`
+- solver実装を追う: `solver/` と `docs/physics_math_notes.md`
+
 ## License
 
-This project is licensed under the MIT License. See `LICENSE`.
+This project is licensed under the MIT License. See `../LICENSE`.
 
 ## Disclaimer
 
 - This software is provided for research and development purposes.  
   本ソフトウェアは研究・開発目的で提供されます。
-- Results from simulation are not guaranteed to be accurate, complete, or fit for any specific purpose.  
-  シミュレーション結果の正確性、完全性、特定目的への適合性は保証されません。
-- Users are responsible for validating inputs, assumptions, and outputs before operational use.  
-  運用利用前の入力条件・仮定・出力結果の妥当性確認は利用者の責任で実施してください。
-- The authors and contributors are not liable for any direct or indirect damages arising from use of this software.  
-  本ソフトウェアの利用に起因する直接的または間接的な損害について、著者および貢献者は責任を負いません。
-- The legally binding warranty and liability terms are defined by `LICENSE` (MIT License).  
-  法的拘束力を持つ保証・責任条件は `LICENSE`（MIT License）に従います。
+- Results are not guaranteed to be accurate, complete, or fit for any specific purpose.  
+  結果の正確性・完全性・特定目的適合性は保証されません。
+- Validate inputs, assumptions, and outputs before operational use.  
+  運用利用前の妥当性確認は利用者責任で実施してください。
+- Legally binding terms are defined by `../LICENSE` (MIT License).  
+  法的拘束力を持つ保証・責任条件は `../LICENSE`（MIT License）に従います。
