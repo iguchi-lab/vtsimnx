@@ -9,6 +9,8 @@
 
 ここでは、「どの情報をどう組み合わせて builder 入力を作っているか」に絞って説明します。
 
+最小構成から入りたい場合は `builder_input_quickstart.md` を先に参照してください。
+
 ---
 
 ### 1. 気象と SimHeat 出力の読み込み
@@ -174,5 +176,6 @@ print(result.log)
 - 日射 / 夜間放射の詳細: `solar_usage.md`, `archenv_comfort_nocturnal_wind_usage.md`
 - スケジュール（空調・換気・発熱）: `schedule_usage.md`
 - surface / materials / layers: `surface_usage.md`
-- builder・API 側の正確な JSON 仕様: `engine/docs/builder_json.md`
+- 利用者向けの入力組み立て導線: `builder_input_quickstart.md`, `node_branch_schema.md`
+- builder・API 側の厳密 JSON 仕様: `engine/docs/builder_json.md`
 

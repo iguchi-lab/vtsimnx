@@ -1,8 +1,38 @@
 # Nodes / Branches 入力仕様メモ（ユーザー向け）
 
-> このページは core 側の「早見表」です。builder が受け付ける厳密仕様は `engine/docs/builder_json.md` を正本として参照してください。
+> このページは `vt.run_calc(base_url, input_data)` で使う `input_data` のうち、`nodes` / `ventilation_branches` / `thermal_branches` を素早く確認するための早見表です。
 
-このドキュメントは、`config`（入力JSON）内の **nodes / ventilation_branches / thermal_branches** のキー仕様を、ユーザーが迷わない形でまとめたものです。
+このドキュメントは、入力JSON（`input_data`）内の **nodes / ventilation_branches / thermal_branches** のキー仕様を、ユーザーが迷わない形でまとめたものです。
+
+## 使い方（最初にここだけ）
+
+まずは次の最小形で `vt.run_calc` を通し、必要な項目を段階的に追加してください。
+
+```json
+{
+  "builder": {},
+  "simulation": {
+    "index": {
+      "start": "2026-01-01 01:00:00",
+      "end": "2026-01-02 00:00:00",
+      "timestep": 3600,
+      "length": 24
+    }
+  },
+  "nodes": [
+    { "key": "外部", "t": 5.0 },
+    { "key": "室1", "calc_t": true, "v": 30.0 }
+  ],
+  "ventilation_branches": [
+    { "key": "外部->室1", "source": "外部", "target": "室1", "type": "fixed_flow", "vol": 30.0 }
+  ],
+  "thermal_branches": [
+    { "key": "外部->室1", "source": "外部", "target": "室1", "type": "conductance", "conductance": 50.0 }
+  ]
+}
+```
+
+`surfaces` / `aircon` / `heat_source` は、この最小形が動いてから追加するのが安全です。
 
 ## 共通ルール
 

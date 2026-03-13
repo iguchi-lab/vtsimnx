@@ -231,6 +231,9 @@ custom_pre_tmp = vt.schedule.build_pre_tmp()
 
 を中心に説明しています。
 
-実際に builder 入力 JSON にどう埋め込むか（`simulation.index` や `nodes[].mode` / `pre_temp` への反映）は、  
-`engine/docs/builder_json.md` / `engine/docs/aircon_control_overview.md` を参照してください。
+実際に `vt.run_calc` の `input_data` にどう埋め込むかは、次を起点に確認してください。
+
+- 利用者向け最短導線: `builder_input_quickstart.md`
+- ノード/ブランチの早見表: `node_branch_schema.md`
+- 空調制御の詳細仕様（必要時のみ）: `engine/docs/aircon_control_overview.md`
 
