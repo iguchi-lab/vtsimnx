@@ -1,61 +1,78 @@
 # vtsimnx
-熱・換気回路網計算に基づくシミュレーション基盤です。  
-このリポジトリは `vtsimnx` Python ライブラリと FastAPI 計算サーバー（`engine/`）を同居させています。
+
+建築環境工学（熱・換気・湿気）を対象とした、研究/開発向けシミュレーション基盤です。  
+Python クライアントで入力を構築し、HTTP engine で計算を実行する構成を提供します。
 
 最新リリース: [`v1.0.0`](https://github.com/iguchi-lab/vtsimnx/releases/tag/v1.0.0)
 
-## 利用目的別クイックリンク
+## 何ができるか
 
-- ライブラリ利用（外部実行クライアント）: `vtsimnx/`, `docs/README.md`
-- サンプルコード置き場: `examples/README.md`
-- 入力JSONの書き方（`vt.run_calc` 利用者向け）: `docs/builder_input_quickstart.md`, `docs/node_branch_schema.md`
-- APIサーバー運用（計算実行）: `engine/README.md`, `engine/RUN_FASTAPI.md`
-- API仕様・入力契約: `engine/docs/api_reference.md`, `engine/docs/builder_json.md`
-- 開発者向け: `engine/CONTRIBUTING.md`
+- `vt.run_calc(...)` を使った回路網計算の実行（engine `/run` 呼び出し）
+- `surfaces` / `aircon` / `heat_source` を含む入力JSONの組み立て
+- artifact（結果ファイル、ログ、スキーマ）取得と比較評価
+- 日射/夜間放射/地盤温度/スケジュール等の補助計算
 
-## クイックスタート（Python ライブラリ）
+## 構成図
 
-1) 仮想環境の作成と依存導入
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-pip install -e .[dev]
+```text
+Python Client (vtsimnx/)
+  -> input_data (dict/json)
+  -> POST /run
+HTTP Engine (engine/)
+  -> builder (入力正規化)
+  -> C++ solver
+  -> artifacts / result files
+Docs (docs/, engine/docs/)
+Examples (examples/)
 ```
 
-2) テスト実行
+## 3つの開始方法
+
+### 1) クライアント API だけ読む
+
+- 入口: `docs/README.md`
+- 最短: `docs/builder_input_quickstart.md` -> `docs/node_branch_schema.md`
+
+### 2) ローカルで engine を起動する
 
 ```bash
-python -m pytest
+cd engine
+python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+curl -sS http://127.0.0.1:8000/ping
 ```
 
-3) `run_calc` 疎通確認（API稼働前提）
+詳細: `engine/RUN_FASTAPI.md`
+
+### 3) サンプルを動かす
 
 ```bash
-python -m vtsimnx.tools.run_calc_smoke --base-url http://127.0.0.1:8000
+python examples/run_calc_minimal.py
 ```
 
-## API連携の前提
+大規模ケース: `examples/vs_simheat_r15.py`  
+サンプル一覧: `examples/README.md`
 
-- `vt.run_calc(...)` は `engine/` の `/run` エンドポイントを呼び出します。
-- API URL は引数で直接渡すか、`VTSIMNX_API_URL` を利用します。
-- APIの起動・常駐運用は `engine/RUN_FASTAPI.md` を参照してください。
+## ドキュメント導線
 
-## ドキュメント構成
+- 利用者向け入口: `docs/README.md`
+- engine 実装仕様入口: `engine/docs/README.md`
+- API契約: `engine/docs/api_reference.md`
+- builder 入力仕様（正本）: `engine/docs/builder_json.md`
+- 検証戦略: `docs/validation_strategy.md`
+- リリース運用: `docs/release_policy.md`
 
-- ライブラリ利用の理論・ユーティリティ: `docs/README.md`
-- 利用者向けの入力組み立て導線: `docs/builder_input_quickstart.md`
-- API側の実装/契約ドキュメント: `engine/docs/README.md`
-- ノード/枝の利用者向け整理: `docs/node_branch_schema.md`
-- builder厳密仕様（正本）: `engine/docs/builder_json.md`
+## 検証と保証範囲
+
+本プロジェクトは研究用途のため、検証方針と既知の限界を公開しています。  
+何を保証し、何を未保証としているかは `docs/validation_strategy.md` を参照してください。
 
 ## リポジトリ構成
 
-- `vtsimnx/`: 外部実行者が利用する Python ライブラリ群
-- `examples/`: 利用者向けのサンプル Python コード
-- `docs/`: ライブラリ利用ドキュメント（理論・使用例）
-- `engine/`: FastAPI + builder + C++ solver（計算サーバー）
+- `vtsimnx/`: Python client ライブラリ
+- `engine/`: FastAPI + builder + C++ solver
+- `examples/`: 実行サンプル
+- `docs/`: 利用者向けドキュメント
+- `engine/docs/`: engine 実装仕様ドキュメント
 
 ## License / Disclaimer
 
