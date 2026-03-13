@@ -99,10 +99,33 @@ result = vt.run_calc("http://127.0.0.1:8000", input_data)
 
 ---
 
-## 7. 関連ドキュメント
+## 7. 実行手順（ローカル）
+
+1. APIサーバーを起動する（`engine/RUN_FASTAPI.md` 参照）  
+2. API URL を設定する  
+   - `export VTSIMNX_API_URL=http://127.0.0.1:8000`
+3. 最小サンプルを実行する  
+   - `python ../examples/run_calc_minimal.py`
+
+---
+
+## 8. よくあるエラーと対処
+
+- `ConnectionError` / `ReadTimeout`
+  - APIサーバー未起動、URL誤り、ポート未公開を確認してください。
+- `source` / `target` の参照エラー
+  - `nodes[].key` と完全一致しているかを確認してください（全角半角・大小文字含む）。
+- 時系列長の不一致
+  - 配列の要素数を `simulation.index.length` に揃えてください。
+- まずどこから確認するか分からない
+  - `request_output_path` で送信JSONを保存し、最小ケースとの差分を見るのが最短です。
+
+---
+
+## 9. 関連ドキュメント
 
 - 全体導線: `README.md`
-- 実サンプルコード: `../examples/README.md`, `../examples/vs_simheat_r15.py`
+- 実サンプルコード: `../examples/README.md`, `../examples/run_calc_minimal.py`, `../examples/vs_simheat_r15.py`
 - ノード/ブランチ早見表: `node_branch_schema.md`
 - `surfaces` の実務ガイド: `surface_usage.md`
 - スケジュール作成: `schedule_usage.md`

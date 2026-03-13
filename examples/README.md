@@ -4,6 +4,8 @@
 
 ## 収録サンプル
 
+- `run_calc_minimal.py`
+  - ローカル環境でそのまま実行しやすい最小 `vt.run_calc` サンプルです。
 - `vs_simheat_r15.py`
   - SimHeat 比較ケースの入力作成〜`vt.run_calc` 実行〜結果比較までを含む大規模サンプルです。
 - `3639999.has`
@@ -20,6 +22,26 @@
 
 - `vtsimnx` をインストール済みであること
 - `vt.run_calc(...)` を使う例は、別途 API サーバー（`engine/`）が起動していること
+
+## 実行方法
+
+### ローカル環境（推奨）
+
+```bash
+export VTSIMNX_API_URL=http://127.0.0.1:8000
+python examples/run_calc_minimal.py
+```
+
+大規模サンプルを使う場合:
+
+```bash
+python examples/vs_simheat_r15.py
+```
+
+### Colab環境
+
+- `vs_simheat_r15.py` の Colab 依存部分（`!pip`、`google.colab`）をそのまま利用できます。
+- API URL は `VTSIMNX_API_URL` を設定した上で `vt.run_calc(...)` に渡してください。
 
 ## `vs_simheat_r15.py` 利用時の注意
 
