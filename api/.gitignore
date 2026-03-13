@@ -35,6 +35,9 @@ __pycache__/
 .uvicorn.log
 .uvicorn.pid
 
+# --- local temporary inputs/outputs ---
+/app/temp/
+
 # --- local archived folders ---
 /old_solver/
 /old_vtsim/
