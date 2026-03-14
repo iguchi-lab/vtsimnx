@@ -63,6 +63,7 @@ LD_aircon.csv
 
 # OS/Editor
 .DS_Store
+.cursor/
 .vscode/
 .idea/
 
