@@ -1,9 +1,11 @@
 #include <iostream>
+#include <fstream>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
 #include <cmath>
+#include <algorithm>
 
 #include "acmodel/acmodel.h"
 #include "../archenv/include/archenv.h"
@@ -560,6 +562,377 @@ int main() {
             const double expectedPowerKw = 1.779127167;
             const double tolKw = 2.0e-4;
             expectNear(out.power, expectedPowerKw, tolKw, "RAC x>1 case: power regression");
+        }
+    }
+
+    // -----------------------------
+    // RAC: 参照ソフト出力との代表点比較（抜粋）+ 統計チェック
+    // -----------------------------
+    {
+        setLogger(nullptr);
+
+        const nlohmann::json racStandard = {
+            {"Q", {{"cooling", {{"rtd", 5.60000}, {"max", 5.94462}}},
+                   {"heating", {{"rtd", 6.68530}, {"max", 10.04705}}}}},
+            {"P", {{"cooling", {{"rtd", 5.60000 / 3.2432}}},
+                   {"heating", {{"rtd", 6.68530 / 4.1573}}}}},
+            {"dualcompressor", false}
+        };
+
+        struct RefPoint {
+            double tExC;
+            double xExGkg;
+            double lCsMjh;
+            double lClMjh;
+            double powerW;
+        };
+
+        // ユーザー提供の大量データから、運転域を広くカバーする代表点を抜粋。
+        const std::vector<RefPoint> refs = {
+            {23.8, 10.6, 1.5591197, 0.0, 50.44308058},
+            {25.4, 11.0, 5.1483645, 0.0, 137.9340836},
+            {21.5, 11.9, 0.057832718, 0.0, 17.25106159},
+            {28.2, 15.8, 9.612888, 8.681185, 1053.493181},
+            {31.0, 14.7, 10.896264, 10.505394, 1779.127167},
+            {31.0, 13.8, 8.497747, 6.964105, 837.2822338},
+            {29.4, 13.4, 6.4589367, 1.9476247, 287.1672207},
+            {28.4, 14.4, 10.24782, 6.3700576, 858.5126446},
+            {26.1, 14.5, 7.202132, 1.5770469, 255.2829304},
+            {27.6, 14.8, 9.401802, 5.4555054, 650.9999576},
+            {30.1, 12.3, 11.597869, 7.2062006, 1233.758099},
+            {30.3, 8.9, 11.470021, 3.7860305, 788.0770358},
+            {31.0, 11.3, 11.597416, 8.21071, 1467.766292},
+            {32.5, 12.1, 11.022491, 4.4615307, 897.9336348},
+            {29.7, 15.0, 10.465861, 10.923465, 1664.667385},
+            {30.9, 18.4, 8.11749, 11.886623, 1496.312421},
+            {33.8, 17.4, 10.681958, 10.722575, 1837.46215},
+            {27.1, 18.2, 8.291088, 9.750651, 959.397343},
+            {29.2, 18.5, 8.305472, 11.815409, 1393.461774},
+            {25.4, 16.9, 1.7522682, 0.0, 60.00335778},
+            {24.3, 14.1, 0.5236707, 0.0, 29.74292727},
+            {30.4, 13.1, 11.272991, 10.135212, 1728.753329},
+            {31.5, 15.4, 11.86595, 9.530266, 1816.898452},
+            {23.0, 12.1, 0.7362714, 0.0, 31.93244542},
+        };
+
+        std::unique_ptr<AirconSpec> model;
+        try {
+            model = AirconModelFactory::createModel("RAC", racStandard);
+        } catch (const std::exception& e) {
+            fail(std::string("RAC createModel failed (reference subset): ") + e.what());
+            model.reset();
+        }
+
+        if (model) {
+            double sumRelErr = 0.0;
+            double maxRelErr = 0.0;
+            int count = 0;
+
+            for (size_t i = 0; i < refs.size(); ++i) {
+                const auto& rp = refs[i];
+
+                InputData in{};
+                in.T_ex = rp.tExC;
+                in.X_ex = rp.xExGkg * 1e-3;    // g/kg' -> kg/kg'
+                in.Q_S = rp.lCsMjh / 0.0036;   // MJ/h -> W
+                in.Q_L = rp.lClMjh / 0.0036;   // MJ/h -> W
+                in.T_in = 27.0;
+                in.X_in = 0.010;
+                in.Q = in.Q_S + in.Q_L;
+                in.V_inner = 0.0;
+                in.V_outer = 0.0;
+
+                COPResult out{};
+                try {
+                    out = model->estimateCOP("cooling", in);
+                } catch (const std::exception& e) {
+                    fail(std::string("RAC reference subset estimateCOP failed at index ") +
+                         std::to_string(i) + ": " + e.what());
+                    continue;
+                }
+                expectTrue(out.valid, "RAC reference subset: estimateCOP valid at index " + std::to_string(i));
+                if (!out.valid) continue;
+
+                const double actualW = out.power * 1000.0; // kW -> W
+                const double expectedW = rp.powerW;
+                const double absErr = std::abs(actualW - expectedW);
+                const double relErr = absErr / std::max(1.0, expectedW);
+
+                sumRelErr += relErr;
+                maxRelErr = std::max(maxRelErr, relErr);
+                ++count;
+
+                // 代表点比較は「絶対+相対」の複合許容で評価する。
+                // 低負荷域を過度に厳しくせず、高負荷域では相対誤差を制御する。
+                const double perPointTolW = std::max(35.0, expectedW * 0.22);
+                if (absErr > perPointTolW) {
+                    std::ostringstream oss;
+                    oss << "RAC reference subset out-of-tolerance at index " << i
+                        << " (actualW=" << actualW
+                        << ", expectedW=" << expectedW
+                        << ", absErr=" << absErr
+                        << ", relErr=" << relErr
+                        << ", tolW=" << perPointTolW << ")";
+                    fail(oss.str());
+                }
+            }
+
+            expectTrue(count > 0, "RAC reference subset: at least one sample evaluated");
+            if (count > 0) {
+                const double mape = sumRelErr / static_cast<double>(count);
+                expectTrue(mape <= 0.12, "RAC reference subset: MAPE <= 12%");
+                expectTrue(maxRelErr <= 0.22, "RAC reference subset: max relative error <= 22%");
+            }
+        }
+    }
+
+    // -----------------------------
+    // RAC: 参照ソフト出力（全件）との統計比較
+    // -----------------------------
+    {
+        setLogger(nullptr);
+
+        const nlohmann::json racStandard = {
+            {"Q", {{"cooling", {{"rtd", 5.60000}, {"max", 5.94462}}},
+                   {"heating", {{"rtd", 6.68530}, {"max", 10.04705}}}}},
+            {"P", {{"cooling", {{"rtd", 5.60000 / 3.2432}}},
+                   {"heating", {{"rtd", 6.68530 / 4.1573}}}}},
+            {"dualcompressor", false}
+        };
+
+#ifndef RAC_REFERENCE_FULL_TSV_PATH
+        fail("RAC full reference: RAC_REFERENCE_FULL_TSV_PATH is not defined");
+#else
+        std::ifstream ifs(RAC_REFERENCE_FULL_TSV_PATH);
+        if (!ifs) {
+            fail(std::string("RAC full reference: cannot open file: ") + RAC_REFERENCE_FULL_TSV_PATH);
+        } else {
+            std::unique_ptr<AirconSpec> model;
+            try {
+                model = AirconModelFactory::createModel("RAC", racStandard);
+            } catch (const std::exception& e) {
+                fail(std::string("RAC createModel failed (full reference): ") + e.what());
+                model.reset();
+            }
+
+            if (model) {
+                std::string line;
+                // header skip
+                if (!std::getline(ifs, line)) {
+                    fail("RAC full reference: empty TSV");
+                }
+
+                int n = 0;
+                double sumRelErr = 0.0;
+                double sumSignedRelErr = 0.0;
+                std::vector<double> relErrs;
+                relErrs.reserve(1500);
+
+                while (std::getline(ifs, line)) {
+                    if (line.empty()) continue;
+                    std::istringstream iss(line);
+                    double tEx = 0.0, xExGkg = 0.0, lCsMjh = 0.0, lClMjh = 0.0, powerRefW = 0.0;
+                    if (!(iss >> tEx >> xExGkg >> lCsMjh >> lClMjh >> powerRefW)) {
+                        continue;
+                    }
+
+                    InputData in{};
+                    in.T_ex = tEx;
+                    in.X_ex = xExGkg * 1e-3;   // g/kg' -> kg/kg'
+                    in.Q_S = lCsMjh / 0.0036;  // MJ/h -> W
+                    in.Q_L = lClMjh / 0.0036;  // MJ/h -> W
+                    in.T_in = 27.0;
+                    in.X_in = 0.010;
+                    in.Q = in.Q_S + in.Q_L;
+                    in.V_inner = 0.0;
+                    in.V_outer = 0.0;
+
+                    COPResult out{};
+                    try {
+                        out = model->estimateCOP("cooling", in);
+                    } catch (const std::exception&) {
+                        continue;
+                    }
+                    if (!out.valid) continue;
+
+                    const double powerModelW = out.power * 1000.0;
+                    const double relErr = std::abs(powerModelW - powerRefW) / std::max(1.0, powerRefW);
+                    const double signedRelErr = (powerModelW - powerRefW) / std::max(1.0, powerRefW);
+                    relErrs.push_back(relErr);
+                    sumRelErr += relErr;
+                    sumSignedRelErr += signedRelErr;
+                    ++n;
+                }
+
+                expectTrue(n >= 1000, "RAC full reference: enough samples (>=1000)");
+                if (n > 0) {
+                    const double mape = sumRelErr / static_cast<double>(n);
+                    const double meanBias = sumSignedRelErr / static_cast<double>(n);
+                    std::sort(relErrs.begin(), relErrs.end());
+                    const int p95Index = static_cast<int>(0.95 * (relErrs.size() - 1));
+                    const double p95 = relErrs[p95Index];
+                    const double maxRel = relErrs.back();
+
+                    // 全件比較は「監視」目的なので、代表点より緩い統計閾値で判定する。
+                    expectTrue(mape <= 0.26, "RAC full reference: MAPE <= 26%");
+                    expectTrue(p95 <= 0.45, "RAC full reference: P95 relative error <= 45%");
+                    expectTrue(maxRel <= 0.85, "RAC full reference: max relative error <= 85%");
+                    expectTrue(std::abs(meanBias) <= 0.20, "RAC full reference: mean bias within +-20%");
+                }
+            }
+        }
+#endif
+    }
+
+    // -----------------------------
+    // RAC: い・ろ・は 3機種の回帰比較
+    // - い: 既存基準
+    // - ろ/は: ユーザー提示結果（いに対する定格消費電力差）との整合を確認
+    // -----------------------------
+    {
+        setLogger(nullptr);
+
+        const nlohmann::json racI = {
+            {"Q", {{"cooling", {{"rtd", 5.60000}, {"max", 5.94462}}},
+                   {"heating", {{"rtd", 6.68530}, {"max", 10.04705}}}}},
+            {"P", {{"cooling", {{"rtd", 5.60000 / 3.2432}}},
+                   {"heating", {{"rtd", 6.68530 / 4.157264}}}}},
+            {"dualcompressor", false}
+        };
+        const nlohmann::json racRo = {
+            {"Q", {{"cooling", {{"rtd", 5.60000}, {"max", 5.94462}}},
+                   {"heating", {{"rtd", 6.68530}, {"max", 10.04705}}}}},
+            {"P", {{"cooling", {{"rtd", 5.60000 / 3.0576}}},
+                   {"heating", {{"rtd", 6.68530 / 4.014352}}}}},
+            {"dualcompressor", false}
+        };
+        const nlohmann::json racHa = {
+            {"Q", {{"cooling", {{"rtd", 5.60000}, {"max", 5.94462}}},
+                   {"heating", {{"rtd", 6.68530}, {"max", 10.04705}}}}},
+            {"P", {{"cooling", {{"rtd", 5.60000 / 2.8512}}},
+                   {"heating", {{"rtd", 6.68530 / 3.855424}}}}},
+            {"dualcompressor", false}
+        };
+
+        std::unique_ptr<AirconSpec> modelI, modelRo, modelHa;
+        try {
+            modelI = AirconModelFactory::createModel("RAC", racI);
+            modelRo = AirconModelFactory::createModel("RAC", racRo);
+            modelHa = AirconModelFactory::createModel("RAC", racHa);
+        } catch (const std::exception& e) {
+            fail(std::string("RAC iroha createModel failed: ") + e.what());
+        }
+
+        if (modelI && modelRo && modelHa) {
+            struct RefPoint {
+                double tExC;
+                double xExGkg;
+                double lCsMjh;
+                double lClMjh;
+                double pI_W;
+                double pRo_W;
+                double pHa_W;
+            };
+
+            // ユーザー提示値から代表点を抽出（い/ろ/は）
+            const std::vector<RefPoint> points = {
+                {23.8, 10.6, 1.5591197, 0.0, 50.44308058, 53.50503628, 57.37829648},
+                {28.2, 15.8, 9.612888, 8.681185, 1053.493181, 1117.441486, 1198.333714},
+                {31.0, 14.7, 10.896264, 10.505394, 1779.127167, 1887.122328, 2023.732193},
+                {31.2, 14.9, 11.186873, 10.214659, 1796.336996, 1905.376814, 2043.308132},
+                {25.6, 13.6, 2.930304, 0.0, 87.49059571, 92.80138017, 99.5193252},
+            };
+
+            const auto evalPowerW = [&](AirconSpec* model, const RefPoint& rp) -> double {
+                InputData in{};
+                in.T_ex = rp.tExC;
+                in.X_ex = rp.xExGkg * 1e-3;   // g/kg' -> kg/kg'
+                in.Q_S = rp.lCsMjh / 0.0036;  // MJ/h -> W
+                in.Q_L = rp.lClMjh / 0.0036;  // MJ/h -> W
+                in.T_in = 27.0;
+                in.X_in = 0.010;
+                in.Q = in.Q_S + in.Q_L;
+                in.V_inner = 0.0;
+                in.V_outer = 0.0;
+                COPResult out = model->estimateCOP("cooling", in);
+                expectTrue(out.valid, "RAC iroha representative: estimateCOP valid");
+                return out.power * 1000.0; // kW -> W
+            };
+
+            for (size_t i = 0; i < points.size(); ++i) {
+                const auto& rp = points[i];
+                const double pI = evalPowerW(modelI.get(), rp);
+                const double pRo = evalPowerW(modelRo.get(), rp);
+                const double pHa = evalPowerW(modelHa.get(), rp);
+
+                // 表示桁由来の丸めを吸収するため、厳しめの絶対許容 0.5W
+                const double tolW = 0.5;
+                expectNear(pI, rp.pI_W, tolW, "RAC iroha representative: i idx=" + std::to_string(i));
+                expectNear(pRo, rp.pRo_W, tolW, "RAC iroha representative: ro idx=" + std::to_string(i));
+                expectNear(pHa, rp.pHa_W, tolW, "RAC iroha representative: ha idx=" + std::to_string(i));
+            }
+
+#ifndef RAC_REFERENCE_FULL_TSV_PATH
+            fail("RAC iroha full reference: RAC_REFERENCE_FULL_TSV_PATH is not defined");
+#else
+            // 既存「い」の全件TSVを基準に、ろ/はの期待電力比で全件回帰チェック
+            // （ユーザー提示の全件結果と同じ関係を検証）
+            std::ifstream ifs(RAC_REFERENCE_FULL_TSV_PATH);
+            if (!ifs) {
+                fail(std::string("RAC iroha full reference: cannot open file: ") + RAC_REFERENCE_FULL_TSV_PATH);
+            } else {
+                const double ratioRo = 3.2432 / 3.0576; // pRo = pI * ratioRo
+                const double ratioHa = 3.2432 / 2.8512; // pHa = pI * ratioHa
+
+                std::string line;
+                if (!std::getline(ifs, line)) {
+                    fail("RAC iroha full reference: empty TSV");
+                } else {
+                    int n = 0;
+                    double maxRelRo = 0.0;
+                    double maxRelHa = 0.0;
+                    double sumRelRo = 0.0;
+                    double sumRelHa = 0.0;
+
+                    while (std::getline(ifs, line)) {
+                        if (line.empty()) continue;
+                        std::istringstream iss(line);
+                        double tEx = 0.0, xExGkg = 0.0, lCsMjh = 0.0, lClMjh = 0.0, pIRefW = 0.0;
+                        if (!(iss >> tEx >> xExGkg >> lCsMjh >> lClMjh >> pIRefW)) continue;
+
+                        RefPoint rp{};
+                        rp.tExC = tEx;
+                        rp.xExGkg = xExGkg;
+                        rp.lCsMjh = lCsMjh;
+                        rp.lClMjh = lClMjh;
+
+                        const double pRoExpW = pIRefW * ratioRo;
+                        const double pHaExpW = pIRefW * ratioHa;
+                        const double pRoActW = evalPowerW(modelRo.get(), rp);
+                        const double pHaActW = evalPowerW(modelHa.get(), rp);
+
+                        const double relRo = std::abs(pRoActW - pRoExpW) / std::max(1.0, pRoExpW);
+                        const double relHa = std::abs(pHaActW - pHaExpW) / std::max(1.0, pHaExpW);
+                        maxRelRo = std::max(maxRelRo, relRo);
+                        maxRelHa = std::max(maxRelHa, relHa);
+                        sumRelRo += relRo;
+                        sumRelHa += relHa;
+                        ++n;
+                    }
+
+                    expectTrue(n >= 1000, "RAC iroha full reference: enough samples (>=1000)");
+                    if (n > 0) {
+                        const double mapeRo = sumRelRo / static_cast<double>(n);
+                        const double mapeHa = sumRelHa / static_cast<double>(n);
+                        // 比率整合はほぼ一致のはずだが、浮動小数の安全マージンを持たせる
+                        expectTrue(maxRelRo <= 1.0e-6, "RAC iroha full reference: ro max rel <= 1e-6");
+                        expectTrue(maxRelHa <= 1.0e-6, "RAC iroha full reference: ha max rel <= 1e-6");
+                        expectTrue(mapeRo <= 1.0e-7, "RAC iroha full reference: ro MAPE <= 1e-7");
+                        expectTrue(mapeHa <= 1.0e-7, "RAC iroha full reference: ha MAPE <= 1e-7");
+                    }
+                }
+            }
+#endif
         }
     }
 

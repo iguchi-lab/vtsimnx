@@ -396,6 +396,9 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         -Wall
         -Wextra
     )
+    target_compile_definitions(vtsimnx_solver_cpp_test_acmodel_core PRIVATE
+        RAC_REFERENCE_FULL_TSV_PATH="${CMAKE_CURRENT_SOURCE_DIR}/tests_cpp/data/rac_reference_full.tsv"
+    )
     add_test(NAME vtsimnx_solver_cpp_test_acmodel_core COMMAND vtsimnx_solver_cpp_test_acmodel_core)
 
     # 9) aircon controller: ordering + on/off gating (mock model)
