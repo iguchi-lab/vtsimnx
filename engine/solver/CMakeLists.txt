@@ -142,6 +142,18 @@ if(VTSIMNX_BUILD_CPP_TESTS)
     )
     add_test(NAME vtsimnx_solver_cpp_test_flow_math COMMAND vtsimnx_solver_cpp_test_flow_math)
 
+    # 1a) refrigerant calculator: physical consistency checks
+    add_executable(vtsimnx_solver_cpp_test_refrigerant_calculator
+        tests_cpp/test_refrigerant_calculator.cpp
+        ../acmodel/refrigerant_calculator.cpp
+    )
+    target_compile_options(vtsimnx_solver_cpp_test_refrigerant_calculator PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_test_refrigerant_calculator
+             COMMAND vtsimnx_solver_cpp_test_refrigerant_calculator)
+
     # 1b) fan jacobian sweep (analytic vs numeric over many parameter sets)
     add_executable(vtsimnx_solver_cpp_test_fan_jacobian_sweep
         tests_cpp/test_fan_jacobian_sweep.cpp

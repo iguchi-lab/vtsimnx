@@ -841,6 +841,13 @@ int main() {
                 {31.0, 14.7, 10.896264, 10.505394, 1779.127167, 1887.122328, 2023.732193},
                 {31.2, 14.9, 11.186873, 10.214659, 1796.336996, 1905.376814, 2043.308132},
                 {25.6, 13.6, 2.930304, 0.0, 87.49059571, 92.80138017, 99.5193252},
+                {25.4, 11.0, 5.1483645, 0.0, 137.9340836, 146.3068484862, 156.8980849928},
+                {21.5, 11.9, 0.057832718, 0.0, 17.25106159, 18.2982217912, 19.6228405404},
+                {31.0, 13.8, 8.497747, 6.964105, 837.2822338, 888.1062731097, 952.3967945637},
+                {30.3, 8.9, 11.470021, 3.7860305, 788.0770358, 835.9142603698, 896.4265721474},
+                {30.9, 18.4, 8.11749, 11.886623, 1496.312421, 1587.1403858540, 1702.0343868502},
+                {23.0, 12.1, 0.7362714, 0.0, 31.93244542, 33.8707832896, 36.3227086792},
+                {32.5, 12.1, 11.022491, 4.4615307, 897.9336348, 952.4392871479, 1021.3869123118},
             };
 
             const auto evalPowerW = [&](AirconSpec* model, const RefPoint& rp) -> double {
@@ -933,6 +940,104 @@ int main() {
                 }
             }
 #endif
+        }
+    }
+
+    // -----------------------------
+    // RAC: 暖房 い・ろ・は 3機種の回帰比較（ユーザー提示データ）
+    // -----------------------------
+    {
+        setLogger(nullptr);
+
+        const nlohmann::json racI = {
+            {"Q", {{"cooling", {{"rtd", 5.60000}, {"max", 5.94462}}},
+                   {"heating", {{"rtd", 6.68530}, {"max", 10.04705}}}}},
+            {"P", {{"cooling", {{"rtd", 5.60000 / 3.2432}}},
+                   {"heating", {{"rtd", 6.68530 / 4.157264}}}}},
+            {"dualcompressor", false}
+        };
+        const nlohmann::json racRo = {
+            {"Q", {{"cooling", {{"rtd", 5.60000}, {"max", 5.94462}}},
+                   {"heating", {{"rtd", 6.68530}, {"max", 10.04705}}}}},
+            {"P", {{"cooling", {{"rtd", 5.60000 / 3.0576}}},
+                   {"heating", {{"rtd", 6.68530 / 4.014352}}}}},
+            {"dualcompressor", false}
+        };
+        const nlohmann::json racHa = {
+            {"Q", {{"cooling", {{"rtd", 5.60000}, {"max", 5.94462}}},
+                   {"heating", {{"rtd", 6.68530}, {"max", 10.04705}}}}},
+            {"P", {{"cooling", {{"rtd", 5.60000 / 2.8512}}},
+                   {"heating", {{"rtd", 6.68530 / 3.855424}}}}},
+            {"dualcompressor", false}
+        };
+
+        std::unique_ptr<AirconSpec> modelI, modelRo, modelHa;
+        try {
+            modelI = AirconModelFactory::createModel("RAC", racI);
+            modelRo = AirconModelFactory::createModel("RAC", racRo);
+            modelHa = AirconModelFactory::createModel("RAC", racHa);
+        } catch (const std::exception& e) {
+            fail(std::string("RAC heating iroha createModel failed: ") + e.what());
+        }
+
+        if (modelI && modelRo && modelHa) {
+            struct HeatRefPoint {
+                double tExC;
+                double xExGkg;
+                double lHsMjh;
+                double pI_W;
+                double pRo_W;
+                double pHa_W;
+            };
+
+            // ユーザー提示の暖房表から、運転域を広くカバーする代表点を抽出。
+            const std::vector<HeatRefPoint> points = {
+                {5.9, 2.9, 14.731312, 1090.98204, 1129.821291, 1176.3947},
+                {6.2, 3.1, 5.2096434, 365.4912949, 378.5028823, 394.1054999},
+                {5.3, 4.5, 10.052175, 690.3441318, 714.9205667, 744.3909688},
+                {4.9, 4.4, 18.4325, 2405.609578, 2491.249919, 2593.944037},
+                {9.7, 6.0, 3.345776, 229.1910454, 237.3503077, 247.1343443},
+                {8.3, 3.2, 14.915359, 1078.539267, 1116.935552, 1162.977785},
+                {4.7, 2.4, 18.735266, 1577.37137, 1633.52621, 1700.863306},
+                {3.4, 2.3, 20.219301, 1813.100853, 1877.647726, 1955.047981},
+                {1.4, 2.5, 24.453941, 2635.069253, 2728.87842, 2841.368043},
+                {4.9, 2.0, 19.70531, 1708.474769, 1769.296926, 1842.230751},
+                {2.9, 4.4, 20.858612, 3169.522103, 3282.357934, 3417.663047},
+                {4.1, 4.1, 20.853079, 3100.380766, 3210.755146, 3343.108655},
+            };
+
+            const auto evalHeatingPowerW = [&](AirconSpec* model, const HeatRefPoint& rp) -> double {
+                InputData in{};
+                in.T_ex = rp.tExC;
+                in.X_ex = rp.xExGkg * 1e-3;   // g/kg' -> kg/kg'
+                in.Q_S = rp.lHsMjh / 0.0036;  // MJ/h -> W
+                in.Q_L = 0.0;
+                in.T_in = 20.0;
+                in.X_in = 0.006;
+                in.Q = in.Q_S;
+                in.V_inner = 0.0;
+                in.V_outer = 0.0;
+                COPResult out = model->estimateCOP("heating", in);
+                expectTrue(out.valid, "RAC heating iroha representative: estimateCOP valid");
+                return out.power * 1000.0; // kW -> W
+            };
+
+            for (size_t i = 0; i < points.size(); ++i) {
+                const auto& rp = points[i];
+                const double pI = evalHeatingPowerW(modelI.get(), rp);
+                const double pRo = evalHeatingPowerW(modelRo.get(), rp);
+                const double pHa = evalHeatingPowerW(modelHa.get(), rp);
+
+                // 表示桁の丸めを吸収しつつ回帰として十分厳しい許容幅。
+                const double tolW = 1.0;
+                expectNear(pI, rp.pI_W, tolW, "RAC heating iroha representative: i idx=" + std::to_string(i));
+                expectNear(pRo, rp.pRo_W, tolW, "RAC heating iroha representative: ro idx=" + std::to_string(i));
+                expectNear(pHa, rp.pHa_W, tolW, "RAC heating iroha representative: ha idx=" + std::to_string(i));
+
+                // 3機種は同一負荷条件で概ね い < ろ < は の順になることを確認。
+                expectTrue(pI < pRo && pRo < pHa,
+                           "RAC heating iroha representative: power order idx=" + std::to_string(i));
+            }
         }
     }
 
