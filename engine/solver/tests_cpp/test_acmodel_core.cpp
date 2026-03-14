@@ -512,6 +512,57 @@ int main() {
         }
     }
 
+    // -----------------------------
+    // RAC: 冷房の部分負荷比 x>1 領域の回帰
+    // （f_C_Theta の上限クリップを掛けない実装と整合）
+    // -----------------------------
+    {
+        setLogger(nullptr);
+
+        const nlohmann::json racStandard = {
+            {"Q", {{"cooling", {{"rtd", 5.60000}, {"max", 5.94462}}},
+                   {"heating", {{"rtd", 6.68530}, {"max", 10.04705}}}}},
+            {"P", {{"cooling", {{"rtd", 5.60000 / 3.2432}}},
+                   {"heating", {{"rtd", 6.68530 / 4.1573}}}}},
+            {"dualcompressor", false}
+        };
+
+        std::unique_ptr<AirconSpec> model;
+        try {
+            model = AirconModelFactory::createModel("RAC", racStandard);
+        } catch (const std::exception& e) {
+            fail(std::string("RAC createModel failed (x>1 case): ") + e.what());
+            model.reset();
+        }
+
+        if (model) {
+            InputData in{};
+            in.T_ex = 31.0;
+            in.X_ex = 0.0147; // 14.7 g/kg' -> 0.0147 kg/kg'
+            in.Q_S = 10.896264 / 0.0036; // MJ/h -> W
+            in.Q_L = 10.505394 / 0.0036; // MJ/h -> W
+            in.T_in = 27.0;
+            in.X_in = 0.010;
+            in.Q = in.Q_S + in.Q_L;
+            in.V_inner = 0.0;
+            in.V_outer = 0.0;
+
+            COPResult out{};
+            try {
+                out = model->estimateCOP("cooling", in);
+            } catch (const std::exception& e) {
+                fail(std::string("RAC estimateCOP(cooling) failed (x>1 case): ") + e.what());
+                out.valid = false;
+            }
+            expectTrue(out.valid, "RAC x>1 case: estimateCOP valid");
+
+            // 比較対象ソフトの同一条件内部値に合わせた基準（kW）
+            const double expectedPowerKw = 1.779127167;
+            const double tolKw = 2.0e-4;
+            expectNear(out.power, expectedPowerKw, tolKw, "RAC x>1 case: power regression");
+        }
+    }
+
     if (g_failures == 0) {
         std::cout << "[OK] all tests passed\n";
         return 0;

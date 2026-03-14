@@ -149,7 +149,10 @@ double RACModel::f_H_Theta(double x, double q_rtd_C, double Theta_ex, bool dual)
 double RACModel::f_C_Theta(double x, double Theta_ex, double q_rtd_C, bool dual) const {
     double a0,a1,a2,a3,a4;
     calc_a_eq22(Theta_ex, q_rtd_C, dual, a0,a1,a2,a3,a4);
-    x = clip(x, 0.0, 1.0);
+    // 冷房側は部分負荷比 x が 1.0 を超える領域でも
+    // 参照実装（他ソフト）では多項式をそのまま評価するため、
+    // 上限クリップを掛けない（下限のみ 0.0 で保護）。
+    x = std::max(0.0, x);
     return (((a4*x + a3)*x + a2)*x + a1)*x + a0;
 }
 
