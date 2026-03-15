@@ -11,6 +11,7 @@
   - `engine/app/main.py` の FastAPI version
   - Git tag（例: `v1.0.0`）
   - GitHub Release ノート
+- API サーバー実装の正本は monorepo 内 `engine/` とする（別repo運用を前提にしない）
 
 ## 互換性の目安
 

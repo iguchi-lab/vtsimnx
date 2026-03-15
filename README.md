@@ -3,7 +3,13 @@
 建築環境工学（熱・換気・湿気）を対象とした、研究/開発向けシミュレーション基盤です。  
 Python クライアントで入力を構築し、HTTP engine で計算を実行する構成を提供します。
 
+このリポジトリは **monorepo** です。  
+`vtsimnx/`（Pythonライブラリ）と `engine/`（FastAPI+solver）を同じリポジトリで保守します。
+APIサーバー実装の正本は `engine/` です。
+
 最新リリース: [`v1.0.0`](https://github.com/iguchi-lab/vtsimnx/releases/tag/v1.0.0)
+
+バージョン整合ポリシー（`pyproject.toml` / FastAPI version / tag）: `docs/release_policy.md`
 
 ## 何ができるか
 

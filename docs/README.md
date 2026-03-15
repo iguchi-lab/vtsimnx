@@ -5,6 +5,8 @@
 
 engine 側の実装詳細は参照先として残しつつ、ここでは「利用者が何をどう書くか」を優先して説明します。
 
+補足: 本プロジェクトは monorepo 構成で、API サーバー実装の正本は `../engine/` です。
+
 ## まず読む
 
 - `builder_input_quickstart.md`
