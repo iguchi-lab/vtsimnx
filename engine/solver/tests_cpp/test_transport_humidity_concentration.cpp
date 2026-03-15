@@ -437,6 +437,222 @@ int main() {
         expectNear(m1, m0, 1e-7, "moisture network mass conservation");
     }
 
+    // ------------------------------------------------------------------
+    // 6) concentration: deposition OFF (beta=0) + generation only
+    //    k2==0 分岐: c(t+dt) = c(t) + (m/V) * dt
+    // ------------------------------------------------------------------
+    {
+        auto V0 = makeNode("void");
+        V0.v = 0.0;
+        auto B = makeNode("B");
+        B.calc_c = true;
+        B.current_c = 100.0;
+        B.v = 100.0;
+        B.current_beta = 0.0; // deposition OFF
+
+        std::vector<VertexProperties> nodes = {V0, B};
+        EdgeProperties gen = makeFixedFlowEdge("void->B", "void", "B", 0.0);
+        gen.current_dust_generation = 10.0; // [count/s]
+        gen.dust_generation = {10.0};
+        std::vector<EdgeProperties> ventEdges = {gen};
+        std::vector<EdgeProperties> thEdges = {};
+
+        VentilationNetwork vent;
+        ThermalNetwork thermal;
+        ContaminantNetwork contaminant;
+        vent.buildFromData(nodes, ventEdges, constants, logs);
+        thermal.buildFromData(nodes, thEdges, ventEdges, constants, logs);
+        vent.updatePropertiesForTimestep(nodes, ventEdges, 0);
+
+        transport::updateConcentrationIfEnabled(constants,
+                                                vent,
+                                                thermal.getGraph(),
+                                                static_cast<const ThermalNetwork&>(thermal).nodeStateView(),
+                                                contaminant,
+                                                logs,
+                                                timings,
+                                                "test");
+
+        const double dt = static_cast<double>(constants.timestep);
+        const double expected = 100.0 + (10.0 / 100.0) * dt;
+        const auto& tG = thermal.getGraph();
+        const auto& tMap = thermal.getKeyToVertex();
+        const auto itB = tMap.find("B");
+        if (itB == tMap.end()) throw std::runtime_error("missing node B");
+        const double actual = tG[itB->second].current_c;
+        expectNear(actual, expected, 1e-10, "concentration deposition OFF (beta=0)");
+    }
+
+    // ------------------------------------------------------------------
+    // 7) concentration: deposition ON (beta>0) + generation only
+    //    c(t+dt) = (c0-k)exp(-beta*dt)+k, k=(m/V)/beta
+    //    deposition OFF ケースより最終濃度が低くなることも確認
+    // ------------------------------------------------------------------
+    {
+        auto V0 = makeNode("void");
+        V0.v = 0.0;
+        auto B = makeNode("B");
+        B.calc_c = true;
+        B.current_c = 100.0;
+        B.v = 100.0;
+        B.current_beta = 1e-5; // deposition ON
+
+        std::vector<VertexProperties> nodes = {V0, B};
+        EdgeProperties gen = makeFixedFlowEdge("void->B", "void", "B", 0.0);
+        gen.current_dust_generation = 10.0; // [count/s]
+        gen.dust_generation = {10.0};
+        std::vector<EdgeProperties> ventEdges = {gen};
+        std::vector<EdgeProperties> thEdges = {};
+
+        VentilationNetwork vent;
+        ThermalNetwork thermal;
+        ContaminantNetwork contaminant;
+        vent.buildFromData(nodes, ventEdges, constants, logs);
+        thermal.buildFromData(nodes, thEdges, ventEdges, constants, logs);
+        vent.updatePropertiesForTimestep(nodes, ventEdges, 0);
+
+        transport::updateConcentrationIfEnabled(constants,
+                                                vent,
+                                                thermal.getGraph(),
+                                                static_cast<const ThermalNetwork&>(thermal).nodeStateView(),
+                                                contaminant,
+                                                logs,
+                                                timings,
+                                                "test");
+
+        const double dt = static_cast<double>(constants.timestep);
+        const double k1 = 10.0 / 100.0;
+        const double beta = 1e-5;
+        const double k = k1 / beta;
+        const double expected = (100.0 - k) * std::exp(-beta * dt) + k;
+        const double expectedNoDeposition = 100.0 + k1 * dt;
+        const auto& tG = thermal.getGraph();
+        const auto& tMap = thermal.getKeyToVertex();
+        const auto itB = tMap.find("B");
+        if (itB == tMap.end()) throw std::runtime_error("missing node B");
+        const double actual = tG[itB->second].current_c;
+        expectNear(actual, expected, 1e-8, "concentration deposition ON (beta>0)");
+        if (!(actual < expectedNoDeposition)) {
+            throw std::runtime_error("concentration deposition ON must reduce concentration vs beta=0 case");
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 8) concentration: advection + eta (removal efficiency)
+    //    k1 = (q*(1-eta)/V) * c_src, k2 = q_out/V
+    // ------------------------------------------------------------------
+    {
+        auto V0 = makeNode("void");
+        V0.v = 0.0;
+        auto SRC = makeNode("SRC");
+        SRC.v = 0.0;
+        SRC.calc_c = false;
+        SRC.current_c = 200.0;
+        auto ROOM = makeNode("ROOM");
+        ROOM.calc_c = true;
+        ROOM.current_c = 50.0;
+        ROOM.current_beta = 0.0;
+        ROOM.v = 100.0;
+
+        EdgeProperties in = makeFixedFlowEdge("SRC->ROOM", "SRC", "ROOM", 0.1);
+        in.eta = 0.25; // 25% 除去
+        EdgeProperties out = makeFixedFlowEdge("ROOM->void", "ROOM", "void", 0.1);
+        std::vector<VertexProperties> nodes = {V0, SRC, ROOM};
+        std::vector<EdgeProperties> ventEdges = {in, out};
+        std::vector<EdgeProperties> thEdges = {};
+
+        VentilationNetwork vent;
+        ThermalNetwork thermal;
+        ContaminantNetwork contaminant;
+        vent.buildFromData(nodes, ventEdges, constants, logs);
+        thermal.buildFromData(nodes, thEdges, ventEdges, constants, logs);
+        vent.updatePropertiesForTimestep(nodes, ventEdges, 0);
+
+        transport::updateConcentrationIfEnabled(constants,
+                                                vent,
+                                                thermal.getGraph(),
+                                                static_cast<const ThermalNetwork&>(thermal).nodeStateView(),
+                                                contaminant,
+                                                logs,
+                                                timings,
+                                                "test");
+
+        const double dt = static_cast<double>(constants.timestep);
+        const double V = 100.0;
+        const double q = 0.1;
+        const double eta = 0.25;
+        const double cSrc = 200.0;
+        const double c0 = 50.0;
+        const double k1 = (q * (1.0 - eta) / V) * cSrc;
+        const double k2 = q / V;
+        const double k = k1 / k2;
+        const double expected = (c0 - k) * std::exp(-k2 * dt) + k;
+
+        const auto& tG = thermal.getGraph();
+        const auto& tMap = thermal.getKeyToVertex();
+        const auto itR = tMap.find("ROOM");
+        if (itR == tMap.end()) throw std::runtime_error("missing ROOM");
+        const double actual = tG[itR->second].current_c;
+        expectNear(actual, expected, 1e-10, "concentration advection with eta");
+    }
+
+    // ------------------------------------------------------------------
+    // 9) concentration: reverse flow (q<0) should swap src/dst internally
+    //    ROOM->SRC with q=-0.1 is equivalent to SRC->ROOM with q=+0.1
+    // ------------------------------------------------------------------
+    {
+        auto V0 = makeNode("void");
+        V0.v = 0.0;
+        auto SRC = makeNode("SRC");
+        SRC.v = 0.0;
+        SRC.calc_c = false;
+        SRC.current_c = 200.0;
+        auto ROOM = makeNode("ROOM");
+        ROOM.calc_c = true;
+        ROOM.current_c = 50.0;
+        ROOM.current_beta = 0.0;
+        ROOM.v = 100.0;
+
+        EdgeProperties rev = makeFixedFlowEdge("ROOM->SRC(-)", "ROOM", "SRC", -0.1);
+        EdgeProperties out = makeFixedFlowEdge("ROOM->void", "ROOM", "void", 0.1);
+        std::vector<VertexProperties> nodes = {V0, SRC, ROOM};
+        std::vector<EdgeProperties> ventEdges = {rev, out};
+        std::vector<EdgeProperties> thEdges = {};
+
+        VentilationNetwork vent;
+        ThermalNetwork thermal;
+        ContaminantNetwork contaminant;
+        vent.buildFromData(nodes, ventEdges, constants, logs);
+        thermal.buildFromData(nodes, thEdges, ventEdges, constants, logs);
+        vent.updatePropertiesForTimestep(nodes, ventEdges, 0);
+
+        transport::updateConcentrationIfEnabled(constants,
+                                                vent,
+                                                thermal.getGraph(),
+                                                static_cast<const ThermalNetwork&>(thermal).nodeStateView(),
+                                                contaminant,
+                                                logs,
+                                                timings,
+                                                "test");
+
+        const double dt = static_cast<double>(constants.timestep);
+        const double V = 100.0;
+        const double q = 0.1;
+        const double cSrc = 200.0;
+        const double c0 = 50.0;
+        const double k1 = (q / V) * cSrc;
+        const double k2 = q / V;
+        const double k = k1 / k2;
+        const double expected = (c0 - k) * std::exp(-k2 * dt) + k;
+
+        const auto& tG = thermal.getGraph();
+        const auto& tMap = thermal.getKeyToVertex();
+        const auto itR = tMap.find("ROOM");
+        if (itR == tMap.end()) throw std::runtime_error("missing ROOM");
+        const double actual = tG[itR->second].current_c;
+        expectNear(actual, expected, 1e-10, "concentration reverse signed flow");
+    }
+
     std::cout << "[OK] all tests passed\n";
     return 0;
 }
