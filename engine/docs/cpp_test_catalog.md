@@ -119,6 +119,14 @@
     - 濃度: `eta` 付き流入（`q*(1-eta)`）と符号付き流量（`q<0` 逆流）を既知解で検証
   - 合格基準: 数式ベース期待値と高精度一致
 
+- `vtsimnx_solver_cpp_test_core_physics_known_solutions`
+  - 検証内容: `core/ventilation`・`core/thermal`・`core/humidity` の既知解照合
+  - 具体例:
+    - 換気: 1室2開口（対称・等温・同一高さ）で室圧が境界圧の中点になること
+    - 熱: 1室2境界の定常伝熱で `T=(k1*T1+k2*T2)/(k1+k2)` に一致すること
+    - 湿気: 1ステップ implicit 解 `x_{n+1}=(x_n+a*x_src)/(1+a)`（`a=dt*q/V`）に一致すること
+  - 合格基準: 解析解と許容差内で一致し、質量/収支が崩れない
+
 ### 2.4 空調モデル・制御・アプリ
 
 - `vtsimnx_solver_cpp_test_refrigerant_calculator`
