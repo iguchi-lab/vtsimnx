@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vtsim_solver.h"
+#include "aircon/aircon_operation_mode.h"
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -50,7 +51,7 @@ private:
         AirconValidationData validData;
         double heatCapacity = 0.0;
         double airFlowRate = 0.0;
-        std::string operationMode;
+        OperationMode operationMode = OperationMode::Cooling;
     };
 
     // 出力用：エアコンキー順キャッシュ（airconModels のキーを昇順で保持）

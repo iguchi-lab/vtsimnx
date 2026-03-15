@@ -50,6 +50,10 @@ set(CORE_SOURCES
 
 set(AIRCON_SOURCES
     aircon/aircon_controller.cpp
+    aircon/aircon_latent.cpp
+    aircon/aircon_capacity.cpp
+    aircon/aircon_airflow.cpp
+    aircon/aircon_network_utils.cpp
 )
 
 set(ACMODEL_SOURCES
@@ -452,7 +456,7 @@ if(VTSIMNX_BUILD_CPP_TESTS)
     # 9) aircon controller: ordering + on/off gating (mock model)
     add_executable(vtsimnx_solver_cpp_test_aircon_controller
         tests_cpp/test_aircon_controller.cpp
-        aircon/aircon_controller.cpp
+        ${AIRCON_SOURCES}
         network/thermal_network.cpp
         network/thermal_network_outputs.cpp
         network/humidity_network.cpp
