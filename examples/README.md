@@ -6,6 +6,8 @@
 
 - `run_calc_minimal.py`
   - ローカル環境でそのまま実行しやすい最小 `vt.run_calc` サンプルです。
+- `run_calc_humidity_moisture_minimal.py`
+  - 湿気計算（`calc_x`）と壁材の吸放出（`moisture_capacity` + `moisture_conductance`）の最小サンプルです。
 - `vs_simheat_sample.py`
   - SimHeat 比較ケースの入力作成〜`vt.run_calc` 実行〜結果比較までを含む大規模サンプルです。
 - `3639999.has`
@@ -30,6 +32,7 @@
 ```bash
 export VTSIMNX_API_URL=http://127.0.0.1:8000
 python examples/run_calc_minimal.py
+python examples/run_calc_humidity_moisture_minimal.py
 ```
 
 大規模サンプルを使う場合:
