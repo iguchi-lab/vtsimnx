@@ -125,7 +125,14 @@ result = vt.run_calc("http://127.0.0.1:8000", input_data)
 ## 9. 関連ドキュメント
 
 - 全体導線: `README.md`
-- 実サンプルコード: `../examples/README.md`, `../examples/run_calc_minimal.py`, `../examples/vs_simheat_r15.py`
+- 実サンプルコード: `../examples/README.md`, `../examples/run_calc_minimal.py`, `../examples/vs_simheat_sample.py`
 - ノード/ブランチ早見表: `node_branch_schema.md`
 - `surfaces` の実務ガイド: `surface_usage.md`
 - スケジュール作成: `schedule_usage.md`
+
+### 空調を使う場合の注意（DUCT_CENTRAL）
+
+- DUCT_CENTRAL モデルでは、solver が処理熱量に応じて送風量を再評価します。
+- 目安は `Q=0 -> V=0`, `Q=Q.rtd -> V=V_inner.dsgn`（中間は線形）です。
+- 送風量変更で換気・熱連成の解が変わるため、同じ timestep 内で再計算が走る場合があります。
+- 実装詳細は `../engine/docs/aircon_control_overview.md` と `../engine/docs/acmodel_overview.md` を参照してください。

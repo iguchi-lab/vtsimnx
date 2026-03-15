@@ -153,6 +153,7 @@
     - `AUTO` モードで `indoorTemp` と `airconTemp` の関係から `cooling/heating` が分岐
     - `coil_aoaf` で `Ao` 変更時に `Q_L` 変化
     - 過負荷時に `current_pre_temp` が補正されること
+    - DUCT_CENTRAL で処理熱量に応じて `fixed_flow` が `Q/Q.rtd * V_inner.dsgn` に補正されること
     - 複数機器が同じ `set_node` を持つ場合、潜熱フィードバック注入を抑止
     - `in_node` 不正時に例外で停止せず `power=0` で継続
   - 合格基準: 呼び出し回数・値・補正方向が期待どおり

@@ -3,6 +3,7 @@
 #include <stdexcept>
 #include <string>
 #include <vector>
+#include <algorithm>
 
 #include "aircon/aircon_controller.h"
 #include "network/thermal_network.h"
@@ -370,6 +371,64 @@ int main() {
         expectTrue(adjusted2, "second call: under capacity with bracket should request recalc");
         expectTrue(b.current_pre_temp > setpointAfter1,
                    "under capacity: setpoint should increase toward max capacity");
+    }
+
+    // DUCT_CENTRAL: 処理熱量に応じて風量を補正すること
+    {
+        auto& in = thermal.getNode("IN");
+        auto& b = thermal.getNode("B");
+        auto& out = thermal.getNode("OUT");
+        in.current_t = 20.0;
+        b.current_t = 30.0;
+        out.current_t = 7.0;
+        b.current_mode = "HEATING";
+        b.on = true;
+        b.model = "DUCT_CENTRAL";
+        b.in_node = "IN";
+        b.outside_node = "OUT";
+        b.ac_spec = nlohmann::json{
+            {"Q", {{"heating", {{"rtd", 7.2}}}, {"cooling", {{"rtd", 7.2}}}}},
+            {"V_inner", {{"heating", {{"dsgn", 0.2}}}, {"cooling", {{"dsgn", 0.2}}}}},
+        };
+
+        VentilationNetwork vent;
+        auto& vg = vent.getGraph();
+        const auto vIn = boost::add_vertex(makeNode("IN", "normal", in.current_t), vg);
+        const auto vB = boost::add_vertex(makeNode("B", "aircon", b.current_t), vg);
+        EdgeProperties e{};
+        e.key = "vb_in_b";
+        e.unique_id = "vb_in_b";
+        e.type = "fixed_flow";
+        e.source = "IN";
+        e.target = "B";
+        e.current_vol = 0.3;
+        e.flow_rate = 0.3;
+        (void)boost::add_edge(vIn, vB, e, vg);
+
+        FlowRateMap ductFlowRates;
+        ductFlowRates[{"IN", "B"}] = 0.3;
+        std::ostringstream logs;
+        const bool adjusted = controller.checkAndAdjustDuctCentralAirflow(
+            thermal, vent, ductFlowRates, logs);
+        expectTrue(adjusted, "duct_central airflow should trigger adjustment when flow mismatches load");
+
+        bool found = false;
+        double adjustedFlow = 0.0;
+        for (auto edge : boost::make_iterator_range(boost::edges(vg))) {
+            const auto src = vg[boost::source(edge, vg)].key;
+            const auto dst = vg[boost::target(edge, vg)].key;
+            if (src == "IN" && dst == "B") {
+                found = true;
+                adjustedFlow = vg[edge].current_vol;
+                break;
+            }
+        }
+        expectTrue(found, "updated ventilation graph should contain IN->B edge");
+        if (found) {
+            const double qW = 1.2 * 1005.0 * 0.3 * (30.0 - 20.0);
+            const double targetFlow = 0.2 * std::clamp(qW / (7.2 * 1000.0), 0.0, 1.0);
+            expectNear(adjustedFlow, targetFlow, 2e-4, "duct_central target flow should follow Q/Q_rtd * V_dsgn");
+        }
     }
 
     // AUTOモード: 室内温と吹出温の関係で operationMode が cooling/heating に分岐すること

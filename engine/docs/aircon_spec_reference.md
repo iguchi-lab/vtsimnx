@@ -84,6 +84,7 @@
 - **必須**: `P_fan`, `V_inner`（必要に応じ `V_outer`）の cooling/heating × **rtd, mid, dsgn** 等
 - 単位: `Q` / `P` / `P_fan` は [kW]、風量は [m³/s]
 - 運転点入力 `InputData` では `V_vent`（換気分, [m³/s]）を使用可能。`V_outer` とは別入力で、既定は `0`。
+- solver 制御では `Q.<mode>.rtd` と `V_inner.<mode>.dsgn` を使って、処理熱量連動の送風量補正を行う（`Q=0 -> V=0`, `Q=Q_rtd -> V=V_dsgn`）。
 
 能力上限: **`Q.<mode>.max`** があればそれを使用。無い場合は **`Q.<mode>.mid`** を能力上限として使用。
 

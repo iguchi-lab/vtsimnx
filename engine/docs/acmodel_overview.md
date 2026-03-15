@@ -136,6 +136,14 @@ RAC は Python版互換の実装で、例えば以下のフラグを参照しま
 
 DUCT_CENTRAL では、運転点入力として `InputData.V_vent`（換気分風量, [m3/s]）を扱います。`V_outer` とは独立です。既定は `0 m3/h` です。
 
+また solver 連成では、`model="DUCT_CENTRAL"` のとき `InputData.V_inner` を固定値ではなく「処理熱量に応じた目標風量」に合わせて更新します。
+
+- `Q_processed=0` なら `V_inner=0`
+- `Q_processed=Q.<mode>.rtd` なら `V_inner=V_inner.<mode>.dsgn`
+- 中間は線形補間（`clamp(Q_processed / Q_rtd, 0..1)`）
+
+この補正で換気枝（`fixed_flow`）が更新された場合、同一 timestep の outer loop を再計算して吸込/吹出状態を再評価します。
+
 実装上の pyhees 整合ポイント（送風機式、デフロスト境界、内訳回帰）は `docs/duct_central_model_validation.md` を参照してください。
 
 モデル別の ac_spec の最小形・推奨キーは `docs/aircon_spec_reference.md` を参照してください。

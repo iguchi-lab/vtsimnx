@@ -80,6 +80,18 @@ static AirconStepResult runAirconControlAndAdjust(AirconController& airconContro
     AirconStepResult r;
     bool allAirconControlled = false;
 
+    // 0. DUCT_CENTRAL の処理熱量連動風量を補正（変更が入ったら外側ループをやり直し）
+    {
+        ScopedTimer timer(timings, "aircon_duct_flow_adjust", meta);
+        const bool ductFlowAdjusted = airconController.checkAndAdjustDuctCentralAirflow(
+            thermalNetwork, ventNetwork, flowRates, logs);
+        if (ductFlowAdjusted) {
+            r.allControlled = false;
+            r.shouldRecompute = true;
+            return r;
+        }
+    }
+
     // 1. 現在の温度でエアコン出力を決定し、各ノードの heat_source をリセットする
     {
         auto& graph = thermalNetwork.getGraph();

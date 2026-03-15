@@ -81,6 +81,52 @@ inline double estimateHeatCapacityForSetpoint(const std::string& operationMode,
     return clampHeatCapacity(kAirDensity * kAirSpecificHeat * std::abs(airFlowRate) * deltaT);
 }
 
+inline std::optional<double> readSpecPositive(const nlohmann::json& spec,
+                                              const std::string& key1,
+                                              const std::string& key2,
+                                              const std::string& key3) {
+    if (!spec.is_object()) return std::nullopt;
+    auto it1 = spec.find(key1);
+    if (it1 == spec.end() || !it1->is_object()) return std::nullopt;
+    auto it2 = it1->find(key2);
+    if (it2 == it1->end() || !it2->is_object()) return std::nullopt;
+    auto it3 = it2->find(key3);
+    if (it3 == it2->end() || !it3->is_number()) return std::nullopt;
+    const double v = it3->get<double>();
+    if (!std::isfinite(v) || !(v > 0.0)) return std::nullopt;
+    return v;
+}
+
+inline bool isDuctCentralModel(const VertexProperties& nodeProps) {
+    return toLowerCopy(nodeProps.model) == "duct_central";
+}
+
+inline bool updateFixedFlowEdgeByNodePair(VentilationNetwork& ventNetwork,
+                                          const std::string& fromNode,
+                                          const std::string& toNode,
+                                          double targetFlowM3s,
+                                          double flowTolM3s) {
+    auto& graph = ventNetwork.getGraph();
+    bool updated = false;
+    const double q = std::max(0.0, targetFlowM3s);
+    for (auto e : boost::make_iterator_range(boost::edges(graph))) {
+        auto& edge = graph[e];
+        if (edge.type != "fixed_flow") continue;
+        const std::string source = graph[boost::source(e, graph)].key;
+        const std::string target = graph[boost::target(e, graph)].key;
+        const bool sameDirection = (source == fromNode && target == toNode);
+        const bool reverseDirection = (source == toNode && target == fromNode);
+        if (!sameDirection && !reverseDirection) continue;
+
+        const double desired = sameDirection ? q : -q;
+        if (std::abs(edge.current_vol - desired) <= flowTolM3s) continue;
+        edge.current_vol = desired;
+        edge.flow_rate = desired;
+        updated = true;
+    }
+    return updated;
+}
+
 inline std::optional<double> findCapacityLimitedSetpoint(const std::string& operationMode,
                                                          double inletTemp,
                                                          double currentSetpoint,
@@ -828,6 +874,70 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
             writeLog(logs, oss.str());
         } catch (const std::exception& e) {
             writeLog(logs, std::string("　　エラー: エアコン ") + airconKey + " - " + e.what());
+        }
+    }
+    return adjustmentMade;
+}
+
+bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalNetwork,
+                                                        VentilationNetwork& ventNetwork,
+                                                        const FlowRateMap& flowRates,
+                                                        std::ostream& logs) const {
+    bool adjustmentMade = false;
+    constexpr double kMinFlowTol = 1e-6;        // [m3/s]
+    constexpr double kRelativeFlowTol = 1e-3;   // [-]
+
+    for (const auto& airconKey : getAirconKeys()) {
+        auto& nodeProps = thermalNetwork.getNode(airconKey);
+        if (!nodeProps.on || !isDuctCentralModel(nodeProps)) {
+            continue;
+        }
+
+        try {
+            auto context = prepareRuntimeContext(airconKey, thermalNetwork, nodeProps, flowRates);
+            const auto loads = estimateLatentProcess(
+                context.validData, context.operationMode, context.heatCapacity, context.airFlowRate, nodeProps);
+            const double processedHeatW = totalHeatCapacity(loads);
+
+            const auto qRtdkW = readSpecPositive(nodeProps.ac_spec, "Q", context.operationMode, "rtd");
+            const auto vDsgn = readSpecPositive(nodeProps.ac_spec, "V_inner", context.operationMode, "dsgn");
+            if (!qRtdkW || !vDsgn) {
+                continue;
+            }
+
+            const double qRtdW = (*qRtdkW) * 1000.0;
+            if (!(qRtdW > 0.0)) {
+                continue;
+            }
+            const double ratio = std::clamp(processedHeatW / qRtdW, 0.0, 1.0);
+            const double targetFlow = (*vDsgn) * ratio;
+            const double flowTol = std::max(kMinFlowTol,
+                                            std::max(targetFlow, context.airFlowRate) * kRelativeFlowTol);
+
+            if (!std::isfinite(context.airFlowRate) || std::abs(context.airFlowRate - targetFlow) <= flowTol) {
+                continue;
+            }
+
+            bool edgeUpdated = false;
+            if (!nodeProps.in_node.empty()) {
+                edgeUpdated = updateFixedFlowEdgeByNodePair(
+                    ventNetwork, nodeProps.in_node, nodeProps.key, targetFlow, flowTol);
+            }
+
+            if (!edgeUpdated) {
+                continue;
+            }
+
+            adjustmentMade = true;
+            std::ostringstream oss;
+            oss << "　" << airconKey
+                << " DUCT_CENTRAL風量補正: 処理熱量=" << std::fixed << std::setprecision(2)
+                << processedHeatW << "W, Q.rtd=" << qRtdW << "W, 比率=" << ratio
+                << ", 風量 " << context.airFlowRate << "→" << targetFlow << " m3/s, 再計算要求";
+            writeLog(logs, oss.str());
+        } catch (const std::exception& e) {
+            writeLog(logs, std::string("　　エラー: DUCT_CENTRAL風量補正に失敗 ")
+                               + airconKey + " - " + e.what());
         }
     }
     return adjustmentMade;

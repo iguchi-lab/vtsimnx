@@ -61,9 +61,10 @@ flowchart TD
 
 入口は `solver/simulation_runner.cpp` の `runAirconControlAndAdjust()` です。
 
-1. `controlAllAircons()` で ON/OFF を決める
-2. 全台の ON/OFF が安定していれば `checkAndAdjustCapacity()` で能力超過を確認する
-3. どちらかで修正が入れば `shouldRecompute=true` を返し、同じ timestep の outer loop をやり直す
+1. `checkAndAdjustDuctCentralAirflow()` で DUCT_CENTRAL の風量補正を先に確認する
+2. `controlAllAircons()` で ON/OFF を決める
+3. 全台の ON/OFF が安定していれば `checkAndAdjustCapacity()` で能力超過を確認する
+4. いずれかで修正が入れば `shouldRecompute=true` を返し、同じ timestep の outer loop をやり直す
 
 ---
 
@@ -174,7 +175,42 @@ acmodel 入力では `Q_S=顕熱`, `Q_L=潜熱`, `Q=Q_S+Q_L` を渡します。
 
 ---
 
-### 8. 能力超過時の設定温度補正
+### 8. DUCT_CENTRAL の処理熱量連動風量（外側ループ連成）
+
+`model="DUCT_CENTRAL"` かつ運転中の機器については、能力補正の前段で風量を見直します。
+
+目的:
+
+- 処理熱量と送風量の自己整合を取る
+- 風量が変わることで換気/熱回路網の解が変わるため、outer loop 再計算につなぐ
+
+仕様:
+
+- 処理熱量が `0` のとき、目標風量は `0`
+- 処理熱量が `Q.<mode>.rtd` のとき、目標風量は `V_inner.<mode>.dsgn`
+- その間は線形補間（上限は `dsgn`）
+
+式（mode は `heating` / `cooling`）:
+
+- `ratio = clamp(Q_processed / (Q.<mode>.rtd * 1000), 0, 1)`
+- `V_target = V_inner.<mode>.dsgn * ratio`
+
+ここで:
+
+- `Q_processed` は controller 内部の全熱（`Q_S + Q_L`, [W]）
+- `Q.<mode>.rtd` は `ac_spec` 上の [kW]
+- `V_inner.<mode>.dsgn` は [m3/s]
+
+実装上は `in_node <-> aircon_node` の `fixed_flow` 換気枝を更新し、変更が入った場合は `shouldRecompute=true` を返します。
+
+注意:
+
+- この補正は DUCT_CENTRAL 専用です（他モデルには適用しません）。
+- 現時点では `fixed_flow` 枝を対象とした運用を前提にしています。
+
+---
+
+### 9. 能力超過時の設定温度補正
 
 エアコンが ON で、かつ
 
@@ -203,7 +239,7 @@ acmodel 入力では `Q_S=顕熱`, `Q_L=潜熱`, `Q=Q_S+Q_L` を渡します。
 
 ---
 
-### 9. 現在の近似と制約
+### 10. 現在の近似と制約
 
 初期実装では、二分探索の**各試行ごとに full thermal solve はしていません**。
 
@@ -229,7 +265,7 @@ acmodel 入力では `Q_S=顕熱`, `Q_L=潜熱`, `Q=Q_S+Q_L` を渡します。
 
 ---
 
-### 10. ログ
+### 11. ログ
 
 能力チェック時は `solver.log` に次のような情報を出します。
 
@@ -257,7 +293,15 @@ ac1 最大処理熱量=500.00W (Q.heating.max 基準), 現在処理熱量(全熱
 
 ---
 
-### 11. 関連ドキュメント
+DUCT_CENTRAL 風量補正のログ例:
+
+```text
+ac1 DUCT_CENTRAL風量補正: 処理熱量=3624.00W, Q.rtd=7200.00W, 比率=0.5033, 風量 0.3000→0.1007 m3/s, 再計算要求
+```
+
+---
+
+### 12. 関連ドキュメント
 
 - `docs/simulation_overview.md`
 - `docs/acmodel_overview.md`

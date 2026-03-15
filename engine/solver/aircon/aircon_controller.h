@@ -190,6 +190,15 @@ public:
                                 std::ostream& logFile,
                                 int& totalIterations) const;
 
+    // DUCT_CENTRAL 用: 処理熱量に応じて送風量を補正する。
+    // - 処理熱量=0 -> 風量=0
+    // - 処理熱量=Q.rtd -> 風量=V_inner.dsgn
+    // 変更が入った場合は true（外側ループで再計算要求）。
+    bool checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalNetwork,
+                                          VentilationNetwork& ventNetwork,
+                                          const FlowRateMap& flowRates,
+                                          std::ostream& logs) const;
+
     // 潜熱処理量を熱方程式の heat_source へ反映する（冷房時のみ有効）。
     // relaxation=1.0 で全量反映。<1.0 で緩和反映。
     LatentFeedbackStats applyLatentFeedbackToThermal(
