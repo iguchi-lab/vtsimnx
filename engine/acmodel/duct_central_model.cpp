@@ -106,11 +106,19 @@ COPResult DuctCentralModel::estimateCoolingCOP(const InputData& in) {
     const double q_hs_CS     = in.Q_S;               // 顕熱 [W]
     const double q_hs_CL     = in.Q_L;               // 潜熱 [W]
     const double V_hs_supply = in.V_inner * 3600.0;  // m3/h
+    const double V_hs_vent_input = in.V_vent * 3600.0;
+    const bool has_v_vent_input = std::isfinite(V_hs_vent_input) && (V_hs_vent_input >= 0.0);
+    const double V_hs_vent = has_v_vent_input ? V_hs_vent_input : DEFAULT_V_HS_VENT_M3H;  // m3/h
     
     calculationLogs_.push_back("　　　入力条件: 外気温=" + std::to_string(Theta) + "°C, 室内温=" + 
                                std::to_string(Theta_hs_in) + "°C, 室内湿度=" + std::to_string(X_hs_in) + "kg/kg");
     calculationLogs_.push_back("　　　負荷条件: 顕熱=" + std::to_string(q_hs_CS) + "W, 潜熱=" + 
-                               std::to_string(q_hs_CL) + "W, 送風量=" + std::to_string(V_hs_supply) + "m3/h");
+                               std::to_string(q_hs_CL) + "W, 送風量=" + std::to_string(V_hs_supply) +
+                               "m3/h, 換気風量=" + std::to_string(V_hs_vent) + "m3/h");
+    if (!has_v_vent_input) {
+        calculationLogs_.push_back("　　　換気風量入力なしのため既定値を使用: V_hs_vent=" +
+                                   std::to_string(DEFAULT_V_HS_VENT_M3H) + "m3/h");
+    }
 
     // 吹出温度
     const double Theta_hs_out = Theta_hs_in - q_hs_CS / (C_P_AIR * RHO_AIR * (V_hs_supply/3600.0));
@@ -122,7 +130,7 @@ COPResult DuctCentralModel::estimateCoolingCOP(const InputData& in) {
 
     // 送風機消費電力（q_hs_C > 0 のときのみ）
     const double E_E_fan_C_kW = (q_hs_C > 0.0)
-        ? calculateFanPower(V_hs_supply, V_hs_dsgn_C, P_fan_rtd_C)
+        ? calculateFanPower(V_hs_supply, V_hs_vent, V_hs_dsgn_C, P_fan_rtd_C)
         : 0.0;
     calculationLogs_.push_back("　　　送風機電力: " + std::to_string(E_E_fan_C_kW) + "kW");
 
@@ -256,10 +264,19 @@ COPResult DuctCentralModel::estimateHeatingCOP(const InputData& in) {
     const double X_hs_in     = in.X_in;
     double       q_hs_H      = in.Q_S;
     const double V_hs_supply = in.V_inner * 3600.0;
+    const double V_hs_vent_input = in.V_vent * 3600.0;
+    const bool has_v_vent_input = std::isfinite(V_hs_vent_input) && (V_hs_vent_input >= 0.0);
+    const double V_hs_vent = has_v_vent_input ? V_hs_vent_input : DEFAULT_V_HS_VENT_M3H;  // m3/h
     
     calculationLogs_.push_back("　　　暖房入力条件: 外気温=" + std::to_string(Theta) + "°C, 室内温=" + 
                                std::to_string(Theta_hs_in) + "°C, 室内湿度=" + std::to_string(X_hs_in) + "kg/kg");
-    calculationLogs_.push_back("　　　暖房負荷: " + std::to_string(q_hs_H) + "W, 送風量=" + std::to_string(V_hs_supply) + "m3/h");
+    calculationLogs_.push_back("　　　暖房負荷: " + std::to_string(q_hs_H) + "W, 送風量=" +
+                               std::to_string(V_hs_supply) + "m3/h, 換気風量=" +
+                               std::to_string(V_hs_vent) + "m3/h");
+    if (!has_v_vent_input) {
+        calculationLogs_.push_back("　　　換気風量入力なしのため既定値を使用: V_hs_vent=" +
+                                   std::to_string(DEFAULT_V_HS_VENT_M3H) + "m3/h");
+    }
 
     const double Theta_hs_out = Theta_hs_in + q_hs_H / (C_P_AIR * RHO_AIR * (V_hs_supply/3600.0));
     calculationLogs_.push_back("　　　吹出温度: " + std::to_string(Theta_hs_out) + "°C");
@@ -268,7 +285,7 @@ COPResult DuctCentralModel::estimateHeatingCOP(const InputData& in) {
     const double e_sat  = ae::saturation_vapor_pressure(Theta);           // Pa
     const double X_sat  = ae::absolute_humidity_from_vapor_pressure(e_sat); // kg/kg(DA)
     const double h_pct  = (X_sat > 0.0) ? (in.X_ex / X_sat * 100.0) : 0.0;
-    const double C_df_H = ((Theta < 5.0) && (h_pct >= 80.0)) ? 0.77 : 1.0;
+    const double C_df_H = ((Theta < 5.0) && (h_pct > 80.0)) ? 0.77 : 1.0;
     
     calculationLogs_.push_back("　　　霜着判定: X_ex=" + std::to_string(in.X_ex) + "kg/kg, X_sat=" + 
                                std::to_string(X_sat) + "kg/kg, 相対湿度=" + std::to_string(h_pct) + "%");
@@ -280,7 +297,7 @@ COPResult DuctCentralModel::estimateHeatingCOP(const InputData& in) {
 
     // 送風機電力（q_hs_H > 0 のときのみ）
     const double E_E_fan_H_kW = (q_hs_H > 0.0)
-        ? calculateFanPower(V_hs_supply, V_hs_dsgn_H, P_fan_rtd_H)
+        ? calculateFanPower(V_hs_supply, V_hs_vent, V_hs_dsgn_H, P_fan_rtd_H)
         : 0.0;
     calculationLogs_.push_back("　　　暖房送風機電力: " + std::to_string(E_E_fan_H_kW) + "kW");
 
@@ -411,9 +428,21 @@ double DuctCentralModel::calculateCoolingCapacity(double power_consumption, doub
 }
 
 // ---- 送風機電力[kW] ----
-double DuctCentralModel::calculateFanPower(double v_supply_m3h, double v_design_m3h, double p_fan_rated_W) {
-    if (v_supply_m3h <= 0.0 || v_design_m3h <= 0.0) return 0.0;
-    return p_fan_rated_W * (v_supply_m3h / v_design_m3h) * 1e-3;
+double DuctCentralModel::calculateFanPower(double v_supply_m3h,
+                                           double v_vent_m3h,
+                                           double v_design_m3h,
+                                           double p_fan_rated_W) {
+    if (v_supply_m3h <= 0.0 || v_design_m3h <= 0.0 || p_fan_rated_W <= 0.0) return 0.0;
+
+    // pyhees 式(37)(38):
+    // E_fan = (P_fan_rtd - f_SFP*V_vent) * ((V_supply - V_vent)/(V_dsgn - V_vent)) * 1e-3
+    const double denom = v_design_m3h - v_vent_m3h;
+    if (std::abs(denom) <= 1e-9) return 0.0;
+
+    const double available_power_W = p_fan_rated_W - F_SFP * v_vent_m3h;
+    const double flow_ratio = (v_supply_m3h - v_vent_m3h) / denom;
+    const double fan_kW = available_power_W * flow_ratio * 1e-3;
+    return std::max(0.0, fan_kW);
 }
 
 // ---- 伝熱係数 ----
@@ -424,12 +453,12 @@ double DuctCentralModel::latentHTCoeff(double v_flow_m3h) {
 double DuctCentralModel::sensibleHTCoeffCooling_mid_rtd(double v_flow_m3h) {
     // α_c = α'_c * (c_p_air + c_p_w*0.010376)
     const double alpha_dash = latentHTCoeff(v_flow_m3h);
-    return alpha_dash * (C_P_AIR + (C_P_W * 0.010376 * 1000.0)); // C_P_W[kJ/kgK]→J/kgK
+    return alpha_dash * (C_P_AIR + (C_P_W * 0.010376));
 }
 double DuctCentralModel::sensibleHTCoeffCooling_eval(double v_flow_m3h, double x_in_kgkg) {
     // α_c = α'_c * (c_p_air + c_p_w*X_in)
     const double alpha_dash = latentHTCoeff(v_flow_m3h);
-    return alpha_dash * (C_P_AIR + (C_P_W * x_in_kgkg * 1000.0)); // C_P_W[kJ/kgK]→J/kgK
+    return alpha_dash * (C_P_AIR + (C_P_W * x_in_kgkg));
 }
 double DuctCentralModel::sensibleHTCoeffHeating(double v_flow_m3h) {
     const double a = (v_flow_m3h/3600.0) / A_F_HEX;

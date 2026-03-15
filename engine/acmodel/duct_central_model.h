@@ -35,6 +35,8 @@ private:
     static constexpr double F_ATM   = 101325.0;   // [Pa]
     static constexpr double A_F_HEX = 0.23559;    // [m2]
     static constexpr double A_E_HEX = 6.396;      // [m2]
+    static constexpr double F_SFP   = 0.4 * 0.36; // [W/(m3/h)] pyhees get_f_SFP()
+    static constexpr double DEFAULT_V_HS_VENT_M3H = 0.0; // V_hs_vent未入力時
 
     // --- 内部ユーティリティ ---
     // JSON 仕様の取得（kW→W, m3/s→m3/hなど上位からの単位前提で変換）
@@ -43,8 +45,11 @@ private:
     double getFanPower(const char* mode, const char* key) const;   // spec["P_fan"][mode][key] (kW)
     double getVolume(const char* vwhere, const char* mode, const char* key) const; // spec[vwhere][mode][key] (m3/s)
 
-    // 送風機電力[kW]
-    static double calculateFanPower(double v_supply_m3h, double v_design_m3h, double p_fan_rated_W);
+    // 送風機電力[kW]（pyhees 式(37)(38)準拠）
+    static double calculateFanPower(double v_supply_m3h,
+                                    double v_vent_m3h,
+                                    double v_design_m3h,
+                                    double p_fan_rated_W);
 
     // 伝熱係数
     static double latentHTCoeff(double v_flow_m3h);                                       // α'_c (式36b)

@@ -45,6 +45,28 @@ void expectThrows(Fn fn, const std::string& msg) {
     }
 }
 
+bool tryParsePowerFromLogs(const std::vector<std::string>& logs,
+                           const std::string& key,
+                           double* outKw) {
+    if (!outKw) return false;
+    for (auto it = logs.rbegin(); it != logs.rend(); ++it) {
+        const auto& line = *it;
+        if (line.find(key) == std::string::npos) continue;
+        const size_t colon = line.find(':');
+        if (colon == std::string::npos) continue;
+        std::string value = line.substr(colon + 1);
+        const size_t kwPos = value.find("kW");
+        if (kwPos != std::string::npos) value = value.substr(0, kwPos);
+        try {
+            *outKw = std::stod(value);
+            return true;
+        } catch (const std::exception&) {
+            continue;
+        }
+    }
+    return false;
+}
+
 } // namespace
 
 int main() {
@@ -940,6 +962,215 @@ int main() {
                 }
             }
 #endif
+        }
+    }
+
+    // -----------------------------
+    // DUCT_CENTRAL: pyhees整合ケース（V_vent未入力=0m3/h）
+    // -----------------------------
+    {
+        setLogger(nullptr);
+
+        const nlohmann::json ductcentral = {
+            {"Q", {{"cooling", {{"min", 2.682626}, {"mid", 3.832323}, {"rtd", 7.664646}}},
+                   {"heating", {{"min", 2.706897}, {"mid", 3.866996}, {"rtd", 7.733992}}}}},
+            {"P", {{"cooling", {{"rtd", 2.417870}}},
+                   {"heating", {{"rtd", 2.056912}}}}},
+            {"P_fan", {{"cooling", {{"mid", 0.188513}, {"rtd", 0.240326}}},
+                       {"heating", {{"mid", 0.188981}, {"rtd", 0.241263}}}}},
+            {"V_inner", {{"cooling", {{"mid", 1258.598 / 3600.0}, {"dsgn", 1301.284 / 3600.0}, {"rtd", 1647.195 / 3600.0}}},
+                         {"heating", {{"mid", 1262.113 / 3600.0}, {"dsgn", 1306.839 / 3600.0}, {"rtd", 1654.227 / 3600.0}}}}}
+        };
+
+        std::unique_ptr<AirconSpec> model;
+        try {
+            model = AirconModelFactory::createModel("DUCT_CENTRAL", ductcentral);
+        } catch (const std::exception& e) {
+            fail(std::string("DUCT_CENTRAL createModel failed (pyhees alignment): ") + e.what());
+            model.reset();
+        }
+
+        if (model) {
+            // テスト専用ルール:
+            // 風量が 160m3/h 未満のときのみ、換気分 160m3/h を別計上とみなし
+            // ファン付加電力が 0 になる条件（V_supply <= V_vent）を再現する。
+            const auto applyTestOnlyFanCutoff = [](InputData& d) {
+                const double vSupplyM3h = d.V_inner * 3600.0;
+                d.V_vent = (std::isfinite(vSupplyM3h) && vSupplyM3h < 160.0) ? (160.0 / 3600.0) : 0.0;
+            };
+
+            InputData in{};
+            in.T_ex = 5.0;
+            in.X_ex = 0.00323876656421882; // Theta=5.0C, RH=60% から換算
+            in.T_in = 22.0;
+            in.X_in = 0.005951687755383225;
+            in.Q_S = 10290.845978768577;
+            in.Q_L = 0.0;
+            in.Q = in.Q_S;
+            in.V_inner = 1000.0 / 3600.0; // m3/s
+            in.V_outer = 999.0 / 3600.0;  // V_ventとは別物（結果に影響しないことを確認）
+            in.V_vent = 0.0; // 既存回帰ケースは従来条件を維持
+
+            COPResult outA{};
+            try {
+                outA = model->estimateCOP("heating", in);
+            } catch (const std::exception& e) {
+                fail(std::string("DUCT_CENTRAL estimateCOP failed (case A): ") + e.what());
+            }
+            expectTrue(outA.valid, "DUCT_CENTRAL pyhees alignment: case A valid");
+            expectNear(outA.power, 6.2831481025202525, 2.0e-3,
+                       "DUCT_CENTRAL pyhees alignment: total power");
+            {
+                double fanKw = 0.0;
+                double compKw = 0.0;
+                expectTrue(tryParsePowerFromLogs(outA.logMessages, "暖房送風機電力", &fanKw),
+                           "DUCT_CENTRAL pyhees alignment: heating fan log exists");
+                expectTrue(tryParsePowerFromLogs(outA.logMessages, "暖房圧縮機電力", &compKw),
+                           "DUCT_CENTRAL pyhees alignment: heating comp log exists");
+                expectNear(fanKw, 0.1846161164527157, 2.0e-3,
+                           "DUCT_CENTRAL pyhees alignment: heating fan power");
+                expectNear(compKw, 6.098531986067536, 2.0e-3,
+                           "DUCT_CENTRAL pyhees alignment: heating comp power");
+            }
+
+            // V_outer を変更しても結果が変わらないこと（V_ventとは分離）
+            InputData inB = in;
+            inB.V_outer = 0.0;
+            COPResult outB{};
+            try {
+                outB = model->estimateCOP("heating", inB);
+            } catch (const std::exception& e) {
+                fail(std::string("DUCT_CENTRAL estimateCOP failed (case B): ") + e.what());
+            }
+            expectTrue(outB.valid, "DUCT_CENTRAL pyhees alignment: case B valid");
+            expectNear(outB.power, outA.power, 1.0e-12,
+                       "DUCT_CENTRAL pyhees alignment: V_outer separation");
+
+            // V_vent=0 の明示指定と未指定（既定値0）が同値であることを確認
+            InputData inNoVent = in;
+            inNoVent.V_vent = 0.0; // 明示0
+            InputData inVentUnset = in;
+            inVentUnset.V_vent = 0.0; // 未指定相当（InputData初期値も0）
+            COPResult outNoVent{};
+            COPResult outVentUnset{};
+            try {
+                outNoVent = model->estimateCOP("heating", inNoVent);
+                outVentUnset = model->estimateCOP("heating", inVentUnset);
+            } catch (const std::exception& e) {
+                fail(std::string("DUCT_CENTRAL estimateCOP failed (V_vent explicit zero equivalence): ") + e.what());
+            }
+            expectTrue(outNoVent.valid && outVentUnset.valid,
+                       "DUCT_CENTRAL V_vent explicit zero equivalence: both valid");
+            expectNear(outNoVent.power, outVentUnset.power, 1.0e-12,
+                       "DUCT_CENTRAL V_vent explicit zero equivalence: same power");
+
+            // デフロスト閾値の境界: h_ex = 80% では補正なし、>80% で補正あり（T_ex<5）
+            InputData defrostBase = in;
+            defrostBase.T_ex = 2.0;
+            defrostBase.Q_S = 6000.0;
+            defrostBase.Q = defrostBase.Q_S;
+            defrostBase.V_inner = 950.0 / 3600.0;
+            defrostBase.V_vent = 0.0;
+            {
+                const double eSat = archenv::saturation_vapor_pressure(defrostBase.T_ex);
+                const double xSat = archenv::absolute_humidity_from_vapor_pressure(eSat);
+                InputData at80 = defrostBase;
+                InputData over80 = defrostBase;
+                at80.X_ex = xSat * 0.80;      // h_ex = 80%
+                over80.X_ex = xSat * 0.801;   // h_ex > 80%
+
+                COPResult outAt80{};
+                COPResult outOver80{};
+                try {
+                    outAt80 = model->estimateCOP("heating", at80);
+                    outOver80 = model->estimateCOP("heating", over80);
+                } catch (const std::exception& e) {
+                    fail(std::string("DUCT_CENTRAL estimateCOP failed (defrost threshold boundary): ") + e.what());
+                }
+                expectTrue(outAt80.valid && outOver80.valid,
+                           "DUCT_CENTRAL defrost threshold boundary: both valid");
+                // pyhees準拠: h_ex > 80 のみ補正（必要出力増）で電力増になる
+                expectTrue(outOver80.power > outAt80.power,
+                           "DUCT_CENTRAL defrost threshold boundary: power increases only when h_ex > 80%");
+            }
+
+            // 冷房ケース（ユーザー提示の内部計算値回帰）
+            InputData cIn{};
+            cIn.T_ex = 35.0;
+            cIn.X_ex = 0.0214; // Theta=35.0C, RH=60% 相当（本モデルでは主に Tcnd_eval 計算で使用）
+            cIn.T_in = 28.0;
+            cIn.X_in = 0.024076270392002996;
+            cIn.Q_S = 4237.407167728237;
+            cIn.Q_L = 11160.164817251673;
+            cIn.Q = cIn.Q_S + cIn.Q_L;
+            cIn.V_inner = 1000.0 / 3600.0; // m3/s
+            cIn.V_outer = 999.0 / 3600.0;  // V_ventとは別物
+            cIn.V_vent = 0.0; // 既存回帰ケースは従来条件を維持
+
+            COPResult cOutA{};
+            try {
+                cOutA = model->estimateCOP("cooling", cIn);
+            } catch (const std::exception& e) {
+                fail(std::string("DUCT_CENTRAL estimateCOP failed (cooling case A): ") + e.what());
+            }
+            expectTrue(cOutA.valid, "DUCT_CENTRAL cooling alignment: case A valid");
+            expectNear(cOutA.power, 5.055572490384798, 2.0e-3,
+                       "DUCT_CENTRAL cooling alignment: total power");
+            {
+                double fanKw = 0.0;
+                double compKw = 0.0;
+                expectTrue(tryParsePowerFromLogs(cOutA.logMessages, "送風機電力", &fanKw),
+                           "DUCT_CENTRAL cooling alignment: cooling fan log exists");
+                expectTrue(tryParsePowerFromLogs(cOutA.logMessages, "圧縮機電力", &compKw),
+                           "DUCT_CENTRAL cooling alignment: cooling comp log exists");
+                expectNear(fanKw, 0.18468373467674887, 2.0e-3,
+                           "DUCT_CENTRAL cooling alignment: cooling fan power");
+                expectNear(compKw, 4.87088875570805, 2.0e-3,
+                           "DUCT_CENTRAL cooling alignment: cooling comp power");
+            }
+
+            // V_outer を変更しても結果が変わらないこと（V_ventとは分離）
+            InputData cInB = cIn;
+            cInB.V_outer = 0.0;
+            COPResult cOutB{};
+            try {
+                cOutB = model->estimateCOP("cooling", cInB);
+            } catch (const std::exception& e) {
+                fail(std::string("DUCT_CENTRAL estimateCOP failed (cooling case B): ") + e.what());
+            }
+            expectTrue(cOutB.valid, "DUCT_CENTRAL cooling alignment: case B valid");
+            expectNear(cOutB.power, cOutA.power, 1.0e-12,
+                       "DUCT_CENTRAL cooling alignment: V_outer separation");
+
+            // テスト専用ルール確認:
+            // V_supply < 160m3/h のとき、V_vent=160m3/h としたケースでは
+            // fan電力が0になり、V_vent=0ケースとの差は fan(=P_fan_rtd * V/V_dsgn) 相当になる。
+            InputData lowFlow = in;
+            lowFlow.Q_S = 2000.0;
+            lowFlow.Q = lowFlow.Q_S;
+            lowFlow.V_inner = 120.0 / 3600.0; // 160m3/h 未満
+            applyTestOnlyFanCutoff(lowFlow);  // -> V_vent=160m3/h
+
+            InputData lowFlowNoCutoff = lowFlow;
+            lowFlowNoCutoff.V_vent = 0.0;     // 通常計算比較用
+
+            COPResult lowOutCutoff{};
+            COPResult lowOutNoCutoff{};
+            try {
+                lowOutCutoff = model->estimateCOP("heating", lowFlow);
+                lowOutNoCutoff = model->estimateCOP("heating", lowFlowNoCutoff);
+            } catch (const std::exception& e) {
+                fail(std::string("DUCT_CENTRAL estimateCOP failed (test-only fan cutoff case): ") + e.what());
+            }
+            expectTrue(lowOutCutoff.valid && lowOutNoCutoff.valid,
+                       "DUCT_CENTRAL test-only fan cutoff: both cases valid");
+
+            const double pFanRtdH_W = ductcentral.at("P_fan").at("heating").at("rtd").get<double>() * 1000.0;
+            const double vDsgnH_m3h = ductcentral.at("V_inner").at("heating").at("dsgn").get<double>() * 3600.0;
+            const double vSupply_m3h = 120.0;
+            const double expectedFanNoCutoff_kW = pFanRtdH_W * (vSupply_m3h / vDsgnH_m3h) * 1.0e-3;
+            expectNear(lowOutNoCutoff.power - lowOutCutoff.power, expectedFanNoCutoff_kW, 1.0e-6,
+                       "DUCT_CENTRAL test-only fan cutoff: below-160 fan power becomes zero");
         }
     }
 

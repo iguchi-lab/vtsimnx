@@ -134,6 +134,10 @@ RAC は Python版互換の実装で、例えば以下のフラグを参照しま
 - **DUCT_CENTRAL**: `Q` / `P` に加え `P_fan`、`V_inner`（必要に応じ `V_outer`）を `cooling` / `heating` ごとに `rtd` / `mid` / `min` / `dsgn` 等で指定。能力上限は solver が `Q.<mode>.max` または `Q.<mode>.mid` を参照。
 - **LATENT_EVALUATE**: 同様に `Q` / `P` / `P_fan` / `V_inner` 等。潜熱評価式用の熱交換器面積は定格能力から算出。
 
+DUCT_CENTRAL では、運転点入力として `InputData.V_vent`（換気分風量, [m3/s]）を扱います。`V_outer` とは独立です。既定は `0 m3/h` です。
+
+実装上の pyhees 整合ポイント（送風機式、デフロスト境界、内訳回帰）は `docs/duct_central_model_validation.md` を参照してください。
+
 モデル別の ac_spec の最小形・推奨キーは `docs/aircon_spec_reference.md` を参照してください。
 
 ---

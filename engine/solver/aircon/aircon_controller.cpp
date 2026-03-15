@@ -139,6 +139,7 @@ static inline acmodel::InputData buildAcmodelInput(const std::string& /*operatio
     input.Q = sensibleHeatCapacity + latentHeatCapacity;
     input.V_inner = airFlowRate;
     input.V_outer = kDefaultOuterFlowRate;
+    input.V_vent = 0.0; // 未入力時は各モデル側の既定値を使用
     return input;
 }
 

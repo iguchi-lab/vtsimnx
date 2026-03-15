@@ -11,6 +11,8 @@
 - `aircon_control_overview.md`: エアコン制御ロジックの概要
 - `acmodel_overview.md`: エアコンモデル（CRIEPI/RAC/DUCT_CENTRAL など）
 - `aircon_spec_reference.md`: `ac_spec` の必須キー・モデル別仕様
+- `duct_central_model_validation.md`: DUCT_CENTRAL の pyhees整合と回帰テスト観点
+- `cpp_test_catalog.md`: C++テストの検証観点と具体例
 - `thermal_rc.md`: 壁モデル（RC法）
 - `thermal_response_factor.md`: 壁モデル（応答係数法/CTF）
 - `theory_basics.md`, `physics_math_notes.md`: 理論・数理メモ
@@ -21,6 +23,8 @@
 - 初めて全体像を把握する: `theory_basics.md` → `simulation_overview.md` → `builder_json.md`
 - 入力JSON仕様を深掘りする: `builder_json.md` → `thermal_rc.md` / `thermal_response_factor.md`
 - 空調の挙動を確認する: `aircon_control_overview.md` → `acmodel_overview.md` → `aircon_spec_reference.md`
+- DUCT_CENTRAL を深掘りする: `acmodel_overview.md` → `duct_central_model_validation.md`
+- テスト観点を確認する: `cpp_test_catalog.md`
 - 実装寄りに追う: `simulation_overview.md` → `aircon_control_overview.md` → `acmodel_overview.md`
 
 ## 導線

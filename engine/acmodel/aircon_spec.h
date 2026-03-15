@@ -21,6 +21,7 @@ struct InputData {
     double Q_L;       // 潜熱負荷 [W]
     double V_inner;   // 内部風量 [m³/s]
     double V_outer;   // 外部風量 [m³/s]
+    double V_vent = 0.0; // 換気風量 [m³/s]（DUCT_CENTRAL用、未入力時はモデル側既定値）
 };
 
 /**

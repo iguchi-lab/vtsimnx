@@ -50,4 +50,5 @@
 - 利用者向け入力導線: `builder_input_quickstart.md`
 - ノード/ブランチ仕様: `node_branch_schema.md`
 - engine 実装仕様: `../engine/docs/README.md`
+- C++テストの具体例: `../engine/docs/cpp_test_catalog.md`
 - リリース方針: `release_policy.md`
