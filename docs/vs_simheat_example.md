@@ -1,11 +1,11 @@
-## SimHeat 比較用入力例（`examples/vs_simheat_r15.py` の要約）
+## SimHeat 比較用入力例（`examples/vs_simheat_sample.py` の要約）
 
-このドキュメントは、`examples/vs_simheat_r15.py` で行っている **SimHeat との比較ケース**のうち、
+このドキュメントは、`examples/vs_simheat_sample.py` で行っている **SimHeat との比較ケース**のうち、
 「VTSimNX に渡している入力 JSON（`input_data`）」の組み立て方を、高レベルでまとめたものです。
 
 対応するサンプルファイルは次です。
 
-- `../examples/vs_simheat_r15.py`
+- `../examples/vs_simheat_sample.py`
 - 気象データ: `../examples/3639999.has`
 
 ここでは、「どの情報をどう組み合わせて builder 入力を作っているか」に絞って説明します。
@@ -14,17 +14,10 @@
 
 ---
 
-### 1. 気象と SimHeat 出力の読み込み
+### 1. 気象データの読み込み
 
-1. `vt.read_hasp("<weather>.has")` で気象データを読み込む。  
+1. `vt.read_hasp("<weather>.has")` で気象データを読み込む。
    - 列: 外気温・地下温度・水平面日射・夜間放射など。
-2. 独自関数 `read_simheat_csv(...)` で SimHeat の CSV 出力（室温、熱流、換気、透過日射、冷暖房負荷など）を読み込む。
-   - `Output室温湿度.csv`
-   - `Output熱流(和室).csv` など
-   - `Output窓透過日射(放射成分).csv`
-   - `Output時刻別冷暖房負荷.csv`
-
-これらは **VTSimNX 側の入力には使わず**、主に結果比較のために保持しています。
 
 ---
 
@@ -75,32 +68,16 @@ surface = {
 
 ```python
 input_data = {
-    "builder": {...},
     "simulation": {...},
     "nodes": [...],
     "ventilation_branches": [...],
-    "thermal_branches": [...],
     "surfaces": [...],
     "aircon": [...],
     "heat_source": [...],
 }
 ```
 
-#### 4.1 `builder`
-
-```python
-input_data["builder"] = {
-    # "add_surface_solar": False,
-    # "add_surface_nocturnal": False,
-    # "add_surface_radiation": False,
-    # "add_surface_radiation_exclude_glass": True,
-}
-```
-
-- 特殊な検証のときだけコメントアウトを外し、日射/夜間放射/長波放射の扱いを切り替えています。
-- 通常利用では builder 側の既定値に任せています（詳細は API 側 `builder_json.md` を参照）。
-
-#### 4.2 `simulation`
+#### 4.1 `simulation`
 
 ```python
 input_data["simulation"] = {
@@ -118,7 +95,7 @@ input_data["simulation"] = {
 }
 ```
 
-#### 4.3 `nodes`
+#### 4.2 `nodes`
 
 ```python
 input_data["nodes"] = [
@@ -133,19 +110,19 @@ input_data["nodes"] = [
 - 室ノードには `thermal_mass` で空気＋内装の熱容量を与えています。
 - 温度を未知数とするノードは `calc_t: True`。
 
-#### 4.4 `ventilation_branches`
+#### 4.3 `ventilation_branches`
 
 - 24時間換気: 外部→室→ホール→外部、などの鎖を `vol` [m³/s] で指定。
 - 室間換気: LD↔台所、ホール↔2階ホール など。
 - 局所換気: `vol: vt.schedule.vol["LD"]` のように **スケジュール換気量**を直接指定。
 - 床下・小屋裏換気: `vol: room_volume[...] * 5.0 / 3600` のように換気回数から換算。
 
-#### 4.5 `surfaces`
+#### 4.4 `surfaces`
 
 - `surface_usage.md` で説明したパターンを、SimHeat モデルの実寸・開口寸法に合わせて適用しています。
 - 例: 和室の南外壁・窓・床・天井・間仕切りなどをすべて `surfaces` に列挙。
 
-#### 4.6 `aircon` / `heat_source`
+#### 4.5 `aircon` / `heat_source`
 
 - エアコン: `vt.schedule.ac_mode` / `pre_tmp` などのスケジュールを用いて、個別空調を再現。
 - 発熱: `vt.schedule.sensible_heat` を元に、室ごとの内部発熱プロファイルを `heat_source` に設定。
@@ -162,13 +139,14 @@ input_data["nodes"] = [
 import os
 
 base_url = os.environ["VTSIMNX_API_URL"]
-result = vt.run_calc(base_url, input_data, request_output_path="result_vs_simheat.json")
+result = vt.run_calc(base_url, input_data)
 print(result.log)
 ```
 
-`result` からは `get_series_df("thermal_temperature")` などで各種系列を取り出し、SimHeat 側の出力と比較しています。
+`result` からは `get_series_df(...)` で全 series を取得できます。  
+現行サンプルでは、`schema` の全系列（`vent_*`, `thermal_*`, `humidity_*`, `concentration_*`, `aircon_*`）をまとめて取得しています。
 
-> `examples/vs_simheat_r15.py` は Colab 由来コード（`!pip`、`google.colab` 依存部分）を含むため、
+> `examples/vs_simheat_sample.py` は Colab 由来コード（`!pip`、`google.colab` 依存部分）を含むため、
 > ローカル実行時は環境に合わせて読み替えてください。
 
 #### 5.1 ローカルで実行する場合
@@ -179,7 +157,7 @@ print(result.log)
 
 #### 5.2 Colabで実行する場合
 
-- `!pip` / Drive マウント部分をそのまま利用可能です。
+- `!pip` / `google.colab` 部分をそのまま利用可能です。
 - API URL の取得方法だけ環境に合わせて統一してください。
 
 ---
