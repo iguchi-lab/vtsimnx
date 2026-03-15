@@ -372,6 +372,78 @@ int main() {
                    "under capacity: setpoint should increase toward max capacity");
     }
 
+    // AUTOモード: 室内温と吹出温の関係で operationMode が cooling/heating に分岐すること
+    {
+        auto& in = thermal.getNode("IN");
+        auto& b = thermal.getNode("B");
+        b.on = true;
+        b.current_mode = "AUTO";
+        b.in_node = "IN";
+
+        // indoor > airconTemp -> cooling
+        in.current_t = 27.0;
+        b.current_t = 20.0;
+        calls = 0;
+        history.clear();
+        (void)controller.calculatePowerValues(thermal, flowRates, std::cout);
+        expectTrue(calls == 1, "AUTO mode (cooling path): estimateCOP called");
+        expectTrue(!history.empty() && history.back().mode == "cooling",
+                   "AUTO mode (cooling path): mode should be cooling");
+
+        // indoor <= airconTemp -> heating
+        in.current_t = 20.0;
+        b.current_t = 24.0;
+        calls = 0;
+        history.clear();
+        (void)controller.calculatePowerValues(thermal, flowRates, std::cout);
+        expectTrue(calls == 1, "AUTO mode (heating path): estimateCOP called");
+        expectTrue(!history.empty() && history.back().mode == "heating",
+                   "AUTO mode (heating path): mode should be heating");
+    }
+
+    // 複数エアコンが同じ set_node を持つ場合、潜熱フィードバック注入をスキップすること
+    {
+        auto& in = thermal.getNode("IN");
+        auto& a = thermal.getNode("A");
+        auto& b = thermal.getNode("B");
+        in.current_t = 27.0;
+        in.current_x = 0.020;
+        in.heat_source = 0.0;
+        a.current_t = 20.0;
+        b.current_t = 20.0;
+        a.current_mode = "COOLING";
+        b.current_mode = "COOLING";
+        a.in_node = "IN";
+        b.in_node = "IN";
+        a.set_node = "IN";
+        b.set_node = "IN";
+        a.on = true;
+        b.on = true;
+
+        const auto stats = controller.applyLatentFeedbackToThermal(thermal, flowRates, 1.0, std::cout);
+        expectNear(in.heat_source, 0.0, 1e-12,
+                   "latent feedback should be skipped when in_node is active setpoint node");
+        expectNear(stats.maxAppliedHeatW, 0.0, 1e-12,
+                   "latent feedback stats should remain zero when skipped");
+    }
+
+    // 異常系: in_node が不正なら例外を握りつぶして電力0で継続すること
+    {
+        auto& b = thermal.getNode("B");
+        b.on = true;
+        b.current_mode = "COOLING";
+        b.in_node = "NO_SUCH_NODE";
+
+        calls = 0;
+        history.clear();
+        auto powerW = controller.calculatePowerValues(thermal, flowRates, std::cout);
+        expectTrue(powerW.size() == 2, "invalid in_node case: power vector size");
+        if (powerW.size() == 2) {
+            expectNear(powerW[1], 0.0, 0.0, "invalid in_node case: power should fall back to 0");
+        }
+        expectTrue(calls == 1, "invalid in_node case: only valid unit should call estimateCOP");
+    }
+
     if (g_failures == 0) {
         std::cout << "[OK] all tests passed\n";
         return 0;

@@ -140,8 +140,11 @@
   - 検証内容: 制御順序、ON/OFFゲート、潜熱手法、能力超過補正
   - 具体例:
     - OFF機器は `power=0`、ONのみ `estimateCOP` 呼び出し
+    - `AUTO` モードで `indoorTemp` と `airconTemp` の関係から `cooling/heating` が分岐
     - `coil_aoaf` で `Ao` 変更時に `Q_L` 変化
     - 過負荷時に `current_pre_temp` が補正されること
+    - 複数機器が同じ `set_node` を持つ場合、潜熱フィードバック注入を抑止
+    - `in_node` 不正時に例外で停止せず `power=0` で継続
   - 合格基準: 呼び出し回数・値・補正方向が期待どおり
 
 - `vtsimnx_solver_cpp_test_app_smoke`
