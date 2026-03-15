@@ -6,7 +6,7 @@
 
 - `run_calc_minimal.py`
   - ローカル環境でそのまま実行しやすい最小 `vt.run_calc` サンプルです。
-- `vs_simheat_r15.py`
+- `vs_simheat_sample.py`
   - SimHeat 比較ケースの入力作成〜`vt.run_calc` 実行〜結果比較までを含む大規模サンプルです。
 - `3639999.has`
   - 上記サンプルで利用する気象データ（HASP）です。
@@ -35,15 +35,15 @@ python examples/run_calc_minimal.py
 大規模サンプルを使う場合:
 
 ```bash
-python examples/vs_simheat_r15.py
+python examples/vs_simheat_sample.py
 ```
 
 ### Colab環境
 
-- `vs_simheat_r15.py` の Colab 依存部分（`!pip`、`google.colab`）をそのまま利用できます。
+- `vs_simheat_sample.py` の Colab 依存部分（`!pip`、`google.colab`）をそのまま利用できます。
 - API URL は `VTSIMNX_API_URL` を設定した上で `vt.run_calc(...)` に渡してください。
 
-## `vs_simheat_r15.py` 利用時の注意
+## `vs_simheat_sample.py` 利用時の注意
 
 - このファイルは Colab 由来のコードを含むため、`!pip ...` や `google.colab` 依存部分は、
   ローカル環境で実行する場合に調整が必要です。
