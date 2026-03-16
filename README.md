@@ -1,5 +1,7 @@
 # vtsimnx
 
+[![CI](https://github.com/iguchi-lab/vtsimnx/actions/workflows/ci.yml/badge.svg)](https://github.com/iguchi-lab/vtsimnx/actions/workflows/ci.yml)
+
 建築環境工学（熱・換気・湿気）を対象とした、研究/開発向けシミュレーション基盤です。  
 Python クライアントで入力を構築し、HTTP engine で計算を実行する構成を提供します。
 
@@ -66,6 +68,14 @@ python examples/run_calc_minimal.py
 - builder 入力仕様（正本）: `engine/docs/builder_json.md`
 - 検証戦略: `docs/validation_strategy.md`
 - リリース運用: `docs/release_policy.md`
+
+## CI（公開チェック）
+
+`main` push / PR ごとに GitHub Actions で以下を自動実行します。
+
+- `ruff check vtsimnx/materials`
+- `mypy --ignore-missing-imports --follow-imports=skip vtsimnx/materials/__init__.py`
+- `python -m pytest -q vtsimnx/tests/test_utils_io.py vtsimnx/tests/test_run_calc_lazy.py`
 
 ## 検証と保証範囲
 
