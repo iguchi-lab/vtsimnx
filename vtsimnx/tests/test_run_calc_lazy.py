@@ -41,6 +41,10 @@ class _Handler(BaseHTTPRequestHandler):
                 "artifact_dir": "output.artifacts.123",
                 "log_file": "solver.log",
                 "log": {"text": "preloaded log"},
+                "timings": [
+                    {"name": "load_input", "duration_ms": 3.2},
+                    {"name": "simulation_total", "duration_ms": 120.5},
+                ],
                 "result_files": {
                     "vent_flow_rate": "vent.flow_rate.f32.bin",
                     "vent_pressure": "vent.pressure.f32.bin",
@@ -190,16 +194,26 @@ def test_run_calc_with_dataframes_is_lazy():
         assert _State.post_run == 1
         assert _State.get_work == 0
         assert hasattr(res, "get_series_df")
+        assert isinstance(res.client_profile, dict)
+        assert "run_calc_total_ms" in res.client_profile
+        assert "run_post_ms" in res.client_profile
 
         # log はレスポンス内に埋まっているので GET なし
         assert res.log == "preloaded log"
         assert _State.get_log == 0
+
+        server_timings = res.get_server_timings()
+        assert len(server_timings) == 2
+        report = res.get_timing_report()
+        assert report["server"]["load_input_ms"] == pytest.approx(3.2)
+        assert report["server"]["simulation_total_ms"] == pytest.approx(120.5)
 
         # DataFrame を要求したときだけ GET が走る
         df = res.get_series_df("vent_flow_rate")
         assert df is not None
         assert list(df.columns) == ["c1", "c2"]
         assert df.shape == (2, 2)
+        assert "vent_flow_rate" in res.series_profiles
         assert _State.get_schema >= 1
         assert _State.get_bin >= 1
 
