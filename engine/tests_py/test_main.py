@@ -47,6 +47,11 @@ def test_run_returns_fixed_response():
     assert "result" in body
     assert isinstance(body["result"], dict)
     assert body["result"].get("status") == "ok"
+    assert isinstance(body["result"].get("api_timings"), dict)
+    assert "builder_ms" in body["result"]["api_timings"]
+    assert "solver_ms" in body["result"]["api_timings"]
+    assert "artifact_postprocess_ms" in body["result"]["api_timings"]
+    assert "api_total_ms" in body["result"]["api_timings"]
 
 
 def test_run_accepts_gzip_body():

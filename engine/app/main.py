@@ -28,6 +28,7 @@ import os
 import logging
 import uuid
 import tempfile
+import time
 from app.solver_runner import run_solver, force_log_verbosity
 from app.solver_runner import attach_builder_log_to_artifacts, write_artifact_manifest
 from app.builder import build_config_with_warning_details
@@ -242,6 +243,14 @@ class SimulationResponse(BaseModel):
     warnings: List[str] = Field(default_factory=list)
     warning_details: List[Dict[str, Any]] = Field(default_factory=list)
 
+
+def _attach_api_timings(output: Dict[str, Any], api_timings: Dict[str, float]) -> None:
+    """
+    /run の API レイヤ時間内訳を result に埋め込む。
+    既存キーを壊さないよう、`api_timings` 配下へ追加する。
+    """
+    output["api_timings"] = api_timings
+
 @app.get("/ping")
 def ping():
     """軽量なヘルスチェック用エンドポイント。"""
@@ -262,6 +271,7 @@ def run_simulation(req: SimulationRequest):
         HTTPException(500): ソルバ実行や結果読み取りで例外が発生した場合に返す。
     """
     run_id: str | None = None
+    api_t0 = time.perf_counter()
     try:
         # 1リクエスト=1 run_id を先に決める（builderログとsolver成果物を紐付けるため）
         run_id = uuid.uuid4().hex
@@ -273,6 +283,7 @@ def run_simulation(req: SimulationRequest):
 
         # ユーザー入力（raw）を solver 用 config に変換（正規化/展開/検証）
         build_stats_out: list = []
+        builder_t0 = time.perf_counter()
         with use_builder_log_file(builder_log_tmp):
             try:
                 built_config, warnings, warning_details = build_config_with_warning_details(
@@ -291,6 +302,7 @@ def run_simulation(req: SimulationRequest):
             except (ValidationError, ConfigFileError, ValueError, KeyError, TypeError) as e:
                 logger.info("validation/config error in /run: %s", e)
                 raise HTTPException(status_code=400, detail=_build_bad_request_detail(e))
+        builder_t1 = time.perf_counter()
 
         # API側でログ冗長度を統制（debug=falseなら常に1に落とす）
         # ※ build_config の後に適用することで、builder の未知キー削除で落ちないようにする
@@ -298,13 +310,16 @@ def run_simulation(req: SimulationRequest):
 
         # manifest は builder_log を追記してから書きたいので、一旦書かずに返してもらう。
         # テストでは run_solver を「引数1個のlambda」でモックしているので、kwargs が使えない場合はフォールバックする。
+        solver_t0 = time.perf_counter()
         try:
             output = run_solver(built_config, run_id=run_id, write_manifest=False)
         except TypeError:
             # モック想定（本番のsolverでここに落ちるのは基本的に想定しない）
             output = run_solver(built_config)
+        solver_t1 = time.perf_counter()
 
         # builderログを artifacts へ取り込み、manifest(output) に参照を追加（ビルド結果行は attach 内で追記）
+        artifact_t0 = time.perf_counter()
         attach_builder_log_to_artifacts(
             output,
             builder_log_path=builder_log_tmp,
@@ -313,6 +328,16 @@ def run_simulation(req: SimulationRequest):
             build_config=built_config,
         )
         write_artifact_manifest(output)
+        artifact_t1 = time.perf_counter()
+
+        api_t1 = time.perf_counter()
+        api_timings = {
+            "builder_ms": (builder_t1 - builder_t0) * 1000.0,
+            "solver_ms": (solver_t1 - solver_t0) * 1000.0,
+            "artifact_postprocess_ms": (artifact_t1 - artifact_t0) * 1000.0,
+            "api_total_ms": (api_t1 - api_t0) * 1000.0,
+        }
+        _attach_api_timings(output, api_timings)
     except (ValidationError, ConfigFileError) as e:
         # 入力不正は 400
         logger.info("validation/config error in /run: %s", e)
@@ -349,10 +374,12 @@ def _run_simulation_core(
     FastAPI の依存注入や HTTP レイヤに依存しない。
     """
     try:
+        api_t0 = time.perf_counter()
         run_id = uuid.uuid4().hex
         tmp_dir = os.getenv("VTSIMNX_BUILDER_TMP_DIR") or tempfile.gettempdir()
         builder_log_tmp = Path(tmp_dir) / f"vtsimnx.builder.{run_id}.log"
         build_stats_out: list = []
+        builder_t0 = time.perf_counter()
         with use_builder_log_file(builder_log_tmp):
             built_config, warnings, warning_details = build_config_with_warning_details(
                 raw_config,
@@ -367,8 +394,12 @@ def _run_simulation_core(
                 add_surface_radiation_exclude_glass=add_surface_radiation_exclude_glass,
                 build_stats_out=build_stats_out,
             )
+        builder_t1 = time.perf_counter()
         force_log_verbosity(built_config, debug=debug, debug_verbosity=debug_verbosity, default_verbosity=1)
+        solver_t0 = time.perf_counter()
         output = run_solver(built_config, run_id=run_id, write_manifest=False)
+        solver_t1 = time.perf_counter()
+        artifact_t0 = time.perf_counter()
         attach_builder_log_to_artifacts(
             output,
             builder_log_path=builder_log_tmp,
@@ -377,6 +408,15 @@ def _run_simulation_core(
             build_config=built_config,
         )
         write_artifact_manifest(output)
+        artifact_t1 = time.perf_counter()
+        api_t1 = time.perf_counter()
+        api_timings = {
+            "builder_ms": (builder_t1 - builder_t0) * 1000.0,
+            "solver_ms": (solver_t1 - solver_t0) * 1000.0,
+            "artifact_postprocess_ms": (artifact_t1 - artifact_t0) * 1000.0,
+            "api_total_ms": (api_t1 - api_t0) * 1000.0,
+        }
+        _attach_api_timings(output, api_timings)
         return SimulationResponse(result=output, warnings=warnings, warning_details=warning_details)
     finally:
         # CLI/テスト経路でも work/logs の一時ログを残さない。
