@@ -61,8 +61,9 @@ void postprocessAndReport(ThermalNetwork& network,
         rmseB += b * b;
     }
     rmseB = std::sqrt(rmseB / n);
-    auto dur = std::chrono::duration_cast<std::chrono::milliseconds>(
+    auto durUs = std::chrono::duration_cast<std::chrono::microseconds>(
         std::chrono::high_resolution_clock::now() - startTime);
+    const double durMs = static_cast<double>(durUs.count()) / 1000.0;
 
     std::ostringstream oss;
     oss << "--------熱計算(線形): "
@@ -70,7 +71,7 @@ void postprocessAndReport(ThermalNetwork& network,
         << " (method=" << method
         << ", RMSE=" << std::scientific << std::setprecision(6) << rmseB
         << ", maxBalance=" << maxB
-        << ", time=" << std::fixed << std::setprecision(3) << dur.count() / 1000.0 << "s)";
+        << ", time=" << std::fixed << std::setprecision(3) << durMs << "ms)";
     writeLog(logFile, oss.str());
     network.setLastThermalConvergence(rmseB <= constants.thermalTolerance, rmseB, maxB, method);
 
