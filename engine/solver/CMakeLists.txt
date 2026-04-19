@@ -115,11 +115,46 @@ find_package(Boost REQUIRED)
 # Ceres Solverの検索
 find_package(Ceres REQUIRED)
 
+# Optional: KLU backend for thermal direct solver
+option(VTSIMNX_ENABLE_KLU "Enable KLU backend for thermal direct solver" ON)
+set(VTSIMNX_KLU_FOUND OFF)
+if(VTSIMNX_ENABLE_KLU)
+    find_path(KLU_INCLUDE_DIR NAMES klu.h PATH_SUFFIXES suitesparse)
+    find_library(KLU_LIBRARY NAMES klu)
+    if(KLU_INCLUDE_DIR AND KLU_LIBRARY)
+        set(VTSIMNX_KLU_FOUND ON)
+        message(STATUS "Found KLU: include=${KLU_INCLUDE_DIR}, lib=${KLU_LIBRARY}")
+    else()
+        message(STATUS "KLU not found. Thermal LU backend stays Eigen::SparseLU.")
+    endif()
+endif()
+
 # リンクライブラリ
 target_link_libraries(vtsimnx_solver
     Boost::boost
     ceres
 )
+if(VTSIMNX_KLU_FOUND)
+    target_include_directories(vtsimnx_solver PRIVATE ${KLU_INCLUDE_DIR})
+    target_link_libraries(vtsimnx_solver ${KLU_LIBRARY})
+    find_library(SUITESPARSECONFIG_LIBRARY NAMES suitesparseconfig)
+    find_library(AMD_LIBRARY NAMES amd)
+    find_library(COLAMD_LIBRARY NAMES colamd)
+    find_library(BTF_LIBRARY NAMES btf)
+    if(SUITESPARSECONFIG_LIBRARY)
+        target_link_libraries(vtsimnx_solver ${SUITESPARSECONFIG_LIBRARY})
+    endif()
+    if(AMD_LIBRARY)
+        target_link_libraries(vtsimnx_solver ${AMD_LIBRARY})
+    endif()
+    if(COLAMD_LIBRARY)
+        target_link_libraries(vtsimnx_solver ${COLAMD_LIBRARY})
+    endif()
+    if(BTF_LIBRARY)
+        target_link_libraries(vtsimnx_solver ${BTF_LIBRARY})
+    endif()
+    target_compile_definitions(vtsimnx_solver PRIVATE VTSIMNX_USE_KLU=1)
+endif()
 
 # コンパイルオプション
 target_compile_options(vtsimnx_solver PRIVATE

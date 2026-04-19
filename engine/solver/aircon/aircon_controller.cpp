@@ -610,7 +610,10 @@ void AirconController::applyPreset(ThermalNetwork& thermalNetwork,
     // 順序を決定的にしてログ/挙動の再現性を上げる
     for (const auto& airconKey : getAirconKeys()) {
         auto& nodeProps = thermalNetwork.getNode(airconKey);
-        nodeProps.on = false;
+        // 既定は「モードOFF以外なら初期ON」。
+        // 制御ループで不要運転はOFFへ落とす。
+        // （毎ステップOFF開始より、再計算回数を抑えられるケースが多い）
+        nodeProps.on = (nodeProps.current_mode != "OFF");
         std::string target = nodeProps.set_node.empty() ? nodeProps.key : nodeProps.set_node;
         writeLog(logs,
                  std::string("　エアコン設定（初期化）: ") + target +

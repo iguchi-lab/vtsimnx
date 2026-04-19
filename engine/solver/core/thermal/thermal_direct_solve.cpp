@@ -1,6 +1,144 @@
 #include "core/thermal/thermal_direct_internal.h"
 
+#include <cstdlib>
+
+#if defined(VTSIMNX_USE_KLU) && (VTSIMNX_USE_KLU)
+#include <klu.h>
+#endif
+
 namespace ThermalSolverLinearDirect::detail {
+
+namespace {
+
+constexpr const char* kLuBackendEnv = "VTSIMNX_THERMAL_DIRECT_LU";
+
+#if defined(VTSIMNX_USE_KLU) && (VTSIMNX_USE_KLU)
+struct KluCache {
+    bool analyzed = false;
+    bool factorized = false;
+    int n = 0;
+    size_t nnz = 0;
+    std::uint64_t patternHash = 0;
+    std::uint64_t valueHash = 0;
+    klu_symbolic* symbolic = nullptr;
+    klu_numeric* numeric = nullptr;
+    klu_common common{};
+};
+
+KluCache g_kluCache;
+
+void clearKluNumeric() {
+    if (g_kluCache.numeric != nullptr) {
+        klu_free_numeric(&g_kluCache.numeric, &g_kluCache.common);
+        g_kluCache.numeric = nullptr;
+    }
+    g_kluCache.factorized = false;
+}
+
+void clearKluAll() {
+    clearKluNumeric();
+    if (g_kluCache.symbolic != nullptr) {
+        klu_free_symbolic(&g_kluCache.symbolic, &g_kluCache.common);
+        g_kluCache.symbolic = nullptr;
+    }
+    g_kluCache.analyzed = false;
+    g_kluCache.n = 0;
+    g_kluCache.nnz = 0;
+    g_kluCache.patternHash = 0;
+    g_kluCache.valueHash = 0;
+    klu_defaults(&g_kluCache.common);
+}
+#endif
+
+bool shouldUseKluBackend(std::ostream& logFile) {
+    static int backendState = -1; // -1: unresolved, 0: Eigen, 1: KLU
+    if (backendState >= 0) return backendState == 1;
+
+    const char* env = std::getenv(kLuBackendEnv);
+    const std::string requested = (env != nullptr) ? std::string(env) : std::string();
+    const bool forceLu = (requested == "lu" || requested == "LU" ||
+                          requested == "eigen" || requested == "EIGEN" ||
+                          requested == "sparselu" || requested == "SPARSELU");
+    const bool forceKlu = (requested == "klu" || requested == "KLU");
+    if (forceLu) {
+        backendState = 0;
+        writeLog(logFile, "--------疎直接法(DirectT): LU backend=Eigen::SparseLU (forced by env)");
+        return false;
+    }
+
+#if defined(VTSIMNX_USE_KLU) && (VTSIMNX_USE_KLU)
+    if (!requested.empty() && !forceKlu) {
+        backendState = 1;
+        writeLog(logFile, "--------疎直接法(DirectT): unknown LU backend env; use default KLU");
+        return true;
+    }
+    backendState = 1;
+    writeLog(logFile, "--------疎直接法(DirectT): LU backend=KLU");
+    return true;
+#else
+    backendState = 0;
+    if (forceKlu) {
+        writeLog(logFile, "--------疎直接法(DirectT): KLU requested but unavailable, fallback to Eigen::SparseLU");
+    } else {
+        writeLog(logFile, "--------疎直接法(DirectT): LU backend=Eigen::SparseLU (KLU not available)");
+    }
+    return false;
+#endif
+}
+
+#if defined(VTSIMNX_USE_KLU) && (VTSIMNX_USE_KLU)
+bool ensureKluPattern(const Eigen::SparseMatrix<double>& A, int n, size_t nnz, std::uint64_t patternHash, std::ostream& logFile) {
+    const bool needAnalyze = (!g_kluCache.analyzed) ||
+                             (g_kluCache.n != n) ||
+                             (g_kluCache.nnz != nnz) ||
+                             (g_kluCache.patternHash != patternHash);
+    if (!needAnalyze) return true;
+
+    clearKluAll();
+    g_kluCache.n = n;
+    g_kluCache.nnz = nnz;
+    g_kluCache.patternHash = patternHash;
+    g_kluCache.symbolic = klu_analyze(n, const_cast<int*>(A.outerIndexPtr()), const_cast<int*>(A.innerIndexPtr()), &g_kluCache.common);
+    if (g_kluCache.symbolic == nullptr) {
+        writeLog(logFile, "--------疎直接法(DirectT): KLU analyze failed");
+        return false;
+    }
+    g_kluCache.analyzed = true;
+    return true;
+}
+
+bool factorizeWithKlu(const Eigen::SparseMatrix<double>& A, std::uint64_t valueHash, std::ostream& logFile) {
+    if (!g_kluCache.analyzed) return false;
+    if (g_kluCache.factorized && g_kluCache.valueHash == valueHash) return true;
+
+    clearKluNumeric();
+    g_kluCache.numeric = klu_factor(const_cast<int*>(A.outerIndexPtr()),
+                                    const_cast<int*>(A.innerIndexPtr()),
+                                    const_cast<double*>(A.valuePtr()),
+                                    g_kluCache.symbolic,
+                                    &g_kluCache.common);
+    if (g_kluCache.numeric == nullptr) {
+        writeLog(logFile, "--------疎直接法(DirectT): KLU factorize failed (singular/ill-conditioned)");
+        return false;
+    }
+    g_kluCache.factorized = true;
+    g_kluCache.valueHash = valueHash;
+    return true;
+}
+
+bool solveWithKlu(const Eigen::VectorXd& b, Eigen::VectorXd& sol, std::ostream& logFile) {
+    if (!g_kluCache.analyzed || !g_kluCache.factorized) return false;
+    sol = b;
+    const int ok = klu_solve(g_kluCache.symbolic, g_kluCache.numeric, g_kluCache.n, 1, sol.data(), &g_kluCache.common);
+    if (ok == 0) {
+        writeLog(logFile, "--------疎直接法(DirectT): KLU solve failed");
+        return false;
+    }
+    return true;
+}
+#endif
+
+} // namespace
 
 bool solveSparseDirect(const LinearSystem& system,
                        std::vector<double>& x,
@@ -28,6 +166,7 @@ bool solveSparseDirect(const LinearSystem& system,
 
     Eigen::VectorXd b(static_cast<int>(n));
     for (size_t i = 0; i < n; ++i) b[static_cast<int>(i)] = system.b[i];
+    bool useKluBackend = shouldUseKluBackend(logFile);
 
     const bool needRebuildPattern = (!g_sparseLuCache.analyzed) ||
                                    (g_sparseLuCache.n != static_cast<int>(n)) ||
@@ -106,8 +245,26 @@ bool solveSparseDirect(const LinearSystem& system,
             return false;
         }
 
-        g_sparseLuCache.solver.analyzePattern(g_sparseLuCache.A);
-        g_sparseLuCache.analyzed = true;
+        if (useKluBackend) {
+#if defined(VTSIMNX_USE_KLU) && (VTSIMNX_USE_KLU)
+            if (!ensureKluPattern(g_sparseLuCache.A, static_cast<int>(n), nnz, patternHash, logFile)) {
+                writeLog(logFile, "--------疎直接法(DirectT): fallback to Eigen::SparseLU after KLU analyze failure");
+                useKluBackend = false;
+            }
+            if (useKluBackend) {
+                g_sparseLuCache.analyzed = true;
+            } else {
+                g_sparseLuCache.solver.analyzePattern(g_sparseLuCache.A);
+                g_sparseLuCache.analyzed = true;
+            }
+#else
+            g_sparseLuCache.analyzed = false;
+            return false;
+#endif
+        } else {
+            g_sparseLuCache.solver.analyzePattern(g_sparseLuCache.A);
+            g_sparseLuCache.analyzed = true;
+        }
         g_sparseLuCache.valueHash = valueHash;
 
         g_cholCache.analyzed = false;
@@ -128,6 +285,9 @@ bool solveSparseDirect(const LinearSystem& system,
             g_sparseLuCache.factorized = false;
             g_sparseLuCache.valueHash = valueHash;
             g_cholCache.factorized = false;
+#if defined(VTSIMNX_USE_KLU) && (VTSIMNX_USE_KLU)
+            g_kluCache.factorized = false;
+#endif
         }
     }
 
@@ -203,19 +363,53 @@ bool solveSparseDirect(const LinearSystem& system,
     if (!solved) {
         if (!g_sparseLuCache.factorized) {
             ++g_directTStats.luFactorize;
-            g_sparseLuCache.solver.factorize(g_sparseLuCache.A);
-            if (g_sparseLuCache.solver.info() != Eigen::Success) {
-                writeLog(logFile, "--------疎直接法(DirectT): LU factorize failed (singular/ill-conditioned)");
-                return false;
+#if defined(VTSIMNX_USE_KLU) && (VTSIMNX_USE_KLU)
+            if (useKluBackend) {
+                if (!factorizeWithKlu(g_sparseLuCache.A, g_sparseLuCache.valueHash, logFile)) {
+                    writeLog(logFile, "--------疎直接法(DirectT): fallback to Eigen::SparseLU after KLU factorize failure");
+                    useKluBackend = false;
+                }
+            }
+            if (!useKluBackend)
+#endif
+            {
+                g_sparseLuCache.solver.factorize(g_sparseLuCache.A);
+                if (g_sparseLuCache.solver.info() != Eigen::Success) {
+                    writeLog(logFile, "--------疎直接法(DirectT): LU factorize failed (singular/ill-conditioned)");
+                    return false;
+                }
             }
             g_sparseLuCache.factorized = true;
         }
-        sol = g_sparseLuCache.solver.solve(b);
-        if (g_sparseLuCache.solver.info() != Eigen::Success) {
-            writeLog(logFile, "--------疎直接法(DirectT): LU solve failed");
-            return false;
+#if defined(VTSIMNX_USE_KLU) && (VTSIMNX_USE_KLU)
+        if (useKluBackend) {
+            if (solveWithKlu(b, sol, logFile)) {
+                methodLabel = "KLU";
+            } else {
+                writeLog(logFile, "--------疎直接法(DirectT): fallback to Eigen::SparseLU after KLU solve failure");
+                useKluBackend = false;
+                g_sparseLuCache.factorized = false;
+            }
         }
-        methodLabel = "LU";
+        if (!useKluBackend)
+#endif
+        {
+            if (!g_sparseLuCache.factorized) {
+                ++g_directTStats.luFactorize;
+                g_sparseLuCache.solver.factorize(g_sparseLuCache.A);
+                if (g_sparseLuCache.solver.info() != Eigen::Success) {
+                    writeLog(logFile, "--------疎直接法(DirectT): LU factorize failed (fallback path)");
+                    return false;
+                }
+                g_sparseLuCache.factorized = true;
+            }
+            sol = g_sparseLuCache.solver.solve(b);
+            if (g_sparseLuCache.solver.info() != Eigen::Success) {
+                writeLog(logFile, "--------疎直接法(DirectT): LU solve failed");
+                return false;
+            }
+            methodLabel = "LU";
+        }
     }
 
     // 残差チェック:
@@ -239,19 +433,52 @@ bool solveSparseDirect(const LinearSystem& system,
             (methodLabel.rfind("LLT", 0) == 0) || (methodLabel.rfind("LDLT", 0) == 0);
 
         auto tryLuFallback = [&](Eigen::VectorXd& ioSol, std::string& ioMethod) -> bool {
+            Eigen::VectorXd sol2;
             if (!g_sparseLuCache.factorized) {
                 ++g_directTStats.luFactorize;
-                g_sparseLuCache.solver.factorize(g_sparseLuCache.A);
-                if (g_sparseLuCache.solver.info() != Eigen::Success) {
-                    writeLog(logFile, "--------疎直接法(DirectT): LU factorize failed on retry");
-                    return false;
+#if defined(VTSIMNX_USE_KLU) && (VTSIMNX_USE_KLU)
+                if (useKluBackend) {
+                    if (!factorizeWithKlu(g_sparseLuCache.A, g_sparseLuCache.valueHash, logFile)) {
+                        writeLog(logFile, "--------疎直接法(DirectT): fallback to Eigen::SparseLU after KLU factorize retry failure");
+                        useKluBackend = false;
+                    }
+                }
+                if (!useKluBackend)
+#endif
+                {
+                    g_sparseLuCache.solver.factorize(g_sparseLuCache.A);
+                    if (g_sparseLuCache.solver.info() != Eigen::Success) {
+                        writeLog(logFile, "--------疎直接法(DirectT): LU factorize failed on retry");
+                        return false;
+                    }
                 }
                 g_sparseLuCache.factorized = true;
             }
-            Eigen::VectorXd sol2 = g_sparseLuCache.solver.solve(b);
-            if (g_sparseLuCache.solver.info() != Eigen::Success) {
-                writeLog(logFile, "--------疎直接法(DirectT): LU solve failed on retry");
-                return false;
+#if defined(VTSIMNX_USE_KLU) && (VTSIMNX_USE_KLU)
+            if (useKluBackend) {
+                if (!solveWithKlu(b, sol2, logFile)) {
+                    writeLog(logFile, "--------疎直接法(DirectT): fallback to Eigen::SparseLU after KLU solve retry failure");
+                    useKluBackend = false;
+                    g_sparseLuCache.factorized = false;
+                }
+            }
+            if (!useKluBackend)
+#endif
+            {
+                if (!g_sparseLuCache.factorized) {
+                    ++g_directTStats.luFactorize;
+                    g_sparseLuCache.solver.factorize(g_sparseLuCache.A);
+                    if (g_sparseLuCache.solver.info() != Eigen::Success) {
+                        writeLog(logFile, "--------疎直接法(DirectT): LU factorize failed on retry fallback");
+                        return false;
+                    }
+                    g_sparseLuCache.factorized = true;
+                }
+                sol2 = g_sparseLuCache.solver.solve(b);
+                if (g_sparseLuCache.solver.info() != Eigen::Success) {
+                    writeLog(logFile, "--------疎直接法(DirectT): LU solve failed on retry");
+                    return false;
+                }
             }
             Eigen::VectorXd r2 = g_sparseLuCache.A * sol2 - b;
             const double maxResidual2 = (r2.size() > 0) ? r2.cwiseAbs().maxCoeff() : 0.0;
@@ -268,7 +495,7 @@ bool solveSparseDirect(const LinearSystem& system,
                 return false;
             }
             ioSol = std::move(sol2);
-            ioMethod = "LU(fallback)";
+            ioMethod = useKluBackend ? "KLU(fallback)" : "LU(fallback)";
             return true;
         };
 
@@ -286,7 +513,7 @@ bool solveSparseDirect(const LinearSystem& system,
             << ", method=" << methodLabel << ")";
         writeLog(logFile, oss.str());
         // LU fallback で methodLabel が置き換わっていれば成功しているので継続
-        if (methodLabel == "LU(fallback)") {
+        if (methodLabel == "LU(fallback)" || methodLabel == "KLU(fallback)") {
             // ok
         } else {
             return false;
@@ -311,6 +538,7 @@ bool solveWithCachedFactorization(const Eigen::VectorXd& b,
                                   std::string& methodLabel) {
     const size_t n = x.size();
     if (n == 0) return true;
+    bool useKluBackend = shouldUseKluBackend(logFile);
 
     Eigen::VectorXd sol;
     bool ok = false;
@@ -330,10 +558,34 @@ bool solveWithCachedFactorization(const Eigen::VectorXd& b,
         }
     }
     if (!ok && g_sparseLuCache.analyzed && g_sparseLuCache.factorized) {
-        sol = g_sparseLuCache.solver.solve(b);
-        if (g_sparseLuCache.solver.info() == Eigen::Success) {
-            ok = true;
-            methodLabel = "LU(cached)";
+#if defined(VTSIMNX_USE_KLU) && (VTSIMNX_USE_KLU)
+        if (useKluBackend) {
+            ok = solveWithKlu(b, sol, logFile);
+            if (ok) {
+                methodLabel = "KLU(cached)";
+            } else {
+                writeLog(logFile, "--------疎直接法(DirectT cached): fallback to Eigen::SparseLU after KLU(cached) solve failure");
+                useKluBackend = false;
+                g_sparseLuCache.factorized = false;
+            }
+        }
+        if (!useKluBackend)
+#endif
+        {
+            if (!g_sparseLuCache.factorized) {
+                ++g_directTStats.luFactorize;
+                g_sparseLuCache.solver.factorize(g_sparseLuCache.A);
+                if (g_sparseLuCache.solver.info() != Eigen::Success) {
+                    writeLog(logFile, "--------疎直接法(DirectT cached): LU factorize failed on fallback");
+                    return false;
+                }
+                g_sparseLuCache.factorized = true;
+            }
+            sol = g_sparseLuCache.solver.solve(b);
+            if (g_sparseLuCache.solver.info() == Eigen::Success) {
+                ok = true;
+                methodLabel = "LU(cached)";
+            }
         }
     }
     if (!ok) return false;
@@ -358,10 +610,32 @@ bool solveWithCachedFactorization(const Eigen::VectorXd& b,
         if (maxResidual > scaledTol) {
             auto tryLuCachedFallback = [&](Eigen::VectorXd& ioSol, std::string& ioMethod) -> bool {
                 if (!(g_sparseLuCache.analyzed && g_sparseLuCache.factorized)) return false;
-                Eigen::VectorXd sol2 = g_sparseLuCache.solver.solve(b);
-                if (g_sparseLuCache.solver.info() != Eigen::Success) {
-                    writeLog(logFile, "--------疎直接法(DirectT cached): LU(cached) solve failed on retry");
-                    return false;
+                Eigen::VectorXd sol2;
+#if defined(VTSIMNX_USE_KLU) && (VTSIMNX_USE_KLU)
+                if (useKluBackend) {
+                    if (!solveWithKlu(b, sol2, logFile)) {
+                        writeLog(logFile, "--------疎直接法(DirectT cached): fallback to Eigen::SparseLU after KLU(cached) retry failure");
+                        useKluBackend = false;
+                        g_sparseLuCache.factorized = false;
+                    }
+                }
+                if (!useKluBackend)
+#endif
+                {
+                    if (!g_sparseLuCache.factorized) {
+                        ++g_directTStats.luFactorize;
+                        g_sparseLuCache.solver.factorize(g_sparseLuCache.A);
+                        if (g_sparseLuCache.solver.info() != Eigen::Success) {
+                            writeLog(logFile, "--------疎直接法(DirectT cached): LU factorize failed on retry fallback");
+                            return false;
+                        }
+                        g_sparseLuCache.factorized = true;
+                    }
+                    sol2 = g_sparseLuCache.solver.solve(b);
+                    if (g_sparseLuCache.solver.info() != Eigen::Success) {
+                        writeLog(logFile, "--------疎直接法(DirectT cached): LU(cached) solve failed on retry");
+                        return false;
+                    }
                 }
                 Eigen::VectorXd r2 = g_sparseLuCache.A * sol2 - b;
                 const double maxResidual2 = (r2.size() > 0) ? r2.cwiseAbs().maxCoeff() : 0.0;
@@ -378,7 +652,7 @@ bool solveWithCachedFactorization(const Eigen::VectorXd& b,
                     return false;
                 }
                 ioSol = std::move(sol2);
-                ioMethod = "LU(cached-fallback)";
+                ioMethod = useKluBackend ? "KLU(cached-fallback)" : "LU(cached-fallback)";
                 return true;
             };
 
@@ -395,7 +669,7 @@ bool solveWithCachedFactorization(const Eigen::VectorXd& b,
                 << ", bScale=" << bScale
                 << ", method=" << methodLabel << ")";
             writeLog(logFile, oss.str());
-            if (methodLabel == "LU(cached-fallback)") {
+            if (methodLabel == "LU(cached-fallback)" || methodLabel == "KLU(cached-fallback)") {
                 // ok
             } else {
                 return false;
@@ -413,6 +687,12 @@ bool solveWithCachedFactorization(const Eigen::VectorXd& b,
     }
     (void)logFile; // keep signature; log throttled by caller
     return true;
+}
+
+void resetOptionalDirectSolverCaches() {
+#if defined(VTSIMNX_USE_KLU) && (VTSIMNX_USE_KLU)
+    clearKluAll();
+#endif
 }
 
 } // namespace ThermalSolverLinearDirect::detail

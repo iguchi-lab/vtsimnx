@@ -185,6 +185,7 @@ bool solveWithCachedFactorization(const Eigen::VectorXd& b,
                                  double tolerance,
                                  std::ostream& logFile,
                                  std::string& methodLabel);
+void resetOptionalDirectSolverCaches();
 
 void postprocessAndReport(ThermalNetwork& network,
                           Graph& graph,

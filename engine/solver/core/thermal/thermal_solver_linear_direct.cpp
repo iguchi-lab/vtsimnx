@@ -100,6 +100,7 @@ void resetDirectTCacheStats() {
     new (&g_cholCache.llt) Eigen::SimplicialLLT<Eigen::SparseMatrix<double>>();
     g_cholCache.ldlt.~SimplicialLDLT();
     new (&g_cholCache.ldlt) Eigen::SimplicialLDLT<Eigen::SparseMatrix<double>>();
+    detail::resetOptionalDirectSolverCaches();
 
     g_cachedSolutionReuse = CachedSolutionReuse{};
     g_cachedPostprocessReuse = CachedPostprocessReuse{};

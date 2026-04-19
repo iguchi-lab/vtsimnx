@@ -205,8 +205,13 @@ int main() {
                 const size_t initCount = countOccurrences(logText, "エアコン設定（初期化）");
                 expectTrue(modelInitCount == 1, "aircon model initializes once");
                 expectTrue(initCount == 2, "applyPreset log appears once per timestep (2 times)");
-                expectTrue(logText.find("エアコン制御の修正が行われました。再計算を実行します。") != std::string::npos,
-                           "simulation runner recompute log exists");
+                // 初期状態が改善されると、再計算ログが出ないケースもあるため必須にはしない。
+                const bool hasRecomputeLog =
+                    (logText.find("エアコン制御の修正が行われました。再計算を実行します。") != std::string::npos);
+                const bool hasLoopConvergedLog =
+                    (logText.find("圧力-温度連成計算-エアコン制御ループ 1 が収束しました。") != std::string::npos);
+                expectTrue(hasRecomputeLog || hasLoopConvergedLog,
+                           "simulation runner should either recompute or converge in first loop");
             }
         }
     }

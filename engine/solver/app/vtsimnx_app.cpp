@@ -302,11 +302,6 @@ static bool runSimulationLoop(const InputData& inputData,
                     true);
             }
 
-            // 各タイムステップの先頭では、まずエアコンをOFFで開始する。
-            // これにより「非運転時に設定温度を超過していれば暖房しない /
-            // 非運転時に設定温度未満なら暖房する」という判定を毎ステップで行える。
-            airconController.applyPreset(thermalNetwork, logs);
-
             {
                 // 各ステップの先頭で、当該インデックスの時変プロパティを反映する
                 if (verboseStepLog) writeLog(logs, " 時変プロパティ更新中...");
@@ -336,6 +331,10 @@ static bool runSimulationLoop(const InputData& inputData,
                     writeLog(logs, oss.str());
                 }
             }
+
+            // 時変プロパティ反映後の mode を見て、エアコン初期状態を設定する。
+            // （更新前に呼ぶと前ステップの mode を参照してしまう）
+            airconController.applyPreset(thermalNetwork, logs);
 
             TimestepResult timestepResult;
             if (simConstants.pressureCalc || simConstants.temperatureCalc || simConstants.humidityCalc || simConstants.concentrationCalc) {
