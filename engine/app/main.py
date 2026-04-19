@@ -39,7 +39,7 @@ from app.builder.logger import use_builder_log_file, cleanup_default_work_logs
 logger = logging.getLogger(__name__)
 
 # API ルータ本体。OpenAPI のタイトルやバージョンをここで設定する。
-app = FastAPI(title="VTSimNX API", version="1.0.3")
+app = FastAPI(title="VTSimNX API", version="1.0.4")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 WORK_DIR = BASE_DIR / "work"
