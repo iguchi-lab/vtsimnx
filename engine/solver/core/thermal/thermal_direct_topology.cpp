@@ -33,6 +33,8 @@ void rebuildTopologyCache(ThermalNetwork& network,
     topo.advectionEdges.clear();
     topo.responseEdges.clear();
     topo.airconVertices.clear();
+    topo.coeffRelevantAirconVertices.clear();
+    topo.coeffRelevantSetVertices.clear();
     for (auto e : boost::make_iterator_range(boost::edges(graph))) {
         auto tc = graph[e].getTypeCode();
         if (tc == EdgeProperties::TypeCode::Advection) topo.advectionEdges.push_back(e);
@@ -82,6 +84,35 @@ void rebuildTopologyCache(ThermalNetwork& network,
         topo.rowIndexMaps[r].buildFromCols(topo.rowColsPattern[r]);
 
     topo.rhsCoeffSig = 0;
+
+    for (auto v_aircon : topo.airconVertices) {
+        bool relevant = false;
+        if (topo.vertexToParameterIndex[static_cast<size_t>(v_aircon)] >= 0) {
+            relevant = true;
+        }
+        if (!relevant) {
+            Vertex setV = topo.airconSetVertex[static_cast<size_t>(v_aircon)];
+            if (setV != std::numeric_limits<Vertex>::max() &&
+                topo.vertexToParameterIndex[static_cast<size_t>(setV)] >= 0) {
+                relevant = true;
+            }
+        }
+        if (!relevant) {
+            for (auto e : topo.incidentEdges[static_cast<size_t>(v_aircon)]) {
+                if (graph[e].getTypeCode() == EdgeProperties::TypeCode::Advection) {
+                    relevant = true;
+                    break;
+                }
+            }
+        }
+        if (relevant) topo.coeffRelevantAirconVertices.push_back(v_aircon);
+    }
+    for (Vertex setV : topo.parameterIndexToVertex) {
+        if (!topo.airconBySetVertex[static_cast<size_t>(setV)].empty()) {
+            topo.coeffRelevantSetVertices.push_back(setV);
+        }
+    }
+
     topo.initialized = true;
 }
 

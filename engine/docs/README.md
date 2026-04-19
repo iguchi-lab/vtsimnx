@@ -15,6 +15,8 @@
 - `cpp_test_catalog.md`: C++テストの検証観点と具体例
 - `thermal_rc.md`: 壁モデル（RC法）
 - `thermal_response_factor.md`: 壁モデル（応答係数法/CTF）
+- `future_issues_memo.md`: 直近の性能課題・Colab二層運用メモ
+- `refactoring_backlog.md`: 優先度付きリファクタリング台帳
 - `theory_basics.md`, `physics_math_notes.md`: 理論・数理メモ
 - `constants_and_spec.md`, `check_outer_surface_colder_than_air.md`: 補助仕様・検証メモ
 

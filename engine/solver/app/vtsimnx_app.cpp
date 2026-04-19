@@ -575,7 +575,9 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
     const std::filesystem::path outputParent = outputJsonPath.has_parent_path() ? outputJsonPath.parent_path()
                                                                                 : std::filesystem::current_path();
     const std::string outputStem = outputJsonPath.stem().string().empty() ? "output" : outputJsonPath.stem().string();
-    const std::string artifactDirName = outputStem + ".artifacts." + std::to_string(ArtifactIO::epochMillis());
+    // 時系列で追いやすいよう、artifact 名は timestamp を先頭に置く。
+    // 例: artifacts.1776566754847.output.<run_id>
+    const std::string artifactDirName = "artifacts." + std::to_string(ArtifactIO::epochMillis()) + "." + outputStem;
     const std::filesystem::path artifactDirPath = outputParent / artifactDirName;
 
     std::error_code fsErr;

@@ -39,6 +39,8 @@ struct TopologyCache {
     std::vector<Edge> advectionEdges;
     std::vector<Edge> responseEdges;
     std::vector<Vertex> airconVertices;
+    std::vector<Vertex> coeffRelevantAirconVertices;
+    std::vector<Vertex> coeffRelevantSetVertices;
 
     std::vector<std::string> nodeNames;
     std::vector<int> vertexToParameterIndex;
@@ -122,6 +124,9 @@ struct SparseCholeskyCache {
 struct DirectTStats {
     std::uint64_t calls = 0;
     std::uint64_t coeffSigChanged = 0;
+    std::uint64_t coeffSigFlowChanged = 0;
+    std::uint64_t coeffSigAirconOnChanged = 0;
+    std::uint64_t coeffSigSetNodeChanged = 0;
     std::uint64_t reuseMissNotAnalyzed = 0;
     std::uint64_t reuseMissNoFactorized = 0;
     std::uint64_t reuseMissSizeMismatch = 0;
@@ -135,6 +140,22 @@ struct DirectTStats {
     std::uint64_t cholFactorize = 0;
     std::uint64_t solveCached = 0;
     std::uint64_t solveFull = 0;
+    std::uint64_t rhsSolutionReuse = 0;
+    std::uint64_t postprocessReuse = 0;
+};
+
+struct CoeffSignatureBreakdown {
+    std::uint64_t flowSig = 0;
+    std::uint64_t airconOnSig = 0;
+    std::uint64_t setNodeActiveSig = 0;
+
+    std::uint64_t combined() const {
+        std::uint64_t h = 0;
+        h = thermal_linear_utils::fnv1a64_update(h, flowSig);
+        h = thermal_linear_utils::fnv1a64_update(h, airconOnSig);
+        h = thermal_linear_utils::fnv1a64_update(h, setNodeActiveSig);
+        return h;
+    }
 };
 
 extern TopologyCache g_topologyCache;
@@ -147,6 +168,7 @@ extern std::uint64_t s_lastCoeffSig;
 void rebuildTopologyCache(ThermalNetwork& network, const Graph& graph, size_t curV, size_t curE, TopologyCache& topo);
 
 std::uint64_t computeCoeffSignature(const Graph& graph, const TopologyCache& topo);
+CoeffSignatureBreakdown computeCoeffSignatureBreakdown(const Graph& graph, const TopologyCache& topo);
 void rebuildRhsPrecomputeForCoeffSig(const Graph& graph, TopologyCache& topo, std::uint64_t coeffSig);
 void buildRhsOnlyAbsoluteFast(const Graph& graph, const TopologyCache& topo, std::vector<double>& bOut);
 

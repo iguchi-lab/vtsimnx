@@ -8,30 +8,31 @@ static inline bool isUnknown(const TopologyCache& topo, Vertex v) {
     return topo.vertexToParameterIndex[idx] >= 0;
 }
 
-std::uint64_t computeCoeffSignature(const Graph& graph, const TopologyCache& topo) {
+CoeffSignatureBreakdown computeCoeffSignatureBreakdown(const Graph& graph, const TopologyCache& topo) {
     using thermal_linear_utils::fnv1a64_update;
     using thermal_linear_utils::hashDoubleBits;
 
-    std::uint64_t h = 0;
+    CoeffSignatureBreakdown s{};
     for (auto e : topo.advectionEdges) {
         const auto& ep = graph[e];
         Vertex sv = boost::source(e, graph);
         Vertex tv = boost::target(e, graph);
-        h = fnv1a64_update(h,
-                           (static_cast<std::uint64_t>(static_cast<std::uint32_t>(sv)) << 32) ^
-                               static_cast<std::uint64_t>(static_cast<std::uint32_t>(tv)));
+        s.flowSig = fnv1a64_update(
+            s.flowSig,
+            (static_cast<std::uint64_t>(static_cast<std::uint32_t>(sv)) << 32) ^
+                static_cast<std::uint64_t>(static_cast<std::uint32_t>(tv)));
         double flowRate = ep.flow_rate;
         if (std::abs(flowRate) < archenv::FLOW_RATE_MIN) flowRate = 0.0;
-        h = hashDoubleBits(h, flowRate);
-        h = fnv1a64_update(h, ep.is_aircon_inflow ? 1u : 0u);
+        s.flowSig = hashDoubleBits(s.flowSig, flowRate);
+        s.flowSig = fnv1a64_update(s.flowSig, ep.is_aircon_inflow ? 1u : 0u);
     }
-    for (auto v : topo.airconVertices) {
+    for (auto v : topo.coeffRelevantAirconVertices) {
         const auto& nd = graph[v];
-        h = fnv1a64_update(h, static_cast<std::uint64_t>(static_cast<std::uint32_t>(v)));
-        h = fnv1a64_update(h, nd.on ? 1u : 0u);
+        s.airconOnSig = fnv1a64_update(s.airconOnSig, static_cast<std::uint64_t>(static_cast<std::uint32_t>(v)));
+        s.airconOnSig = fnv1a64_update(s.airconOnSig, nd.on ? 1u : 0u);
     }
-    for (size_t setV = 0; setV < topo.airconBySetVertex.size(); ++setV) {
-        if (topo.airconBySetVertex[setV].empty()) continue;
+    for (Vertex setVertex : topo.coeffRelevantSetVertices) {
+        const size_t setV = static_cast<size_t>(setVertex);
         bool anyOn = false;
         for (Vertex v_ac : topo.airconBySetVertex[setV]) {
             if (graph[v_ac].getTypeCode() == VertexProperties::TypeCode::Aircon && graph[v_ac].on) {
@@ -40,11 +41,15 @@ std::uint64_t computeCoeffSignature(const Graph& graph, const TopologyCache& top
             }
         }
         if (anyOn) {
-            h = fnv1a64_update(h, static_cast<std::uint64_t>(setV));
-            h = fnv1a64_update(h, 1u);
+            s.setNodeActiveSig = fnv1a64_update(s.setNodeActiveSig, static_cast<std::uint64_t>(setV));
+            s.setNodeActiveSig = fnv1a64_update(s.setNodeActiveSig, 1u);
         }
     }
-    return h;
+    return s;
+}
+
+std::uint64_t computeCoeffSignature(const Graph& graph, const TopologyCache& topo) {
+    return computeCoeffSignatureBreakdown(graph, topo).combined();
 }
 
 void rebuildRhsPrecomputeForCoeffSig(const Graph& graph, TopologyCache& topo, std::uint64_t coeffSig) {

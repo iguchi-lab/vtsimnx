@@ -79,7 +79,11 @@ void postprocessAndReport(ThermalNetwork& network,
     if ((stats.calls % kStatsLogInterval) == 0) {
         std::ostringstream ss;
         ss << "--------DirectT cache stats: calls=" << stats.calls
+           << ", n=" << n
            << ", coeffSigChanged=" << stats.coeffSigChanged
+           << ", coeffSigFlowChanged=" << stats.coeffSigFlowChanged
+           << ", coeffSigAirconOnChanged=" << stats.coeffSigAirconOnChanged
+           << ", coeffSigSetNodeChanged=" << stats.coeffSigSetNodeChanged
            << ", missNotAnalyzed=" << stats.reuseMissNotAnalyzed
            << ", missNoFactorized=" << stats.reuseMissNoFactorized
            << ", missSizeMismatch=" << stats.reuseMissSizeMismatch
@@ -91,6 +95,8 @@ void postprocessAndReport(ThermalNetwork& network,
            << ", patternRebuild=" << stats.patternRebuild
            << ", solveCached=" << stats.solveCached
            << ", solveFull=" << stats.solveFull
+           << ", rhsSolutionReuse=" << stats.rhsSolutionReuse
+           << ", postprocessReuse=" << stats.postprocessReuse
            << ", cholFactorize=" << stats.cholFactorize
            << ", luFactorize=" << stats.luFactorize;
         writeLog(logFile, ss.str());
