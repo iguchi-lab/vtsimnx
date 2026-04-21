@@ -146,7 +146,7 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
     auto erange = boost::edges(g);
     for (auto e : boost::make_iterator_range(erange)) {
         const auto& ep = g[e];
-        if (!(ep.type == "gap" || ep.type == "simple_opening")) continue;
+        if (!(ep.type == "gap" || ep.type == "simple_opening" || ep.type == "pressure_loss")) continue;
 
         auto sv = boost::source(e, g);
         auto tv = boost::target(e, g);
@@ -169,6 +169,15 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
         } else if (ep.type == "gap") {
             double n = (ep.n != 0.0) ? ep.n : 1.0;
             G = (ep.a / n) * std::pow(dp_abs, (1.0 / n) - 1.0);
+        } else if (ep.type == "pressure_loss") {
+            double k_total = ep.k_total;
+            if (!(k_total > 0.0) && ep.friction_factor > 0.0 && ep.length >= 0.0 && ep.diameter > 0.0) {
+                k_total = ep.friction_factor * ep.length / ep.diameter + ep.zeta_total;
+            }
+            if (ep.area > 0.0 && k_total > 0.0) {
+                const double C = ep.area * std::sqrt(2.0 / (archenv::DENSITY_DRY_AIR * k_total));
+                G = 0.5 * C / std::sqrt(dp_abs);
+            }
         }
 
         candidateEdges.push_back(e);

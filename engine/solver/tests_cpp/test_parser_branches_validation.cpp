@@ -2,6 +2,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <cmath>
 
 #include <nlohmann/json.hpp>
 
@@ -28,6 +29,14 @@ void expectThrows(Fn fn, const std::string& msg) {
 
 void expectTrue(bool cond, const std::string& msg) {
     if (!cond) fail(msg);
+}
+
+void expectNear(double actual, double expected, double tol, const std::string& msg) {
+    const double diff = std::abs(actual - expected);
+    if (!(diff <= tol)) {
+        fail(msg + " (actual=" + std::to_string(actual) + ", expected=" + std::to_string(expected) +
+             ", diff=" + std::to_string(diff) + ", tol=" + std::to_string(tol) + ")");
+    }
 }
 
 } // namespace
@@ -113,6 +122,29 @@ int main() {
         std::ostringstream logs;
         expectThrows([&]() { (void)parseThermalBranches(cfg, logs, 0); },
                      "thermal branch missing source/target should throw");
+    }
+
+    // -----------------------------
+    // ventilation_branches: pressure_loss パラメータ読込（k_total / lambda互換）
+    // -----------------------------
+    {
+        json cfg = {
+            {"simulation", {{"log", {{"verbosity", 0}}}}},
+            {"ventilation_branches",
+             json::array({
+                 {{"key", "PL1"}, {"type", "pressure_loss"}, {"source", "A"}, {"target", "B"}, {"area", 0.2}, {"k_total", 8.0}},
+                 {{"key", "PL2"}, {"type", "pressure_loss"}, {"source", "B"}, {"target", "C"}, {"area", 0.2}, {"lambda", 0.02}, {"length", 10.0}, {"diameter", 0.2}, {"zeta_total", 1.0}},
+             })},
+        };
+        std::ostringstream logs;
+        const auto b = parseVentilationBranches(cfg, logs, 0);
+        expectTrue(b.size() == 2, "pressure_loss branches should be parsed");
+        if (b.size() == 2) {
+            expectNear(b[0].k_total, 8.0, 1e-12, "pressure_loss: k_total parse");
+            expectNear(b[1].friction_factor, 0.02, 1e-12, "pressure_loss: lambda alias parse");
+            expectNear(b[1].length, 10.0, 1e-12, "pressure_loss: length parse");
+            expectNear(b[1].diameter, 0.2, 1e-12, "pressure_loss: diameter parse");
+        }
     }
 
     if (g_failures == 0) {

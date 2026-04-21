@@ -108,6 +108,12 @@ std::vector<EdgeProperties> parseVentilationBranches(const json& config, std::os
         parser_utils::checkNumberIfPresent(branchJson, "p1", branchPrefix);
         parser_utils::checkNumberIfPresent(branchJson, "q_max", branchPrefix);
         parser_utils::checkNumberIfPresent(branchJson, "q1", branchPrefix);
+        parser_utils::checkNumberIfPresent(branchJson, "k_total", branchPrefix);
+        parser_utils::checkNumberIfPresent(branchJson, "friction_factor", branchPrefix);
+        parser_utils::checkNumberIfPresent(branchJson, "length", branchPrefix);
+        parser_utils::checkNumberIfPresent(branchJson, "diameter", branchPrefix);
+        parser_utils::checkNumberIfPresent(branchJson, "zeta_total", branchPrefix);
+        parser_utils::checkNumberIfPresent(branchJson, "lambda", branchPrefix);
         parser_utils::checkNumberIfPresent(branchJson, "h_from", branchPrefix);
         parser_utils::checkNumberIfPresent(branchJson, "h_to", branchPrefix);
         if (branchJson.contains("subtype")) branch.subtype = branchJson["subtype"].get<std::string>();
@@ -121,6 +127,14 @@ std::vector<EdgeProperties> parseVentilationBranches(const json& config, std::os
         if (branchJson.contains("p1"))      branch.p1      = branchJson["p1"].get<double>();
         if (branchJson.contains("q_max"))   branch.q_max   = branchJson["q_max"].get<double>();
         if (branchJson.contains("q1"))      branch.q1      = branchJson["q1"].get<double>();
+        if (branchJson.contains("k_total")) branch.k_total = branchJson["k_total"].get<double>();
+        if (branchJson.contains("friction_factor")) branch.friction_factor = branchJson["friction_factor"].get<double>();
+        if (branchJson.contains("length")) branch.length = branchJson["length"].get<double>();
+        if (branchJson.contains("diameter")) branch.diameter = branchJson["diameter"].get<double>();
+        if (branchJson.contains("zeta_total")) branch.zeta_total = branchJson["zeta_total"].get<double>();
+        if (branchJson.contains("lambda") && !branchJson.contains("friction_factor")) {
+            branch.friction_factor = branchJson["lambda"].get<double>();
+        }
         if (branchJson.contains("h_from"))  branch.h_from  = branchJson["h_from"].get<double>();
         if (branchJson.contains("h_to"))    branch.h_to    = branchJson["h_to"].get<double>();
 

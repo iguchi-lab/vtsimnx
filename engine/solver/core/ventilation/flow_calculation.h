@@ -40,6 +40,29 @@ inline double calcGapFlow(double dp, const EdgeProperties& edgeData) {
     return a * std::pow(eps, 1.0 / n - 1.0) * dp;
 }
 
+// 圧損要素の風量計算（pressure_loss）
+inline double calcPressureLossFlow(double dp, const EdgeProperties& edgeData) {
+    const double eps = archenv::TOLERANCE_SMALL;
+    const double area = edgeData.area;
+
+    double k_total = edgeData.k_total;
+    if (!(k_total > 0.0) && edgeData.friction_factor > 0.0 && edgeData.length >= 0.0 && edgeData.diameter > 0.0) {
+        k_total = edgeData.friction_factor * edgeData.length / edgeData.diameter + edgeData.zeta_total;
+    }
+    if (!(area > 0.0) || !(k_total > 0.0)) {
+        return 0.0;
+    }
+
+    const double abs_dp = std::abs(dp);
+    const double C = area * std::sqrt(2.0 / (archenv::DENSITY_DRY_AIR * k_total));
+    if (abs_dp >= eps) {
+        const double sign = (dp >= 0.0) ? 1.0 : -1.0;
+        return sign * C * std::sqrt(abs_dp);
+    }
+    // 小差圧は線形近似
+    return C * std::sqrt(eps) * (dp / eps);
+}
+
 // ファンの風量計算（fan）
 inline double calcFanFlow(double dp, const EdgeProperties& edgeData) {
     const double q_max = edgeData.q_max;
@@ -88,6 +111,8 @@ inline double calculateUnifiedFlow(double dp, const EdgeProperties& edgeData) {
         return calcGapFlow(dp, edgeData);
     } else if (edgeData.type == "fan") {
         return calcFanFlow(dp, edgeData);
+    } else if (edgeData.type == "pressure_loss") {
+        return calcPressureLossFlow(dp, edgeData);
     } else if (edgeData.type == "fixed_flow") {
         return edgeData.current_vol;
     } else {

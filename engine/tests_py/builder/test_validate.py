@@ -142,3 +142,41 @@ def test_response_conduction_rejects_mismatched_coeff_lengths(minimal_simulation
         validate.validate_dict(cfg)
 
 
+def test_pressure_loss_accepts_k_total(minimal_simulation):
+    cfg = {
+        "simulation": minimal_simulation,
+        "nodes": [{"key": "A"}, {"key": "B"}],
+        "ventilation_branches": [
+            {"key": "A->B", "type": "pressure_loss", "area": 0.1, "k_total": 6.0}
+        ],
+        "thermal_branches": [],
+    }
+    out = validate.validate_dict(cfg)
+    b = out["ventilation_branches"][0]
+    assert b["type"] == "pressure_loss"
+    assert b["k_total"] == 6.0
+
+
+def test_pressure_loss_computes_k_total_from_formula_and_lambda_alias(minimal_simulation):
+    cfg = {
+        "simulation": minimal_simulation,
+        "nodes": [{"key": "A"}, {"key": "B"}],
+        "ventilation_branches": [
+            {
+                "key": "A->B",
+                "type": "pressure_loss",
+                "area": 0.1,
+                "lambda": 0.02,
+                "length": 10.0,
+                "diameter": 0.2,
+                "zeta_total": 1.0,
+            }
+        ],
+        "thermal_branches": [],
+    }
+    out = validate.validate_dict(cfg)
+    b = out["ventilation_branches"][0]
+    assert b["friction_factor"] == pytest.approx(0.02)
+    assert b["k_total"] == pytest.approx(2.0)
+
+

@@ -31,6 +31,9 @@ VENTILATION_BRANCH_TYPES: Dict[str, Dict[str, List[str]]] = {
     VentilationBranchTypeEnum.GAP: {"required": ["a", "n"]},
     VentilationBranchTypeEnum.FAN: {"required": ["p_max", "q_max", "p1", "q1"]},
     VentilationBranchTypeEnum.FIXED_FLOW: {"required": ["vol"]},
+    # pressure_loss は area + (k_total または friction_factor/length/diameter) を要求する。
+    # 条件付き必須のためここでは area のみ固定必須とし、残りは専用ロジックで検証する。
+    VentilationBranchTypeEnum.PRESSURE_LOSS: {"required": ["area"]},
 }
 
 THERMAL_BRANCH_TYPES: Dict[str, Dict[str, List[str]]] = {
@@ -203,6 +206,95 @@ def validate_branch_parameters(branch: Dict[str, Any], branch_types: Dict[str, D
         if param not in branch:
             errors.append(f"{context} {branch['key']} に'{param}'が指定されていません")
     return ValidationResult(len(errors) == 0, errors, [])
+
+
+def _normalize_pressure_loss_fields(branch: Dict[str, Any], context: str) -> List[str]:
+    """
+    pressure_loss の入力を正規化する。
+    許可形式:
+      1) k_total 直接指定
+      2) friction_factor * length / diameter (+ zeta_total)
+    """
+    errors: List[str] = []
+    key = branch.get("key", "?")
+    prefix = f"{context} {key}"
+
+    # 互換入力: lambda -> friction_factor
+    if "lambda" in branch and "friction_factor" not in branch:
+        branch["friction_factor"] = branch.get("lambda")
+
+    def _as_float(name: str) -> Optional[float]:
+        if name not in branch:
+            return None
+        try:
+            return float(branch[name])
+        except Exception:
+            errors.append(f"{prefix} の'{name}'は数値である必要があります")
+            return None
+
+    area = _as_float("area")
+    if area is not None:
+        branch["area"] = area
+        if area <= 0.0:
+            errors.append(f"{prefix} の'area'は正の値である必要があります")
+
+    k_total = _as_float("k_total")
+    ff = _as_float("friction_factor")
+    length = _as_float("length")
+    diameter = _as_float("diameter")
+    zeta_total = _as_float("zeta_total")
+    if zeta_total is None:
+        zeta_total = 0.0
+
+    has_formula = (ff is not None) or (length is not None) or (diameter is not None)
+    if k_total is None and not has_formula:
+        errors.append(
+            f"{prefix} は 'k_total' か "
+            "'friction_factor'+'length'+'diameter' のいずれかが必要です"
+        )
+        return errors
+
+    if k_total is None:
+        missing_formula_fields: List[str] = []
+        if ff is None:
+            missing_formula_fields.append("friction_factor")
+        if length is None:
+            missing_formula_fields.append("length")
+        if diameter is None:
+            missing_formula_fields.append("diameter")
+        if missing_formula_fields:
+            errors.append(
+                f"{prefix} の式入力が不足しています: {', '.join(missing_formula_fields)}"
+            )
+            return errors
+        if diameter is not None and diameter <= 0.0:
+            errors.append(f"{prefix} の'diameter'は正の値である必要があります")
+            return errors
+        if ff is not None and ff < 0.0:
+            errors.append(f"{prefix} の'friction_factor'は0以上である必要があります")
+        if length is not None and length < 0.0:
+            errors.append(f"{prefix} の'length'は0以上である必要があります")
+        if zeta_total < 0.0:
+            errors.append(f"{prefix} の'zeta_total'は0以上である必要があります")
+        if errors:
+            return errors
+        assert ff is not None and length is not None and diameter is not None
+        k_total = ff * length / diameter + zeta_total
+
+    if k_total is not None:
+        branch["k_total"] = float(k_total)
+        if k_total <= 0.0:
+            errors.append(f"{prefix} の'k_total'は正の値である必要があります")
+
+    # solver に渡すために正規化済みの式項も保持
+    if ff is not None:
+        branch["friction_factor"] = float(ff)
+    if length is not None:
+        branch["length"] = float(length)
+    if diameter is not None:
+        branch["diameter"] = float(diameter)
+    branch["zeta_total"] = float(zeta_total)
+    return errors
 
 
 def _as_float_list(value: Any, *, allow_empty: bool) -> List[float]:
@@ -505,10 +597,13 @@ def validate_ventilation_config(
             continue
 
         # 未知キーは事前に除去（タイプ判定に影響しないものは捨てる）
+        allowed_keys = _allowed_keys(VentilationBranchType)
+        # 互換入力: Python予約語都合で TypedDict に持てない "lambda" を許可する。
+        allowed_keys.add("lambda")
         warnings.extend(
             strip_unknown_fields(
                 branch,
-                _allowed_keys(VentilationBranchType),
+                allowed_keys,
                 f"換気ブランチ {branch.get('key', '?')}",
                 warning_details=warning_details,
             )
@@ -548,6 +643,12 @@ def validate_ventilation_config(
         if not result.is_valid:
             errors.extend(result.errors)
             continue
+
+        if branch["type"] == VentilationBranchTypeEnum.PRESSURE_LOSS:
+            pressure_loss_errors = _normalize_pressure_loss_fields(branch, "換気ブランチ")
+            errors.extend(pressure_loss_errors)
+            if pressure_loss_errors:
+                continue
 
         # FIXED_FLOW の vol はスカラーのまま（配列が来た場合はそのまま）
         if branch["type"] == VentilationBranchTypeEnum.FIXED_FLOW:

@@ -90,7 +90,7 @@
 | `key` | ブランチ名 | string | 必須（重複時はナンバリング推奨） |
 | `source` | ソースノード | string | `nodes[].key` |
 | `target` | ターゲットノード | string | `nodes[].key` |
-| `type` | ブランチタイプ | string | 例: `simple_opening`, `gap`, `fan`, `fixed_flow` |
+| `type` | ブランチタイプ | string | 例: `simple_opening`, `gap`, `fan`, `fixed_flow`, `pressure_loss` |
 | `subtype` | サブタイプ | string | 任意（空文字など） |
 | `h_from` | 出発点高さ | number | m（仕様に合わせて運用） |
 | `h_to` | 到達点高さ | number | m（仕様に合わせて運用） |
@@ -105,6 +105,11 @@
 | `p1` | 点の静圧 | number | Pa |
 | `q1` | 点の風量 | number | m3/h |
 | `vol` | 風量 | number \| number[] | m3/h |
+| `k_total` | 圧損係数（合成） | number | `pressure_loss` 用 |
+| `friction_factor` | 摩擦係数 λ | number | `pressure_loss` 用 |
+| `length` | 要素長 | number | m, `pressure_loss` 用 |
+| `diameter` | 水力直径 | number | m, `pressure_loss` 用 |
+| `zeta_total` | 局所損失係数合計 | number | `pressure_loss` 用（任意） |
 | `eta` | 除塵効率 | number | - |
 | `humidity_generation` | 発湿源 | number \| number[] | g/s（※元メモ表記: `humitidy_generation` は誤字の可能性） |
 | `dust_generation` | 発塵源 | number \| number[] | g/s |

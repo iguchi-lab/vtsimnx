@@ -236,6 +236,10 @@ builder の raw_config では `key` 記法（`A->B` / `->外部` 等）から `s
 - `simple_opening`: `alpha`, `area`
 - `gap`: `a`, `n`
 - `fan`: `p_max`, `q_max`, `p1`, `q1`
+- `pressure_loss`: `area` + (`k_total` **または** `friction_factor`, `length`, `diameter`)
+  - 任意で `zeta_total` を加算可能
+  - `k_total` 未指定時は `k_total = friction_factor * length / diameter + zeta_total` で内部計算
+  - 互換入力として `lambda`（= `friction_factor`）も受け付け
 
 理論背景（圧力差-流量の考え方）は `docs/theory_basics.md` の「換気回路網の基礎」を参照。
 

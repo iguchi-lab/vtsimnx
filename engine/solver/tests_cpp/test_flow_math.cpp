@@ -102,6 +102,28 @@ int main() {
     }
 
     // -----------------------------
+    // pressure_loss: sqrt(dp) + Jacobian
+    // -----------------------------
+    {
+        EdgeProperties e{};
+        e.type = "pressure_loss";
+        e.area = 0.1;
+        e.k_total = 4.0;
+
+        const double dp = 50.0;
+        const double q_pos = FlowCalculation::calculateUnifiedFlow(dp, e);
+        const double q_neg = FlowCalculation::calculateUnifiedFlow(-dp, e);
+        expectNear(q_neg, -q_pos, 1e-12, "pressure_loss: Q(-dp) == -Q(dp)");
+
+        auto f = [&](double x) { return FlowCalculation::calculateUnifiedFlow(x, e); };
+        const double h = 1e-8;
+        const double d_num = (f(dp + h) - f(dp - h)) / (2.0 * h);
+        const double d_ana = FlowJacobianCommon::calculateJacobian(dp, e);
+        expectTrue(std::isfinite(d_ana), "pressure_loss: Jacobian is finite");
+        expectNear(d_ana, d_num, 1e-6, "pressure_loss: Jacobian matches numeric derivative");
+    }
+
+    // -----------------------------
     // fan: 解析ヤコビアンが数値微分と一致（スムージング込み）
     // -----------------------------
     {

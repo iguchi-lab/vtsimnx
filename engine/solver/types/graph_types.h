@@ -145,6 +145,12 @@ struct EdgeProperties {
     double p1 = 0.0;
     double q_max = 0.0;
     double q1 = 0.0;
+    // pressure_loss 用（dp = 0.5*rho*(Q/A)^2*K_total）
+    double k_total = 0.0;
+    double friction_factor = 0.0;
+    double length = 0.0;
+    double diameter = 0.0;
+    double zeta_total = 0.0;
     double eta = 0.0;
     double flow_rate = 0.0;
     double heat_rate = 0.0; // 熱流量

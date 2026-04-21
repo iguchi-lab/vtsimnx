@@ -18,6 +18,7 @@ class VentilationBranchTypeEnum(str, Enum):
     GAP = "gap"
     FAN = "fan"
     FIXED_FLOW = "fixed_flow"
+    PRESSURE_LOSS = "pressure_loss"
 
 
 class ThermalBranchTypeEnum(str, Enum):
@@ -106,6 +107,14 @@ class VentilationBranchType(TypedDict):
     p1: Optional[float]
     q1: Optional[float]
     vol: Optional[float]
+    # pressure_loss 用:
+    # - k_total を直接与えるか、
+    # - friction_factor*length/diameter (+ zeta_total) で与える
+    k_total: Optional[float]
+    friction_factor: Optional[float]
+    length: Optional[float]
+    diameter: Optional[float]
+    zeta_total: Optional[float]
     humidity_generation: Optional[np.ndarray]
     dust_generation: Optional[np.ndarray]
 

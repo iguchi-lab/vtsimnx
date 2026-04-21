@@ -38,6 +38,27 @@ inline double calcGapJacobian(double dp, const EdgeProperties& edgeData) {
     }
     return a * std::pow(eps, 1.0 / n - 1.0);
 }
+
+// pressure_loss のヤコビアン（解析）
+inline double calcPressureLossJacobian(double dp, const EdgeProperties& edgeData) {
+    const double eps = archenv::TOLERANCE_SMALL;
+    const double area = edgeData.area;
+
+    double k_total = edgeData.k_total;
+    if (!(k_total > 0.0) && edgeData.friction_factor > 0.0 && edgeData.length >= 0.0 && edgeData.diameter > 0.0) {
+        k_total = edgeData.friction_factor * edgeData.length / edgeData.diameter + edgeData.zeta_total;
+    }
+    if (!(area > 0.0) || !(k_total > 0.0)) {
+        return 0.0;
+    }
+
+    const double abs_dp = std::abs(dp);
+    const double C = area * std::sqrt(2.0 / (archenv::DENSITY_DRY_AIR * k_total));
+    if (abs_dp >= eps) {
+        return 0.5 * C / std::sqrt(abs_dp);
+    }
+    return C * std::sqrt(eps) / eps;
+}
 } // namespace FlowJacobian
 
 namespace FanJacobian {
@@ -122,6 +143,8 @@ inline double calculateJacobian(double dp, const EdgeProperties& edgeData) {
         return FlowJacobian::calcSimpleOpeningJacobian(dp, edgeData);
     } else if (edgeData.type == "gap") {
         return FlowJacobian::calcGapJacobian(dp, edgeData);
+    } else if (edgeData.type == "pressure_loss") {
+        return FlowJacobian::calcPressureLossJacobian(dp, edgeData);
     } else if (edgeData.type == "fixed_flow") {
         return 0.0;
     }
