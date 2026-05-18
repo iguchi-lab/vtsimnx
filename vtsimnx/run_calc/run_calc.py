@@ -297,7 +297,7 @@ def run_calc(
     *,
     with_dataframes: bool = True,
     compress_request: bool = True,
-    timeout: float = 600.0,
+    timeout: float = 900.0,
     request_output_path: Optional[Union[str, Path]] = None,
 ) -> Union[Dict[str, Any], CalcRunResult]:
     client_profile: Dict[str, Any] = {}
