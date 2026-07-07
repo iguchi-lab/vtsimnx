@@ -56,3 +56,30 @@ def test_run_accepts_api_key_when_env_set(monkeypatch):
 
     resp = client.post("/run", json=payload, headers={API_KEY_HEADER: "secret-token"})
     assert resp.status_code == 200
+
+
+def test_ping_accepts_any_key_from_api_keys_env(monkeypatch):
+    monkeypatch.delenv("VTSIMNX_API_KEY", raising=False)
+    monkeypatch.setenv("VTSIMNX_API_KEYS", "user-a-key, user-b-key")
+    client = TestClient(app)
+
+    resp = client.get("/ping")
+    assert resp.status_code == 401
+
+    resp = client.get("/ping", headers={API_KEY_HEADER: "user-a-key"})
+    assert resp.status_code == 200
+
+    resp = client.get("/ping", headers={API_KEY_HEADER: "user-b-key"})
+    assert resp.status_code == 200
+
+
+def test_ping_merges_single_and_multi_key_env(monkeypatch):
+    monkeypatch.setenv("VTSIMNX_API_KEY", "legacy-key")
+    monkeypatch.setenv("VTSIMNX_API_KEYS", "shared-key")
+    client = TestClient(app)
+
+    resp = client.get("/ping", headers={API_KEY_HEADER: "legacy-key"})
+    assert resp.status_code == 200
+
+    resp = client.get("/ping", headers={API_KEY_HEADER: "shared-key"})
+    assert resp.status_code == 200
