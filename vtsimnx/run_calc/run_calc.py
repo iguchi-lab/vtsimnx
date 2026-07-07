@@ -1,5 +1,6 @@
 import json
 import copy
+import os
 import time
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -42,6 +43,7 @@ class CalcRunResult:
     result_files: Dict[str, str]
     # 送信した設定（クライアント側）。indexの復元などに使う
     config: Optional[Dict[str, Any]] = field(default=None, repr=False)
+    api_key: Optional[str] = field(default=None, repr=False)
     errors: Dict[str, str] = field(default_factory=dict)
     _dataframes: Dict[str, pd.DataFrame] = field(default_factory=dict, repr=False)
     _log_text: Optional[str] = field(default=None, repr=False)
@@ -168,7 +170,7 @@ class CalcRunResult:
 
         try:
             t0 = time.perf_counter()
-            raw = get_artifact_file(self.base_url, self.artifact_dir, log_file)
+            raw = get_artifact_file(self.base_url, self.artifact_dir, log_file, api_key=self.api_key)
             t1 = time.perf_counter()
             if isinstance(raw, (bytes, bytearray)):
                 self._log_text = bytes(raw).decode("utf-8", errors="replace")
@@ -214,7 +216,7 @@ class CalcRunResult:
             t0 = time.perf_counter()
             if self._schema is None:
                 t_schema0 = time.perf_counter()
-                raw_schema = get_artifact_file(self.base_url, self.artifact_dir, "schema.json")
+                raw_schema = get_artifact_file(self.base_url, self.artifact_dir, "schema.json", api_key=self.api_key)
                 if not isinstance(raw_schema, (bytes, bytearray)):
                     raise TypeError(f"schema.json: expected bytes, got {type(raw_schema).__name__}")
                 self._schema = json.loads(bytes(raw_schema).decode("utf-8"))
@@ -236,7 +238,7 @@ class CalcRunResult:
 
             # bin本体は bytes で取得して自前で復元（manifest.json は不要）
             t_bin0 = time.perf_counter()
-            data = get_artifact_bytes(self.base_url, self.artifact_dir, fname)
+            data = get_artifact_bytes(self.base_url, self.artifact_dir, fname, api_key=self.api_key)
             t_bin1 = time.perf_counter()
             arr = np.frombuffer(data, dtype=np.dtype("<f4"))
             expected = T * N
@@ -298,10 +300,15 @@ def run_calc(
     with_dataframes: bool = True,
     compress_request: bool = True,
     timeout: float = 900.0,
+    api_key: Optional[str] = None,
     request_output_path: Optional[Union[str, Path]] = None,
 ) -> Union[Dict[str, Any], CalcRunResult]:
     client_profile: Dict[str, Any] = {}
     t_total0 = time.perf_counter()
+
+    if api_key is None:
+        env_key = os.getenv("VTSIMNX_API_KEY", "").strip()
+        api_key = env_key or None
 
     # 互換: 設定をファイル（.json / .json.gz）で渡せるようにする
     t_prepare0 = time.perf_counter()
@@ -337,6 +344,7 @@ def run_calc(
         payload=payload,
         compress_request=compress_request,
         timeout=timeout,
+        api_key=api_key,
         profile_out=http_profile,
     )
     t_post1 = time.perf_counter()
@@ -369,5 +377,6 @@ def run_calc(
         base_url=base_url,
         result_files=result_files,
         config=config_json,
+        api_key=api_key,
         client_profile=client_profile,
     )

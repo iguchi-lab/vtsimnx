@@ -34,6 +34,7 @@ from app.solver_runner import attach_builder_log_to_artifacts, write_artifact_ma
 from app.builder import build_config_with_warning_details
 from app.builder.validate import ValidationError, ConfigFileError
 from app.builder.logger import use_builder_log_file, cleanup_default_work_logs
+from app.api_auth import ApiKeyMiddleware
 
 # Uvicorn のロガー設定に追従して出す（traceback を残すため）
 logger = logging.getLogger(__name__)
@@ -103,6 +104,7 @@ class GZipRequestMiddleware:
         return await self.app(scope, receive2, send)
 
 app.add_middleware(GZipRequestMiddleware)
+app.add_middleware(ApiKeyMiddleware)
 
 def _resolve_artifact_dir(artifact_dir: str) -> Path:
     # パストラバーサル防止: work配下のディレクトリに限定

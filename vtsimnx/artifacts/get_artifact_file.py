@@ -1,13 +1,23 @@
 from __future__ import annotations
 
 import json
+import os
 from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
 import requests
 
+from vtsimnx.run_calc._http import _api_key_headers
 from ._schema import extract_result_files, series_columns
+
+
+def _resolve_api_key(api_key: Optional[str]) -> Optional[str]:
+    if api_key is not None:
+        key = api_key.strip()
+        return key or None
+    env_key = os.getenv("VTSIMNX_API_KEY", "").strip()
+    return env_key or None
 
 
 def _candidate_relpaths(filename: str) -> List[str]:
@@ -18,18 +28,32 @@ def _candidate_relpaths(filename: str) -> List[str]:
     return list(dict.fromkeys(relpaths))
 
 
-def _get_bytes(base_url: str, artifact_dir: str, relpath: str, timeout: float) -> bytes:
+def _get_bytes(
+    base_url: str,
+    artifact_dir: str,
+    relpath: str,
+    timeout: float,
+    *,
+    api_key: Optional[str] = None,
+) -> bytes:
     url = base_url.rstrip("/") + f"/work/{artifact_dir}/{relpath.lstrip('/')}"
-    resp = requests.get(url, timeout=timeout)
+    resp = requests.get(url, headers=_api_key_headers(_resolve_api_key(api_key)), timeout=timeout)
     resp.raise_for_status()
     return resp.content
 
 
-def _get_bytes_fallback(base_url: str, artifact_dir: str, relpaths: List[str], timeout: float) -> bytes:
+def _get_bytes_fallback(
+    base_url: str,
+    artifact_dir: str,
+    relpaths: List[str],
+    timeout: float,
+    *,
+    api_key: Optional[str] = None,
+) -> bytes:
     last_exc: Optional[Exception] = None
     for p in relpaths:
         try:
-            return _get_bytes(base_url, artifact_dir, p, timeout=timeout)
+            return _get_bytes(base_url, artifact_dir, p, timeout=timeout, api_key=api_key)
         except Exception as e:
             last_exc = e
     if last_exc is not None:
@@ -53,8 +77,9 @@ def _get_json_fallback(
     relpaths: List[str],
     *,
     timeout: float,
+    api_key: Optional[str] = None,
 ) -> Dict[str, Any]:
-    raw = _get_bytes_fallback(base_url, artifact_dir, relpaths, timeout=timeout)
+    raw = _get_bytes_fallback(base_url, artifact_dir, relpaths, timeout=timeout, api_key=api_key)
     return _load_json_bytes(raw)
 
 
@@ -95,12 +120,13 @@ def _get_artifact_bytes_with_used_path(
     filename: str,
     *,
     timeout: float,
+    api_key: Optional[str] = None,
 ) -> tuple[bytes, str]:
     # まずは指定されたパスで取得（ダメなら artifacts/ 配下も試す）
     last_exc: Optional[Exception] = None
     for rel in _candidate_relpaths(filename):
         try:
-            return _get_bytes(base_url, artifact_dir, rel, timeout=timeout), rel
+            return _get_bytes(base_url, artifact_dir, rel, timeout=timeout, api_key=api_key), rel
         except Exception as e:
             last_exc = e
     if last_exc is not None:
@@ -115,6 +141,7 @@ def get_artifact_bytes(
     *,
     output_path: Optional[str] = None,
     timeout: float = 60.0,
+    api_key: Optional[str] = None,
 ) -> bytes:
     """
     成果物ディレクトリからファイルを1つ取得して bytes を返す（復元はしない）。
@@ -126,7 +153,7 @@ def get_artifact_bytes(
     - output_path を指定すると保存も行う
     """
     data, _used = _get_artifact_bytes_with_used_path(
-        base_url, artifact_dir, filename, timeout=timeout
+        base_url, artifact_dir, filename, timeout=timeout, api_key=api_key
     )
     if output_path is not None:
         with open(output_path, "wb") as f:
@@ -142,6 +169,7 @@ def get_artifact_file(
     *,
     index_spec: Optional[Dict[str, Any]] = None,
     timeout: float = 60.0,
+    api_key: Optional[str] = None,
 ) -> Union[bytes, "pd.DataFrame"]:
     """
     成果物ディレクトリからファイルを1つ取得する。
@@ -156,7 +184,7 @@ def get_artifact_file(
     - それ以外は取得したバイト列を返す
     """
     data, used_relpath = _get_artifact_bytes_with_used_path(
-        base_url, artifact_dir, filename, timeout=timeout
+        base_url, artifact_dir, filename, timeout=timeout, api_key=api_key
     )
     filename = used_relpath
 
@@ -169,8 +197,20 @@ def get_artifact_file(
         return data
 
     # schema/manifest は配置ゆれがあるので両方試す
-    schema = _get_json_fallback(base_url, artifact_dir, ["schema.json", "artifacts/schema.json"], timeout=timeout)
-    manifest = _get_json_fallback(base_url, artifact_dir, ["manifest.json", "artifacts/manifest.json"], timeout=timeout)
+    schema = _get_json_fallback(
+        base_url,
+        artifact_dir,
+        ["schema.json", "artifacts/schema.json"],
+        timeout=timeout,
+        api_key=api_key,
+    )
+    manifest = _get_json_fallback(
+        base_url,
+        artifact_dir,
+        ["manifest.json", "artifacts/manifest.json"],
+        timeout=timeout,
+        api_key=api_key,
+    )
 
     dtype = schema.get("dtype")
     layout = schema.get("layout")

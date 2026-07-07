@@ -7,6 +7,15 @@ from typing import Any, Dict, Optional
 
 import requests
 
+API_KEY_HEADER = "X-API-Key"
+
+
+def _api_key_headers(api_key: Optional[str]) -> Dict[str, str]:
+    key = (api_key or "").strip()
+    if not key:
+        return {}
+    return {API_KEY_HEADER: key}
+
 
 def _post_run(
     base_url: str,
@@ -14,12 +23,14 @@ def _post_run(
     payload: Dict[str, Any],
     compress_request: bool,
     timeout: float,
+    api_key: Optional[str] = None,
     profile_out: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """
     /run を叩いて JSON(dict) を返す。HTTPエラーは例外。
     """
     url = base_url.rstrip("/") + "/run"
+    auth_headers = _api_key_headers(api_key)
     req_raw: bytes | None = None
     req_gz: bytes | None = None
     t_serialize_ms = 0.0
@@ -44,6 +55,7 @@ def _post_run(
                 "Content-Type": "application/json",
                 "Content-Encoding": "gzip",
                 "Accept": "application/json",
+                **auth_headers,
             },
             timeout=timeout,
         )
@@ -56,7 +68,7 @@ def _post_run(
         t_serialize_ms = (t1 - t0) * 1000.0
 
         t3 = time.perf_counter()
-        resp = requests.post(url, json=payload, timeout=timeout)
+        resp = requests.post(url, json=payload, headers=auth_headers or None, timeout=timeout)
         t4 = time.perf_counter()
         t_http_ms = (t4 - t3) * 1000.0
 
@@ -86,6 +98,6 @@ def _post_run(
     return out
 
 
-__all__ = ["_post_run"]
+__all__ = ["API_KEY_HEADER", "_api_key_headers", "_post_run"]
 
 
