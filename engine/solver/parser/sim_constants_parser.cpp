@@ -147,6 +147,29 @@ SimulationConstants parseSimulationConstants(const nlohmann::json& config,
             << outConstants.maxInnerIteration;
     });
 
+    // 意味分離: 既定は maxInnerIteration と同じ。任意キーで上書き可。
+    outConstants.maxCouplingIterations = outConstants.maxInnerIteration;
+    outConstants.maxAirconControlIterations = outConstants.maxInnerIteration;
+    if (sim.contains("iteration") && sim["iteration"].is_object()) {
+        const auto& iteration = sim["iteration"];
+        if (iteration.contains("max_coupling") && iteration["max_coupling"].is_number()) {
+            outConstants.maxCouplingIterations = iteration["max_coupling"];
+        }
+        if (iteration.contains("max_aircon_control") && iteration["max_aircon_control"].is_number()) {
+            outConstants.maxAirconControlIterations = iteration["max_aircon_control"];
+        }
+    }
+    if (sim.contains("max_coupling_iteration") && sim["max_coupling_iteration"].is_number()) {
+        outConstants.maxCouplingIterations = sim["max_coupling_iteration"];
+    }
+    if (sim.contains("max_aircon_control_iteration") && sim["max_aircon_control_iteration"].is_number()) {
+        outConstants.maxAirconControlIterations = sim["max_aircon_control_iteration"];
+    }
+    logLine([&](std::ostringstream& oss) {
+        oss << "  最大連成反復回数: " << outConstants.maxCouplingIterations
+            << ", 最大空調制御反復回数: " << outConstants.maxAirconControlIterations;
+    });
+
     // 3ネットワーク連成制御（任意）
     if (sim.contains("coupling")) {
         if (!sim["coupling"].is_object()) {

@@ -54,6 +54,9 @@ struct SimulationConstants {
     // 湿気連成（x/w）の停止判定。0以下なら convergenceTolerance を使用。
     double couplingHumidityTolerance = 0.0;
     double maxInnerIteration;
+    // 内側連成（空気-熱-湿気）と外側空調制御の上限。未設定時は maxInnerIteration と同値。
+    double maxCouplingIterations = 0.0;
+    double maxAirconControlIterations = 0.0;
     // 3ネットワーク連成の有効化（既定ON）
     bool moistureCouplingEnabled = true;
     // 内側反復での緩和係数（0<alpha<=1）。1.0=緩和なし

@@ -1,6 +1,6 @@
 # Refactoring Backlog
 
-最終更新: 2026-04-19
+最終更新: 2026-07-11
 
 この台帳は、`engine/` と `vtsimnx/` の横断リファクタリングを実施順で管理するためのドキュメント。
 「どこから着手すると効果が大きいか」を明確にし、AI実装時の受け入れ条件を揃える。
@@ -31,7 +31,11 @@
 - 実施:
   - `simulation_coupled_step.{h,cpp}`: `CoupledStepData` + `performCoupledStepCalculation`
   - `simulation_coupling_control.{h,cpp}`: 内側収束判定 (`evaluateInnerCoupling`) + ログ組み立て
-  - `simulation_runner.cpp` は外側/内側オーケストレーション中心に整理
+  - 続き（可読化）: `simulation_timestep_result` / `simulation_aircon_iteration` /
+    `simulation_inner_coupling` / `simulation_timestep_state` / `simulation_error` /
+    `simulation_context` へ切り出し。反復上限を `maxCouplingIterations` と
+    `maxAirconControlIterations` に分離（未指定時は `maxInnerIteration` 互換）
+  - `simulation_runner.cpp` は外側オーケストレーション中心に整理
 - 受け入れ条件:
   - 既存ケースで `solver.log` の収束結果が一致（文言差は許容範囲定義）。
   - 性能退行がない（`simulation_total` が +3% 以内）。

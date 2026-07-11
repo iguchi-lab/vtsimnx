@@ -44,7 +44,9 @@ InnerCouplingEval evaluateInnerCoupling(const SimulationConstants& constants,
         }
     }
 
-    if (coupledIter >= static_cast<int>(constants.maxInnerIteration)) {
+    const int maxCoupling = static_cast<int>(
+        constants.maxCouplingIterations > 0 ? constants.maxCouplingIterations : constants.maxInnerIteration);
+    if (coupledIter >= maxCoupling) {
         const double pRatio =
             constants.pressureCalc ? (delta.pressureChange / std::max(1e-30, eval.pressureTol)) : 0.0;
         const double tRatio =

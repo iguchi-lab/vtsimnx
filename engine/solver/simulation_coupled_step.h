@@ -21,6 +21,5 @@ CoupledStepData performCoupledStepCalculation(VentilationNetwork& ventNetwork,
                                               ThermalNetwork& thermalNetwork,
                                               const SimulationConstants& constants,
                                               std::ostream& logs,
-                                              int& totalIterations,
                                               TimingList& timings,
                                               const std::string& meta);

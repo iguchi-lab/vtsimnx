@@ -80,6 +80,9 @@ set(MAIN_SOURCES
     simulation_runner_helpers.cpp
     simulation_coupled_step.cpp
     simulation_coupling_control.cpp
+    simulation_timestep_result.cpp
+    simulation_aircon_iteration.cpp
+    simulation_inner_coupling.cpp
     transport/concentration_solver.cpp
     app/vtsimnx_app.cpp
     output/artifact_io.cpp
@@ -533,6 +536,9 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         simulation_runner_helpers.cpp
         simulation_coupled_step.cpp
         simulation_coupling_control.cpp
+        simulation_timestep_result.cpp
+        simulation_aircon_iteration.cpp
+        simulation_inner_coupling.cpp
         output/artifact_io.cpp
         transport/concentration_solver.cpp
         ${PARSER_SOURCES}

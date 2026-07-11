@@ -10,10 +10,8 @@ CoupledStepData performCoupledStepCalculation(VentilationNetwork& ventNetwork,
                                               ThermalNetwork& thermalNetwork,
                                               const SimulationConstants& constants,
                                               std::ostream& logs,
-                                              int& totalIterations,
                                               TimingList& timings,
                                               const std::string& meta) {
-    (void)totalIterations; // runSimulation 側で反復回数を管理する
     const bool logEnabled = (constants.logVerbosity > 0);
     CoupledStepData step;
 
