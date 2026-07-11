@@ -103,9 +103,14 @@ inline double calcFanFlow(double dp, const EdgeProperties& edgeData) {
     return cond1 * 0.0 + cond2 * flow2 + cond3 * flow3 + cond4 * q_max;
 }
 
-// 固定体積流量枝（type=fixed_flow、または入力で vol が指定された枝）
+// 固定体積流量枝:
+// - type=fixed_flow
+// - JSON 等で vol が指定された枝 (has_prescribed_vol)
+// - C++ 側で vol 系列だけ設定した後方互換ケース
 inline bool isFixedVolumeFlowEdge(const EdgeProperties& edgeData) {
-    return edgeData.type == "fixed_flow" || edgeData.has_prescribed_vol;
+    return edgeData.type == "fixed_flow"
+        || edgeData.has_prescribed_vol
+        || !edgeData.vol.empty();
 }
 
 // 統一風量計算インターフェース。

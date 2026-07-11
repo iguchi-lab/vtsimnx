@@ -181,8 +181,13 @@ PressureSolver::Impl::TrialResult PressureSolver::Impl::runUltraPreciseTrial(
     options.max_num_iterations = 5000;
 
     // Ceres 相対停止のみを緩和。最終物理合否（ventilationTolerance）とは分離する。
+    // referenceCost は目的関数値（≈ ½‖r‖²）なので、残差スケールは √(2·cost)。
     const auto tols = ventilation::makePressureSolverTolerances(constants);
-    const double tolFactor = std::max(1.0, referenceCost / std::max(tols.massBalanceMaxAbs, 1e-30) * 0.1);
+    const double residualScale = std::sqrt(std::max(0.0, 2.0 * referenceCost));
+    const double tolFactor = std::clamp(
+        residualScale / std::max(tols.massBalanceMaxAbs, 1e-30),
+        1.0,
+        1e3);
     ventilation::applyCeresStopTolerances(options, constants, tolFactor, tolFactor, tolFactor * 10);
     options.jacobi_scaling = true;
     options.use_inner_iterations = true;
@@ -452,6 +457,13 @@ void PressureSolver::Impl::setupStageAProblem(
             problemFB.AddResidualBlock(costG, nullptr, parameterData);
         }
 
+        for (auto v : nonGroupVertices) {
+            const auto& node = graph[v];
+            if (!node.calc_p) continue;
+            addNodeResidual(node.key);
+        }
+
+        // 前回平均圧への弱い正則化（ゲージ固定とは別。流量収支を支配しない重み）。
         std::vector<double> groupMean(superCountA, 0.0);
         std::vector<int> groupCount(superCountA, 0);
         for (int gid = 0; gid < superCountA; ++gid) {
@@ -464,29 +476,31 @@ void PressureSolver::Impl::setupStageAProblem(
                 }
             }
         }
-
         for (const auto& kv : mapping.groupToParamIndex) {
             int gid = kv.first;
             size_t idx = kv.second;
-            double target = (gid >= 0 && gid < superCountA && groupCount[gid] > 0)
-                                ? (groupMean[gid] / static_cast<double>(groupCount[gid]))
-                                : 0.0;
+            if (!(gid >= 0 && gid < superCountA && groupCount[gid] > 0)) {
+                continue;
+            }
+            const double target = groupMean[gid] / static_cast<double>(groupCount[gid]);
             problemFB.AddResidualBlock(
-                PressureConstraints::createSoftAnchorConstraint(idx, target, /*weight=*/1.0, parameterCount),
+                PressureConstraints::createSoftAnchorConstraint(idx, target, /*weight=*/1e-9, parameterCount),
                 nullptr,
                 parameterData);
-        }
-
-        for (auto v : nonGroupVertices) {
-            const auto& node = graph[v];
-            if (!node.calc_p) continue;
-            addNodeResidual(node.key);
         }
     } else {
         for (const auto& nodeName : mapping.nodeNames) {
             addNodeResidual(nodeName);
         }
     }
+
+    // 固定圧境界のない連結成分ごとにゲージを1つだけ固定（全グループへの強固定はしない）。
+    addPressureGaugeAnchors(graph,
+                            mapping.vertexToParamIndexVec,
+                            pressuresFB,
+                            &incidentEdgesByVertex,
+                            problemFB,
+                            /*anchorWeight=*/1.0);
 }
 
 // =============================================================================

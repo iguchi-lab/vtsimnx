@@ -203,6 +203,23 @@ int main() {
     }
 
     // -----------------------------
+    // 後方互換: vol 系列のみ設定（has_prescribed_vol=false）でも固定扱い
+    // -----------------------------
+    {
+        EdgeProperties e{};
+        e.type = "gap";
+        e.a = 0.01;
+        e.n = 1.0;
+        e.vol = {0.3};
+        e.current_vol = 0.3;
+        expectTrue(!e.has_prescribed_vol, "compat: flag may be unset");
+        expectNear(FlowCalculation::calculateUnifiedFlow(10.0, e), 0.3, 0.0,
+                   "compat vol series: Q == current_vol");
+        expectNear(FlowJacobianCommon::calculateJacobian(10.0, e), 0.0, 0.0,
+                   "compat vol series: dQ/dp == 0");
+    }
+
+    // -----------------------------
     // unknown type: fallback numerical derivative should return 0 (Q is 0)
     // -----------------------------
     {
