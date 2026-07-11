@@ -23,7 +23,7 @@ def test_run_returns_fixed_response():
     # API層のテストでは solver をモックして「200でJSONが返ること」を検証する。
     import app.main as main_mod
     import app.services.simulation as sim_svc
-    sim_svc.run_solver = lambda _cfg: {"status": "ok"}  # monkeypatch 相当（依存を増やさない）
+    sim_svc.run_solver = lambda _cfg, **_kw: {"status": "ok"}  # monkeypatch 相当（依存を増やさない）
 
     # /run は raw JSON を builder で正規化/展開してから solver に渡す。
     # builder が通る最小構成の raw config を渡す。
@@ -58,7 +58,7 @@ def test_run_returns_fixed_response():
 def test_run_accepts_gzip_body():
     import app.main as main_mod
     import app.services.simulation as sim_svc
-    sim_svc.run_solver = lambda _cfg: {"status": "ok"}  # mock
+    sim_svc.run_solver = lambda _cfg, **_kw: {"status": "ok"}  # mock
 
     payload = {
         "config": {
@@ -91,7 +91,7 @@ def test_run_accepts_gzip_body():
 def test_run_accepts_gzip_body_with_multi_encoding_header():
     import app.main as main_mod
     import app.services.simulation as sim_svc
-    sim_svc.run_solver = lambda _cfg: {"status": "ok"}  # mock
+    sim_svc.run_solver = lambda _cfg, **_kw: {"status": "ok"}  # mock
 
     payload = {
         "config": {
@@ -123,7 +123,7 @@ def test_run_returns_warning_details_for_unknown_fields():
     # builder が未知フィールドを削除した場合、warnings（文字列）と warning_details（構造化）を返す
     import app.main as main_mod
     import app.services.simulation as sim_svc
-    sim_svc.run_solver = lambda _cfg: {"status": "ok"}  # mock
+    sim_svc.run_solver = lambda _cfg, **_kw: {"status": "ok"}  # mock
 
     payload = {
         "config": {

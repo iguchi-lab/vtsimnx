@@ -64,7 +64,7 @@ def test_run_strip_unknown_returns_warning():
     import app.main as main_mod
     import app.services.simulation as sim_svc
 
-    sim_svc.run_solver = lambda _cfg: {"status": "ok", "artifact_dir": "artifacts.x", "result_files": {}}
+    sim_svc.run_solver = lambda _cfg, **_kw: {"status": "ok", "artifact_dir": "artifacts.x", "result_files": {}}
     with TestClient(app) as client:
         payload = {
             "config": {
@@ -83,7 +83,7 @@ def test_run_error_unknown_returns_422():
     import app.main as main_mod
     import app.services.simulation as sim_svc
 
-    sim_svc.run_solver = lambda _cfg: {"status": "ok"}
+    sim_svc.run_solver = lambda _cfg, **_kw: {"status": "ok"}
     with TestClient(app) as client:
         payload = {
             "config": {

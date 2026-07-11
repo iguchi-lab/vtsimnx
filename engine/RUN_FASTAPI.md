@@ -27,7 +27,8 @@ curl -sS http://127.0.0.1:8000/ping
 ```
 
 公開運用では **TLS 終端（リバースプロキシ等）を前提**とし、`X-API-Key` を平文 HTTP で送らないでください。  
-成果物の TTL / 容量は `VTSIMNX_ARTIFACT_TTL_SEC` 等で制御します（詳細は `docs/api_reference.md`）。
+成果物の TTL / 容量は `VTSIMNX_ARTIFACT_TTL_SEC` 等で制御します（詳細は `docs/api_reference.md`）。  
+ジョブレコードは `VTSIMNX_JOB_TTL_SEC`（既定 24h）と `VTSIMNX_MAX_JOB_RECORDS`（既定 1000）でメモリから prune されます。
 
 開発時のみ:
 

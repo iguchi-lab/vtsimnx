@@ -2,6 +2,11 @@
 非同期ジョブ管理（in-memory + ThreadPoolExecutor）。
 
 ラボ規模運用向け。uvicorn worker=1 を前提とする。
+
+環境変数:
+  VTSIMNX_MAX_WORKERS       ThreadPool 上限（既定 1）
+  VTSIMNX_JOB_TTL_SEC       完了ジョブの保持秒（既定 86400=24h、0 で TTL 無効）
+  VTSIMNX_MAX_JOB_RECORDS   ジョブレコード上限（既定 1000、0 で件数制限無効）
 """
 from __future__ import annotations
 
@@ -22,14 +27,71 @@ from app.solver_runner import terminate_solver
 
 logger = logging.getLogger(__name__)
 
+_TERMINAL = frozenset({"succeeded", "failed", "cancelled"})
+
 
 def _utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _env_int(name: str, default: int) -> int:
+    try:
+        return int(os.getenv(name, str(default)))
+    except ValueError:
+        return default
+
+
 def compute_input_hash(payload: Dict[str, Any]) -> str:
     raw = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(raw).hexdigest()
+
+
+def output_indicates_failure(output: Any) -> bool:
+    """solver / postprocess が error を返したか。"""
+    if not isinstance(output, dict):
+        return False
+    status = output.get("status")
+    if isinstance(status, str) and status.strip().lower() == "error":
+        return True
+    err = output.get("error")
+    if isinstance(err, str) and err.strip():
+        return True
+    if isinstance(err, dict) and err:
+        return True
+    return False
+
+
+def failure_from_output(output: Dict[str, Any], *, run_id: str) -> Dict[str, Any]:
+    """ジョブ API 用の error オブジェクトを組み立てる。"""
+    raw_err = output.get("error")
+    if isinstance(raw_err, dict):
+        code = str(raw_err.get("code") or "solver_error")
+        message = str(raw_err.get("message") or raw_err)
+        err: Dict[str, Any] = {"code": code, "message": message, "run_id": run_id}
+        for k, v in raw_err.items():
+            if k not in err:
+                err[k] = v
+    elif isinstance(raw_err, str) and raw_err.strip():
+        message = raw_err.strip()
+        code = "artifact_quota_exceeded" if "per-run limit" in message else "solver_error"
+        err = {"code": code, "message": message, "run_id": run_id}
+    else:
+        err = {"code": "solver_error", "message": "solver returned status=error", "run_id": run_id}
+    art = output.get("artifact_dir")
+    if isinstance(art, str) and art:
+        err["artifact_dir"] = art
+    return err
+
+
+def _parse_iso_to_epoch(value: Optional[str]) -> Optional[float]:
+    if not value:
+        return None
+    try:
+        # handle trailing Z
+        text = value.replace("Z", "+00:00") if value.endswith("Z") else value
+        return datetime.fromisoformat(text).timestamp()
+    except Exception:
+        return None
 
 
 @dataclass
@@ -67,14 +129,23 @@ class JobRecord:
 
 
 class RunManager:
-    def __init__(self, *, max_workers: Optional[int] = None) -> None:
+    def __init__(
+        self,
+        *,
+        max_workers: Optional[int] = None,
+        job_ttl_sec: Optional[int] = None,
+        max_job_records: Optional[int] = None,
+    ) -> None:
         if max_workers is None:
-            try:
-                max_workers = int(os.getenv("VTSIMNX_MAX_WORKERS", "1"))
-            except ValueError:
-                max_workers = 1
+            max_workers = _env_int("VTSIMNX_MAX_WORKERS", 1)
         max_workers = max(1, int(max_workers))
         self._max_workers = max_workers
+        self._job_ttl_sec = (
+            _env_int("VTSIMNX_JOB_TTL_SEC", 24 * 3600) if job_ttl_sec is None else int(job_ttl_sec)
+        )
+        self._max_job_records = (
+            _env_int("VTSIMNX_MAX_JOB_RECORDS", 1000) if max_job_records is None else int(max_job_records)
+        )
         self._lock = threading.RLock()
         self._jobs: Dict[str, JobRecord] = {}
         self._hash_index: Dict[str, str] = {}  # input_hash -> run_id for queued/running
@@ -84,8 +155,76 @@ class RunManager:
     def max_workers(self) -> int:
         return self._max_workers
 
+    @property
+    def job_count(self) -> int:
+        with self._lock:
+            return len(self._jobs)
+
     def shutdown(self, *, wait: bool = True) -> None:
         self._executor.shutdown(wait=wait, cancel_futures=True)
+
+    def prune_jobs(self, *, now: Optional[float] = None) -> int:
+        """完了ジョブを TTL / 最大件数で削除する。戻り値は削除件数。"""
+        with self._lock:
+            return self._prune_jobs_unlocked(now=now)
+
+    def _prune_jobs_unlocked(self, *, now: Optional[float] = None) -> int:
+        now_ts = time.time() if now is None else now
+        removed = 0
+        ttl = self._job_ttl_sec
+        max_records = self._max_job_records
+
+        if ttl > 0:
+            expired: List[str] = []
+            for rid, job in self._jobs.items():
+                if job.status not in _TERMINAL:
+                    continue
+                finished = _parse_iso_to_epoch(job.finished_at) or _parse_iso_to_epoch(job.created_at)
+                if finished is None:
+                    continue
+                if now_ts - finished > ttl:
+                    expired.append(rid)
+            for rid in expired:
+                self._drop_job_unlocked(rid)
+                removed += 1
+
+        if max_records > 0 and len(self._jobs) > max_records:
+            # 完了済みを古い順に削除（queued/running は残す）
+            finished_jobs: List[tuple[float, str]] = []
+            for rid, job in self._jobs.items():
+                if job.status not in _TERMINAL:
+                    continue
+                finished = _parse_iso_to_epoch(job.finished_at) or _parse_iso_to_epoch(job.created_at) or 0.0
+                finished_jobs.append((finished, rid))
+            finished_jobs.sort(key=lambda x: x[0])
+            overflow = len(self._jobs) - max_records
+            for _ts, rid in finished_jobs:
+                if overflow <= 0:
+                    break
+                self._drop_job_unlocked(rid)
+                removed += 1
+                overflow -= 1
+
+        if removed:
+            logger.info(
+                "job prune audit: removed=%s remaining=%s ttl_sec=%s max_records=%s",
+                removed,
+                len(self._jobs),
+                ttl,
+                max_records,
+            )
+        return removed
+
+    def _drop_job_unlocked(self, run_id: str) -> None:
+        job = self._jobs.pop(run_id, None)
+        if job is None:
+            return
+        if self._hash_index.get(job.input_hash) == run_id:
+            self._hash_index.pop(job.input_hash, None)
+        # 参照を切って GC しやすくする
+        job.request = {}
+        job.result = None
+        job.future = None
 
     def submit(self, request: Dict[str, Any]) -> tuple[JobRecord, bool]:
         """
@@ -94,6 +233,7 @@ class RunManager:
         """
         input_hash = compute_input_hash(request)
         with self._lock:
+            self._prune_jobs_unlocked()
             existing_id = self._hash_index.get(input_hash)
             if existing_id:
                 existing = self._jobs.get(existing_id)
@@ -122,7 +262,7 @@ class RunManager:
             job = self._jobs.get(run_id)
             if job is None:
                 return None
-            if job.status in ("succeeded", "failed", "cancelled"):
+            if job.status in _TERMINAL:
                 return job
             job.cancel_event.set()
             if job.status == "queued":
@@ -144,6 +284,26 @@ class RunManager:
                 return
             job.progress_stage = stage
             job.progress_message = message
+
+    def _finalize_success_or_output_error(self, job: JobRecord, result: SimulationResult) -> None:
+        output = result.output if isinstance(result.output, dict) else {}
+        artifact_dir = output.get("artifact_dir") if isinstance(output.get("artifact_dir"), str) else None
+        job.artifact_dir = artifact_dir
+        payload = {
+            "result": output,
+            "warnings": result.warnings,
+            "warning_details": result.warning_details,
+        }
+        if output_indicates_failure(output):
+            job.status = "failed"
+            job.progress_stage = "failed"
+            job.error = failure_from_output(output, run_id=job.run_id)
+            # 診断用に結果も保持（/result は failed では 500）
+            job.result = payload
+        else:
+            job.status = "succeeded"
+            job.progress_stage = "done"
+            job.result = payload
 
     def _run_job(self, run_id: str) -> None:
         with self._lock:
@@ -192,20 +352,10 @@ class RunManager:
                     job.progress_stage = "cancelled"
                     job.error = {"code": "cancelled", "message": "run cancelled"}
                 else:
-                    job.status = "succeeded"
                     job.finished_at = _utc_now()
-                    job.progress_stage = "done"
-                    job.artifact_dir = (
-                        result.output.get("artifact_dir")
-                        if isinstance(result.output.get("artifact_dir"), str)
-                        else None
-                    )
-                    job.result = {
-                        "result": result.output,
-                        "warnings": result.warnings,
-                        "warning_details": result.warning_details,
-                    }
+                    self._finalize_success_or_output_error(job, result)
                 self._hash_index.pop(job.input_hash, None)
+                self._prune_jobs_unlocked()
         except Exception as e:
             from app.schemas import UnknownFieldError
 
@@ -231,6 +381,14 @@ class RunManager:
                 job.finished_at = _utc_now()
                 job.progress_stage = job.status
                 self._hash_index.pop(job.input_hash, None)
+                self._prune_jobs_unlocked()
+        finally:
+            try:
+                from app.services.artifact_policy import maybe_cleanup_artifacts
+
+                maybe_cleanup_artifacts()
+            except Exception:
+                logger.exception("artifact cleanup after job failed: %s", run_id)
 
 
 _MANAGER: Optional[RunManager] = None
@@ -255,6 +413,8 @@ __all__ = [
     "JobRecord",
     "RunManager",
     "compute_input_hash",
+    "failure_from_output",
     "get_run_manager",
+    "output_indicates_failure",
     "set_run_manager",
 ]

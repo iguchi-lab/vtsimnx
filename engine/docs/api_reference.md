@@ -44,11 +44,21 @@
 | 環境変数 | 既定 | 意味 |
 |---|---|---|
 | `VTSIMNX_ARTIFACT_TTL_SEC` | 604800（7日） | 成果物 TTL（0 で無効） |
-| `VTSIMNX_ARTIFACT_MAX_BYTES_PER_RUN` | 2GiB | run あたり上限（0 で無効） |
+| `VTSIMNX_ARTIFACT_MAX_BYTES_PER_RUN` | 2GiB | run あたり上限（0 で無効）。超過時は巨大結果を削除しログ/manifest/error.json のみ残す |
 | `VTSIMNX_ARTIFACT_MAX_TOTAL_BYTES` | 50GiB | work 全体上限（0 で無効） |
+| `VTSIMNX_ARTIFACT_CLEANUP_MIN_INTERVAL_SEC` | 300 | 稼働中 cleanup の最短間隔（run 完了後に debounce 実行） |
 | `VTSIMNX_ARTIFACT_STORE` | `local` | 保存先（現状 local のみ。抽象化済み） |
 
-起動/終了時に TTL・全体上限に基づき削除します。実行中 run の成果物は削除対象外です。認証有効時は成果物に `owner_key_id` が付き、他キーからの取得は 403 になります。
+起動/終了時に加え、**run 完了後**にも TTL・全体上限に基づき掃除します（最短間隔で debounce）。実行中 run の成果物は削除対象外です。認証有効時は成果物に `owner_key_id` が付き、他キーからの取得は 403 になります。
+
+### ジョブレコード保持
+
+| 環境変数 | 既定 | 意味 |
+|---|---|---|
+| `VTSIMNX_JOB_TTL_SEC` | 86400（24h） | 完了ジョブのメモリ保持 TTL（0 で無効） |
+| `VTSIMNX_MAX_JOB_RECORDS` | 1000 | ジョブレコード上限（0 で無効）。超過時は完了済みを古い順に削除 |
+
+solver が `status=error` / `error` を返した場合、ジョブ API 上は **`failed`** になります（`succeeded` にはしません）。
 
 ---
 

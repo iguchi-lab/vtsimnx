@@ -31,6 +31,7 @@ from app.services.artifact_policy import (
     enforce_run_size_limit,
     mark_run_active,
     mark_run_inactive,
+    maybe_cleanup_artifacts,
     write_owner_metadata,
 )
 logger = logging.getLogger(__name__)
@@ -51,16 +52,13 @@ class SimulationResult:
 
 
 def _call_run_solver(built_config: Dict[str, Any], *, run_id: str, cancel_event: Optional[Any]) -> Dict[str, Any]:
-    fn = run_solver
-    try:
-        return fn(
-            built_config,
-            run_id=run_id,
-            write_manifest=False,
-            cancel_event=cancel_event,
-        )
-    except TypeError:
-        return fn(built_config)
+    """現行シグネチャで呼ぶ。TypeError フォールバックは行わない（二重実行・原因隠蔽を防ぐ）。"""
+    return run_solver(
+        built_config,
+        run_id=run_id,
+        write_manifest=False,
+        cancel_event=cancel_event,
+    )
 
 
 def execute_simulation(
@@ -176,6 +174,10 @@ def execute_simulation(
     finally:
         mark_run_inactive(rid)
         cleanup_run_workdir(rid, keep_artifacts=keep_artifacts)
+        try:
+            maybe_cleanup_artifacts()
+        except Exception:
+            logger.exception("artifact cleanup after simulation failed: %s", rid)
 
 
 def prepare_request_config(req: SimulationRequest) -> tuple[Dict[str, Any], List[str], List[Dict[str, Any]]]:

@@ -1,10 +1,11 @@
 """Artifact ストレージ抽象とローカル実装・保持ポリシー。
 
 環境変数:
-  VTSIMNX_ARTIFACT_TTL_SEC           成果物 TTL（秒）。0 で無効（既定 604800=7日）
-  VTSIMNX_ARTIFACT_MAX_BYTES_PER_RUN run あたり最大バイト（0 で無効、既定 2GiB）
-  VTSIMNX_ARTIFACT_MAX_TOTAL_BYTES   work 全体上限（0 で無効、既定 50GiB）
-  VTSIMNX_ARTIFACT_STORE             local（既定）。将来 s3 等を追加予定
+  VTSIMNX_ARTIFACT_TTL_SEC                  成果物 TTL（秒）。0 で無効（既定 604800=7日）
+  VTSIMNX_ARTIFACT_MAX_BYTES_PER_RUN        run あたり最大バイト（0 で無効、既定 2GiB）
+  VTSIMNX_ARTIFACT_MAX_TOTAL_BYTES          work 全体上限（0 で無効、既定 50GiB）
+  VTSIMNX_ARTIFACT_CLEANUP_MIN_INTERVAL_SEC 稼働中 cleanup の最短間隔（既定 300）
+  VTSIMNX_ARTIFACT_STORE                    local（既定）。将来 s3 等を追加予定
 """
 from __future__ import annotations
 
@@ -17,13 +18,25 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterable, Iterator, Optional, Protocol
+from typing import Iterator, Optional, Protocol
 
 logger = logging.getLogger(__name__)
 
 _cleanup_lock = threading.RLock()
 _active_runs: set[str] = set()
 _active_lock = threading.Lock()
+_last_cleanup_ts = 0.0
+
+# 容量超過時に残す診断用ファイル
+_DIAGNOSTIC_NAMES = frozenset(
+    {
+        "manifest.json",
+        "owner.json",
+        "error.json",
+        "solver.log",
+        "builder.log",
+    }
+)
 
 
 def mark_run_active(run_id: str) -> None:
@@ -46,6 +59,7 @@ class ArtifactPolicy:
     ttl_sec: int
     max_bytes_per_run: int
     max_total_bytes: int
+    cleanup_min_interval_sec: int = 300
 
     @classmethod
     def from_env(cls) -> "ArtifactPolicy":
@@ -59,6 +73,7 @@ class ArtifactPolicy:
             ttl_sec=_int("VTSIMNX_ARTIFACT_TTL_SEC", 7 * 24 * 3600),
             max_bytes_per_run=_int("VTSIMNX_ARTIFACT_MAX_BYTES_PER_RUN", 2 * 1024**3),
             max_total_bytes=_int("VTSIMNX_ARTIFACT_MAX_TOTAL_BYTES", 50 * 1024**3),
+            cleanup_min_interval_sec=_int("VTSIMNX_ARTIFACT_CLEANUP_MIN_INTERVAL_SEC", 300),
         )
 
 
@@ -88,6 +103,85 @@ def _dir_size(path: Path) -> int:
     except OSError:
         return total
     return total
+
+
+def _is_diagnostic_file(path: Path) -> bool:
+    name = path.name
+    if name in _DIAGNOSTIC_NAMES:
+        return True
+    if path.suffix.lower() == ".log":
+        return True
+    return False
+
+
+def trim_run_artifacts_to_diagnostics(
+    artifact_path: Path,
+    *,
+    reason: str,
+) -> dict[str, int | str]:
+    """
+    巨大結果を削除し、ログ・manifest・owner・error.json だけ残す。
+    ディスク保護と診断性のバランス用。
+    """
+    removed_files = 0
+    freed_bytes = 0
+    if not artifact_path.is_dir():
+        return {"removed_files": 0, "freed_bytes": 0, "reason": reason}
+
+    try:
+        for p in sorted(artifact_path.rglob("*"), reverse=True):
+            if not p.is_file():
+                continue
+            if _is_diagnostic_file(p):
+                continue
+            try:
+                sz = p.stat().st_size
+            except OSError:
+                sz = 0
+            try:
+                p.unlink()
+                removed_files += 1
+                freed_bytes += sz
+            except OSError as e:
+                logger.warning("failed to trim artifact file %s: %s", p, e)
+
+        # 空ディレクトリ掃除（artifact 直下以外）
+        for p in sorted(artifact_path.rglob("*"), reverse=True):
+            if p.is_dir():
+                try:
+                    next(p.iterdir())
+                except StopIteration:
+                    try:
+                        p.rmdir()
+                    except OSError:
+                        pass
+                except OSError:
+                    pass
+
+        err_path = artifact_path / "error.json"
+        payload = {
+            "code": "artifact_quota_exceeded",
+            "message": reason,
+            "trimmed": True,
+            "removed_files": removed_files,
+            "freed_bytes": freed_bytes,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        }
+        try:
+            err_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        except OSError as e:
+            logger.warning("failed to write error.json: %s", e)
+    except OSError as e:
+        logger.warning("trim_run_artifacts_to_diagnostics failed: %s", e)
+
+    logger.info(
+        "artifact trim audit: path=%s removed_files=%s freed_bytes=%s reason=%s",
+        artifact_path,
+        removed_files,
+        freed_bytes,
+        reason,
+    )
+    return {"removed_files": removed_files, "freed_bytes": freed_bytes, "reason": reason}
 
 
 class LocalArtifactStore:
@@ -172,15 +266,18 @@ def get_artifact_store(work_root: Path | None = None) -> LocalArtifactStore:
 
 
 def enforce_run_size_limit(artifact_path: Path, *, policy: ArtifactPolicy | None = None) -> None:
-    """run 完了後に容量超過ならエラー（呼び出し側で HTTP 化）。"""
+    """
+    run 完了後に容量超過なら巨大ファイルを trim し、RuntimeError を送出する。
+    ログ / manifest / owner / error.json は残す。
+    """
     pol = policy or ArtifactPolicy.from_env()
     if pol.max_bytes_per_run <= 0:
         return
     size = _dir_size(artifact_path)
     if size > pol.max_bytes_per_run:
-        raise RuntimeError(
-            f"artifact exceeds per-run limit: {size} > {pol.max_bytes_per_run} bytes"
-        )
+        reason = f"artifact exceeds per-run limit: {size} > {pol.max_bytes_per_run} bytes"
+        trim_run_artifacts_to_diagnostics(artifact_path, reason=reason)
+        raise RuntimeError(reason)
 
 
 def cleanup_artifacts(
@@ -198,9 +295,12 @@ def cleanup_artifacts(
     now_ts = time.time() if now is None else now
     deleted_ttl = 0
     deleted_quota = 0
+    bytes_before = 0
+    bytes_after = 0
 
     with _cleanup_lock:
         items = list(st.iter_artifacts())
+        bytes_before = sum(st.dir_bytes(p) for _, p, _ in items)
         # TTL
         if pol.ttl_sec > 0:
             for name, path, mtime in items:
@@ -226,7 +326,59 @@ def cleanup_artifacts(
                         total -= sz
                         deleted_quota += 1
 
-    return {"deleted_ttl": deleted_ttl, "deleted_quota": deleted_quota}
+        bytes_after = sum(st.dir_bytes(p) for _, p, _ in st.iter_artifacts())
+
+    stats = {
+        "deleted_ttl": deleted_ttl,
+        "deleted_quota": deleted_quota,
+        "bytes_before": bytes_before,
+        "bytes_after": bytes_after,
+    }
+    if deleted_ttl or deleted_quota:
+        logger.info(
+            "artifact cleanup audit: deleted_ttl=%s deleted_quota=%s bytes_before=%s bytes_after=%s",
+            deleted_ttl,
+            deleted_quota,
+            bytes_before,
+            bytes_after,
+        )
+    return stats
+
+
+def maybe_cleanup_artifacts(
+    store: ArtifactStore | None = None,
+    *,
+    policy: ArtifactPolicy | None = None,
+    force: bool = False,
+) -> dict[str, int | bool]:
+    """
+    稼働中の軽量 cleanup。最短間隔未満ならスキップする（debounce）。
+    run 完了後などから呼ぶ。
+    """
+    global _last_cleanup_ts
+    pol = policy or ArtifactPolicy.from_env()
+    interval = max(0, int(pol.cleanup_min_interval_sec))
+    now = time.time()
+    with _cleanup_lock:
+        if not force and interval > 0 and (now - _last_cleanup_ts) < interval:
+            return {
+                "skipped": True,
+                "deleted_ttl": 0,
+                "deleted_quota": 0,
+                "bytes_before": 0,
+                "bytes_after": 0,
+            }
+        _last_cleanup_ts = now
+
+    stats = cleanup_artifacts(store, policy=pol, now=now)
+    return {"skipped": False, **stats}
+
+
+def reset_cleanup_debounce_for_tests() -> None:
+    """テスト用に debounce 時刻をリセットする。"""
+    global _last_cleanup_ts
+    with _cleanup_lock:
+        _last_cleanup_ts = 0.0
 
 
 def write_owner_metadata(artifact_path: Path, *, key_id: str | None, run_id: str | None) -> None:

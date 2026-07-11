@@ -36,7 +36,7 @@ def test_run_accepts_api_key_when_env_set(monkeypatch):
     import app.services.simulation as sim_svc
 
     monkeypatch.setenv("VTSIMNX_API_KEY", "secret-token")
-    sim_svc.run_solver = lambda _cfg: {"status": "ok"}
+    sim_svc.run_solver = lambda _cfg, **_kw: {"status": "ok"}
     client = TestClient(app)
 
     payload = {
@@ -67,7 +67,7 @@ def test_run_accepts_any_key_from_api_keys_env(monkeypatch):
 
     monkeypatch.delenv("VTSIMNX_API_KEY", raising=False)
     monkeypatch.setenv("VTSIMNX_API_KEYS", "user-a-key, user-b-key")
-    sim_svc.run_solver = lambda _cfg: {"status": "ok"}
+    sim_svc.run_solver = lambda _cfg, **_kw: {"status": "ok"}
     client = TestClient(app)
 
     payload = {
@@ -96,7 +96,7 @@ def test_run_merges_single_and_multi_key_env(monkeypatch):
 
     monkeypatch.setenv("VTSIMNX_API_KEY", "legacy-key")
     monkeypatch.setenv("VTSIMNX_API_KEYS", "shared-key")
-    sim_svc.run_solver = lambda _cfg: {"status": "ok"}
+    sim_svc.run_solver = lambda _cfg, **_kw: {"status": "ok"}
     client = TestClient(app)
 
     payload = {

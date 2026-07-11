@@ -28,7 +28,7 @@ MIN_CFG = {
 def _mock_solver(_unused=None):
     import app.services.simulation as sim_svc
 
-    sim_svc.run_solver = lambda _cfg: {
+    sim_svc.run_solver = lambda _cfg, **_kw: {
         "status": "ok",
         "artifact_dir": "artifacts.mock",
         "result_files": {},
@@ -73,7 +73,7 @@ def test_runs_result_not_ready_returns_409():
     started = threading.Event()
     release = threading.Event()
 
-    def slow_solver(_cfg):
+    def slow_solver(_cfg, **_kw):
         started.set()
         release.wait(timeout=5)
         return {"status": "ok", "artifact_dir": "artifacts.slow", "result_files": {}}
@@ -99,7 +99,7 @@ def test_runs_cancel_queued(monkeypatch):
     block = threading.Event()
     started = threading.Event()
 
-    def blocking_solver(_cfg):
+    def blocking_solver(_cfg, **_kw):
         started.set()
         block.wait(timeout=10)
         return {"status": "ok", "artifact_dir": "artifacts.block", "result_files": {}}
@@ -129,7 +129,7 @@ def test_runs_duplicate_hash_returns_same_run_id():
 
     gate = threading.Event()
 
-    def slow(_cfg):
+    def slow(_cfg, **_kw):
         gate.wait(timeout=5)
         return {"status": "ok", "artifact_dir": "artifacts.dup", "result_files": {}}
 
