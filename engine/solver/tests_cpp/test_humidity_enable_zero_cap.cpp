@@ -12,6 +12,10 @@
 #include "network/humidity_network.h"
 #include "network/thermal_network.h"
 #include "network/ventilation_network.h"
+#include "simulation_coupled_step.h"
+#include "simulation_error.h"
+#include "simulation_inner_coupling.h"
+#include "simulation_timestep_state.h"
 #include "types/common_types.h"
 
 namespace {
@@ -295,6 +299,97 @@ int main() {
         }
 
         // ------------------------------------------------------------------
+        // ゼロ容量 + 発湿のみ（流出なし）→ 有限定常解なし → 未収束・グラフ不変
+        // ------------------------------------------------------------------
+        {
+            constexpr double g = 1.0e-4;
+            auto room = makeNode("ROOM", true, 0.0, 0.008);
+            room.moisture_capacity = 0.0;
+            room.v = 0.0;
+            auto voidN = makeNode("VOID", false, 0.0, 0.0);
+            std::vector<VertexProperties> nodes = {room, voidN};
+            std::vector<EdgeProperties> vent = {
+                makeVent("VOID->ROOM", "VOID", "ROOM", 0.0, g),
+            };
+            std::vector<EdgeProperties> th;
+            VentilationNetwork ventNet;
+            ThermalNetwork thermal;
+            HumidityNetwork humidity;
+            ventNet.buildFromData(nodes, vent, constants, logs);
+            thermal.buildFromData(nodes, th, vent, constants, logs);
+            humidity.invalidateCaches();
+            for (auto e : boost::make_iterator_range(boost::edges(ventNet.getGraph()))) {
+                ventNet.getGraph()[e].flow_rate = 0.0;
+                ventNet.getGraph()[e].current_humidity_generation = g;
+                ventNet.getGraph()[e].current_enabled = true;
+            }
+
+            const double xBefore = thermal.getGraph()[thermal.getKeyToVertex().at("ROOM")].current_x;
+            const auto stats = core::humidity::updateHumidityIfEnabled(
+                constants, ventNet, thermal.getGraph(),
+                static_cast<const ThermalNetwork&>(thermal).nodeStateView(), humidity,
+                {}, logs, timings, "zero-cap-gen-only");
+            expectTrue(!stats.converged, "zero-cap-gen-only: not converged");
+            expectTrue(!stats.updated, "zero-cap-gen-only: not updated");
+            expectNear(thermal.getGraph()[thermal.getKeyToVertex().at("ROOM")].current_x,
+                       xBefore, 0.0, "zero-cap-gen-only: graph unchanged");
+        }
+
+        // ------------------------------------------------------------------
+        // 同一 Graph オブジェクト・同規模再構築でも topologyRevision でキャッシュ無効化
+        // （humidity.invalidateCaches() を呼ばない）
+        // ------------------------------------------------------------------
+        {
+            SimulationConstants c = constants;
+            c.temperatureCalc = true;
+            auto a1 = makeNode("A", true, 0.0, 0.020);
+            a1.moisture_capacity = 0.0;
+            auto b1 = makeNode("B", false, 0.0, 0.005);
+            b1.moisture_capacity = 0.0;
+            std::vector<VertexProperties> nodes1 = {a1, b1};
+            std::vector<EdgeProperties> th1 = {makeMoistureLink("A-B", "A", "B", 0.02)};
+            std::vector<EdgeProperties> vent;
+
+            VentilationNetwork ventNet;
+            ThermalNetwork thermal;
+            HumidityNetwork humidity;
+            ventNet.buildFromData(nodes1, vent, c, logs);
+            thermal.buildFromData(nodes1, th1, vent, c, logs);
+            // 明示 invalidate なしで初回実行 → キャッシュ構築
+            {
+                const auto stats = core::humidity::updateHumidityIfEnabled(
+                    c, ventNet, thermal.getGraph(),
+                    static_cast<const ThermalNetwork&>(thermal).nodeStateView(), humidity,
+                    {}, logs, timings, "cache-rev-1");
+                expectTrue(stats.converged && stats.updated, "cache-rev-1: updated");
+                expectNear(thermal.getGraph()[thermal.getKeyToVertex().at("A")].current_x,
+                           0.005, 1e-10, "cache-rev-1: xA");
+            }
+            const auto rev1 = thermal.getTopologyRevision();
+
+            // 同数ノード・枝だがキーを入れ替え、固定境界湿度を変える
+            auto a2 = makeNode("A", true, 0.0, 0.030);
+            a2.moisture_capacity = 0.0;
+            auto b2 = makeNode("B", false, 0.0, 0.015);
+            b2.moisture_capacity = 0.0;
+            std::vector<VertexProperties> nodes2 = {a2, b2};
+            std::vector<EdgeProperties> th2 = {makeMoistureLink("A-B", "A", "B", 0.02)};
+            ventNet.buildFromData(nodes2, vent, c, logs);
+            thermal.buildFromData(nodes2, th2, vent, c, logs);
+            expectTrue(thermal.getTopologyRevision() != rev1, "cache-rev: topologyRevision bumps");
+            // humidity.invalidateCaches() を呼ばない — revision で検出されること
+            {
+                const auto stats = core::humidity::updateHumidityIfEnabled(
+                    c, ventNet, thermal.getGraph(),
+                    static_cast<const ThermalNetwork&>(thermal).nodeStateView(), humidity,
+                    {}, logs, timings, "cache-rev-2");
+                expectTrue(stats.converged && stats.updated, "cache-rev-2: updated");
+                expectNear(thermal.getGraph()[thermal.getKeyToVertex().at("A")].current_x,
+                           0.015, 1e-10, "cache-rev-2: uses rebuilt graph, not stale cache");
+            }
+        }
+
+        // ------------------------------------------------------------------
         // 負風量の湿度移流（向き反転）
         // ------------------------------------------------------------------
         {
@@ -328,6 +423,108 @@ int main() {
             // 1ステップで SRC 湿度側へ寄る（完全平衡ではない）
             expectTrue(thermal.getGraph()[thermal.getKeyToVertex().at("ROOM")].current_x > 0.0,
                        "neg-flow: room humidity increases from SRC");
+        }
+
+        // ------------------------------------------------------------------
+        // runDecoupledHumidityStep / runInnerCoupling が HumidityNotConverged を送出
+        // ------------------------------------------------------------------
+        {
+            constexpr double g = 1.0e-4;
+            auto room = makeNode("ROOM", true, 0.0, 0.008);
+            room.moisture_capacity = 0.0;
+            room.v = 0.0;
+            auto voidN = makeNode("VOID", false, 0.0, 0.0);
+            std::vector<VertexProperties> nodes = {room, voidN};
+            std::vector<EdgeProperties> vent = {
+                makeVent("VOID->ROOM", "VOID", "ROOM", 0.0, g),
+            };
+            std::vector<EdgeProperties> th;
+
+            auto setupNetworks = [&](VentilationNetwork& ventNet, ThermalNetwork& thermal,
+                                     HumidityNetwork& humidity, const SimulationConstants& c) {
+                ventNet.buildFromData(nodes, vent, c, logs);
+                thermal.buildFromData(nodes, th, vent, c, logs);
+                humidity.invalidateCaches();
+                for (auto e : boost::make_iterator_range(boost::edges(ventNet.getGraph()))) {
+                    ventNet.getGraph()[e].flow_rate = 0.0;
+                    ventNet.getGraph()[e].current_humidity_generation = g;
+                    ventNet.getGraph()[e].current_enabled = true;
+                }
+            };
+
+            // 非連成経路
+            {
+                SimulationConstants c = constants;
+                c.humidityCalc = true;
+                c.moistureCouplingEnabled = false;
+                c.pressureCalc = false;
+                c.temperatureCalc = false;
+                VentilationNetwork ventNet;
+                ThermalNetwork thermal;
+                HumidityNetwork humidity;
+                setupNetworks(ventNet, thermal, humidity, c);
+                const double xBefore =
+                    thermal.getGraph()[thermal.getKeyToVertex().at("ROOM")].current_x;
+
+                simulation::InnerCouplingContext ctx{
+                    ventNet, thermal, humidity, c, logs, timings, "decoupled-hum-fail"};
+                const auto initial =
+                    simulation::detail::captureTimestepInitialState(thermal, c.humidityCalc);
+                CoupledStepData step;
+                bool threw = false;
+                try {
+                    simulation::runDecoupledHumidityStep(ctx, initial, step, 0);
+                } catch (const simulation::Error& e) {
+                    threw = true;
+                    expectTrue(e.code() == simulation::ErrorCode::HumidityNotConverged,
+                               "decoupled: HumidityNotConverged code");
+                    expectTrue(std::string(simulation::toErrorCodeString(e.code())) ==
+                                   "humidity_not_converged",
+                               "decoupled: api error string");
+                }
+                expectTrue(threw, "decoupled: must throw");
+                expectNear(thermal.getGraph()[thermal.getKeyToVertex().at("ROOM")].current_x,
+                           xBefore, 0.0, "decoupled: graph unchanged");
+            }
+
+            // 連成経路（湿気のみでも内側ループで湿気ソルバが走る）
+            {
+                SimulationConstants c = constants;
+                c.humidityCalc = true;
+                c.moistureCouplingEnabled = true;
+                c.pressureCalc = false;
+                c.temperatureCalc = false;
+                c.logVerbosity = 1; // 停止ログ経路も通す
+                VentilationNetwork ventNet;
+                ThermalNetwork thermal;
+                HumidityNetwork humidity;
+                setupNetworks(ventNet, thermal, humidity, c);
+                const double xBefore =
+                    thermal.getGraph()[thermal.getKeyToVertex().at("ROOM")].current_x;
+
+                simulation::InnerCouplingContext ctx{
+                    ventNet, thermal, humidity, c, logs, timings, "coupled-hum-fail"};
+                const auto initial =
+                    simulation::detail::captureTimestepInitialState(thermal, c.humidityCalc);
+                CoupledStepData step;
+                int totalIterations = 0;
+                bool threw = false;
+                try {
+                    simulation::runInnerCoupling(ctx, true, 0, initial, step, totalIterations);
+                } catch (const simulation::Error& e) {
+                    threw = true;
+                    expectTrue(e.code() == simulation::ErrorCode::HumidityNotConverged,
+                               "coupled: HumidityNotConverged code");
+                    expectTrue(std::string(simulation::toErrorCodeString(e.code())) ==
+                                   "humidity_not_converged",
+                               "coupled: api error string");
+                }
+                expectTrue(threw, "coupled: must throw");
+                expectNear(thermal.getGraph()[thermal.getKeyToVertex().at("ROOM")].current_x,
+                           xBefore, 0.0, "coupled: graph unchanged");
+                expectTrue(logs.str().find("湿気ソルバ未収束(停止)") != std::string::npos,
+                           "coupled: stop log message");
+            }
         }
 
         std::cout << "[OK] all tests passed\n";

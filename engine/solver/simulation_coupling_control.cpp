@@ -82,7 +82,7 @@ void logHumiditySolverNotConverged(std::ostream& logs,
     if (!logEnabled || stats.converged) return;
     writeLog(
         logs,
-        "湿気ソルバ未収束(内側反復継続): iter=" + std::to_string(stats.iterations) +
+        "湿気ソルバ未収束(停止): iter=" + std::to_string(stats.iterations) +
             ", relativeResidual=" + std::to_string(stats.finalRelativeResidual) +
             ", active=" + std::to_string(stats.activeVertices));
 }

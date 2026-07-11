@@ -482,6 +482,10 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         network/thermal_network_outputs.cpp
         network/humidity_network.cpp
         network/humidity_network_outputs.cpp
+        simulation_inner_coupling.cpp
+        simulation_coupled_step.cpp
+        simulation_coupling_control.cpp
+        simulation_runner_helpers.cpp
         ${VENTILATION_PRESSURE_SOURCES}
         core/thermal/thermal_solver.cpp
         core/thermal/thermal_solver_linear_direct.cpp

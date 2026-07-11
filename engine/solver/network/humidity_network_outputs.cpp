@@ -52,6 +52,7 @@ void HumidityNetwork::invalidateCaches() {
     cachedGraphPtr_ = nullptr;
     cachedNumVertices_ = 0;
     cachedNumEdges_ = 0;
+    cachedTopologyRevision_ = 0;
     nodeKeyToVertex.clear();
     outputCacheInitialized = false;
     outputVerticesOrdered.clear();

@@ -76,8 +76,10 @@ public:
     const Graph& getGraph() const { return graph; }
     Graph& getGraph() { return graph; }
     const std::unordered_map<std::string, Vertex>& getKeyToVertex() const { return keyToVertex; }
-    ConstNodeStateView nodeStateView() const { return ConstNodeStateView{graph, keyToVertex}; }
-    NodeStateView nodeStateView() { return NodeStateView{graph, keyToVertex}; }
+    ConstNodeStateView nodeStateView() const {
+        return ConstNodeStateView{graph, keyToVertex, topologyRevision_};
+    }
+    NodeStateView nodeStateView() { return NodeStateView{graph, keyToVertex, topologyRevision_}; }
 
     // ノード・エッジ操作
     Vertex addNode(const VertexProperties& node);

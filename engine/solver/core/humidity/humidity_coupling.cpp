@@ -100,11 +100,12 @@ SolveStats solveHumidityImplicitStep(const Graph& tGraph,
             // (outSum + Σk) x_i - Σ(m_in x_src) - Σ(k x_neighbor) = generation
             const bool hasFlow = (terms.outSum[i] > 0.0) || !terms.inflow[i].empty();
             const bool hasLinks = !terms.moistureLinks[i].empty();
-            if (!hasFlow && !hasLinks) {
-                // 移流も湿気リンクもなければ現状態を保持
+            if (!hasFlow && !hasLinks && g == 0.0) {
+                // 移流・湿気リンク・発湿がすべてなければ現状態を保持
                 trips.emplace_back(r, r, 1.0);
                 b[r] = xOld[i];
             } else {
+                // 発湿のみ（流出なし）も diag=0,b=g の特異系として未収束へ回す
                 double diag = terms.outSum[i];
                 rhs = g;
                 for (const auto& in : terms.inflow[i]) {
@@ -115,7 +116,7 @@ SolveStats solveHumidityImplicitStep(const Graph& tGraph,
                     diag += k;
                     addCoeff(r, lk.first, -k, rhs);
                 }
-                // diag==0 は特異（流入のみ・流出なし等）。解不能として失敗側へ回すため 0 のまま置く。
+                // diag==0 は特異（流入のみ・流出なし・発湿のみ等）。解不能として失敗側へ回すため 0 のまま置く。
                 trips.emplace_back(r, r, diag);
                 b[r] = rhs;
             }

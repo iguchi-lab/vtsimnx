@@ -92,7 +92,8 @@ void HumidityNetwork::ensureNodeIndex(ConstNodeStateView nodeState) const {
     if (nodeIndexInitialized &&
         cachedGraphPtr_ == ptr &&
         cachedNumVertices_ == nV &&
-        cachedNumEdges_ == nE) {
+        cachedNumEdges_ == nE &&
+        cachedTopologyRevision_ == nodeState.topologyRevision) {
         return;
     }
 
@@ -105,6 +106,7 @@ void HumidityNetwork::ensureNodeIndex(ConstNodeStateView nodeState) const {
     cachedGraphPtr_ = ptr;
     cachedNumVertices_ = nV;
     cachedNumEdges_ = nE;
+    cachedTopologyRevision_ = nodeState.topologyRevision;
     nodeIndexInitialized = true;
     // グラフが変わった場合は出力キャッシュも無効化
     outputCacheInitialized = false;
