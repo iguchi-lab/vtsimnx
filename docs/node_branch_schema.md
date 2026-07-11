@@ -111,7 +111,7 @@
 | `diameter` | 水力直径 | number | m, `pressure_loss` 用 |
 | `zeta_total` | 局所損失係数合計 | number | `pressure_loss` 用（任意） |
 | `eta` | 除塵効率 | number | - |
-| `humidity_generation` | 発湿源 | number \| number[] | g/s（※元メモ表記: `humitidy_generation` は誤字の可能性） |
+| `humidity_generation` | 発湿源 | number \| number[] | g/s |
 | `dust_generation` | 発塵源 | number \| number[] | g/s |
 
 ### Ventilation branches: 例
