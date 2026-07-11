@@ -177,6 +177,9 @@ class RunManager:
                 add_surface_radiation_exclude_glass=req.get("add_surface_radiation_exclude_glass"),
                 progress_cb=lambda stage, msg: self._set_progress(run_id, stage, msg),
                 cancel_event=cancel_event,
+                unknown_keys=str(req.get("unknown_keys") or "strip"),
+                initial_warnings=req.get("initial_warnings") or [],
+                initial_warning_details=req.get("initial_warning_details") or [],
             )
             with self._lock:
                 job = self._jobs.get(run_id)
@@ -203,6 +206,8 @@ class RunManager:
                     }
                 self._hash_index.pop(job.input_hash, None)
         except Exception as e:
+            from app.schemas import UnknownFieldError
+
             logger.exception("run job failed: %s", run_id)
             with self._lock:
                 job = self._jobs.get(run_id)
@@ -211,6 +216,14 @@ class RunManager:
                 if job.cancel_event.is_set() or "cancelled" in str(e).lower():
                     job.status = "cancelled"
                     job.error = {"code": "cancelled", "message": str(e)}
+                elif isinstance(e, UnknownFieldError):
+                    job.status = "failed"
+                    job.error = {
+                        "code": "unknown_field",
+                        "message": str(e),
+                        "details": e.details,
+                        "run_id": run_id,
+                    }
                 else:
                     job.status = "failed"
                     job.error = {"code": "internal_error", "message": str(e), "run_id": run_id}

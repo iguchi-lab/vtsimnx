@@ -151,13 +151,28 @@ def test_run_returns_structured_400_on_validation_error():
     import app.main as main_mod
 
     original = main_mod.build_config_with_warning_details
+    payload = {
+        "config": {
+            "simulation": {
+                "index": {
+                    "start": "2025-01-01T00:00:00Z",
+                    "end": "2025-01-01T01:00:00Z",
+                    "timestep": 60,
+                    "length": 60,
+                }
+            },
+            "nodes": [{"key": "N1"}],
+            "ventilation_branches": [],
+            "thermal_branches": [],
+        }
+    }
 
     def _raise_validation_error(*_args, **_kwargs):
         raise main_mod.ValidationError("熱ブランチ A->B の'target'のノード 'B' が存在しません")
 
     main_mod.build_config_with_warning_details = _raise_validation_error
     try:
-        resp = client.post("/run", json={"config": {}})
+        resp = client.post("/run", json=payload)
     finally:
         main_mod.build_config_with_warning_details = original
 
@@ -173,13 +188,28 @@ def test_run_returns_structured_400_on_builder_value_error():
     import app.main as main_mod
 
     original = main_mod.build_config_with_warning_details
+    payload = {
+        "config": {
+            "simulation": {
+                "index": {
+                    "start": "2025-01-01T00:00:00Z",
+                    "end": "2025-01-01T01:00:00Z",
+                    "timestep": 60,
+                    "length": 60,
+                }
+            },
+            "nodes": [{"key": "N1"}],
+            "ventilation_branches": [],
+            "thermal_branches": [],
+        }
+    }
 
     def _raise_builder_value_error(*_args, **_kwargs):
         raise ValueError("surface 和室->外部: ventilated layer[4] requires positive 't'")
 
     main_mod.build_config_with_warning_details = _raise_builder_value_error
     try:
-        resp = client.post("/run", json={"config": {}})
+        resp = client.post("/run", json=payload)
     finally:
         main_mod.build_config_with_warning_details = original
 
@@ -195,13 +225,28 @@ def test_run_returns_structured_400_on_builder_key_error():
     import app.main as main_mod
 
     original = main_mod.build_config_with_warning_details
+    payload = {
+        "config": {
+            "simulation": {
+                "index": {
+                    "start": "2025-01-01T00:00:00Z",
+                    "end": "2025-01-01T01:00:00Z",
+                    "timestep": 60,
+                    "length": 60,
+                }
+            },
+            "nodes": [{"key": "N1"}],
+            "ventilation_branches": [],
+            "thermal_branches": [],
+        }
+    }
 
     def _raise_builder_key_error(*_args, **_kwargs):
         raise KeyError("outside")
 
     main_mod.build_config_with_warning_details = _raise_builder_key_error
     try:
-        resp = client.post("/run", json={"config": {}})
+        resp = client.post("/run", json=payload)
     finally:
         main_mod.build_config_with_warning_details = original
 
@@ -218,6 +263,21 @@ def test_run_returns_structured_500_when_solver_binary_missing():
 
     original_build = main_mod.build_config_with_warning_details
     original_run = main_mod.run_solver
+    payload = {
+        "config": {
+            "simulation": {
+                "index": {
+                    "start": "2025-01-01T00:00:00Z",
+                    "end": "2025-01-01T01:00:00Z",
+                    "timestep": 60,
+                    "length": 60,
+                }
+            },
+            "nodes": [{"key": "N1"}],
+            "ventilation_branches": [],
+            "thermal_branches": [],
+        }
+    }
 
     def _ok_build(*_args, **_kwargs):
         return {}, [], []
@@ -229,7 +289,7 @@ def test_run_returns_structured_500_when_solver_binary_missing():
     main_mod.build_config_with_warning_details = _ok_build
     main_mod.run_solver = _missing_solver
     try:
-        resp = client.post("/run", json={"config": {}})
+        resp = client.post("/run", json=payload)
     finally:
         main_mod.build_config_with_warning_details = original_build
         main_mod.run_solver = original_run

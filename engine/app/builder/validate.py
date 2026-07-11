@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Tuple, Set, Optional, TypedDict
+from typing import Any, Dict, Iterator, List, Literal, Optional, Set, Tuple, TypedDict
 
 import numpy as np
 
@@ -21,6 +23,19 @@ from .config_types import (
 )
 
 logger = get_logger(__name__)
+
+UnknownKeysMode = Literal["strip", "error"]
+_unknown_keys_mode: ContextVar[UnknownKeysMode] = ContextVar("unknown_keys_mode", default="strip")
+
+
+@contextmanager
+def use_unknown_keys_mode(mode: UnknownKeysMode) -> Iterator[None]:
+    """builder validate 中の未知キー扱い（strip/error）を切り替える。"""
+    token = _unknown_keys_mode.set(mode)
+    try:
+        yield
+    finally:
+        _unknown_keys_mode.reset(token)
 
 
 # ------------------------------
@@ -124,13 +139,35 @@ def strip_unknown_fields(
     context: str,
     *,
     warning_details: Optional[List[WarningDetail]] = None,
+    mode: Optional[UnknownKeysMode] = None,
 ) -> List[str]:
     """
     config_types.py に無いキーがあればログに警告を出し、取り除く。
-    - 目的: タイプミスを早期に発見しつつ、処理は継続する
+    mode="error"（または ContextVar）のときは ValidationError / UnknownFieldError 相当で中断。
     """
+    from app.schemas.config import UnknownFieldError
+
+    effective: UnknownKeysMode = mode if mode is not None else _unknown_keys_mode.get()
     warnings: List[str] = []
     unknown = [k for k in list(data.keys()) if k not in allowed]
+    if not unknown:
+        return warnings
+
+    if effective == "error":
+        details = [
+            {
+                "type": "unknown_field",
+                "loc": ["config", context, str(k)],
+                "msg": f"{context} に未定義のフィールド '{k}' があります",
+                "input": str(k),
+            }
+            for k in unknown
+        ]
+        raise UnknownFieldError(
+            f"{context} に未定義のフィールドがあります: {', '.join(str(k) for k in unknown)}",
+            details=details,
+        )
+
     for k in unknown:
         msg = f"{context} に未定義のフィールド '{k}' が指定されました。無視しました。"
         warnings.append(msg)

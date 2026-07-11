@@ -285,7 +285,10 @@ def _build_core(
     response_terms: int | None,
     with_warning_details: bool,
     build_stats_out: Optional[list] = None,
+    unknown_keys: str = "strip",
 ) -> tuple[Dict[str, Any], list[str], list[dict] | None]:
+    from app.builder.validate import use_unknown_keys_mode
+
     start = time.perf_counter()
     build_counts: tuple[int, int, int] | None = None  # (nodes, thermal_branches, ventilation_branches)
     try:
@@ -337,14 +340,16 @@ def _build_core(
             len(output_json.get("ventilation_branches") or []),
         )
 
-        if with_warning_details:
-            validated, warnings, warning_details = validate_dict_with_warning_details(output_json)
-            _write_output_json_if_needed(validated, output_path)
-            return validated, warnings, warning_details
+        mode = "error" if unknown_keys == "error" else "strip"
+        with use_unknown_keys_mode(mode):  # type: ignore[arg-type]
+            if with_warning_details:
+                validated, warnings, warning_details = validate_dict_with_warning_details(output_json)
+                _write_output_json_if_needed(validated, output_path)
+                return validated, warnings, warning_details
 
-        validated, warnings = validate_dict_with_warnings(output_json)
-        _write_output_json_if_needed(validated, output_path)
-        return validated, warnings, None
+            validated, warnings = validate_dict_with_warnings(output_json)
+            _write_output_json_if_needed(validated, output_path)
+            return validated, warnings, None
     finally:
         elapsed = time.perf_counter() - start
         if build_counts is not None and build_stats_out is not None:
@@ -371,6 +376,7 @@ def build_config_with_warnings(
     response_method: str = "arx_rc",
     response_terms: int | None = None,
     build_stats_out: Optional[list] = None,
+    unknown_keys: str = "strip",
 ) -> tuple[Dict[str, Any], list[str]]:
     """
     設定 raw_config を正規化・展開・検証して dict と warnings を返す。
@@ -397,6 +403,7 @@ def build_config_with_warnings(
             response_terms=response_terms,
             with_warning_details=False,
             build_stats_out=build_stats_out,
+            unknown_keys=unknown_keys,
         )
         return validated, warnings
     except Exception as e:
@@ -420,6 +427,7 @@ def build_config_with_warning_details(
     response_method: str = "arx_rc",
     response_terms: int | None = None,
     build_stats_out: Optional[list] = None,
+    unknown_keys: str = "strip",
 ) -> tuple[Dict[str, Any], list[str], list[dict]]:
     """
     設定 raw_config を正規化・展開・検証して dict と warnings（文字列/構造化）を返す。
@@ -441,6 +449,7 @@ def build_config_with_warning_details(
         response_terms=response_terms,
         with_warning_details=True,
         build_stats_out=build_stats_out,
+        unknown_keys=unknown_keys,
     )
     assert warning_details is not None
     return validated, warnings, warning_details

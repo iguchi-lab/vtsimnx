@@ -68,6 +68,9 @@ def execute_simulation(
     progress_cb: Optional[ProgressCallback] = None,
     cancel_event: Optional[Any] = None,
     keep_artifacts: bool = True,
+    unknown_keys: str = "strip",
+    initial_warnings: Optional[List[str]] = None,
+    initial_warning_details: Optional[List[Dict[str, Any]]] = None,
 ) -> SimulationResult:
     """
     builder → solver → artifact 後処理を実行する。
@@ -102,8 +105,14 @@ def execute_simulation(
                 add_surface_radiation=add_surface_radiation,
                 add_surface_radiation_exclude_glass=add_surface_radiation_exclude_glass,
                 build_stats_out=build_stats_out,
+                unknown_keys=unknown_keys,
             )
         builder_t1 = time.perf_counter()
+
+        if initial_warnings:
+            warnings = list(initial_warnings) + list(warnings)
+        if initial_warning_details:
+            warning_details = list(initial_warning_details) + list(warning_details)
 
         force_log_verbosity(built_config, debug=debug, debug_verbosity=debug_verbosity, default_verbosity=1)
 

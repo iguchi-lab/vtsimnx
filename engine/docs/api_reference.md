@@ -94,7 +94,20 @@ builder 入力 (`config`) を受け取り、solver 実行結果を**同期**で�
 
 ```json
 {
-  "config": {},
+  "config": {
+    "simulation": {
+      "index": {
+        "start": "2025-01-01T00:00:00Z",
+        "end": "2025-01-01T01:00:00Z",
+        "timestep": 60,
+        "length": 60
+      }
+    },
+    "nodes": [{"key": "N1"}],
+    "ventilation_branches": [],
+    "thermal_branches": []
+  },
+  "unknown_keys": "strip",
   "debug": false,
   "debug_verbosity": 2,
   "add_surface": null,
@@ -108,7 +121,10 @@ builder 入力 (`config`) を受け取り、solver 実行結果を**同期**で�
 }
 ```
 
-- `config` (required): builder 入力 JSON
+- `config` (required): builder 入力 JSON（OpenAPI 上は `RawSimConfig`。詳細フィールドは `docs/builder_json.md`）
+- `unknown_keys` (optional, default `"strip"`): 未知フィールドの扱い
+  - `"strip"`: 削除して `warning_details` に `unknown_field_stripped` を載せる（互換）
+  - `"error"`: **422** で拒否（実行しない）
 - `debug` (optional, default `false`): ログ冗長度制御をデバッグ寄りにする
 - `debug_verbosity` (optional, default `2`): `debug=true` 時の最小 verbosity
 - `add_*` 系 (optional): builder の各展開処理を API から上書き制御
@@ -130,6 +146,23 @@ builder 入力 (`config`) を受け取り、solver 実行結果を**同期**で�
 ```
 
 ### Error Response
+
+#### 422 Unprocessable Entity（未知フィールド・`unknown_keys=error`）
+
+```json
+{
+  "detail": [
+    {
+      "type": "unknown_field",
+      "loc": ["config", "nodes[0]", "typo"],
+      "msg": "nodes[0] に未定義のフィールド 'typo' があります",
+      "input": "typo"
+    }
+  ]
+}
+```
+
+Pydantic の通常バリデーション失敗（型不一致など）も 422 になります。
 
 #### 400 Bad Request（入力不正）
 
