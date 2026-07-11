@@ -8,6 +8,7 @@
 #include <boost/range/iterator_range.hpp>
 
 #include "core/thermal/thermal_solver.h"
+#include "core/thermal/thermal_solver_linear_direct.h"
 #include "core/ventilation/pressure_solver.h"
 #include "network/thermal_network.h"
 #include "network/ventilation_network.h"
@@ -216,6 +217,86 @@ void testAcceptedPressureAppliedInCoupledStep() {
     expectTrue(ventNet.getLastPressureConverged(), "accepted flag");
 }
 
+// 2つの ThermalNetwork で DirectT キャッシュ統計が独立
+void testDirectTContextsIndependentAcrossNetworks() {
+    std::ostringstream logs;
+    auto constants = baseConstants();
+    constants.pressureCalc = false;
+    constants.temperatureCalc = true;
+
+    auto makeNet = [&](ThermalNetwork& thermal, double wallT) {
+        auto wall = makeThermalNode("WALL", false, wallT);
+        auto room = makeThermalNode("ROOM", true, 0.0);
+        std::vector<VertexProperties> nodes = {wall, room};
+        EdgeProperties cond{};
+        cond.key = "WALL->ROOM";
+        cond.unique_id = "WALL->ROOM";
+        cond.type = "conductance";
+        cond.source = "WALL";
+        cond.target = "ROOM";
+        cond.conductance = 2.0;
+        cond.current_enabled = true;
+        thermal.buildFromData(nodes, {cond}, {}, constants, logs);
+    };
+
+    ThermalNetwork netA;
+    ThermalNetwork netB;
+    makeNet(netA, 20.0);
+    makeNet(netB, 10.0);
+
+    ThermalSolver solverA(netA, logs);
+    ThermalSolver solverB(netB, logs);
+
+    solverA.solveTemperatures(constants);
+    solverA.solveTemperatures(constants);
+    solverB.solveTemperatures(constants);
+
+    const auto statsA = ThermalSolverLinearDirect::getDirectTCacheStats(netA.directTContext());
+    const auto statsB = ThermalSolverLinearDirect::getDirectTCacheStats(netB.directTContext());
+    expectTrue(statsA.calls == 2, "netA calls == 2");
+    expectTrue(statsB.calls == 1, "netB calls == 1");
+    expectTrue(statsA.calls != statsB.calls, "contexts not shared");
+
+    // A をさらに回しても B は増えない
+    solverA.solveTemperatures(constants);
+    const auto statsA2 = ThermalSolverLinearDirect::getDirectTCacheStats(netA.directTContext());
+    const auto statsB2 = ThermalSolverLinearDirect::getDirectTCacheStats(netB.directTContext());
+    expectTrue(statsA2.calls == 3, "netA calls == 3 after extra solve");
+    expectTrue(statsB2.calls == 1, "netB unchanged");
+}
+
+// 不採用圧力→フォールバック時、Ceres CONVERGENCE を UNKNOWN と出さない
+void testFallbackLogsConvergenceNotUnknown() {
+    std::ostringstream logs;
+    TimingList timings;
+    auto constants = baseConstants();
+    constants.logVerbosity = 1;
+    constants.temperatureCalc = false;
+
+    auto room = makeVentNode("ROOM", true, 0.0);
+    auto ext = makeVentNode("EXT", false, 10.0);
+    std::vector<VertexProperties> nodes = {room, ext};
+    std::vector<EdgeProperties> vent = {makeFixedFlow("EXT->ROOM", "EXT", "ROOM", 0.1)};
+
+    VentilationNetwork ventNet;
+    ThermalNetwork thermal;
+    ventNet.buildFromData(nodes, vent, constants, logs);
+    thermal.buildFromData(nodes, {}, vent, constants, logs);
+
+    try {
+        (void)performCoupledStepCalculation(ventNet, thermal, constants, logs, timings, "log");
+    } catch (const simulation::Error&) {
+        // expected
+    }
+    const std::string text = logs.str();
+    expectTrue(text.find("UNKNOWN (0)") == std::string::npos,
+               "fallback log must not say UNKNOWN (0) for CONVERGENCE");
+    // CONVERGENCE または NO_CONVERGENCE のどちらかが明示されていればよい
+    expectTrue(text.find("CONVERGENCE") != std::string::npos ||
+                   text.find("NO_CONVERGENCE") != std::string::npos,
+               "fallback log names a known Ceres termination");
+}
+
 } // namespace
 
 int main() {
@@ -224,6 +305,8 @@ int main() {
         testFixedPressureOnlyAccepted();
         testThermalNoActiveNodeState();
         testAcceptedPressureAppliedInCoupledStep();
+        testDirectTContextsIndependentAcrossNetworks();
+        testFallbackLogsConvergenceNotUnknown();
         std::cout << "[OK] all tests passed\n";
         return 0;
     } catch (const std::exception& e) {

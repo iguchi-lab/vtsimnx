@@ -234,6 +234,39 @@ void testMakeTolerancesUsesVentilationTolerance() {
                "ceres stop tol must differ from volume-flow acceptance");
 }
 
+void testFallbackOuterStopUsesRestoredCostNotTemporary() {
+    // Ceres 改善 + 仮ネットワーク改善 + 復元後悪化 → 復元後基準で打ち切り
+    constexpr double lastCeres = 1.0;
+    constexpr double currCeres = 0.5;          // 改善
+    constexpr double lastRestored = 1.0;
+    constexpr double temporaryImproved = 0.4; // 仮ネットは改善（誤用すると継続になる）
+    constexpr double restoredWorsened = 1.2;  // 復元後は悪化
+    (void)temporaryImproved;
+
+    const auto withRestored = ventilation::decideFallbackOuterProgress(
+        /*outer=*/2, /*minOuter=*/2,
+        currCeres, lastCeres,
+        restoredWorsened, lastRestored);
+    expectTrue(withRestored == ventilation::FallbackOuterProgress::StopNoNetImprove,
+               "restored worsen + ceres improve -> StopNoNetImprove");
+
+    // もし temporary を誤って net に渡すと Continue になることを対照で確認
+    const auto ifUsedTemporary = ventilation::decideFallbackOuterProgress(
+        /*outer=*/2, /*minOuter=*/2,
+        currCeres, lastCeres,
+        temporaryImproved, lastRestored);
+    expectTrue(ifUsedTemporary == ventilation::FallbackOuterProgress::Continue,
+               "temporary improve would wrongly Continue (contrast)");
+
+    // 初回は minOuter 未満なので継続
+    const auto early = ventilation::decideFallbackOuterProgress(
+        /*outer=*/1, /*minOuter=*/2,
+        currCeres, lastCeres,
+        restoredWorsened, lastRestored);
+    expectTrue(early == ventilation::FallbackOuterProgress::Continue,
+               "before minOuter always Continue");
+}
+
 } // namespace
 
 int main() {
@@ -248,6 +281,7 @@ int main() {
     testFallbackAcceptanceRequiresRestoredMassAndInterface();
     testConductanceSeparationGate();
     testMakeTolerancesUsesVentilationTolerance();
+    testFallbackOuterStopUsesRestoredCostNotTemporary();
 
     if (g_failures == 0) {
         std::cout << "[OK] all tests passed\n";

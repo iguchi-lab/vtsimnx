@@ -212,10 +212,11 @@ PressureSolver::Impl::FallbackOuterAction PressureSolver::Impl::evaluateFallback
         return FallbackOuterAction::AcceptSolution;
     }
 
-    bool ceresImproved = stageB.summary.final_cost < state.lastCostOuter * 0.995;
-    bool netImproved   = currNetworkCostOuter < state.lastNetworkCostOuter * 0.995;
-    // Ceresの方が改善している場合は継続、netのみで打ち切り判定
-    if (outer >= minOuter && ceresImproved && !netImproved) {
+    const auto progress = ventilation::decideFallbackOuterProgress(
+        outer, minOuter,
+        stageB.summary.final_cost, state.lastCostOuter,
+        currNetworkCostOuter, state.lastNetworkCostOuter);
+    if (progress == ventilation::FallbackOuterProgress::StopNoNetImprove) {
         double improve_pct_ceres = (state.lastCostOuter - stageB.summary.final_cost) /
                                    std::max(1e-300, state.lastCostOuter) * 100.0;
         double improve_pct_net   = (state.lastNetworkCostOuter - currNetworkCostOuter) /
@@ -229,8 +230,7 @@ PressureSolver::Impl::FallbackOuterAction PressureSolver::Impl::evaluateFallback
                           "%, net=" + osN.str() + "%, 閾値=0.5%)");
         return FallbackOuterAction::StopOuter;
     }
-    // Ceresも改善していない場合も打ち切り
-    if (outer >= minOuter && !ceresImproved) {
+    if (progress == ventilation::FallbackOuterProgress::StopNoCeresImprove) {
         double improve_pct_ceres = (state.lastCostOuter - stageB.summary.final_cost) /
                                    std::max(1e-300, state.lastCostOuter) * 100.0;
         double improve_pct_net   = (state.lastNetworkCostOuter - currNetworkCostOuter) /

@@ -162,4 +162,31 @@ inline PressureSolverTolerances makePressureSolverTolerances(const SimulationCon
     return t;
 }
 
+// フォールバック外部反復の継続/打ち切り判定。
+// ネットワーク側は「復元後コスト」のみを使い、仮ネットワーク（fixed_flow）コストは使わない。
+enum class FallbackOuterProgress {
+    Continue,
+    StopNoNetImprove,   // Ceres は改善したが復元後 net が改善せず
+    StopNoCeresImprove, // Ceres も改善せず
+};
+
+inline FallbackOuterProgress decideFallbackOuterProgress(
+        int outer,
+        int minOuter,
+        double ceresCost,
+        double lastCeresCost,
+        double restoredNetworkCost,
+        double lastRestoredNetworkCost,
+        double improveFactor = 0.995) {
+    const bool ceresImproved = ceresCost < lastCeresCost * improveFactor;
+    const bool netImproved = restoredNetworkCost < lastRestoredNetworkCost * improveFactor;
+    if (outer >= minOuter && ceresImproved && !netImproved) {
+        return FallbackOuterProgress::StopNoNetImprove;
+    }
+    if (outer >= minOuter && !ceresImproved) {
+        return FallbackOuterProgress::StopNoCeresImprove;
+    }
+    return FallbackOuterProgress::Continue;
+}
+
 } // namespace ventilation

@@ -43,6 +43,10 @@ std::optional<PressureSolveResult> PressureFallbackSolver::run(
 
     std::string terminationType;
     switch(summary.termination_type) {
+        case ceres::CONVERGENCE:
+            // 物理収支不合格でフォールバックへ来た場合もここへ入る
+            terminationType = "CONVERGENCE (Ceres相対停止・物理不合格でフォールバック)";
+            break;
         case ceres::NO_CONVERGENCE:
             terminationType = "NO_CONVERGENCE (最大反復回数到達)";
             break;
