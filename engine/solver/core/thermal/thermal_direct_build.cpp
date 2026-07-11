@@ -37,6 +37,7 @@ void buildLinearSystemAbsoluteFast(const Graph& graph, const TopologyCache& topo
         for (auto edge : topo.incidentEdges[static_cast<size_t>(v)]) {
             Vertex sv = boost::source(edge, graph), tv = boost::target(edge, graph);
             const auto& ep = graph[edge];
+            if (!ep.current_enabled) continue;
             auto tc = ep.getTypeCode();
 
             if (tc == EdgeProperties::TypeCode::Conductance) {
@@ -95,7 +96,8 @@ void buildLinearSystemAbsoluteFast(const Graph& graph, const TopologyCache& topo
         }
 
         Vertex v = topo.parameterIndexToVertex[i];
-        system.b[i] += graph[v].heat_source;
+        // 後処理の熱収支は「流入和 + heat_source = 0」。A*T が流入和に対応するため RHS は -heat_source。
+        system.b[i] -= graph[v].heat_source;
 
         if (graph[v].getTypeCode() == VertexProperties::TypeCode::Aircon && graph[v].on) {
             Vertex setV = topo.airconSetVertex[static_cast<size_t>(v)];

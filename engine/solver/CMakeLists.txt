@@ -336,6 +336,31 @@ if(VTSIMNX_BUILD_CPP_TESTS)
     )
     add_test(NAME vtsimnx_solver_cpp_test_thermal_advection_sign COMMAND vtsimnx_solver_cpp_test_thermal_advection_sign)
 
+    # 5c) thermal enable / heat_source sign / response history / rebuild cache
+    add_executable(vtsimnx_solver_cpp_test_thermal_enable_response
+        tests_cpp/test_thermal_enable_response.cpp
+        core/thermal/thermal_solver.cpp
+        core/thermal/thermal_solver_linear_direct.cpp
+        core/thermal/thermal_direct_internal.cpp
+        core/thermal/thermal_direct_topology.cpp
+        core/thermal/thermal_direct_rhs.cpp
+        core/thermal/thermal_direct_build.cpp
+        core/thermal/thermal_direct_solve.cpp
+        core/thermal/thermal_direct_postprocess.cpp
+        network/thermal_network.cpp
+        network/thermal_network_outputs.cpp
+        network/humidity_network.cpp
+        network/humidity_network_outputs.cpp
+    )
+    target_link_libraries(vtsimnx_solver_cpp_test_thermal_enable_response
+        Boost::boost
+    )
+    target_compile_options(vtsimnx_solver_cpp_test_thermal_enable_response PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_test_thermal_enable_response COMMAND vtsimnx_solver_cpp_test_thermal_enable_response)
+
     # 6) pressure constraints (Evaluate residual/jacobian without running solver)
     add_executable(vtsimnx_solver_cpp_test_pressure_constraints
         tests_cpp/test_pressure_constraints.cpp

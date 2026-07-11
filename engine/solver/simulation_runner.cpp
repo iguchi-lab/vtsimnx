@@ -111,6 +111,11 @@ void runSimulation(VentilationNetwork& ventNetwork,
 
     ensureOuterAirconLoopConverged(outerLoopConverged);
 
+    // 応答係数履歴はタイムステップ受理後に一度だけ進める（内側連成・空調反復では進めない）
+    if (ctx.constants.temperatureCalc) {
+        ctx.thermal.commitResponseConductionHistory();
+    }
+
     // 濃度（c）更新：外側空調ループ収束後のみ（エアコン制御には影響しない想定）
     const auto sharedNodeState = makeSharedNodeStateArgs(ctx.thermal);
     transport::updateConcentrationIfEnabled(ctx.constants,

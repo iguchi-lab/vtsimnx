@@ -3,6 +3,9 @@
 #include "network/thermal_network.h"
 #include "utils/utils.h"
 
+#include <limits>
+#include <string>
+
 ThermalSolver::ThermalSolver(ThermalNetwork& network, std::ostream& logFile)
     : network_(network), logFile_(logFile) {}
 
@@ -19,6 +22,9 @@ void ThermalSolver::solveTemperatures(const SimulationConstants& constants) {
     } catch (const std::exception& e) {
         writeLog(logFile_, std::string("----警告: DirectT solver failed: ") + e.what());
         // 直近の状態を上位が判断できるように保持する（温度は更新されない）
-        network_.setLastThermalConvergence(false, /*rmse*/0.0, /*max*/0.0, "DirectT(failed)");
+        network_.setLastThermalConvergence(false,
+                                           /*rmse*/std::numeric_limits<double>::quiet_NaN(),
+                                           /*max*/std::numeric_limits<double>::quiet_NaN(),
+                                           "DirectT(failed)");
     }
 }

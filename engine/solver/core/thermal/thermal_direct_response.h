@@ -62,6 +62,25 @@ inline double evalResponseQTgt(const EdgeProperties& ep, double Ts, double Tt) {
     return q;
 }
 
+// hist[0] が直近（n-1）、後ろほど古い。先頭へ newest を押し込み末尾を捨てる。
+inline void shiftHistoryFront(std::vector<double>& hist, double newest) {
+    if (hist.empty()) return;
+    for (size_t i = hist.size(); i-- > 1;) {
+        hist[i] = hist[i - 1];
+    }
+    hist[0] = newest;
+}
+
+// タイムステップ受理時に一度だけ呼ぶ。内側連成の途中では呼ばない。
+inline void commitResponseHistory(EdgeProperties& ep, double Ts, double Tt) {
+    if (!ep.response_initialized) return;
+    if (ep.getTypeCode() != EdgeProperties::TypeCode::ResponseConduction) return;
+    shiftHistoryFront(ep.hist_t_src, Ts);
+    shiftHistoryFront(ep.hist_t_tgt, Tt);
+    shiftHistoryFront(ep.hist_q_src, ep.current_q_src);
+    shiftHistoryFront(ep.hist_q_tgt, ep.current_q_tgt);
+}
+
 } // namespace thermal_direct_response
 
 

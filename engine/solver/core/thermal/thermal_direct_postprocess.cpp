@@ -19,6 +19,14 @@ void postprocessAndReport(ThermalNetwork& network,
     for (auto e : boost::make_iterator_range(boost::edges(graph))) {
         Vertex sv = boost::source(e, graph), tv = boost::target(e, graph);
         auto& ep = graph[e];
+        if (!ep.current_enabled) {
+            ep.heat_rate = 0.0;
+            if (ep.getTypeCode() == EdgeProperties::TypeCode::ResponseConduction) {
+                ep.current_q_src = 0.0;
+                ep.current_q_tgt = 0.0;
+            }
+            continue;
+        }
         double Ts = graph[sv].current_t, Tt = graph[tv].current_t;
         auto tc = ep.getTypeCode();
         if (tc == EdgeProperties::TypeCode::ResponseConduction) {
@@ -26,6 +34,8 @@ void postprocessAndReport(ThermalNetwork& network,
             heatBalance[static_cast<size_t>(sv)] -= qs;
             heatBalance[static_cast<size_t>(tv)] -= qt;
             ep.heat_rate = (qs + qt) / 2.0;
+            ep.current_q_src = qs;
+            ep.current_q_tgt = qt;
         } else if (tc == EdgeProperties::TypeCode::Advection) {
             double Q = HeatCalculation::calcAdvectionHeat(Ts, Tt, ep);
             if (ep.flow_rate > 0) {

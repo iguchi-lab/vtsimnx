@@ -45,6 +45,20 @@ CoeffSignatureBreakdown computeCoeffSignatureBreakdown(const Graph& graph, const
             s.setNodeActiveSig = fnv1a64_update(s.setNodeActiveSig, 1u);
         }
     }
+    // enable 切替は係数パターンを変える（特に conductance / heat_generation / response）
+    for (size_t vi = 0; vi < topo.incidentEdges.size(); ++vi) {
+        for (auto e : topo.incidentEdges[vi]) {
+            if (boost::source(e, graph) != static_cast<Vertex>(vi)) continue;
+            const auto& ep = graph[e];
+            if (ep.getTypeCode() == EdgeProperties::TypeCode::Advection) continue;
+            s.enableSig = fnv1a64_update(
+                s.enableSig,
+                (static_cast<std::uint64_t>(static_cast<std::uint32_t>(vi)) << 32) ^
+                    static_cast<std::uint64_t>(static_cast<std::uint32_t>(boost::target(e, graph))));
+            s.enableSig = fnv1a64_update(s.enableSig, ep.current_enabled ? 1u : 0u);
+            s.enableSig = fnv1a64_update(s.enableSig, static_cast<std::uint64_t>(ep.getTypeCode()));
+        }
+    }
     return s;
 }
 
@@ -101,6 +115,7 @@ void rebuildRhsPrecomputeForCoeffSig(const Graph& graph, TopologyCache& topo, st
             Vertex sv = boost::source(edge, graph);
             Vertex tv = boost::target(edge, graph);
             const auto& ep = graph[edge];
+            if (!ep.current_enabled) continue;
             const auto tc = ep.getTypeCode();
 
             if (tc == EdgeProperties::TypeCode::Conductance) {
@@ -182,7 +197,8 @@ void buildRhsOnlyAbsoluteFast(const Graph& graph, const TopologyCache& topo, std
         }
 
         const Vertex rowV = topo.parameterIndexToVertex[i];
-        bOut[i] += graph[rowV].heat_source;
+        // 後処理の熱収支は「流入和 + heat_source = 0」。A*T が流入和に対応するため RHS は -heat_source。
+        bOut[i] -= graph[rowV].heat_source;
 
         if (i < topo.knownTermsByRow.size()) {
             for (const auto& t : topo.knownTermsByRow[i]) {

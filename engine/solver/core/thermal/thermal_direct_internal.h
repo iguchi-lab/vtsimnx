@@ -31,6 +31,8 @@ struct TopologyCache {
     const Graph* graphPtr = nullptr;
     size_t numVertices = 0;
     size_t numEdges = 0;
+    // ThermalNetwork::buildFromData で増える。ポインタ不変・頂点数一致でも再構築を検知する。
+    std::uint64_t topologyRevision = 0;
 
     std::vector<std::vector<Edge>> incidentEdges;
     std::vector<std::vector<Vertex>> airconBySetVertex;
@@ -148,12 +150,14 @@ struct CoeffSignatureBreakdown {
     std::uint64_t flowSig = 0;
     std::uint64_t airconOnSig = 0;
     std::uint64_t setNodeActiveSig = 0;
+    std::uint64_t enableSig = 0;
 
     std::uint64_t combined() const {
         std::uint64_t h = 0;
         h = thermal_linear_utils::fnv1a64_update(h, flowSig);
         h = thermal_linear_utils::fnv1a64_update(h, airconOnSig);
         h = thermal_linear_utils::fnv1a64_update(h, setNodeActiveSig);
+        h = thermal_linear_utils::fnv1a64_update(h, enableSig);
         return h;
     }
 };

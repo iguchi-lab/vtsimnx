@@ -11,6 +11,7 @@ void rebuildTopologyCache(ThermalNetwork& network,
     topo.graphPtr = &graph;
     topo.numVertices = curV;
     topo.numEdges = curE;
+    topo.topologyRevision = network.getTopologyRevision();
 
     topo.incidentEdges.assign(curV, {});
     for (auto e : boost::make_iterator_range(boost::edges(graph))) {

@@ -1,6 +1,8 @@
 #include "network/thermal_network.h"
 #include "network/ventilation_network.h"
 #include "core/thermal/thermal_solver.h"
+#include "core/thermal/thermal_solver_linear_direct.h"
+#include "core/thermal/thermal_direct_response.h"
 #include "utils/utils.h"
 
 #include <iostream>
@@ -109,6 +111,9 @@ void ThermalNetwork::buildFromData(const std::vector<VertexProperties>& allNodes
     lastThermalMaxBalance = 0.0;
     lastThermalMethod.clear();
     invalidateCaches();
+    ++topologyRevision_;
+    // Graph オブジェクトのアドレスは変わらないため、DirectT の既定コンテキストを明示破棄する。
+    ThermalSolverLinearDirect::resetDirectTSolverContext();
 
     if (simConstants.temperatureCalc || simConstants.humidityCalc || simConstants.concentrationCalc) {
         writeLog(logs, "  熱回路網を作成中...");
@@ -284,5 +289,15 @@ void ThermalNetwork::updatePropertiesForTimestep(const std::vector<VertexPropert
             continue; // 換気同期でflow_rateが入るため時系列更新は不要
         }
         ep.updateForTimestep(static_cast<int>(timestep));
+    }
+}
+
+void ThermalNetwork::commitResponseConductionHistory() {
+    for (auto e : boost::make_iterator_range(boost::edges(graph))) {
+        auto& ep = graph[e];
+        if (ep.getTypeCode() != EdgeProperties::TypeCode::ResponseConduction) continue;
+        const Vertex sv = boost::source(e, graph);
+        const Vertex tv = boost::target(e, graph);
+        thermal_direct_response::commitResponseHistory(ep, graph[sv].current_t, graph[tv].current_t);
     }
 } 

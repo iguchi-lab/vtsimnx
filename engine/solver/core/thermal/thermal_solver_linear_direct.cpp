@@ -68,7 +68,8 @@ void solveTemperaturesLinearDirect(ThermalNetwork& network,
         (!ctx.topology.initialized) ||
         (ctx.topology.graphPtr != &graph) ||
         (ctx.topology.numVertices != curV) ||
-        (ctx.topology.numEdges != curE);
+        (ctx.topology.numEdges != curE) ||
+        (ctx.topology.topologyRevision != network.getTopologyRevision());
 
     if (needRebuildTopo) {
         ++ctx.stats.topoRebuild;

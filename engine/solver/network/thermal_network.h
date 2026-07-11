@@ -2,6 +2,7 @@
 
 #include "network/node_state_view.h"
 #include "vtsim_solver.h"
+#include <cstdint>
 #include <vector>
 #include <fstream>
 #include <ostream>
@@ -67,6 +68,9 @@ private:
     // 換気枝 unique_id → 熱側移流エッジ（"advection_" + vent.unique_id で一意対応、順序に依存しない）
     mutable std::unordered_map<std::string, Edge> advectionEdgeByVentUniqueId;
 
+    // buildFromData のたびに増加。DirectT のトポロジキャッシュ無効化に使う。
+    std::uint64_t topologyRevision_ = 0;
+
 public:
     // 1) Node/Graph access
     const Graph& getGraph() const { return graph; }
@@ -98,6 +102,9 @@ public:
                                       const std::vector<EdgeProperties>& thermalBranches,
                                       const std::vector<EdgeProperties>& ventilationBranches,
                                       long timestep);
+
+    // 応答係数履歴をタイムステップ受理時に1回だけ進める（内側連成中は呼ばない）
+    void commitResponseConductionHistory();
 
     // 3) Solve
     void solveTemperature(const SimulationConstants& constants, std::ostream& logs);
@@ -141,6 +148,7 @@ public:
     double getLastThermalRmseBalance() const { return lastThermalRmseBalance; }
     double getLastThermalMaxBalance() const { return lastThermalMaxBalance; }
     const std::string& getLastThermalMethod() const { return lastThermalMethod; }
+    std::uint64_t getTopologyRevision() const { return topologyRevision_; }
 };
 
 
