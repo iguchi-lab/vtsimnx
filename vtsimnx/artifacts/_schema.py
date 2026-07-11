@@ -39,11 +39,11 @@ def extract_manifest_error(manifest: Dict[str, Any]) -> Optional[str]:
 
     status = output.get("status")
     if isinstance(status, str) and status.lower() == "error":
-        extras: List[str] = []
+        status_extras: List[str] = []
         artifact_dir = output.get("artifact_dir")
         if isinstance(artifact_dir, str) and artifact_dir:
-            extras.append(f"artifact_dir={artifact_dir}")
-        suffix = f" ({', '.join(extras)})" if extras else ""
+            status_extras.append(f"artifact_dir={artifact_dir}")
+        suffix = f" ({', '.join(status_extras)})" if status_extras else ""
         return f"シミュレーションに失敗しました{suffix}"
 
     return None

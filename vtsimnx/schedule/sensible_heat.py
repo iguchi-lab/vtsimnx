@@ -2,12 +2,16 @@
 顕熱（sensible heat）関連のスケジュール。
 """
 
+from __future__ import annotations
+
+from typing import Any, Dict
+
 import numpy as np
 
 from .common import HOURS_PER_DAY, holiday, make_8760_by_holiday
 
 # 顕熱プロファイル（1日24要素 × 平日/休日）
-sensible_heat_profiles = {
+sensible_heat_profiles: Dict[str, Any] = {
     "LD": {
         "人体": {"平日": [], "休日": []},
         "照明": {"平日": [], "休日": []},

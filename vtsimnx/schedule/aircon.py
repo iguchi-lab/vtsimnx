@@ -7,6 +7,10 @@
 - 空調モード(ac_mode) / 設定温度(pre_tmp) / 設定湿度(pre_rh)
 """
 
+from __future__ import annotations
+
+from typing import Any, Dict
+
 from .common import (
     HOURS_PER_DAY,
     holiday,
@@ -29,7 +33,7 @@ AC_MODE_HEATING = 1
 AC_MODE_COOLING = 2
 AC_MODE_AUTO = 3
 
-ac_mode_profiles = {
+ac_mode_profiles: Dict[str, Any] = {
     "LD": {
         "暖房": {"平日": [], "休日": []}, 
         "冷房": {"平日": [], "休日": []}
@@ -76,7 +80,7 @@ ac_mode_profiles["子供室2"]["冷房"]["平日"] = [2, 2, 2, 2, 2, 2, 2, 0, 0,
 ac_mode_profiles["子供室2"]["冷房"]["休日"] = [2, 2, 2, 2, 2, 2, 2, 2, 0, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2]
 
 
-pre_tmp_profiles = {
+pre_tmp_profiles: Dict[str, Any] = {
     "LD": {"暖房": {"平日": [], "休日": []}, "冷房": {"平日": [], "休日": []}},
     "寝室": {"暖房": {"平日": [], "休日": []}, "冷房": {"平日": [], "休日": []}},
     "子供室1": {"暖房": {"平日": [], "休日": []}, "冷房": {"平日": [], "休日": []}},

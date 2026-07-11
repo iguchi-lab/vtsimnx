@@ -4,7 +4,6 @@ from typing import Any, Dict, Optional
 from copy import deepcopy
 import gzip
 import json
-import os
 import time
 
 from .logger import get_logger
@@ -15,7 +14,7 @@ from .moisture import build_humidity_generation_vents
 from .aircon import process_aircons
 from .thermal import process_capacities
 from .moisture_capacity import process_moisture_capacities
-from .validate import validate_dict, validate_dict_with_warnings, validate_dict_with_warning_details
+from .validate import validate_dict_with_warnings, validate_dict_with_warning_details
 
 logger = get_logger(__name__)
 

@@ -6,8 +6,13 @@ on:
   pull_request:
     branches: ["main"]
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  lint-and-test:
+  lint:
+    name: lint / typecheck
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -18,17 +23,178 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
+      - name: Install lint tools
         run: |
-          python -m pip install --upgrade pip
-          python -m pip install "numpy>=1.24,<3" "pandas>=2.0,<3" "requests>=2.31,<3"
-          python -m pip install pytest ruff mypy
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install ".[dev]"
 
-      - name: Ruff (materials)
-        run: ruff check vtsimnx/materials
+      - name: Ruff
+        run: python -m ruff check vtsimnx engine/app examples
 
-      - name: MyPy (materials csv loader)
-        run: mypy --ignore-missing-imports --follow-imports=skip vtsimnx/materials/__init__.py
+      - name: MyPy
+        run: python -m mypy vtsimnx engine/app
 
-      - name: Unit tests + minimal run_calc contract test
-        run: python -m pytest -q vtsimnx/tests/test_utils_io.py vtsimnx/tests/test_run_calc_lazy.py
+  python-client:
+    name: Python client tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install package
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install ".[dev,astro]"
+
+      - name: Pytest (vtsimnx/tests)
+        run: python -m pytest vtsimnx/tests
+
+  engine-python:
+    name: Engine / builder tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install engine Python deps
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install ".[dev,engine]"
+
+      - name: Install solver build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake \
+            libboost-dev libeigen3-dev libceres-dev libsuitesparse-dev
+
+      - name: Build C++ solver
+        working-directory: engine
+        run: |
+          cmake -S solver -B build-solver \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DVTSIMNX_BUILD_CPP_TESTS=OFF
+          cmake --build build-solver -j"$(nproc)"
+          test -x build/vtsimnx_solver
+
+      - name: Pytest (engine/tests_py)
+        working-directory: engine
+        run: python -m pytest tests_py
+
+  cpp-solver:
+    name: C++ solver build + CTest
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake \
+            libboost-dev libeigen3-dev libceres-dev libsuitesparse-dev
+
+      - name: Configure
+        working-directory: engine
+        run: |
+          cmake -S solver -B build-solver \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DVTSIMNX_BUILD_CPP_TESTS=ON
+
+      - name: Build
+        working-directory: engine
+        run: cmake --build build-solver -j"$(nproc)"
+
+      - name: CTest
+        working-directory: engine
+        run: ctest --test-dir build-solver --output-on-failure --timeout 300
+
+  package:
+    name: Package wheel
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Build wheel
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --wheel
+
+      - name: Install wheel in clean venv and import
+        run: |
+          python -m venv /tmp/vtsimnx-wheel-venv
+          /tmp/vtsimnx-wheel-venv/bin/python -m pip install --upgrade pip
+          /tmp/vtsimnx-wheel-venv/bin/python -m pip install dist/vtsimnx-*.whl
+          /tmp/vtsimnx-wheel-venv/bin/python -c "import vtsimnx as vt; print(vt.__name__); assert callable(vt.run_calc)"
+
+  example:
+    name: Example smoke (run_calc_minimal)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install solver build deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential cmake \
+            libboost-dev libeigen3-dev libceres-dev libsuitesparse-dev
+
+      - name: Build C++ solver
+        working-directory: engine
+        run: |
+          cmake -S solver -B build-solver \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DVTSIMNX_BUILD_CPP_TESTS=OFF
+          cmake --build build-solver -j"$(nproc)"
+          test -x build/vtsimnx_solver
+
+      - name: Install Python deps
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install ".[engine]"
+
+      - name: Start API and run minimal example
+        run: |
+          set -euo pipefail
+          (
+            cd engine
+            python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+          ) &
+          API_PID=$!
+          cleanup() { kill "$API_PID" 2>/dev/null || true; }
+          trap cleanup EXIT
+
+          for _ in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/ping >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8000/ping
+
+          export VTSIMNX_API_URL=http://127.0.0.1:8000
+          python examples/run_calc_minimal.py --request-json /tmp/result_request_minimal.json

@@ -2,13 +2,17 @@
 換気量（vol）関連のスケジュール。
 """
 
+from __future__ import annotations
+
+from typing import Any, Dict
+
 import numpy as np
 
 from .common import holiday, make_8760_by_holiday
 
 # 換気量プロファイル（1日24要素 × 平日/休日）
 # 命名を他モジュール（*_profiles）と揃えるため、vent_profiles を本体にする。
-vent_profiles = {
+vent_profiles: Dict[str, Any] = {
     "LD": {"平日": [], "休日": []},
     "浴室": {"平日": [], "休日": []},
     "1階トイレ": {"平日": [], "休日": []},

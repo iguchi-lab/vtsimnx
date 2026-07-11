@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any, Dict, List
 import json
 import os
-import io
 
 from .logger import get_logger
 from .config_types import SimConfigType

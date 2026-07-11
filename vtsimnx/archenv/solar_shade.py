@@ -124,7 +124,7 @@ def _normalize_shade_polygons(
     ):
         polys = [shade_coords]
     else:
-        polys = shade_coords
+        polys = list(shade_coords)
 
     out: list[list[tuple[float, float, float]]] = []
     for poly in polys:
@@ -254,12 +254,12 @@ def _union_length_1d(intervals: list[tuple[float, float]], eps: float = 1e-12) -
     segs = sorted(intervals, key=lambda t: t[0])
     cur_l, cur_r = segs[0]
     total = 0.0
-    for l, r in segs[1:]:
-        if l <= cur_r + eps:
-            cur_r = max(cur_r, r)
+    for left, right in segs[1:]:
+        if left <= cur_r + eps:
+            cur_r = max(cur_r, right)
         else:
             total += max(cur_r - cur_l, 0.0)
-            cur_l, cur_r = l, r
+            cur_l, cur_r = left, right
     total += max(cur_r - cur_l, 0.0)
     return float(total)
 

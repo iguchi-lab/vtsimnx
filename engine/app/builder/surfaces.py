@@ -474,8 +474,8 @@ def _auto_response_coefficients_from_layers(
     A, B, Cmat, Dmat = _build_rc_continuous_abcd(n, C, R_half, R_between)
 
     # 離散化（Backward Euler）: x_k = (I - dt*A)^-1 x_{k-1} + (I - dt*A)^-1 (dt*B) u_k
-    I = np.eye(n, dtype=float)
-    M = I - dt * A
+    eye = np.eye(n, dtype=float)
+    M = eye - dt * A
     try:
         Minv = np.linalg.inv(M)
     except np.linalg.LinAlgError as e:

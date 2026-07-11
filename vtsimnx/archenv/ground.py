@@ -6,7 +6,7 @@ import pandas as pd
 
 def _as_depth_array(depth_m: float | list[float] | np.ndarray) -> np.ndarray:
     if np.isscalar(depth_m):
-        arr = np.array([float(depth_m)], dtype="float64")
+        arr = np.array([np.asarray(depth_m).item()], dtype="float64")
     else:
         arr = np.asarray(depth_m, dtype="float64")
     if arr.ndim != 1 or arr.size == 0:

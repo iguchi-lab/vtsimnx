@@ -73,10 +73,16 @@ python examples/run_calc_minimal.py
 
 `main` push / PR ごとに GitHub Actions で以下を自動実行します。
 
-- `ruff check vtsimnx/materials`
-- `mypy --ignore-missing-imports --follow-imports=skip vtsimnx/materials/__init__.py`
-- `python -m pytest -q vtsimnx/tests/test_utils_io.py vtsimnx/tests/test_run_calc_lazy.py`
+| ジョブ | 内容 |
+|---|---|
+| `lint` | `ruff` + `mypy`（`vtsimnx/` / `engine/app/` / `examples/`） |
+| `python-client` | `pytest vtsimnx/tests` |
+| `engine-python` | C++ solver ビルド + `pytest engine/tests_py`（builder / API / 物理回帰） |
+| `cpp-solver` | CMake ビルド + CTest |
+| `package` | wheel ビルド → クリーン環境へ install → import 確認 |
+| `example` | uvicorn 起動 + `examples/run_calc_minimal.py` |
 
+ワークフロー定義: `.github/workflows/ci.yml`
 ## 検証と保証範囲
 
 本プロジェクトは研究用途のため、検証方針と既知の限界を公開しています。  
