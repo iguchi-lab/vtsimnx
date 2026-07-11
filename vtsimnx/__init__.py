@@ -15,6 +15,7 @@ from . import schedule as schedule
 from .schedule import make_8760_data, ac_mode, pre_tmp, pre_rh, vol, sensible_heat
 
 from .run_calc import run_calc
+from .run_calc import RunCalcAPIError
 from .artifacts import get_artifact_file
 
 __all__ = [
@@ -33,6 +34,7 @@ __all__ = [
     "sensible_heat",
     # run_calc
     "run_calc",
+    "RunCalcAPIError",
     # artifacts
     "get_artifact_file",
 ]

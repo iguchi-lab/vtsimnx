@@ -18,6 +18,9 @@ def extract_manifest_error(manifest: Dict[str, Any]) -> Optional[str]:
     error = output.get("error")
     if isinstance(error, str) and error.strip():
         extras: List[str] = []
+        artifact_dir = output.get("artifact_dir")
+        if isinstance(artifact_dir, str) and artifact_dir:
+            extras.append(f"artifact_dir={artifact_dir}")
         log_file = output.get("log_file")
         if isinstance(log_file, str) and log_file:
             extras.append(f"log={log_file}")
@@ -25,11 +28,23 @@ def extract_manifest_error(manifest: Dict[str, Any]) -> Optional[str]:
         if isinstance(builder_log_file, str) and builder_log_file:
             extras.append(f"builder_log={builder_log_file}")
         suffix = f" ({', '.join(extras)})" if extras else ""
-        return f"シミュレーションに失敗しました: {error.strip()}{suffix}"
+        message = f"シミュレーションに失敗しました: {error.strip()}{suffix}"
+
+        log_obj = output.get("log")
+        if isinstance(log_obj, dict):
+            log_text = log_obj.get("text")
+            if isinstance(log_text, str) and log_text.strip():
+                message = f"{message}\n--- solver.log (tail) ---\n{log_text.strip()}"
+        return message
 
     status = output.get("status")
     if isinstance(status, str) and status.lower() == "error":
-        return "シミュレーションに失敗しました"
+        extras: List[str] = []
+        artifact_dir = output.get("artifact_dir")
+        if isinstance(artifact_dir, str) and artifact_dir:
+            extras.append(f"artifact_dir={artifact_dir}")
+        suffix = f" ({', '.join(extras)})" if extras else ""
+        return f"シミュレーションに失敗しました{suffix}"
 
     return None
 

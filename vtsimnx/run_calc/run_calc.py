@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 from vtsimnx.artifacts._schema import extract_manifest_error, extract_result_files
-from vtsimnx.run_calc._http import _post_run
+from vtsimnx.run_calc._http import RunCalcAPIError, _post_run
 from vtsimnx.run_calc._index import (
     _normalize_simulation_index_inplace,
     _time_index_from_config,
@@ -20,6 +20,8 @@ from vtsimnx.run_calc._index import (
 from vtsimnx.run_calc._io import _write_json
 from vtsimnx.run_calc._response import _output_block
 from vtsimnx.utils.jsonable import to_jsonable
+
+__all__ = ["CalcRunResult", "RunCalcAPIError", "run_calc"]
 
 
 @dataclass

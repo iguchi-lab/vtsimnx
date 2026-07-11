@@ -10,11 +10,79 @@ import requests
 API_KEY_HEADER = "X-API-Key"
 
 
+class RunCalcAPIError(RuntimeError):
+    """
+    /run の HTTP エラーを、code/message/hint が読める形で伝える。
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: Optional[int] = None,
+        detail: Any = None,
+        response: Optional[requests.Response] = None,
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.detail = detail
+        self.response = response
+
+
 def _api_key_headers(api_key: Optional[str]) -> Dict[str, str]:
     key = (api_key or "").strip()
     if not key:
         return {}
     return {API_KEY_HEADER: key}
+
+
+def _format_http_error(resp: requests.Response) -> RunCalcAPIError:
+    status = resp.status_code
+    detail: Any = None
+    try:
+        body = resp.json()
+        if isinstance(body, dict):
+            detail = body.get("detail", body)
+        else:
+            detail = body
+    except Exception:
+        detail = None
+
+    if isinstance(detail, dict):
+        parts: list[str] = []
+        code = detail.get("code")
+        if isinstance(code, str) and code:
+            parts.append(f"[{code}]")
+        message = detail.get("message")
+        if isinstance(message, str) and message.strip():
+            parts.append(message.strip())
+        elif not parts:
+            parts.append(str(detail))
+        hint = detail.get("hint")
+        if isinstance(hint, str) and hint.strip():
+            parts.append(f"hint: {hint.strip()}")
+        artifact_dir = detail.get("artifact_dir")
+        if isinstance(artifact_dir, str) and artifact_dir:
+            parts.append(f"artifact_dir={artifact_dir}")
+        run_id = detail.get("run_id")
+        if isinstance(run_id, str) and run_id:
+            parts.append(f"run_id={run_id}")
+        msg = " ".join(parts)
+        log_tail = detail.get("log_tail")
+        if isinstance(log_tail, str) and log_tail.strip():
+            msg = f"{msg}\n--- log_tail ---\n{log_tail.strip()}"
+    elif isinstance(detail, str) and detail.strip():
+        msg = detail.strip()
+    else:
+        text = (resp.text or "").strip()
+        msg = text[:800] if text else f"HTTP {status}"
+
+    return RunCalcAPIError(
+        f"/run failed with HTTP {status}: {msg}",
+        status_code=status,
+        detail=detail,
+        response=resp,
+    )
 
 
 def _post_run(
@@ -72,7 +140,9 @@ def _post_run(
         t4 = time.perf_counter()
         t_http_ms = (t4 - t3) * 1000.0
 
-    resp.raise_for_status()
+    if resp.status_code >= 400:
+        raise _format_http_error(resp)
+
     t5 = time.perf_counter()
     out = resp.json()
     t6 = time.perf_counter()
@@ -98,6 +168,4 @@ def _post_run(
     return out
 
 
-__all__ = ["API_KEY_HEADER", "_api_key_headers", "_post_run"]
-
-
+__all__ = ["API_KEY_HEADER", "RunCalcAPIError", "_api_key_headers", "_post_run"]

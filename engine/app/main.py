@@ -30,7 +30,11 @@ import uuid
 import tempfile
 import time
 from app.solver_runner import run_solver, force_log_verbosity
-from app.solver_runner import attach_builder_log_to_artifacts, write_artifact_manifest
+from app.solver_runner import (
+    attach_builder_log_to_artifacts,
+    attach_log_tail_to_output,
+    write_artifact_manifest,
+)
 from app.builder import build_config_with_warning_details
 from app.builder.validate import ValidationError, ConfigFileError
 from app.builder.logger import use_builder_log_file, cleanup_default_work_logs
@@ -207,6 +211,9 @@ def _build_internal_error_detail(e: Exception, *, run_id: str | None = None) -> 
     if isinstance(e, FileNotFoundError) and "vtsimnx_solver" in str(e):
         detail["code"] = "solver_binary_not_found"
         detail["hint"] = "サーバ上で C++ solver 実行ファイル build/vtsimnx_solver をビルドしてください。"
+    elif isinstance(e, RuntimeError) and str(e).startswith("solver timed out"):
+        detail["code"] = "solver_timeout"
+        detail["hint"] = "VTSIMNX_SOLVER_TIMEOUT を延ばすか、計算条件（期間・分割・連成）を見直してください。"
     elif isinstance(e, RuntimeError) and str(e).startswith("solver failed:"):
         detail["code"] = "solver_execution_failed"
         detail["hint"] = "solver.log と入力JSONを確認し、設定値や境界条件の不整合を見直してください。"
@@ -329,6 +336,11 @@ def run_simulation(req: SimulationRequest):
             delete_source=True,
             build_config=built_config,
         )
+        # 失敗時はログ末尾をレスポンスへ同梱し、外部クライアントでも即原因確認できるようにする
+        status = output.get("status")
+        has_error = isinstance(output.get("error"), str) and bool(str(output.get("error")).strip())
+        if has_error or (isinstance(status, str) and status.lower() == "error"):
+            attach_log_tail_to_output(output)
         write_artifact_manifest(output)
         artifact_t1 = time.perf_counter()
 
@@ -409,6 +421,10 @@ def _run_simulation_core(
             delete_source=True,
             build_config=built_config,
         )
+        status = output.get("status")
+        has_error = isinstance(output.get("error"), str) and bool(str(output.get("error")).strip())
+        if has_error or (isinstance(status, str) and status.lower() == "error"):
+            attach_log_tail_to_output(output)
         write_artifact_manifest(output)
         artifact_t1 = time.perf_counter()
         api_t1 = time.perf_counter()

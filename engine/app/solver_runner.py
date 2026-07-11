@@ -73,6 +73,45 @@ def _artifact_dir_from_output(work_dir: Path, output_data: Dict[str, Any]) -> Op
         return None
     return artifact_dir_path
 
+
+def attach_log_tail_to_output(
+    output_data: Dict[str, Any],
+    *,
+    max_chars: int = 4000,
+) -> Optional[str]:
+    """
+    失敗時に solver.log 末尾を result.log.text へ埋め込み、リモートでも即読めるようにする。
+    """
+    if not isinstance(output_data, dict):
+        return None
+
+    work_dir = BASE_DIR / "work"
+    artifact_dir_path = _artifact_dir_from_output(work_dir, output_data)
+    if artifact_dir_path is None:
+        return None
+
+    log_file = output_data.get("log_file")
+    if not isinstance(log_file, str) or not log_file:
+        log_file = "solver.log"
+    log_path = artifact_dir_path / log_file
+    if not log_path.is_file():
+        return None
+
+    try:
+        text = log_path.read_text(encoding="utf-8", errors="replace")
+    except Exception:
+        return None
+
+    if max_chars > 0 and len(text) > max_chars:
+        text = text[-max_chars:]
+
+    log_obj = output_data.get("log")
+    if not isinstance(log_obj, dict):
+        log_obj = {}
+        output_data["log"] = log_obj
+    log_obj["text"] = text
+    return text
+
 def write_artifact_manifest(output_data: Dict[str, Any]) -> Optional[Path]:
     """
     artifact_dir 配下に manifest.json を保存する。
@@ -210,6 +249,10 @@ def _invoke_solver(input_path: Path, output_path: Path, cwd: Path) -> None:
         ) from e
 
     if result.returncode != 0:
+        # C++ 側が writeErrorOutput 済みなら、構造化エラーを呼び出し側で読めるようにする。
+        # （入力ロード失敗など exit!=0 でも output.json に error / artifact_dir が入る）
+        if output_path.exists():
+            return
         raise RuntimeError(
             f"solver failed: {result.returncode}\n"
             f"stdout: {result.stdout}\n"

@@ -29,6 +29,43 @@ def test_invoke_solver_raises_on_nonzero_exit(tmp_path, monkeypatch):
     assert "stderr: ERR" in str(e.value)
 
 
+def test_invoke_solver_returns_when_nonzero_exit_but_output_exists(tmp_path, monkeypatch):
+    inp = tmp_path / "input.json"
+    out = tmp_path / "output.json"
+    inp.write_text("{}", encoding="utf-8")
+    out.write_text(
+        '{"status":"error","error":"bad input","artifact_dir":"artifacts.x","log_file":"solver.log"}',
+        encoding="utf-8",
+    )
+
+    class DummyResult:
+        returncode = 1
+        stdout = ""
+        stderr = "load failed"
+
+    monkeypatch.setattr(subprocess, "run", lambda *_a, **_k: DummyResult())
+    sr._invoke_solver(inp, out, cwd=tmp_path)  # should not raise
+
+
+def test_attach_log_tail_to_output(tmp_path, monkeypatch):
+    monkeypatch.setattr(sr, "BASE_DIR", tmp_path)
+    work = tmp_path / "work"
+    artifact = work / "artifacts.demo"
+    artifact.mkdir(parents=True)
+    (artifact / "solver.log").write_text("line1\nERROR: boom\n", encoding="utf-8")
+
+    output = {
+        "status": "error",
+        "error": "boom",
+        "artifact_dir": "artifacts.demo",
+        "log_file": "solver.log",
+    }
+    text = sr.attach_log_tail_to_output(output)
+    assert text is not None
+    assert "ERROR: boom" in text
+    assert output["log"]["text"].endswith("ERROR: boom\n") or "ERROR: boom" in output["log"]["text"]
+
+
 def test_invoke_solver_raises_if_output_missing(tmp_path, monkeypatch):
     inp = tmp_path / "input.json"
     out = tmp_path / "output.json"
