@@ -28,6 +28,7 @@ void HumidityNetwork::buildTerms(ConstNodeStateView nodeState,
     // 生成項（発湿）: 換気ブランチの humidity_generation を target 側へ集計
     for (auto e : boost::make_iterator_range(boost::edges(vGraph))) {
         const auto& ep = vGraph[e];
+        if (!ep.current_enabled) continue;
         const double g = ep.current_humidity_generation;
         if (g == 0.0) continue;
         auto itT = tKeyToV.find(ep.target);
@@ -38,6 +39,7 @@ void HumidityNetwork::buildTerms(ConstNodeStateView nodeState,
     // 換気枝から inflow/outflow を構築
     for (auto e : boost::make_iterator_range(boost::edges(vGraph))) {
         const auto& ep = vGraph[e];
+        if (!ep.current_enabled) continue;
         const double f = ep.flow_rate; // [m3/s]
         if (f == 0.0) continue;
 
@@ -65,6 +67,7 @@ void HumidityNetwork::buildTerms(ConstNodeStateView nodeState,
     // 湿気回路網（双方向）
     for (auto e : boost::make_iterator_range(boost::edges(tGraph))) {
         const auto& ep = tGraph[e];
+        if (!ep.current_enabled) continue;
         const double k = ep.moisture_conductance;
         if (!(k > 0.0)) continue;
         const Vertex sv = boost::source(e, tGraph);
@@ -83,13 +86,28 @@ void HumidityNetwork::buildTerms(ConstNodeStateView nodeState,
 }
 
 void HumidityNetwork::ensureNodeIndex(ConstNodeStateView nodeState) const {
-    if (nodeIndexInitialized) return;
+    const Graph* ptr = &nodeState.graph;
+    const size_t nV = static_cast<size_t>(boost::num_vertices(nodeState.graph));
+    const size_t nE = static_cast<size_t>(boost::num_edges(nodeState.graph));
+    if (nodeIndexInitialized &&
+        cachedGraphPtr_ == ptr &&
+        cachedNumVertices_ == nV &&
+        cachedNumEdges_ == nE) {
+        return;
+    }
+
     nodeKeyToVertex.clear();
     const auto& graph = nodeState.graph;
-    nodeKeyToVertex.reserve(boost::num_vertices(graph));
+    nodeKeyToVertex.reserve(nV);
     for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
         nodeKeyToVertex.emplace(graph[v].key, v);
     }
+    cachedGraphPtr_ = ptr;
+    cachedNumVertices_ = nV;
+    cachedNumEdges_ = nE;
     nodeIndexInitialized = true;
+    // グラフが変わった場合は出力キャッシュも無効化
+    outputCacheInitialized = false;
+    outputVerticesOrdered.clear();
+    outputKeysOrdered.clear();
 }
-

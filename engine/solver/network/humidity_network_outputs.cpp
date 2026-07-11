@@ -49,6 +49,9 @@ std::vector<double> HumidityNetwork::collectOutputValues(ConstNodeStateView node
 
 void HumidityNetwork::invalidateCaches() {
     nodeIndexInitialized = false;
+    cachedGraphPtr_ = nullptr;
+    cachedNumVertices_ = 0;
+    cachedNumEdges_ = 0;
     nodeKeyToVertex.clear();
     outputCacheInitialized = false;
     outputVerticesOrdered.clear();

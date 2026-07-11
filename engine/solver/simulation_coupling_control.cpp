@@ -83,7 +83,7 @@ void logHumiditySolverNotConverged(std::ostream& logs,
     writeLog(
         logs,
         "湿気ソルバ未収束(内側反復継続): iter=" + std::to_string(stats.iterations) +
-            ", maxDiff=" + std::to_string(stats.finalMaxDiff) +
+            ", relativeResidual=" + std::to_string(stats.finalRelativeResidual) +
             ", active=" + std::to_string(stats.activeVertices));
 }
 
@@ -110,7 +110,7 @@ void logInnerCouplingDelta(std::ostream& logs,
             " K, 湿気変化量: " + std::to_string(delta.humidityChange) +
             " kg/kg(DA), 潜熱反映: " + std::to_string(latentAppliedW) +
             " W, 湿気反復: " + std::to_string(humidityStats.iterations) +
-            ", 湿気残差: " + std::to_string(humidityStats.finalMaxDiff));
+            ", 湿気相対残差: " + std::to_string(humidityStats.finalRelativeResidual));
 }
 
 void logInnerCouplingConverged(std::ostream& logs, bool logEnabled, std::size_t coupledIter) {
@@ -133,7 +133,7 @@ void logInnerCouplingMaxIteration(std::ostream& logs,
         << ", humidity=" << eval.delta.humidityChange << "/" << eval.humidityTol
         << ", latentApplied=" << latentAppliedW << " W"
         << ", humidityIter=" << humidityStats.iterations
-        << ", humidityResidual=" << humidityStats.finalMaxDiff;
+        << ", humidityRelativeResidual=" << humidityStats.finalRelativeResidual;
     writeLog(logs, oss.str());
 }
 

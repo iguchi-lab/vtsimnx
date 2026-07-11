@@ -13,7 +13,8 @@ namespace core::humidity {
 
 struct SolveStats {
     int iterations = 0;
-    double finalMaxDiff = 0.0;
+    // ||Ax-b|| / ||b|| （連成の湿度変化量とは別物）
+    double finalRelativeResidual = 0.0;
     bool converged = true;
 };
 

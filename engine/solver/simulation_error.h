@@ -10,6 +10,7 @@ enum class ErrorCode {
     PressureNotConverged,
     CouplingMaxIterations,
     ThermalNotConverged,
+    HumidityNotConverged,
     AirconMaxIterations,
 };
 
@@ -22,6 +23,8 @@ inline std::string_view toErrorCodeString(ErrorCode code) noexcept {
         return "coupling_max_iterations";
     case ErrorCode::ThermalNotConverged:
         return "thermal_not_converged";
+    case ErrorCode::HumidityNotConverged:
+        return "humidity_not_converged";
     case ErrorCode::AirconMaxIterations:
         return "aircon_max_iterations";
     }

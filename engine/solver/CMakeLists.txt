@@ -471,6 +471,38 @@ if(VTSIMNX_BUILD_CPP_TESTS)
     add_test(NAME vtsimnx_solver_cpp_test_transport_humidity_concentration
              COMMAND vtsimnx_solver_cpp_test_transport_humidity_concentration)
 
+    # 7b2) humidity enable / zero-cap / singular reject
+    add_executable(vtsimnx_solver_cpp_test_humidity_enable_zero_cap
+        tests_cpp/test_humidity_enable_zero_cap.cpp
+        core/humidity/humidity_solver.cpp
+        core/humidity/humidity_coupling.cpp
+        network/ventilation_network.cpp
+        network/ventilation_network_outputs.cpp
+        network/thermal_network.cpp
+        network/thermal_network_outputs.cpp
+        network/humidity_network.cpp
+        network/humidity_network_outputs.cpp
+        ${VENTILATION_PRESSURE_SOURCES}
+        core/thermal/thermal_solver.cpp
+        core/thermal/thermal_solver_linear_direct.cpp
+        core/thermal/thermal_direct_internal.cpp
+        core/thermal/thermal_direct_topology.cpp
+        core/thermal/thermal_direct_rhs.cpp
+        core/thermal/thermal_direct_build.cpp
+        core/thermal/thermal_direct_solve.cpp
+        core/thermal/thermal_direct_postprocess.cpp
+    )
+    target_link_libraries(vtsimnx_solver_cpp_test_humidity_enable_zero_cap
+        Boost::boost
+        ceres
+    )
+    target_compile_options(vtsimnx_solver_cpp_test_humidity_enable_zero_cap PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_test_humidity_enable_zero_cap
+             COMMAND vtsimnx_solver_cpp_test_humidity_enable_zero_cap)
+
     # 7c) core physics known-solution checks (ventilation / thermal / humidity)
     add_executable(vtsimnx_solver_cpp_test_core_physics_known_solutions
         tests_cpp/test_core_physics_known_solutions.cpp

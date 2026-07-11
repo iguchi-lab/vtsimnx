@@ -53,7 +53,7 @@ void runDecoupledHumidityStep(InnerCouplingContext& ctx,
     const auto sharedNodeState = makeSharedNodeStateArgs(ctx.thermal);
     restoreXPrevToGraph(sharedNodeState.nodeGraph, ctx.ventilation, initial.humidityX);
     restoreWPrevToGraph(sharedNodeState.nodeGraph, initial.moistureW);
-    (void)core::humidity::updateHumidityIfEnabled(
+    const auto humStats = core::humidity::updateHumidityIfEnabled(
         ctx.constants,
         ctx.ventilation,
         sharedNodeState.nodeGraph,
@@ -63,6 +63,11 @@ void runDecoupledHumidityStep(InnerCouplingContext& ctx,
         ctx.logs,
         ctx.timings,
         std::string(ctx.meta) + ",iteration=" + std::to_string(toLogIndex1Based(outerIteration)));
+    if (!humStats.converged) {
+        throw Error(
+            ErrorCode::HumidityNotConverged,
+            "Humidity solver did not converge during decoupled humidity step");
+    }
 }
 
 void runInnerCoupling(InnerCouplingContext& ctx,
@@ -120,6 +125,11 @@ void runInnerCoupling(InnerCouplingContext& ctx,
                 meta + ",iteration=" + std::to_string(outerLogIndex) +
                     ",coupledIter=" + std::to_string(coupledIter));
             logHumiditySolverNotConverged(ctx.logs, logEnabled, lastHumiditySolveStats);
+            if (!lastHumiditySolveStats.converged) {
+                throw Error(
+                    ErrorCode::HumidityNotConverged,
+                    "Humidity solver did not converge during inner coupling");
+            }
             relaxHumidityByVertex(ctx.thermal.getGraph(), ctx.ventilation, snap.humidity,
                                   ctx.constants.humidityRelaxation);
         }

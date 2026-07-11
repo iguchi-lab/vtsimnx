@@ -13,6 +13,9 @@ namespace core::humidity {
 
 namespace {
 inline size_t idxOf(Vertex v) { return static_cast<size_t>(v); }
+
+// 絶対湿度の許容下限。これ未満は非物理として不合格、[-eps,0) は 0 に丸める。
+constexpr double kHumidityNegEpsilon = 1e-12;
 } // namespace
 
 void initializeHumidityState(const Graph& tGraph,
@@ -93,23 +96,28 @@ SolveStats solveHumidityImplicitStep(const Graph& tGraph,
             trips.emplace_back(r, r, diag);
             b[r] = rhs;
         } else {
-            // 容量なしノード: 流入混合
-            // sum(md)*x_i - sum(md*x_src) = 0
-            double sumIn = 0.0;
-            for (const auto& in : terms.inflow[i]) {
-                sumIn += in.second;
-            }
-            if (sumIn > 0.0) {
-                trips.emplace_back(r, r, sumIn);
-                rhs = 0.0;
+            // 容量なしノードの定常収支:
+            // (outSum + Σk) x_i - Σ(m_in x_src) - Σ(k x_neighbor) = generation
+            const bool hasFlow = (terms.outSum[i] > 0.0) || !terms.inflow[i].empty();
+            const bool hasLinks = !terms.moistureLinks[i].empty();
+            if (!hasFlow && !hasLinks) {
+                // 移流も湿気リンクもなければ現状態を保持
+                trips.emplace_back(r, r, 1.0);
+                b[r] = xOld[i];
+            } else {
+                double diag = terms.outSum[i];
+                rhs = g;
                 for (const auto& in : terms.inflow[i]) {
                     addCoeff(r, in.first, -in.second, rhs);
                 }
+                for (const auto& lk : terms.moistureLinks[i]) {
+                    const double k = lk.second;
+                    diag += k;
+                    addCoeff(r, lk.first, -k, rhs);
+                }
+                // diag==0 は特異（流入のみ・流出なし等）。解不能として失敗側へ回すため 0 のまま置く。
+                trips.emplace_back(r, r, diag);
                 b[r] = rhs;
-            } else {
-                // 流入がなければ現状態を保持
-                trips.emplace_back(r, r, 1.0);
-                b[r] = xOld[i];
             }
         }
     }
@@ -123,7 +131,7 @@ SolveStats solveHumidityImplicitStep(const Graph& tGraph,
     if (solver.info() != Eigen::Success) {
         stats.converged = false;
         stats.iterations = 0;
-        stats.finalMaxDiff = std::numeric_limits<double>::infinity();
+        stats.finalRelativeResidual = std::numeric_limits<double>::infinity();
         return stats;
     }
 
@@ -133,22 +141,30 @@ SolveStats solveHumidityImplicitStep(const Graph& tGraph,
 
     if (!stats.converged || x.size() != n) {
         stats.converged = false;
-        stats.finalMaxDiff = std::numeric_limits<double>::infinity();
+        stats.finalRelativeResidual = std::numeric_limits<double>::infinity();
         return stats;
     }
 
-    // 直接法でも診断値として相対残差を保持
-    const Eigen::VectorXd r = A * x - b;
+    // 直接法でも診断値として相対残差 ||Ax-b||/||b|| を保持
+    const Eigen::VectorXd residual = A * x - b;
     const double bNorm = b.norm();
-    const double relResidual = (bNorm > 0.0) ? (r.norm() / bNorm) : r.norm();
-    stats.finalMaxDiff = relResidual;
+    const double relResidual = (bNorm > 0.0) ? (residual.norm() / bNorm) : residual.norm();
+    stats.finalRelativeResidual = relResidual;
     if (!(relResidual <= tol) || !std::isfinite(relResidual)) {
         stats.converged = false;
+        return stats;
     }
 
     for (int r = 0; r < n; ++r) {
+        const double xi = x[r];
+        if (!std::isfinite(xi) || xi < -kHumidityNegEpsilon) {
+            stats.converged = false;
+            stats.finalRelativeResidual = std::numeric_limits<double>::infinity();
+            return stats;
+        }
         const Vertex v = terms.updateVertices[static_cast<size_t>(r)];
-        xNew[idxOf(v)] = x[r];
+        // 微小な負値のみ 0 に丸める
+        xNew[idxOf(v)] = (xi < 0.0) ? 0.0 : xi;
     }
     return stats;
 }
@@ -170,4 +186,3 @@ void applyHumidityStateToGraphs(Graph& tGraph,
 }
 
 } // namespace core::humidity
-

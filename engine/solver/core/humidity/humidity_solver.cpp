@@ -46,13 +46,18 @@ HumiditySolveStats updateHumidityIfEnabled(const SimulationConstants& constants,
         constants.humiditySolverTolerance,
         xNew,
         xOld);
+    stats.iterations = solve.iterations;
+    stats.finalRelativeResidual = solve.finalRelativeResidual;
+    stats.converged = solve.converged;
+
+    // 未収束・非有限・非物理解はグラフへ反映しない（連成の偽収束を防ぐ）
+    if (!solve.converged) {
+        stats.updated = false;
+        return stats;
+    }
     applyHumidityStateToGraphs(tGraph, vGraph, vKeyToV, terms.updateVertices, xNew);
     stats.updated = true;
-    stats.iterations = solve.iterations;
-    stats.finalMaxDiff = solve.finalMaxDiff;
-    stats.converged = solve.converged;
     return stats;
 }
 
 } // namespace core::humidity
-
