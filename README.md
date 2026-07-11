@@ -75,12 +75,14 @@ python examples/run_calc_minimal.py
 
 | ジョブ | 内容 |
 |---|---|
-| `lint` | `ruff` + `mypy`（`vtsimnx/` / `engine/app/` / `examples/`） |
-| `python-client` | `pytest vtsimnx/tests` |
-| `engine-python` | C++ solver ビルド + `pytest engine/tests_py`（builder / API / 物理回帰） |
+| `lint` | `ruff` + `mypy`（Python 3.11） |
+| `python-client` | `pytest vtsimnx/tests`（Python **3.10 / 3.11 / 3.13**） |
+| `engine-python` | C++ solver ビルド + `pytest engine/tests_py`（Python **3.10 / 3.11 / 3.13**） |
 | `cpp-solver` | CMake ビルド + CTest |
-| `package` | wheel ビルド → クリーン環境へ install → import 確認 |
-| `example` | uvicorn 起動 + `examples/run_calc_minimal.py` |
+| `package` | wheel ビルド → クリーン環境へ install → import 確認（Python 3.11） |
+| `example` | uvicorn 起動 + `examples/run_calc_minimal.py`（Python 3.11） |
+
+対応 Python: **3.10 以上**（`pyproject.toml` の `requires-python`）。lint / package / example は主要版 3.11 固定。
 
 ワークフロー定義: `.github/workflows/ci.yml`
 ## 検証と保証範囲
