@@ -44,7 +44,7 @@ from app.api_auth import ApiKeyMiddleware
 logger = logging.getLogger(__name__)
 
 # API ルータ本体。OpenAPI のタイトルやバージョンをここで設定する。
-app = FastAPI(title="VTSimNX API", version="1.0.7")
+app = FastAPI(title="VTSimNX API", version="1.0.8")
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 WORK_DIR = BASE_DIR / "work"
