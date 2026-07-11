@@ -18,14 +18,26 @@
 | `run_calc` | `CalcRunResult` |
 | `CalcRunResult` | 実行結果コンテナ |
 | `RunCalcAPIError` | API エラー |
-| `get_artifact_file` | `Path` または bytes |
+| `get_artifact_file` | `Path` / bytes / DataFrame（`.f32.bin` は DataFrame） |
+| `get_artifact_bytes` | `bytes` |
 | `__version__` / `get_version` | `str`（正本は `pyproject.toml`） |
 | `units` | 単位定数モジュール |
+
+成果物まわりの追加 stable（`vtsimnx.artifacts` から）:
+
+| 記号 | 備考 |
+|---|---|
+| `ArtifactClient` | manifest / schema キャッシュ付き取得 |
+| `decode_f32_series` | f32.bin → DataFrame（HTTP 非依存） |
+| `ArtifactNotFound` / `ArtifactDecodeError` / `ArtifactHTTPError` | 例外（`KeyError` / `ValueError` 互換サブクラスあり） |
+
+`.f32.bin` 復元後の DataFrame は `df.attrs["unit"]` / `df.attrs["series"]` に単位情報を付与します（`vtsimnx.units.SERIES_UNITS`）。
 
 推奨 import:
 
 ```python
 import vtsimnx as vt
+from vtsimnx.artifacts import ArtifactClient, decode_f32_series
 
 result = vt.run_calc(...)
 print(vt.get_version())

@@ -1,22 +1,16 @@
 from __future__ import annotations
 
 import argparse
-import json
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Dict, List, Tuple
 
-import numpy as np
-import pandas as pd
-
-from vtsimnx.artifacts._schema import extract_result_files, series_columns
+from vtsimnx.artifacts import decode_f32_series, extract_result_files
+from vtsimnx.artifacts._decode import load_json_bytes
 
 
-def _load_json(path: Path) -> Dict[str, Any]:
+def _load_json(path: Path) -> dict:
     try:
-        with path.open("r", encoding="utf-8") as f:
-            return json.load(f)
-    except json.JSONDecodeError as e:
-        raise ValueError(f"JSONの解析に失敗しました: {path}") from e
+        return load_json_bytes(path.read_bytes())
     except OSError as e:
         raise OSError(f"ファイルの読み込みに失敗しました: {path}") from e
 
@@ -26,14 +20,6 @@ def _find_first_existing(candidates: List[Path], *, kind: str) -> Path:
     if found is None:
         raise FileNotFoundError(f"{kind} が見つかりません: {', '.join(str(p) for p in candidates)}")
     return found
-
-
-def _read_f32le_timestep_major(bin_path: Path, T: int, N: int) -> np.ndarray:
-    data = np.fromfile(bin_path, dtype=np.dtype("<f4"))
-    expected = T * N
-    if data.size != expected:
-        raise ValueError(f"{bin_path.name}: 要素数が不一致です (actual={data.size}, expected={expected}, T={T}, N={N})")
-    return data.reshape((T, N))
 
 
 def _iter_f32_bins(result_files: Dict[str, str]) -> List[Tuple[str, str]]:
@@ -49,7 +35,9 @@ def _iter_f32_bins(result_files: Dict[str, str]) -> List[Tuple[str, str]]:
 
 
 def main() -> int:
-    parser = argparse.ArgumentParser(description="work/output.artifacts.XXXX の *.f32.bin を schema.json に基づきCSVへ変換します")
+    parser = argparse.ArgumentParser(
+        description="work/output.artifacts.XXXX の *.f32.bin を schema.json に基づきCSVへ変換します"
+    )
     parser.add_argument("--artifact-dir", required=True, help="例: work/output.artifacts.XXXX")
     args = parser.parse_args()
 
@@ -67,17 +55,6 @@ def main() -> int:
     manifest = _load_json(manifest_path)
     schema = _load_json(schema_path)
 
-    dtype = schema.get("dtype")
-    layout = schema.get("layout")
-    if dtype != "f32le":
-        raise ValueError(f"schema.json dtype が想定外です: {dtype!r} (想定: 'f32le')")
-    if layout != "timestep-major":
-        raise ValueError(f"schema.json layout が想定外です: {layout!r} (想定: 'timestep-major')")
-
-    T = schema.get("length")
-    if not isinstance(T, int) or T < 0:
-        raise ValueError(f"schema.json length が不正です: {T!r}")
-
     result_files = extract_result_files(manifest)
     pairs = _iter_f32_bins(result_files)
     if len(pairs) == 0:
@@ -88,12 +65,8 @@ def main() -> int:
         # バイナリも artifacts/直下 or artifact_dir直下を許容
         bin_candidates = [artifacts_dir / bin_name, artifact_dir / bin_name]
         bin_path = _find_first_existing(bin_candidates, kind="バイナリ")
-
-        cols = series_columns(schema, series_name)
-        N = len(cols)
-
-        arr = _read_f32le_timestep_major(bin_path, T=T, N=N)
-        df = pd.DataFrame(arr, columns=cols)
+        raw = bin_path.read_bytes()
+        df = decode_f32_series(raw, schema, series_name, source_name=bin_name)
 
         csv_name = bin_name[: -len(".f32.bin")] + ".csv"
         out_path = artifacts_dir / csv_name
@@ -101,12 +74,10 @@ def main() -> int:
             df.to_csv(out_path, index=False)
         except OSError as e:
             raise OSError(f"CSVの書き込みに失敗しました: {out_path}") from e
-        print(f"OK: {bin_name} -> {out_path.name} (shape={arr.shape})")
+        print(f"OK: {bin_name} -> {out_path.name} (shape={df.shape})")
 
     return 0
 
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
-

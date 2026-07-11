@@ -14,7 +14,7 @@ from . import units
 
 # --- stable ---
 from .run_calc import run_calc, CalcRunResult, RunCalcAPIError
-from .artifacts import get_artifact_file
+from .artifacts import get_artifact_file, get_artifact_bytes
 
 # --- experimental (top-level re-export; 変更しうる) ---
 from .archenv import (
@@ -42,6 +42,7 @@ __all_stable__ = [
     "CalcRunResult",
     "RunCalcAPIError",
     "get_artifact_file",
+    "get_artifact_bytes",
 ]
 
 __all_experimental__ = [

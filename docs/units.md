@@ -65,3 +65,5 @@ from vtsimnx.units import unit_for_field, unit_for_series
 assert unit_for_field("t") == "degC"
 assert unit_for_series("vent_flow_rate") == "m3/s"
 ```
+
+`get_artifact_file` / `decode_f32_series` で復元した DataFrame には、既知 series について `df.attrs["unit"]` と `df.attrs["series"]` が付きます。

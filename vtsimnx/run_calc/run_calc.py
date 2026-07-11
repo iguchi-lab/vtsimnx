@@ -49,9 +49,19 @@ class CalcRunResult:
     _dataframes: Dict[str, pd.DataFrame] = field(default_factory=dict, repr=False)
     _log_text: Optional[str] = field(default=None, repr=False)
     _schema: Optional[Dict[str, Any]] = field(default=None, repr=False)
+    _artifact_client: Any = field(default=None, repr=False)
     client_profile: Dict[str, Any] = field(default_factory=dict)
     _series_profiles: Dict[str, Dict[str, Any]] = field(default_factory=dict, repr=False)
     _log_profile: Dict[str, Any] = field(default_factory=dict, repr=False)
+
+    def _get_artifact_client(self):
+        if self._artifact_client is None:
+            from vtsimnx.artifacts import ArtifactClient
+
+            self._artifact_client = ArtifactClient(
+                self.base_url, self.artifact_dir, api_key=self.api_key
+            )
+        return self._artifact_client
 
     @property
     def dataframes(self) -> Dict[str, pd.DataFrame]:
@@ -164,23 +174,25 @@ class CalcRunResult:
 
         try:
             # 遅延import（import順の循環を避ける）
-            from vtsimnx.artifacts.get_artifact_file import get_artifact_file
+            from vtsimnx.artifacts import ArtifactClient
+            from vtsimnx.artifacts.errors import ArtifactError
         except ImportError as e:
             self.errors["__log__"] = f"ImportError: {e}"
             return None
 
         try:
             t0 = time.perf_counter()
-            raw = get_artifact_file(self.base_url, self.artifact_dir, log_file, api_key=self.api_key)
+            client = self._get_artifact_client()
+            raw = client.get_bytes(log_file)
             t1 = time.perf_counter()
-            if isinstance(raw, (bytes, bytearray)):
-                self._log_text = bytes(raw).decode("utf-8", errors="replace")
-                self._log_profile = {
-                    "download_and_decode_ms": (t1 - t0) * 1000.0,
-                    "bytes": len(raw),
-                }
-                return self._log_text
-            self.errors["__log__"] = f"TypeError: expected bytes, got {type(raw).__name__}"
+            self._log_text = bytes(raw).decode("utf-8", errors="replace")
+            self._log_profile = {
+                "download_and_decode_ms": (t1 - t0) * 1000.0,
+                "bytes": len(raw),
+            }
+            return self._log_text
+        except ArtifactError as e:
+            self.errors["__log__"] = f"{type(e).__name__}: {e}"
         except (TypeError, ValueError, OSError) as e:
             self.errors["__log__"] = f"{type(e).__name__}: {e}"
         except Exception as e:
@@ -206,21 +218,18 @@ class CalcRunResult:
 
         try:
             # 遅延import（import順の循環を避ける）
-            from vtsimnx.artifacts.get_artifact_file import get_artifact_file, get_artifact_bytes
-            from vtsimnx.artifacts._schema import series_columns
+            from vtsimnx.artifacts import decode_f32_series
+            from vtsimnx.artifacts.errors import ArtifactError
         except ImportError as e:
             self.errors[series_name] = f"ImportError: {e}"
             return None
 
         try:
-            # schema.json は複数系列で共通なのでキャッシュする（GET回数削減）
+            client = self._get_artifact_client()
             t0 = time.perf_counter()
             if self._schema is None:
                 t_schema0 = time.perf_counter()
-                raw_schema = get_artifact_file(self.base_url, self.artifact_dir, "schema.json", api_key=self.api_key)
-                if not isinstance(raw_schema, (bytes, bytearray)):
-                    raise TypeError(f"schema.json: expected bytes, got {type(raw_schema).__name__}")
-                self._schema = json.loads(bytes(raw_schema).decode("utf-8"))
+                self._schema = client.get_schema()
                 t_schema1 = time.perf_counter()
                 schema_fetch_ms = (t_schema1 - t_schema0) * 1000.0
             else:
@@ -230,25 +239,19 @@ class CalcRunResult:
             if not isinstance(schema, dict):
                 raise TypeError(f"schema.json: expected dict, got {type(schema).__name__}")
 
-            T = schema.get("length")
-            if not isinstance(T, int) or T < 0:
-                raise ValueError(f"schema.json length が不正です: {T!r}")
-
-            cols = series_columns(schema, series_name)
-            N = len(cols)
-
-            # bin本体は bytes で取得して自前で復元（manifest.json は不要）
             t_bin0 = time.perf_counter()
-            data = get_artifact_bytes(self.base_url, self.artifact_dir, fname, api_key=self.api_key)
+            data = client.get_bytes(fname)
             t_bin1 = time.perf_counter()
-            arr = np.frombuffer(data, dtype=np.dtype("<f4"))
-            expected = T * N
-            if arr.size != expected:
-                raise ValueError(
-                    f"{fname}: 要素数が不一致です (actual={arr.size}, expected={expected}, T={T}, N={N})"
-                )
-            arr = arr.reshape((T, N))
-            df = pd.DataFrame(arr, columns=cols)
+
+            df = decode_f32_series(
+                data,
+                schema,
+                series_name,
+                index_spec=None,
+                source_name=fname,
+            )
+            T = int(df.shape[0])
+            N = int(df.shape[1])
             t_df = time.perf_counter()
 
             # 可能なら時間軸インデックスを付与
@@ -277,6 +280,8 @@ class CalcRunResult:
                 "cols": N,
             }
             return df
+        except ArtifactError as e:
+            self.errors[series_name] = f"{type(e).__name__}: {e}"
         except (TypeError, ValueError, json.JSONDecodeError) as e:
             self.errors[series_name] = f"{type(e).__name__}: {e}"
         except Exception as e:
