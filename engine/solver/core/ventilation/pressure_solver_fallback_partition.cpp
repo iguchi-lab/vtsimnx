@@ -96,9 +96,18 @@ PressureSolver::SupernodePartition PressureSolver::detectSupernodePartition(
 
         double logMin = *std::min_element(logG.begin(), logG.end());
         double logMax = *std::max_element(logG.begin(), logG.end());
+        // 候補が1本、または log 空間で明確な幅が無い場合はスーパーノード化しない
+        if (logG.size() < 2 || (logMax - logMin) < 1.0) {
+            writeLog(logFile_, "\t\tコンダクタンス幅不足のためスーパーノード化をスキップ"
+                                 " (n=" + std::to_string(logG.size()) +
+                                 ", logSpan=" + std::to_string(logMax - logMin) + ")");
+            return partition;
+        }
+
         double cLow = logMin;
         double cHigh = logMax;
         std::vector<int> assign(logG.size(), 0);
+        bool clusteringOk = true;
         for (int it = 0; it < 10; ++it) {
             for (size_t i = 0; i < logG.size(); ++i) {
                 double dL = std::abs(logG[i] - cLow);
@@ -116,19 +125,33 @@ PressureSolver::SupernodePartition PressureSolver::detectSupernodePartition(
                     cntH++;
                 }
             }
-            if (cntL > 0) cLow = sumL / cntL; else cLow = cHigh - 1.0;
-            if (cntH > 0) cHigh = sumH / cntH; else cHigh = cLow + 1.0;
+            // 空クラスタの中心を人工的に離さない（偽の decade 分離を作らない）
+            if (cntL == 0 || cntH == 0) {
+                clusteringOk = false;
+                break;
+            }
+            cLow = sumL / static_cast<double>(cntL);
+            cHigh = sumH / static_cast<double>(cntH);
+        }
+        if (!clusteringOk) {
+            writeLog(logFile_, "\t\t空クラスタ発生のためスーパーノード化をスキップ");
+            return partition;
         }
         if (cLow > cHigh) std::swap(cLow, cHigh);
         double cMid = 0.5 * (cLow + cHigh);
+        size_t cntLFinal = 0, cntHFinal = 0;
+        for (int a : assign) {
+            if (a == 0) cntLFinal++; else cntHFinal++;
+        }
+        if (cntLFinal == 0 || cntHFinal == 0) {
+            writeLog(logFile_, "\t\t最終割当が片側クラスタのためスーパーノード化をスキップ");
+            return partition;
+        }
         if (constants.logFallbackDetails && constants.logVerbosity >= 2) {
             writeLog(logFile_, "\t\tクラスタ分離(logG): cLow=" + std::to_string(cLow) +
                                  ", cHigh=" + std::to_string(cHigh));
-            size_t cntL = 0, cntH = 0;
-            for (int a : assign) {
-                if (a == 0) cntL++; else cntH++;
-            }
-            writeLog(logFile_, "\t\tクラスタサイズ: low=" + std::to_string(cntL) + ", high=" + std::to_string(cntH));
+            writeLog(logFile_, "\t\tクラスタサイズ: low=" + std::to_string(cntLFinal) +
+                                 ", high=" + std::to_string(cntHFinal));
             writeLog(logFile_, "\t\t選抜閾値(logG中点): " + std::to_string(cMid));
         }
 

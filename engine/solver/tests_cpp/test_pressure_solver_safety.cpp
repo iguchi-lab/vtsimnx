@@ -216,6 +216,9 @@ void testConductanceSeparationGate() {
     expectTrue(!ventilation::hasClearConductanceSeparation(0.0, 0.5), "0.5 decade reject");
     expectTrue(!ventilation::hasClearConductanceSeparation(1.0, 1.0), "identical reject");
     expectTrue(!ventilation::hasClearConductanceSeparation(0.0, 0.9, 1.0, 10.0), "below minLogSep");
+    // 人工 decade（空クラスタ中心シフト相当）を separation 判定に使ってはいけない前提:
+    // 実際の span が無いデータは logMax-logMin で先に弾く
+    expectTrue(!ventilation::hasClearConductanceSeparation(3.0, 3.0), "zero span reject");
 }
 
 void testMakeTolerancesUsesVentilationTolerance() {
