@@ -14,6 +14,7 @@ def test_extract_manifest_error_includes_artifact_and_log_tail():
         {
             "status": "error",
             "error": "coupling did not converge",
+            "error_code": "coupling_max_iterations",
             "artifact_dir": "artifacts.demo",
             "log_file": "solver.log",
             "builder_log_file": "builder.log",
@@ -22,6 +23,7 @@ def test_extract_manifest_error_includes_artifact_and_log_tail():
     )
     assert msg is not None
     assert "coupling did not converge" in msg
+    assert "code=coupling_max_iterations" in msg
     assert "artifact_dir=artifacts.demo" in msg
     assert "solver.log (tail)" in msg
     assert "pressure residual" in msg

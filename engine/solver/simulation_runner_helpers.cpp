@@ -116,6 +116,22 @@ double couplingHumidityTol(const SimulationConstants& constants) {
                                                        : constants.convergenceTolerance;
 }
 
+std::size_t effectiveMaxCouplingIterations(const SimulationConstants& constants) {
+    return constants.maxCouplingIterations > 0 ? constants.maxCouplingIterations
+                                               : constants.maxInnerIterations;
+}
+
+std::size_t effectiveMaxAirconControlIterations(const SimulationConstants& constants) {
+    return constants.maxAirconControlIterations > 0 ? constants.maxAirconControlIterations
+                                                    : constants.maxInnerIterations;
+}
+
+void resetNodeHeatSources(Graph& graph) {
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        graph[v].heat_source = 0.0;
+    }
+}
+
 void capturePrevTempsByVertex(const Graph& graph, std::vector<double>& prevTempsByVertex) {
     const size_t vCount = static_cast<size_t>(boost::num_vertices(graph));
     prevTempsByVertex.resize(vCount);

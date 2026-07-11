@@ -107,7 +107,7 @@ SimulationConstants makeConstants() {
     c.ventilationTolerance = 1e-10;
     c.thermalTolerance = 1e-10;
     c.convergenceTolerance = 1e-10;
-    c.maxInnerIteration = 50;
+    c.maxInnerIterations = 50;
     c.pressureCalc = true;
     c.temperatureCalc = true;
     c.humidityCalc = true;

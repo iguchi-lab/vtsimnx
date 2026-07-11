@@ -19,6 +19,12 @@ double couplingPressureTol(const SimulationConstants& constants);
 double couplingTemperatureTol(const SimulationConstants& constants);
 double couplingHumidityTol(const SimulationConstants& constants);
 
+// 0 なら maxInnerIterations へフォールバック（テストで片方だけ上書きする用途）
+std::size_t effectiveMaxCouplingIterations(const SimulationConstants& constants);
+std::size_t effectiveMaxAirconControlIterations(const SimulationConstants& constants);
+
+void resetNodeHeatSources(Graph& graph);
+
 void capturePrevTempsByVertex(const Graph& graph, std::vector<double>& prevTempsByVertex);
 void captureXPrevByVertex(const Graph& graph, std::vector<double>& xPrev);
 void captureWPrevByVertex(const Graph& graph, std::vector<double>& wPrev);

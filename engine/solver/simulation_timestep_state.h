@@ -21,6 +21,18 @@ struct CouplingSnapshot {
     std::vector<double> heatSource; // baseHeatSource
 };
 
+struct SharedNodeStateArgs {
+    Graph& nodeGraph;
+    ConstNodeStateView nodeState;
+};
+
+inline SharedNodeStateArgs makeSharedNodeStateArgs(ThermalNetwork& thermalNetwork) {
+    return SharedNodeStateArgs{
+        thermalNetwork.getGraph(),
+        static_cast<const ThermalNetwork&>(thermalNetwork).nodeStateView(),
+    };
+}
+
 inline TimestepInitialState captureTimestepInitialState(ThermalNetwork& thermalNetwork,
                                                         bool humidityCalc) {
     TimestepInitialState initial;

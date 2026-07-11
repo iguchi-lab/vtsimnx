@@ -1,14 +1,13 @@
 #pragma once
 
+#include "simulation_context.h"
 #include "vtsim_solver.h"
 #include "vtsimnx_solver_timing.h"
 
 #include <ostream>
 #include <string>
 
-class AirconController;
-class ThermalNetwork;
-class VentilationNetwork;
+namespace simulation {
 
 enum class AirconIterationAction {
     Accept,
@@ -21,12 +20,30 @@ struct AirconIterationResult {
     AirconIterationAction action = AirconIterationAction::Accept;
 };
 
-AirconIterationResult runAirconIteration(AirconController& airconController,
-                                         ThermalNetwork& thermalNetwork,
-                                         VentilationNetwork& ventNetwork,
-                                         const SimulationConstants& constants,
+// 空調反復の分岐判定（ユニットテスト用に純粋関数として公開）
+inline AirconIterationAction decideAirconIterationAction(bool ductFlowAdjusted,
+                                                         bool allAirconControlled,
+                                                         bool capacityAdjusted) {
+    if (ductFlowAdjusted) {
+        return AirconIterationAction::RecomputeForFlow;
+    }
+    if (!allAirconControlled) {
+        return AirconIterationAction::RecomputeForControl;
+    }
+    if (capacityAdjusted) {
+        return AirconIterationAction::RecomputeForCapacity;
+    }
+    return AirconIterationAction::Accept;
+}
+
+AirconIterationResult runAirconIteration(AirconIterationContext& ctx,
                                          const FlowRateMap& flowRates,
-                                         std::ostream& logs,
-                                         int& totalIterations,
-                                         TimingList& timings,
-                                         const std::string& meta);
+                                         int& totalIterations);
+
+} // namespace simulation
+
+// 移行期の別名
+using AirconIterationAction = simulation::AirconIterationAction;
+using AirconIterationResult = simulation::AirconIterationResult;
+using simulation::decideAirconIterationAction;
+using simulation::runAirconIteration;

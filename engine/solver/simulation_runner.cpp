@@ -1,7 +1,6 @@
 #include "simulation_runner.h"
 
 #include "aircon/aircon_controller.h"
-#include "core/humidity/humidity_solver.h"
 #include "network/contaminant_network.h"
 #include "network/humidity_network.h"
 #include "network/thermal_network.h"
@@ -18,30 +17,10 @@
 #include "transport/concentration_solver.h"
 #include "utils/utils.h"
 
-#include <boost/range/iterator_range.hpp>
 #include <string>
 
 namespace {
 using namespace simulation::detail;
-
-struct SharedNodeStateArgs {
-    Graph& nodeGraph;
-    ConstNodeStateView nodeState;
-};
-
-SharedNodeStateArgs makeSharedNodeStateArgs(ThermalNetwork& thermalNetwork) {
-    return SharedNodeStateArgs{
-        thermalNetwork.getGraph(),
-        static_cast<const ThermalNetwork&>(thermalNetwork).nodeStateView(),
-    };
-}
-
-int maxAirconControlIterations(const SimulationConstants& constants) {
-    return static_cast<int>(
-        constants.maxAirconControlIterations > 0 ? constants.maxAirconControlIterations
-                                                 : constants.maxInnerIteration);
-}
-
 } // namespace
 
 void runSimulation(VentilationNetwork& ventNetwork,
@@ -54,7 +33,7 @@ void runSimulation(VentilationNetwork& ventNetwork,
                    std::ostream& logs,
                    TimingList& timings,
                    const std::string& meta) {
-    SimulationContext ctx{
+    simulation::Context ctx{
         ventNetwork,
         thermalNetwork,
         humidityNetwork,
@@ -73,69 +52,38 @@ void runSimulation(VentilationNetwork& ventNetwork,
     const TimestepInitialState initial =
         captureTimestepInitialState(ctx.thermal, ctx.constants.humidityCalc);
 
-    const int maxOuter = maxAirconControlIterations(ctx.constants);
+    auto innerCtx = simulation::makeInnerCouplingContext(ctx);
+    auto airconCtx = simulation::makeAirconIterationContext(ctx);
+
+    const int maxOuter = static_cast<int>(effectiveMaxAirconControlIterations(ctx.constants));
+    bool outerLoopConverged = false;
     for (int iteration = 0; iteration < maxOuter; ++iteration) {
         if (iteration == 0) {
             ctx.aircon.clearCapacityLimitBracket();
         }
-        // タイムステップ内の各外側反復は、熱源を初期化してから開始する。
-        for (auto v : boost::make_iterator_range(boost::vertices(ctx.thermal.getGraph()))) {
-            ctx.thermal.getGraph()[v].heat_source = 0.0;
-        }
+        // 外側反復開始時: 前反復の空調 heat_source をクリアしてから連成を始める。
+        resetNodeHeatSources(ctx.thermal.getGraph());
 
         const std::string loopLabel =
             "圧力-温度連成計算-エアコン制御ループ " + std::to_string(iteration + 1) + ":";
-        bool loopConverged = false;
         {
             ScopedLogSection coupledScope(ctx.logs, loopLabel);
 
-            runInnerCoupling(ctx.ventilation,
-                             ctx.thermal,
-                             ctx.humidity,
-                             ctx.constants,
-                             ctx.logs,
-                             ctx.timings,
-                             std::string(ctx.meta),
-                             logEnabled,
-                             iteration,
-                             initial,
-                             step,
-                             totalIterations);
+            runInnerCoupling(innerCtx, logEnabled, iteration, initial, step, totalIterations);
 
             // pressureCalc=false でも aircon が流量を参照できるよう FlowRateMap を同期
             if (!ctx.constants.pressureCalc) {
                 step.flowRates = ctx.ventilation.collectFlowRateMap();
             }
 
-            // 連成OFF時は従来互換: 外側ループごとに1回のみ湿気更新
-            if (ctx.constants.humidityCalc && !ctx.constants.moistureCouplingEnabled) {
-                const auto sharedNodeState = makeSharedNodeStateArgs(ctx.thermal);
-                restoreXPrevToGraph(sharedNodeState.nodeGraph, ctx.ventilation, initial.humidityX);
-                restoreWPrevToGraph(sharedNodeState.nodeGraph, initial.moistureW);
-                (void)core::humidity::updateHumidityIfEnabled(
-                    ctx.constants,
-                    ctx.ventilation,
-                    sharedNodeState.nodeGraph,
-                    sharedNodeState.nodeState,
-                    ctx.humidity,
-                    step.flowRates,
-                    ctx.logs,
-                    ctx.timings,
-                    std::string(ctx.meta) + ",iteration=" + std::to_string(iteration + 1));
-            }
+            runDecoupledHumidityStep(innerCtx, initial, step, iteration);
 
-            const auto airconRes = runAirconIteration(
-                ctx.aircon,
-                ctx.thermal,
-                ctx.ventilation,
-                ctx.constants,
-                step.flowRates,
-                ctx.logs,
-                totalIterations,
-                ctx.timings,
-                std::string(ctx.meta) + ",iteration=" + std::to_string(iteration + 1));
+            const std::string airconMeta =
+                std::string(ctx.meta) + ",iteration=" + std::to_string(iteration + 1);
+            airconCtx.meta = airconMeta;
+            const auto airconRes = runAirconIteration(airconCtx, step.flowRates, totalIterations);
 
-            if (airconRes.action != AirconIterationAction::Accept) {
+            if (airconRes.action != simulation::AirconIterationAction::Accept) {
                 logAirconRecompute(ctx.logs, logEnabled);
                 continue;
             }
@@ -147,20 +95,20 @@ void runSimulation(VentilationNetwork& ventNetwork,
                                        ctx.thermal.getLastThermalRmseBalance(),
                                        ctx.thermal.getLastThermalMaxBalance(),
                                        iteration + 1);
-                throw SimulationError(
-                    SimulationErrorCode::ThermalNotConverged,
+                throw simulation::Error(
+                    simulation::ErrorCode::ThermalNotConverged,
                     "Thermal solver did not converge: stopping to avoid infinite loop");
             }
 
-            loopConverged = true;
-        }
-        if (loopConverged) {
+            outerLoopConverged = true;
             logOuterLoopConverged(ctx.logs, logEnabled, iteration + 1);
             break;
         }
     }
 
-    // 濃度（c）更新：エアコン制御完了後（エアコン制御には影響しない想定）
+    ensureOuterAirconLoopConverged(outerLoopConverged);
+
+    // 濃度（c）更新：外側空調ループ収束後のみ（エアコン制御には影響しない想定）
     const auto sharedNodeState = makeSharedNodeStateArgs(ctx.thermal);
     transport::updateConcentrationIfEnabled(ctx.constants,
                                             ctx.ventilation,

@@ -64,8 +64,9 @@ def output_indicates_failure(output: Any) -> bool:
 def failure_from_output(output: Dict[str, Any], *, run_id: str) -> Dict[str, Any]:
     """ジョブ API 用の error オブジェクトを組み立てる。"""
     raw_err = output.get("error")
+    top_code = output.get("error_code")
     if isinstance(raw_err, dict):
-        code = str(raw_err.get("code") or "solver_error")
+        code = str(raw_err.get("code") or top_code or "solver_error")
         message = str(raw_err.get("message") or raw_err)
         err: Dict[str, Any] = {"code": code, "message": message, "run_id": run_id}
         for k, v in raw_err.items():
@@ -73,10 +74,16 @@ def failure_from_output(output: Dict[str, Any], *, run_id: str) -> Dict[str, Any
                 err[k] = v
     elif isinstance(raw_err, str) and raw_err.strip():
         message = raw_err.strip()
-        code = "artifact_quota_exceeded" if "per-run limit" in message else "solver_error"
+        if isinstance(top_code, str) and top_code.strip():
+            code = top_code.strip()
+        else:
+            code = "artifact_quota_exceeded" if "per-run limit" in message else "solver_error"
         err = {"code": code, "message": message, "run_id": run_id}
     else:
-        err = {"code": "solver_error", "message": "solver returned status=error", "run_id": run_id}
+        if isinstance(top_code, str) and top_code.strip():
+            err = {"code": top_code.strip(), "message": "solver returned status=error", "run_id": run_id}
+        else:
+            err = {"code": "solver_error", "message": "solver returned status=error", "run_id": run_id}
     art = output.get("artifact_dir")
     if isinstance(art, str) and art:
         err["artifact_dir"] = art

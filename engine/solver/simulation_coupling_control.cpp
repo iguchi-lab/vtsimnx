@@ -1,5 +1,6 @@
 #include "simulation_coupling_control.h"
 
+#include "simulation_error.h"
 #include "utils/utils.h"
 
 #include <algorithm>
@@ -44,8 +45,7 @@ InnerCouplingEval evaluateInnerCoupling(const SimulationConstants& constants,
         }
     }
 
-    const int maxCoupling = static_cast<int>(
-        constants.maxCouplingIterations > 0 ? constants.maxCouplingIterations : constants.maxInnerIteration);
+    const int maxCoupling = static_cast<int>(effectiveMaxCouplingIterations(constants));
     if (coupledIter >= maxCoupling) {
         const double pRatio =
             constants.pressureCalc ? (delta.pressureChange / std::max(1e-30, eval.pressureTol)) : 0.0;
@@ -170,6 +170,13 @@ void logTimestepFinished(std::ostream& logs, bool logEnabled, int totalIteration
     writeLog(logs,
              "タイムステップ終了  総連成反復回数: " + std::to_string(totalIterations),
              true);
+}
+
+void ensureOuterAirconLoopConverged(bool outerLoopConverged) {
+    if (outerLoopConverged) return;
+    throw simulation::Error(
+        simulation::ErrorCode::AirconMaxIterations,
+        "Aircon control did not converge within the iteration limit");
 }
 
 } // namespace detail

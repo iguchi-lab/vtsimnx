@@ -22,6 +22,9 @@ def extract_manifest_error(manifest: Dict[str, Any]) -> Optional[str]:
     error = output.get("error")
     if isinstance(error, str) and error.strip():
         extras: List[str] = []
+        error_code = output.get("error_code")
+        if isinstance(error_code, str) and error_code.strip():
+            extras.append(f"code={error_code.strip()}")
         artifact_dir = output.get("artifact_dir")
         if isinstance(artifact_dir, str) and artifact_dir:
             extras.append(f"artifact_dir={artifact_dir}")

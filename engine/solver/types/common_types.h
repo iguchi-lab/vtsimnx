@@ -2,6 +2,7 @@
 
 #include <archenv.h>
 
+#include <cstddef>
 #include <cstdint>
 #include <map>
 #include <optional>
@@ -53,10 +54,11 @@ struct SimulationConstants {
     double couplingTemperatureTolerance = 0.0;
     // 湿気連成（x/w）の停止判定。0以下なら convergenceTolerance を使用。
     double couplingHumidityTolerance = 0.0;
-    double maxInnerIteration;
-    // 内側連成（空気-熱-湿気）と外側空調制御の上限。未設定時は maxInnerIteration と同値。
-    double maxCouplingIterations = 0.0;
-    double maxAirconControlIterations = 0.0;
+    // 反復上限（正の整数）。パーサ未指定時は 100。
+    // maxCoupling / maxAircon が 0 のときは maxInnerIterations を実効値として使う。
+    std::size_t maxInnerIterations = 100;
+    std::size_t maxCouplingIterations = 0;
+    std::size_t maxAirconControlIterations = 0;
     // 3ネットワーク連成の有効化（既定ON）
     bool moistureCouplingEnabled = true;
     // 内側反復での緩和係数（0<alpha<=1）。1.0=緩和なし

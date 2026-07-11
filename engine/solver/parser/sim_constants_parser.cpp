@@ -121,49 +121,56 @@ SimulationConstants parseSimulationConstants(const nlohmann::json& config,
         });
     }
     bool customMaxInner = false;
-    outConstants.maxInnerIteration = 100;
+    outConstants.maxInnerIterations = 100;
+    auto readPositiveSizeT = [](const nlohmann::json& value, const char* path) -> std::size_t {
+        if (!value.is_number_integer() || value.get<int>() <= 0) {
+            throw std::runtime_error(std::string("Missing or invalid '") + path +
+                                     "' (positive integer required)");
+        }
+        return static_cast<std::size_t>(value.get<int>());
+    };
     if (sim.contains("iteration")) {
         if (!sim["iteration"].is_object()) {
             throw std::runtime_error("Missing or invalid 'simulation.iteration' object");
         }
         const auto& iteration = sim["iteration"];
         if (iteration.contains("max_inner")) {
-            if (!iteration["max_inner"].is_number()) {
-                throw std::runtime_error("Missing or invalid 'simulation.iteration.max_inner' (number required)");
-            }
-            outConstants.maxInnerIteration = iteration["max_inner"];
+            outConstants.maxInnerIterations =
+                readPositiveSizeT(iteration["max_inner"], "simulation.iteration.max_inner");
             customMaxInner = true;
         }
     } else if (sim.contains("max_inner_iteration")) {
-        if (!sim["max_inner_iteration"].is_number()) {
-            throw std::runtime_error("Missing or invalid 'simulation.max_inner_iteration' (number required)");
-        }
-        outConstants.maxInnerIteration = sim["max_inner_iteration"];
+        outConstants.maxInnerIterations =
+            readPositiveSizeT(sim["max_inner_iteration"], "simulation.max_inner_iteration");
         customMaxInner = true;
     }
     logLine([&](std::ostringstream& oss) {
         oss << "  最大内部反復回数"
             << (customMaxInner ? "（設定値）: " : "（デフォルト値）: ")
-            << outConstants.maxInnerIteration;
+            << outConstants.maxInnerIterations;
     });
 
-    // 意味分離: 既定は maxInnerIteration と同じ。任意キーで上書き可。
-    outConstants.maxCouplingIterations = outConstants.maxInnerIteration;
-    outConstants.maxAirconControlIterations = outConstants.maxInnerIteration;
+    // 意味分離: 既定は maxInnerIterations と同じ。任意キーで上書き可。
+    outConstants.maxCouplingIterations = outConstants.maxInnerIterations;
+    outConstants.maxAirconControlIterations = outConstants.maxInnerIterations;
     if (sim.contains("iteration") && sim["iteration"].is_object()) {
         const auto& iteration = sim["iteration"];
-        if (iteration.contains("max_coupling") && iteration["max_coupling"].is_number()) {
-            outConstants.maxCouplingIterations = iteration["max_coupling"];
+        if (iteration.contains("max_coupling")) {
+            outConstants.maxCouplingIterations =
+                readPositiveSizeT(iteration["max_coupling"], "simulation.iteration.max_coupling");
         }
-        if (iteration.contains("max_aircon_control") && iteration["max_aircon_control"].is_number()) {
-            outConstants.maxAirconControlIterations = iteration["max_aircon_control"];
+        if (iteration.contains("max_aircon_control")) {
+            outConstants.maxAirconControlIterations = readPositiveSizeT(
+                iteration["max_aircon_control"], "simulation.iteration.max_aircon_control");
         }
     }
-    if (sim.contains("max_coupling_iteration") && sim["max_coupling_iteration"].is_number()) {
-        outConstants.maxCouplingIterations = sim["max_coupling_iteration"];
+    if (sim.contains("max_coupling_iteration")) {
+        outConstants.maxCouplingIterations =
+            readPositiveSizeT(sim["max_coupling_iteration"], "simulation.max_coupling_iteration");
     }
-    if (sim.contains("max_aircon_control_iteration") && sim["max_aircon_control_iteration"].is_number()) {
-        outConstants.maxAirconControlIterations = sim["max_aircon_control_iteration"];
+    if (sim.contains("max_aircon_control_iteration")) {
+        outConstants.maxAirconControlIterations = readPositiveSizeT(
+            sim["max_aircon_control_iteration"], "simulation.max_aircon_control_iteration");
     }
     logLine([&](std::ostringstream& oss) {
         oss << "  最大連成反復回数: " << outConstants.maxCouplingIterations

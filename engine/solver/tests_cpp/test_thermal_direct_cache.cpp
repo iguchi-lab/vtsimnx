@@ -93,7 +93,7 @@ int main() {
     constants.ventilationTolerance = 1e-9;
     constants.thermalTolerance = 1e-6;
     constants.convergenceTolerance = 1e-9;
-    constants.maxInnerIteration = 50;
+    constants.maxInnerIterations = 50;
     constants.pressureCalc = false;
     constants.temperatureCalc = true;
     constants.logVerbosity = 0;

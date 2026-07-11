@@ -399,7 +399,7 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
             {"[A-①] 標準設定でソルバーを実行します", [&](ceres::Solver::Options& o) {
                  o.linear_solver_type = ceres::DENSE_QR;
                  o.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
-                 o.max_num_iterations = constants.maxInnerIteration;
+                 o.max_num_iterations = constants.maxInnerIterations;
                  o.function_tolerance = constants.ventilationTolerance;
                  o.parameter_tolerance = constants.ventilationTolerance;
                  o.minimizer_progress_to_stdout = false;
@@ -407,7 +407,7 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
             {"[A-②] 堅牢設定でソルバーを再実行します", [&](ceres::Solver::Options& o) {
                  o.trust_region_strategy_type = ceres::DOGLEG;
                  o.linear_solver_type = ceres::DENSE_QR;
-                 o.max_num_iterations = std::max(500, static_cast<int>(constants.maxInnerIteration * 2));
+                 o.max_num_iterations = std::max(500, static_cast<int>(constants.maxInnerIterations * 2));
                  o.function_tolerance = constants.ventilationTolerance * 0.01;
                  o.parameter_tolerance = constants.ventilationTolerance * 0.01;
                  o.gradient_tolerance = constants.ventilationTolerance * 0.1;

@@ -3,64 +3,56 @@
 #include "aircon/aircon_controller.h"
 #include "network/thermal_network.h"
 #include "network/ventilation_network.h"
+#include "simulation_runner_helpers.h"
 #include "utils/utils.h"
 
-#include <boost/range/iterator_range.hpp>
+#include <string>
 
-AirconIterationResult runAirconIteration(AirconController& airconController,
-                                         ThermalNetwork& thermalNetwork,
-                                         VentilationNetwork& ventNetwork,
-                                         const SimulationConstants& constants,
+namespace simulation {
+
+AirconIterationResult runAirconIteration(AirconIterationContext& ctx,
                                          const FlowRateMap& flowRates,
-                                         std::ostream& logs,
-                                         int& totalIterations,
-                                         TimingList& timings,
-                                         const std::string& meta) {
+                                         int& totalIterations) {
     AirconIterationResult r;
+    const std::string meta(ctx.meta);
 
     // 0. DUCT_CENTRAL の処理熱量連動風量を補正（変更が入ったら外側ループをやり直し）
+    bool ductFlowAdjusted = false;
     {
-        ScopedTimer timer(timings, "aircon_duct_flow_adjust", meta);
-        const bool ductFlowAdjusted = airconController.checkAndAdjustDuctCentralAirflow(
-            thermalNetwork, ventNetwork, flowRates, logs);
-        if (ductFlowAdjusted) {
-            r.action = AirconIterationAction::RecomputeForFlow;
-            return r;
-        }
+        ScopedTimer timer(ctx.timings, "aircon_duct_flow_adjust", meta);
+        ductFlowAdjusted = ctx.aircon.checkAndAdjustDuctCentralAirflow(
+            ctx.thermal, ctx.ventilation, flowRates, ctx.logs);
+    }
+    if (ductFlowAdjusted) {
+        r.action = decideAirconIterationAction(true, false, false);
+        return r;
     }
 
-    // 1. 現在の温度でエアコン出力を決定し、各ノードの heat_source をリセットする
+    // 1. 現在の温度でエアコン出力を決定する。
+    //    制御前に heat_source をゼロ化してから再設定する（外側ループ開始時の初期化とは別意図）。
     bool allAirconControlled = false;
     {
-        auto& graph = thermalNetwork.getGraph();
-        for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
-            graph[v].heat_source = 0.0;
-        }
+        detail::resetNodeHeatSources(ctx.thermal.getGraph());
 
-        ScopedTimer timer(timings, "aircon_control", meta);
-        allAirconControlled = airconController.controlAllAircons(
-            thermalNetwork, constants.thermalTolerance, logs);
+        ScopedTimer timer(ctx.timings, "aircon_control", meta);
+        allAirconControlled =
+            ctx.aircon.controlAllAircons(ctx.thermal, ctx.constants.thermalTolerance, ctx.logs);
     }
 
-    // 2. エアコンが ON の場合、必要に応じて追加の処理（現状は行列側でA案として処理されるため、ここでの heat_source 設定は不要）
-
     if (!allAirconControlled) {
-        r.action = AirconIterationAction::RecomputeForControl;
+        r.action = decideAirconIterationAction(false, false, false);
         return r;
     }
 
     bool adjustmentMade = false;
     {
-        ScopedTimer timer(timings, "aircon_capacity_adjust", meta);
-        adjustmentMade = airconController.checkAndAdjustCapacity(
-            thermalNetwork, ventNetwork, constants, flowRates, logs, totalIterations);
+        ScopedTimer timer(ctx.timings, "aircon_capacity_adjust", meta);
+        adjustmentMade = ctx.aircon.checkAndAdjustCapacity(
+            ctx.thermal, ctx.ventilation, ctx.constants, flowRates, ctx.logs, totalIterations);
     }
 
-    if (adjustmentMade) {
-        r.action = AirconIterationAction::RecomputeForCapacity;
-        return r;
-    }
-
-    r.action = AirconIterationAction::Accept;
+    r.action = decideAirconIterationAction(false, true, adjustmentMade);
     return r;
 }
+
+} // namespace simulation

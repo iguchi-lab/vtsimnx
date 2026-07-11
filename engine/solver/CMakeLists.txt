@@ -558,5 +558,22 @@ if(VTSIMNX_BUILD_CPP_TESTS)
     )
     add_test(NAME vtsimnx_solver_cpp_test_app_smoke COMMAND vtsimnx_solver_cpp_test_app_smoke)
 
+    # 11) simulation control-flow (inner/outer coupling decisions, parser ints)
+    add_executable(vtsimnx_solver_cpp_test_simulation_control_flow
+        tests_cpp/test_simulation_control_flow.cpp
+        simulation_coupling_control.cpp
+        simulation_runner_helpers.cpp
+        parser/sim_constants_parser.cpp
+    )
+    target_link_libraries(vtsimnx_solver_cpp_test_simulation_control_flow
+        Boost::boost
+    )
+    target_compile_options(vtsimnx_solver_cpp_test_simulation_control_flow PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_test_simulation_control_flow
+             COMMAND vtsimnx_solver_cpp_test_simulation_control_flow)
+
 endif()
 

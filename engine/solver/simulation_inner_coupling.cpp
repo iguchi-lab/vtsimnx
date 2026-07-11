@@ -11,145 +11,167 @@
 #include "utils/utils.h"
 
 #include <memory>
+#include <string>
 
+namespace simulation {
 namespace {
 
-using namespace simulation::detail;
+using detail::CouplingSnapshot;
+using detail::InnerCouplingAction;
+using detail::InnerCouplingEval;
+using detail::calculateHumidityChangeByVertex;
+using detail::calculateMaxAbsDiff;
+using detail::calculateTemperatureChangeByVertex;
+using detail::captureCouplingPrevState;
+using detail::captureHeatSourceByVertex;
+using detail::evaluateInnerCoupling;
+using detail::humidityCouplingActive;
+using detail::logHumiditySolverNotConverged;
+using detail::logInnerCouplingConverged;
+using detail::logInnerCouplingDelta;
+using detail::logInnerCouplingMaxIteration;
+using detail::logInnerCouplingNotNeeded;
+using detail::logPressureFallbackStop;
+using detail::makeSharedNodeStateArgs;
+using detail::relaxHumidityByVertex;
+using detail::restoreHeatSourceByVertex;
+using detail::restoreWPrevToGraph;
+using detail::restoreXPrevToGraph;
+using detail::CoupledDelta;
 
+// 現状は Disabled 固定（方針B）。FeedbackToThermal は未実装。
 constexpr LatentCouplingMode kLatentCouplingMode = LatentCouplingMode::Disabled;
-
-struct SharedNodeStateArgs {
-    Graph& nodeGraph;
-    ConstNodeStateView nodeState;
-};
-
-SharedNodeStateArgs makeSharedNodeStateArgs(ThermalNetwork& thermalNetwork) {
-    return SharedNodeStateArgs{
-        thermalNetwork.getGraph(),
-        static_cast<const ThermalNetwork&>(thermalNetwork).nodeStateView(),
-    };
-}
-
-CoupledDelta computeCoupledDelta(const SimulationConstants& constants,
-                                 VentilationNetwork& ventNetwork,
-                                 ThermalNetwork& thermalNetwork,
-                                 const CouplingSnapshot& snap) {
-    CoupledDelta d{};
-    if (constants.pressureCalc) {
-        d.pressureChange = calculateMaxAbsDiff(snap.pressure, ventNetwork.collectPressureValues());
-    }
-    if (constants.temperatureCalc) {
-        d.temperatureChange = calculateTemperatureChangeByVertex(thermalNetwork.getGraph(), snap.temperature);
-    }
-    return d;
-}
 
 } // namespace
 
-void runInnerCoupling(VentilationNetwork& ventNetwork,
-                      ThermalNetwork& thermalNetwork,
-                      HumidityNetwork& humidityNetwork,
-                      const SimulationConstants& constants,
-                      std::ostream& logs,
-                      TimingList& timings,
-                      const std::string& meta,
+void runDecoupledHumidityStep(InnerCouplingContext& ctx,
+                              const detail::TimestepInitialState& initial,
+                              CoupledStepData& step,
+                              int outerIteration) {
+    if (!(ctx.constants.humidityCalc && !ctx.constants.moistureCouplingEnabled)) {
+        return;
+    }
+    const auto sharedNodeState = makeSharedNodeStateArgs(ctx.thermal);
+    restoreXPrevToGraph(sharedNodeState.nodeGraph, ctx.ventilation, initial.humidityX);
+    restoreWPrevToGraph(sharedNodeState.nodeGraph, initial.moistureW);
+    (void)core::humidity::updateHumidityIfEnabled(
+        ctx.constants,
+        ctx.ventilation,
+        sharedNodeState.nodeGraph,
+        sharedNodeState.nodeState,
+        ctx.humidity,
+        step.flowRates,
+        ctx.logs,
+        ctx.timings,
+        std::string(ctx.meta) + ",iteration=" + std::to_string(outerIteration + 1));
+}
+
+void runInnerCoupling(InnerCouplingContext& ctx,
                       bool logEnabled,
                       int outerIteration,
-                      const TimestepInitialState& initial,
+                      const detail::TimestepInitialState& initial,
                       CoupledStepData& step,
                       int& totalIterations) {
     CouplingSnapshot snap;
     double lastLatentAppliedW = 0.0;
     core::humidity::HumiditySolveStats lastHumiditySolveStats{};
     int coupledIter = 0;
+    const std::string meta(ctx.meta);
 
     while (true) {
         ++coupledIter;
         ++totalIterations;
-        const bool humidityActive = humidityCouplingActive(constants);
+        const bool humidityActive = humidityCouplingActive(ctx.constants);
         if (coupledIter == 1) {
-            captureHeatSourceByVertex(thermalNetwork.getGraph(), snap.heatSource);
+            captureHeatSourceByVertex(ctx.thermal.getGraph(), snap.heatSource);
         }
 
-        captureCouplingPrevState(snap, ventNetwork, thermalNetwork, constants, humidityActive);
+        captureCouplingPrevState(snap, ctx.ventilation, ctx.thermal, ctx.constants, humidityActive);
 
         std::unique_ptr<ScopedLogSection> iterScope;
         if (logEnabled) {
             iterScope = std::make_unique<ScopedLogSection>(
-                logs,
+                ctx.logs,
                 "空気-熱-湿気 連成反復 " + std::to_string(coupledIter) + ":");
         }
 
         {
-            ScopedTimer timer(timings, "performCoupledCalculation",
+            ScopedTimer timer(ctx.timings, "performCoupledCalculation",
                               meta + ",iteration=" + std::to_string(outerIteration + 1));
-            step = performCoupledStepCalculation(ventNetwork, thermalNetwork, constants, logs, timings,
+            step = performCoupledStepCalculation(ctx.ventilation, ctx.thermal, ctx.constants,
+                                                 ctx.logs, ctx.timings,
                                                  meta + ",iteration=" + std::to_string(outerIteration + 1));
         }
-        if (!constants.pressureCalc) {
-            step.flowRates = ventNetwork.collectFlowRateMap();
+        if (!ctx.constants.pressureCalc) {
+            step.flowRates = ctx.ventilation.collectFlowRateMap();
         }
 
         if (humidityActive) {
-            const auto sharedNodeState = makeSharedNodeStateArgs(thermalNetwork);
-            // 同一タイムステップ内反復なので、毎回 x_prev / w_prev に戻して再評価する。
-            restoreXPrevToGraph(sharedNodeState.nodeGraph, ventNetwork, initial.humidityX);
+            const auto sharedNodeState = makeSharedNodeStateArgs(ctx.thermal);
+            restoreXPrevToGraph(sharedNodeState.nodeGraph, ctx.ventilation, initial.humidityX);
             restoreWPrevToGraph(sharedNodeState.nodeGraph, initial.moistureW);
             lastHumiditySolveStats = core::humidity::updateHumidityIfEnabled(
-                constants,
-                ventNetwork,
+                ctx.constants,
+                ctx.ventilation,
                 sharedNodeState.nodeGraph,
                 sharedNodeState.nodeState,
-                humidityNetwork,
-                step.flowRates, logs, timings,
+                ctx.humidity,
+                step.flowRates, ctx.logs, ctx.timings,
                 meta + ",iteration=" + std::to_string(outerIteration + 1) +
-                           ",coupledIter=" + std::to_string(coupledIter));
-            logHumiditySolverNotConverged(logs, logEnabled, lastHumiditySolveStats);
-            relaxHumidityByVertex(thermalNetwork.getGraph(), ventNetwork, snap.humidity, constants.humidityRelaxation);
+                    ",coupledIter=" + std::to_string(coupledIter));
+            logHumiditySolverNotConverged(ctx.logs, logEnabled, lastHumiditySolveStats);
+            relaxHumidityByVertex(ctx.thermal.getGraph(), ctx.ventilation, snap.humidity,
+                                  ctx.constants.humidityRelaxation);
         }
 
-        // 潜熱フィードバック方針（現状は Disabled = 方針B）
-        restoreHeatSourceByVertex(thermalNetwork.getGraph(), snap.heatSource);
-        const double latentAppliedThisIter =
-            (kLatentCouplingMode == LatentCouplingMode::FeedbackToThermal) ? 0.0 : 0.0;
+        restoreHeatSourceByVertex(ctx.thermal.getGraph(), snap.heatSource);
+        const double latentAppliedThisIter = resolveLatentAppliedThisIter(kLatentCouplingMode);
         lastLatentAppliedW = latentAppliedThisIter;
 
-        auto delta = computeCoupledDelta(constants, ventNetwork, thermalNetwork, snap);
+        CoupledDelta delta{};
+        if (ctx.constants.pressureCalc) {
+            delta.pressureChange =
+                calculateMaxAbsDiff(snap.pressure, ctx.ventilation.collectPressureValues());
+        }
+        if (ctx.constants.temperatureCalc) {
+            delta.temperatureChange =
+                calculateTemperatureChangeByVertex(ctx.thermal.getGraph(), snap.temperature);
+        }
         if (humidityActive) {
-            delta.humidityChange = calculateHumidityChangeByVertex(thermalNetwork.getGraph(), snap.humidity);
+            delta.humidityChange =
+                calculateHumidityChangeByVertex(ctx.thermal.getGraph(), snap.humidity);
         }
 
-        // evaluateInnerCoupling は maxCouplingIterations（未設定時 maxInnerIteration）を参照
         const InnerCouplingEval eval = evaluateInnerCoupling(
-            constants,
+            ctx.constants,
             humidityActive,
             coupledIter,
             delta,
-            ventNetwork.getLastPressureConverged());
+            ctx.ventilation.getLastPressureConverged());
 
         if (eval.action == InnerCouplingAction::ThrowPressureNonConvergence) {
-            logPressureFallbackStop(logs, logEnabled);
-            throw SimulationError(
-                SimulationErrorCode::PressureNotConverged,
-                "Disabled final normal solve: stopping after fallback non-convergence");
+            logPressureFallbackStop(ctx.logs, logEnabled);
+            throw Error(ErrorCode::PressureNotConverged,
+                        "Disabled final normal solve: stopping after fallback non-convergence");
         }
         if (eval.action == InnerCouplingAction::BreakNoNeed) {
-            logInnerCouplingNotNeeded(logs, logEnabled);
+            logInnerCouplingNotNeeded(ctx.logs, logEnabled);
             break;
         }
 
-        logInnerCouplingDelta(logs, logEnabled, delta, latentAppliedThisIter, lastHumiditySolveStats);
+        logInnerCouplingDelta(ctx.logs, logEnabled, delta, latentAppliedThisIter, lastHumiditySolveStats);
 
         if (eval.action == InnerCouplingAction::BreakConverged) {
-            logInnerCouplingConverged(logs, logEnabled, coupledIter);
+            logInnerCouplingConverged(ctx.logs, logEnabled, coupledIter);
             break;
         }
         if (eval.action == InnerCouplingAction::ThrowMaxIteration) {
-            logInnerCouplingMaxIteration(logs, logEnabled, coupledIter, eval,
+            logInnerCouplingMaxIteration(ctx.logs, logEnabled, coupledIter, eval,
                                          lastLatentAppliedW, lastHumiditySolveStats);
-            throw SimulationError(
-                SimulationErrorCode::CouplingMaxIterations,
-                "Maximum iteration count reached: stopping after maximum iteration count");
+            throw Error(ErrorCode::CouplingMaxIterations,
+                        "Maximum iteration count reached: stopping after maximum iteration count");
         }
     }
 }
+
+} // namespace simulation

@@ -70,5 +70,8 @@ void logOuterLoopConverged(std::ostream& logs, bool logEnabled, int loopIndex1Ba
 
 void logTimestepFinished(std::ostream& logs, bool logEnabled, int totalIterations);
 
+// 外側空調ループが上限内に Accept できなかった場合に throw する。
+void ensureOuterAirconLoopConverged(bool outerLoopConverged);
+
 } // namespace detail
 } // namespace simulation

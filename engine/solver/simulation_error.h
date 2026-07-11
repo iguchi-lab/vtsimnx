@@ -2,21 +2,45 @@
 
 #include <stdexcept>
 #include <string>
+#include <string_view>
 
-enum class SimulationErrorCode {
+namespace simulation {
+
+enum class ErrorCode {
     PressureNotConverged,
     CouplingMaxIterations,
     ThermalNotConverged,
     AirconMaxIterations,
 };
 
-class SimulationError : public std::runtime_error {
+// API / manifest 向けの安定な snake_case 文字列。
+inline std::string_view toErrorCodeString(ErrorCode code) noexcept {
+    switch (code) {
+    case ErrorCode::PressureNotConverged:
+        return "pressure_not_converged";
+    case ErrorCode::CouplingMaxIterations:
+        return "coupling_max_iterations";
+    case ErrorCode::ThermalNotConverged:
+        return "thermal_not_converged";
+    case ErrorCode::AirconMaxIterations:
+        return "aircon_max_iterations";
+    }
+    return "solver_error";
+}
+
+class Error : public std::runtime_error {
 public:
-    SimulationError(SimulationErrorCode code, const std::string& message)
+    Error(ErrorCode code, const std::string& message)
         : std::runtime_error(message), code_(code) {}
 
-    SimulationErrorCode code() const noexcept { return code_; }
+    ErrorCode code() const noexcept { return code_; }
 
 private:
-    SimulationErrorCode code_;
+    ErrorCode code_;
 };
+
+} // namespace simulation
+
+// 移行期の別名（既存呼称との互換）
+using SimulationErrorCode = simulation::ErrorCode;
+using SimulationError = simulation::Error;

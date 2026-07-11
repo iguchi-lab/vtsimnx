@@ -34,8 +34,10 @@
   - 続き（可読化）: `simulation_timestep_result` / `simulation_aircon_iteration` /
     `simulation_inner_coupling` / `simulation_timestep_state` / `simulation_error` /
     `simulation_context` へ切り出し。反復上限を `maxCouplingIterations` と
-    `maxAirconControlIterations` に分離（未指定時は `maxInnerIteration` 互換）
+    `maxAirconControlIterations` に分離（未指定時は `maxInnerIterations` 互換）
   - `simulation_runner.cpp` は外側オーケストレーション中心に整理
+  - 外側空調未収束時は `simulation::ErrorCode::AirconMaxIterations` を throw
+  - `InnerCouplingContext` / `AirconIterationContext` と `error_code`（snake_case）の solver→API 伝播
 - 受け入れ条件:
   - 既存ケースで `solver.log` の収束結果が一致（文言差は許容範囲定義）。
   - 性能退行がない（`simulation_total` が +3% 以内）。

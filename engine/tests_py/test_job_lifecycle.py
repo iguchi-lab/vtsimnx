@@ -45,6 +45,17 @@ def test_output_indicates_failure_helpers():
     assert err["code"] == "solver_error"
     assert err["artifact_dir"] == "artifacts.x"
     assert err["run_id"] == "r1"
+    typed = failure_from_output(
+        {
+            "status": "error",
+            "error": "Aircon control did not converge within the iteration limit",
+            "error_code": "aircon_max_iterations",
+            "artifact_dir": "artifacts.y",
+        },
+        run_id="r2",
+    )
+    assert typed["code"] == "aircon_max_iterations"
+    assert typed["run_id"] == "r2"
 
 
 def test_runs_marks_failed_when_solver_returns_error_status():

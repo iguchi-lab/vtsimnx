@@ -30,6 +30,7 @@ using json = nlohmann::json;
 #include "network/contaminant_network.h"
 #include "aircon/aircon_controller.h"
 #include "simulation_runner.h"
+#include "simulation_error.h"
 #include "utils/utils.h"
 #include "output/artifact_io.h"
 
@@ -191,6 +192,7 @@ static bool runSimulationLoop(const InputData& inputData,
                               OutputFiles& outFiles,
                               const std::filesystem::path& schemaPath,
                               std::string& err,
+                              std::string& errorCode,
                               TimingList& timings) {
     try {
         ScopedTimer loopTimer(timings, "runSimulationLoop");
@@ -443,8 +445,14 @@ static bool runSimulationLoop(const InputData& inputData,
         clearLogTimestepMeta(logs);
         writeLog(logs, "タイムステップループ終了");
         return true;
+    } catch (const simulation::Error& e) {
+        err = std::string("シミュレーション実行中にエラーが発生しました: ") + e.what();
+        errorCode = std::string(simulation::toErrorCodeString(e.code()));
+        writeLog(logs, "[ERROR] " + err + " (code=" + errorCode + ")");
+        return false;
     } catch (const std::exception& e) {
         err = std::string("シミュレーション実行中にエラーが発生しました: ") + e.what();
+        errorCode.clear();
         writeLog(logs, "[ERROR] " + err);
         return false;
     }
@@ -516,6 +524,7 @@ static bool writeErrorOutput(const char* outputPath,
                              const json& inputJson,
                              const std::string& inputContent,
                              const std::string& errorMessage,
+                             const std::string& errorCode,
                              const TimingList& timings,
                              std::string& err) {
     json out = {
@@ -526,6 +535,9 @@ static bool writeErrorOutput(const char* outputPath,
         {"artifact_dir", artifactDirName},
         {"log_file", logFileName},
     };
+    if (!errorCode.empty()) {
+        out["error_code"] = errorCode;
+    }
     // index 情報（可能なら出す）
     try {
         if (inputJson.contains("simulation") && inputJson["simulation"].is_object()) {
@@ -810,7 +822,7 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
         std::cerr << err << "\n";
         std::string writeErr;
         // 入力読み込み/パースに失敗しているので index は出せない（空objectを渡す）
-        writeErrorOutput(outputPath, artifactDirName, logFileName, json::object(), "", err, timings, writeErr);
+        writeErrorOutput(outputPath, artifactDirName, logFileName, json::object(), "", err, "", timings, writeErr);
         return 1;
     }
 
@@ -843,12 +855,14 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
     };
 
     auto simStart = std::chrono::steady_clock::now();
+    std::string errorCode;
     bool simulationSuccess = runSimulationLoop(
         inputData,
         logs,
         outFiles,
         schemaPath,
         err,
+        errorCode,
         timings);
     auto simEnd = std::chrono::steady_clock::now();
     double simMs = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(simEnd - simStart).count();
@@ -908,7 +922,7 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
         }
     } else {
         std::string writeErr;
-        if (!writeErrorOutput(outputPath, artifactDirName, logFileName, inputData.inputJson, inputData.inputContent, err, timings, writeErr)) {
+        if (!writeErrorOutput(outputPath, artifactDirName, logFileName, inputData.inputJson, inputData.inputContent, err, errorCode, timings, writeErr)) {
             std::cerr << writeErr << "\n";
             return 1;
         }
