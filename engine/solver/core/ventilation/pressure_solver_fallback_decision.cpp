@@ -184,7 +184,7 @@ PressureSolver::FallbackOuterAction PressureSolver::evaluateFallbackOuter(
                     state.finalFlowRatesFB = std::move(evalFinal.flows);
                     state.finalBalanceFB = std::move(evalFinal.allNodeBalances);
                     state.finalHaveSolution = true;
-                    fallbackLog(0, "[Fallback] 収束 | 復元後 mass+iface 合格 | 外部反復 " +
+                    fallbackLog(0, "[Fallback] 復元後候補合格 | warm-start へ進む | 外部反復 " +
                                        std::to_string(outer) + "/" + std::to_string(maxOuter));
                 } else {
                     fallbackLog(0, std::string("[Fallback] 復元後不合格（継続）") +

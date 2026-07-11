@@ -128,14 +128,27 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
         }
     }
 
-    if (state.finalHaveSolution) {
-        edgeGuard.restore();
-        network_.setLastPressureConverged(true);
-        return SolverResult{state.finalPressureMapFB, state.finalFlowRatesFB, state.finalBalanceFB};
+    edgeGuard.restore();
+
+    PressureMap seed = state.finalHaveSolution
+                           ? state.finalPressureMapFB
+                           : state.prevPressureMapFB;
+    if (seed.empty()) {
+        network_.setLastPressureConverged(false);
+        fallbackLog(0, "[Fallback] warm-start 用の圧力シードがありません");
+        return std::nullopt;
     }
 
-    edgeGuard.restore();
+    fallbackLog(0, state.finalHaveSolution
+                       ? "[Fallback] 復元後候補を初期値に通常ソルバーを再実行します"
+                       : "[Fallback] 最終圧力を初期値に通常ソルバーを再実行します");
+    auto warm = tryPrimaryWarmStart(constants, setup, seed, tols.massBalanceMaxAbs);
+    if (warm) {
+        fallbackLog(0, "[Fallback] warm-start primary 合格 | 採用");
+        return warm;
+    }
+
     network_.setLastPressureConverged(false);
-    fallbackLog(0, "[Fallback] 全ての外部反復で収束に至りませんでした");
+    fallbackLog(0, "[Fallback] warm-start primary 不合格 | 非収束として報告");
     return std::nullopt;
 }

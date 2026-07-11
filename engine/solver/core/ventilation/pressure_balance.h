@@ -94,6 +94,27 @@ inline bool canProceedToFallbackStageB(bool stageAOk, bool interfaceFreezeSkippe
     return stageAOk && !interfaceFreezeSkipped;
 }
 
+// log10 コンダクタンスの2クラスタ中心が、明確な強弱分離を持つか。
+// minLogSep: cHigh-cLow の最小差（log10）、minRatio: 線形空間での G_high/G_low。
+inline bool hasClearConductanceSeparation(
+        double cLowLog10,
+        double cHighLog10,
+        double minLogSep = 1.0,
+        double minRatio = 10.0) {
+    if (!(std::isfinite(cLowLog10) && std::isfinite(cHighLog10))) {
+        return false;
+    }
+    if (cHighLog10 < cLowLog10) {
+        std::swap(cLowLog10, cHighLog10);
+    }
+    const double logSep = cHighLog10 - cLowLog10;
+    if (!(logSep >= minLogSep)) {
+        return false;
+    }
+    const double ratio = std::pow(10.0, logSep);
+    return ratio >= minRatio;
+}
+
 // 固定流量化エッジについて、復元後の元特性流量と固定値の差。
 struct InterfaceFlowConsistency {
     double maxAbs = 0.0;

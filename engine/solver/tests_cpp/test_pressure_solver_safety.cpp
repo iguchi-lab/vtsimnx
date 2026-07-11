@@ -210,6 +210,14 @@ void testFallbackAcceptanceRequiresRestoredMassAndInterface() {
                "both ok accepts");
 }
 
+void testConductanceSeparationGate() {
+    expectTrue(ventilation::hasClearConductanceSeparation(0.0, 1.0), "1 decade ok");
+    expectTrue(ventilation::hasClearConductanceSeparation(-2.0, 0.0), "ratio 100 ok");
+    expectTrue(!ventilation::hasClearConductanceSeparation(0.0, 0.5), "0.5 decade reject");
+    expectTrue(!ventilation::hasClearConductanceSeparation(1.0, 1.0), "identical reject");
+    expectTrue(!ventilation::hasClearConductanceSeparation(0.0, 0.9, 1.0, 10.0), "below minLogSep");
+}
+
 void testMakeTolerancesUsesVentilationTolerance() {
     SimulationConstants c{};
     c.ventilationTolerance = 3.5e-4;
@@ -231,6 +239,7 @@ int main() {
     testFallbackStageBGate();
     testInterfaceFlowConsistencyAcceptance();
     testFallbackAcceptanceRequiresRestoredMassAndInterface();
+    testConductanceSeparationGate();
     testMakeTolerancesUsesVentilationTolerance();
 
     if (g_failures == 0) {

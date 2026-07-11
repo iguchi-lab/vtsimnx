@@ -256,6 +256,42 @@ ventilation::InterfaceFlowConsistency PressureSolver::evaluateInterfaceFlowConsi
     return out;
 }
 
+std::optional<PressureSolver::SolverResult> PressureSolver::tryPrimaryWarmStart(
+        const SimulationConstants& constants,
+        SolverSetup& setup,
+        const PressureMap& seedPressures,
+        double massBalanceMaxAbs) {
+    for (size_t i = 0; i < setup.nodeNames.size(); ++i) {
+        auto it = seedPressures.find(setup.nodeNames[i]);
+        if (it != seedPressures.end() && std::isfinite(it->second)) {
+            setup.pressures[i] = it->second;
+        }
+    }
+
+    ceres::Problem problem;
+    addFlowBalanceConstraints(setup, problem);
+    ceres::Solver::Summary summary;
+    runPrimarySolvers(constants, problem, summary);
+
+    PressureMap pressureMap = extractPressures(setup.pressures, setup.nodeNames);
+    auto eval = evaluatePressureSolution(pressureMap, massBalanceMaxAbs);
+    {
+        std::ostringstream oss;
+        oss << std::scientific << std::setprecision(6);
+        oss << "[Fallback] warm-start 評価 | ceres_cost=" << summary.final_cost
+            << " | mass_maxAbs=" << (eval.flowOk ? eval.solvedNodeMetrics.maxAbs : -1.0)
+            << " | mass_tol=" << massBalanceMaxAbs
+            << " | flow_ok=" << (eval.flowOk ? 1 : 0)
+            << " | accepted=" << (eval.accepted ? 1 : 0);
+        writeLog(logFile_, oss.str());
+    }
+    if (!eval.flowOk || !eval.accepted) {
+        return std::nullopt;
+    }
+    network_.setLastPressureConverged(true);
+    return SolverResult{pressureMap, eval.flows, eval.allNodeBalances};
+}
+
 std::optional<std::map<std::string, double>> PressureSolver::calculateIndividualFlowRates(
     const PressureMap& pressureMap) {
     std::map<std::string, double> individualFlowRates;

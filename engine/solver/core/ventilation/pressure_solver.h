@@ -160,6 +160,13 @@ private:
         const SimulationConstants& constants,
         SolverSetup& setup,
         ceres::Solver::Summary& summary);
+
+    // fallback で得た圧力を初期値に、復元済み元ネットワークで通常ソルバーを再実行
+    std::optional<SolverResult> tryPrimaryWarmStart(
+        const SimulationConstants& constants,
+        SolverSetup& setup,
+        const PressureMap& seedPressures,
+        double massBalanceMaxAbs);
     
     // 結果の取得
     PressureMap extractPressures(const std::vector<double>& pressures,

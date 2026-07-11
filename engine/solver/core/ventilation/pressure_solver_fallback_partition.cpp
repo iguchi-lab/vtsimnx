@@ -1,10 +1,12 @@
 #include "core/ventilation/pressure_solver.h"
+#include "core/ventilation/pressure_balance.h"
 #include "core/ventilation/pressure_solver_internal.h"
 #include "network/ventilation_network.h"
 #include "utils/utils.h"
 #include "../archenv/include/archenv.h"
 
 #include <algorithm>
+#include <cmath>
 #include <vector>
 
 PressureSolver::SupernodePartition PressureSolver::detectSupernodePartition(
@@ -40,6 +42,9 @@ PressureSolver::SupernodePartition PressureSolver::detectSupernodePartition(
         auto tv = boost::target(e, g);
         const auto& sn = g[sv];
         const auto& tn = g[tv];
+
+        // スーパーノード候補は室内同士（calc_p）に限定
+        if (!sn.calc_p || !tn.calc_p) continue;
 
         // 現状の圧力差（静水圧補正込み）を推定
         double p_s = currentPressures.count(sn.key) ? currentPressures.at(sn.key) : sn.current_p;
@@ -125,6 +130,13 @@ PressureSolver::SupernodePartition PressureSolver::detectSupernodePartition(
             }
             writeLog(logFile_, "\t\tクラスタサイズ: low=" + std::to_string(cntL) + ", high=" + std::to_string(cntH));
             writeLog(logFile_, "\t\t選抜閾値(logG中点): " + std::to_string(cMid));
+        }
+
+        if (!ventilation::hasClearConductanceSeparation(cLow, cHigh)) {
+            writeLog(logFile_, "\t\t明確な強弱分離なしのためスーパーノード化をスキップ"
+                                 " (logSep=" + std::to_string(cHigh - cLow) +
+                                 ", ratio=" + std::to_string(std::pow(10.0, cHigh - cLow)) + ")");
+            return partition;
         }
 
         std::vector<std::vector<int>> adj(partition.vertices.size());
