@@ -235,6 +235,27 @@ ventilation::PressureSolutionEvaluation PressureSolver::evaluatePressureSolution
     return eval;
 }
 
+ventilation::InterfaceFlowConsistency PressureSolver::evaluateInterfaceFlowConsistency(
+        const PressureMap& pressureMap,
+        const std::vector<std::pair<Edge, double>>& frozenFlows) const {
+    ventilation::InterfaceFlowConsistency out;
+    out.ok = true;
+    out.finite = true;
+    for (const auto& item : frozenFlows) {
+        const Edge e = item.first;
+        const double qFixed = item.second;
+        auto qOpt = calculateFlowForEdge(pressureMap, e);
+        if (!qOpt || !std::isfinite(*qOpt) || !std::isfinite(qFixed)) {
+            out.ok = false;
+            out.finite = false;
+            return out;
+        }
+        out.maxAbs = std::max(out.maxAbs, std::abs(*qOpt - qFixed));
+        ++out.edgeCount;
+    }
+    return out;
+}
+
 std::optional<std::map<std::string, double>> PressureSolver::calculateIndividualFlowRates(
     const PressureMap& pressureMap) {
     std::map<std::string, double> individualFlowRates;

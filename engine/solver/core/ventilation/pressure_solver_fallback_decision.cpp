@@ -1,4 +1,5 @@
 #include "core/ventilation/pressure_solver.h"
+#include "core/ventilation/edge_mutation_guard.h"
 #include "core/ventilation/pressure_balance.h"
 #include "core/ventilation/pressure_solver_internal.h"
 #include "utils/utils.h"
@@ -11,16 +12,20 @@
 PressureSolver::FallbackOuterAction PressureSolver::evaluateFallbackOuter(
         const SimulationConstants& constants,
         Graph& g,
+        ventilation::EdgeMutationGuard& edgeGuard,
         const SupernodePartition& partition,
         const StageASolveResult& stageA,
         StageBSolveResult& stageB,
+        const InterfaceFreezeResult& freeze,
         int outer,
         int maxOuter,
         int minOuter,
         const std::string& outerTag,
-        double massBalanceMaxAbs,
+        const ventilation::PressureSolverTolerances& tols,
         FallbackOuterState& state,
         const FallbackLogger& fallbackLog) {
+    const double massBalanceMaxAbs = tols.massBalanceMaxAbs;
+    const double interfaceFlowMaxAbs = tols.interfaceFlowMaxAbs;
     auto& vToParamIdxB = stageB.setup.vertexToParamIndex;
     std::vector<double>& pressuresFBB = stageB.setup.pressures;
     const auto& vertices = partition.vertices;
@@ -151,26 +156,40 @@ PressureSolver::FallbackOuterAction PressureSolver::evaluateFallbackOuter(
                 }
             }
 
+            // 仮ネットワーク（fixed_flow）上の合否は採用しない。
+            // 必ず元エッジ特性へ復元してから質量収支と interface 整合を評価する。
+            edgeGuard.restore();
             auto evalFinal = evaluatePressureSolution(pressureMapFB, massBalanceMaxAbs);
             if (!evalFinal.flowOk) {
-                fallbackLog(1, "[Fallback] 質量収支評価スキップ: " + evalFinal.detail);
+                fallbackLog(1, "[Fallback] 復元後質量収支評価スキップ: " + evalFinal.detail);
             } else {
-                state.finalPressureMapFB = pressureMapFB;
-                state.finalFlowRatesFB = std::move(evalFinal.flows);
-                state.finalBalanceFB = std::move(evalFinal.allNodeBalances);
-                const auto& metricsFinal = evalFinal.solvedNodeMetrics;
+                const auto iface = evaluateInterfaceFlowConsistency(
+                    pressureMapFB, freeze.frozenFlows);
+                const bool massOk = evalFinal.accepted;
+                const bool ifaceOk = ventilation::acceptInterfaceFlowConsistency(
+                    iface, interfaceFlowMaxAbs);
                 {
-                    std::ostringstream osmax;
-                    osmax << std::scientific << std::setprecision(6) << metricsFinal.maxAbs;
-                    fallbackLog(1, "[Fallback] mass_maxAbs=" + osmax.str() +
-                                       " | mass_tol=" + std::to_string(massBalanceMaxAbs));
+                    std::ostringstream osmax, osiface;
+                    osmax << std::scientific << std::setprecision(6)
+                          << evalFinal.solvedNodeMetrics.maxAbs;
+                    osiface << std::scientific << std::setprecision(6) << iface.maxAbs;
+                    fallbackLog(1, "[Fallback] restored mass_maxAbs=" + osmax.str() +
+                                       " | mass_tol=" + std::to_string(massBalanceMaxAbs) +
+                                       " | iface_maxAbs=" + osiface.str() +
+                                       " | iface_tol=" + std::to_string(interfaceFlowMaxAbs) +
+                                       " | iface_edges=" + std::to_string(iface.edgeCount));
                 }
-                if (evalFinal.accepted) {
+                if (massOk && ifaceOk) {
+                    state.finalPressureMapFB = pressureMapFB;
+                    state.finalFlowRatesFB = std::move(evalFinal.flows);
+                    state.finalBalanceFB = std::move(evalFinal.allNodeBalances);
                     state.finalHaveSolution = true;
-                    fallbackLog(0, "[Fallback] 収束 | mass_maxAbs 合格 | 外部反復 " +
+                    fallbackLog(0, "[Fallback] 収束 | 復元後 mass+iface 合格 | 外部反復 " +
                                        std::to_string(outer) + "/" + std::to_string(maxOuter));
                 } else {
-                    fallbackLog(0, "[Fallback] 質量収支不合格（継続）");
+                    fallbackLog(0, std::string("[Fallback] 復元後不合格（継続）") +
+                                       (!massOk ? " mass" : "") +
+                                       (!ifaceOk ? " iface" : ""));
                 }
                 state.lastNetworkCostOuter = costNet;
             }

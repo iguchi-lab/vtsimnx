@@ -144,14 +144,16 @@ private:
     FallbackOuterAction evaluateFallbackOuter(
         const SimulationConstants& constants,
         Graph& g,
+        ventilation::EdgeMutationGuard& edgeGuard,
         const SupernodePartition& partition,
         const StageASolveResult& stageA,
         StageBSolveResult& stageB,
+        const InterfaceFreezeResult& freeze,
         int outer,
         int maxOuter,
         int minOuter,
         const std::string& outerTag,
-        double massBalanceMaxAbs,
+        const ventilation::PressureSolverTolerances& tols,
         FallbackOuterState& state,
         const FallbackLogger& fallbackLog);
     std::optional<SolverResult> runFallbackLoop(
@@ -177,6 +179,11 @@ private:
     ventilation::PressureSolutionEvaluation evaluatePressureSolution(
         const PressureMap& pressureMap,
         double massBalanceMaxAbs);
+
+    // 復元後ネットワーク上で、固定流量化していたエッジの流量整合を評価
+    ventilation::InterfaceFlowConsistency evaluateInterfaceFlowConsistency(
+        const PressureMap& pressureMap,
+        const std::vector<std::pair<Edge, double>>& frozenFlows) const;
     
     FlowBalanceMap verifyBalance(const FlowRateMap& flowRates);
     

@@ -83,7 +83,7 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
                            std::string(outer >= 2 ? " | source=B(prev)" : " | source=A(current)"));
         StageASolveResult stageA = solveStageAReduced(
             constants, g, partition, state.prevPressureMapFB, fallbackLog);
-        if (!stageA.ok) {
+        if (!ventilation::canProceedToFallbackStageB(stageA.ok, /*interfaceFreezeSkipped=*/false)) {
             fallbackLog(0, "[Fallback] Stage A 未収束のため外部反復を打ち切り");
             break;
         }
@@ -97,7 +97,7 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
             state.prevPressureMapFB,
             outer,
             fallbackLog);
-        if (freeze.skipped) {
+        if (!ventilation::canProceedToFallbackStageB(stageA.ok, freeze.skipped)) {
             fallbackLog(0, "[Fallback] interface flow evaluation failed");
             break;
         }
@@ -109,14 +109,16 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
         FallbackOuterAction action = evaluateFallbackOuter(
             constants,
             g,
+            edgeGuard,
             partition,
             stageA,
             stageB,
+            freeze,
             outer,
             maxOuter,
             minOuter,
             outerTag,
-            tols.massBalanceMaxAbs,
+            tols,
             state,
             fallbackLog);
 

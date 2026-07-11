@@ -60,6 +60,7 @@ PressureSolver::InterfaceFreezeResult PressureSolver::freezeInterfaceFlows(
         auto itf = indivA.find(ep.unique_id);
         if (itf != indivA.end()) {
             edgeGuard.convertToFixedFlow(e, itf->second);
+            result.frozenFlows.emplace_back(e, itf->second);
             result.fixedFlowCount++;
         }
     }

@@ -9,6 +9,7 @@
 #include <limits>
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 struct PressureSolver::TrialResult {
@@ -67,6 +68,8 @@ struct PressureSolver::InterfaceFreezeResult {
     size_t fixedFlowCount = 0;
     size_t alreadyFixed = 0;
     bool skipped = false;
+    // convertToFixedFlow したエッジと、そのときの固定流量 Q_fixed [kg/s]
+    std::vector<std::pair<Edge, double>> frozenFlows;
 };
 
 struct PressureSolver::StageBSolveResult {

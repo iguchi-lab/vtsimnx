@@ -1,5 +1,6 @@
 #include <cmath>
 #include <iostream>
+#include <limits>
 #include <stdexcept>
 #include <string>
 
@@ -117,11 +118,104 @@ void testFixedPressureBoundaryExcludedFromAcceptance() {
     expectTrue(ventilation::acceptMassBalance(solvedMetrics, 1e-6), "solved-node accepts");
 }
 
+void testMissingCalcPBalanceRejected() {
+    Graph g;
+    Vertex room = boost::add_vertex(g);
+    Vertex out = boost::add_vertex(g);
+    g[room].key = "room";
+    g[room].calc_p = true;
+    g[out].key = "outside";
+    g[out].calc_p = false;
+
+    // calc_p の room が balance に無い → complete=false / 不合格
+    FlowBalanceMap bal{{"outside", -0.1}};
+    const auto m = ventilation::computePressureUnknownBalanceMetrics(bal, g);
+    expectTrue(!m.complete, "missing calc_p entry marks incomplete");
+    expectTrue(m.nodeCount == 0, "missing node not counted");
+    expectTrue(!ventilation::acceptMassBalance(m, 1e-6), "missing calc_p balance rejects");
+}
+
+void testNonFiniteBalanceRejected() {
+    Graph g;
+    Vertex room = boost::add_vertex(g);
+    g[room].key = "room";
+    g[room].calc_p = true;
+
+    FlowBalanceMap balNan{{"room", std::numeric_limits<double>::quiet_NaN()}};
+    const auto mNan = ventilation::computePressureUnknownBalanceMetrics(balNan, g);
+    expectTrue(!mNan.finite, "NaN marks non-finite");
+    expectTrue(!ventilation::acceptMassBalance(mNan, 1e-6), "NaN balance rejects");
+
+    FlowBalanceMap balInf{{"room", std::numeric_limits<double>::infinity()}};
+    const auto mInf = ventilation::computePressureUnknownBalanceMetrics(balInf, g);
+    expectTrue(!mInf.finite, "Inf marks non-finite");
+    expectTrue(!ventilation::acceptMassBalance(mInf, 1e-6), "Inf balance rejects");
+
+    // 全ノード集計側も同様
+    const auto allNan = ventilation::computeBalanceMetrics(balNan);
+    expectTrue(!allNan.finite, "all-node NaN non-finite");
+    expectTrue(!ventilation::acceptMassBalance(allNan, 1.0), "all-node NaN rejects");
+}
+
+void testFallbackStageBGate() {
+    expectTrue(ventilation::canProceedToFallbackStageB(true, false), "ok proceeds");
+    expectTrue(!ventilation::canProceedToFallbackStageB(false, false), "Stage A fail blocks");
+    expectTrue(!ventilation::canProceedToFallbackStageB(true, true), "freeze skip blocks");
+    expectTrue(!ventilation::canProceedToFallbackStageB(false, true), "both fail blocks");
+}
+
+void testInterfaceFlowConsistencyAcceptance() {
+    ventilation::InterfaceFlowConsistency good;
+    good.maxAbs = 1e-7;
+    good.edgeCount = 2;
+    good.finite = true;
+    good.ok = true;
+    expectTrue(ventilation::acceptInterfaceFlowConsistency(good, 1e-6), "iface accept");
+
+    ventilation::InterfaceFlowConsistency badAbs = good;
+    badAbs.maxAbs = 1e-3;
+    expectTrue(!ventilation::acceptInterfaceFlowConsistency(badAbs, 1e-6), "iface reject large");
+
+    ventilation::InterfaceFlowConsistency badFinite = good;
+    badFinite.finite = false;
+    expectTrue(!ventilation::acceptInterfaceFlowConsistency(badFinite, 1e-6), "iface reject nonfinite");
+
+    ventilation::InterfaceFlowConsistency badOk = good;
+    badOk.ok = false;
+    expectTrue(!ventilation::acceptInterfaceFlowConsistency(badOk, 1e-6), "iface reject !ok");
+}
+
+void testFallbackAcceptanceRequiresRestoredMassAndInterface() {
+    // 採用条件は mass と iface の両方が必要（仮ネットワーク単独合格では不十分）
+    ventilation::BalanceMetrics massOk{};
+    massOk.maxAbs = 0.0;
+    massOk.nodeCount = 1;
+    massOk.complete = true;
+    massOk.finite = true;
+    ventilation::InterfaceFlowConsistency ifaceBad{};
+    ifaceBad.maxAbs = 1.0;
+    ifaceBad.edgeCount = 1;
+    ifaceBad.finite = true;
+    ifaceBad.ok = true;
+    expectTrue(ventilation::acceptMassBalance(massOk, 1e-6), "mass alone ok");
+    expectTrue(!ventilation::acceptInterfaceFlowConsistency(ifaceBad, 1e-6), "iface alone bad");
+    expectTrue(!(ventilation::acceptMassBalance(massOk, 1e-6) &&
+                 ventilation::acceptInterfaceFlowConsistency(ifaceBad, 1e-6)),
+               "both required: mass ok iface bad rejects");
+
+    ventilation::InterfaceFlowConsistency ifaceOk = ifaceBad;
+    ifaceOk.maxAbs = 0.0;
+    expectTrue(ventilation::acceptMassBalance(massOk, 1e-6) &&
+                   ventilation::acceptInterfaceFlowConsistency(ifaceOk, 1e-6),
+               "both ok accepts");
+}
+
 void testMakeTolerancesUsesVentilationTolerance() {
     SimulationConstants c{};
     c.ventilationTolerance = 3.5e-4;
     const auto t = ventilation::makePressureSolverTolerances(c);
     expectNear(t.massBalanceMaxAbs, 3.5e-4, 0.0, "massBalanceMaxAbs from ventilationTolerance");
+    expectNear(t.interfaceFlowMaxAbs, 3.5e-4, 0.0, "interfaceFlowMaxAbs from ventilationTolerance");
     expectTrue(t.ceresFunctionRelative > 0.0, "ceres relative default");
 }
 
@@ -132,6 +226,11 @@ int main() {
     testAcceptMassBalanceBoundary();
     testEdgeMutationGuardRestoreNormalAndException();
     testFixedPressureBoundaryExcludedFromAcceptance();
+    testMissingCalcPBalanceRejected();
+    testNonFiniteBalanceRejected();
+    testFallbackStageBGate();
+    testInterfaceFlowConsistencyAcceptance();
+    testFallbackAcceptanceRequiresRestoredMassAndInterface();
     testMakeTolerancesUsesVentilationTolerance();
 
     if (g_failures == 0) {
