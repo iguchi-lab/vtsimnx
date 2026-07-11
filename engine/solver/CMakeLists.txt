@@ -31,11 +31,20 @@ set(NETWORK_SOURCES
     network/humidity_network_outputs.cpp
 )
 
-set(CORE_SOURCES
+set(VENTILATION_PRESSURE_SOURCES
     core/ventilation/pressure_solver.cpp
     core/ventilation/pressure_solver_ceres.cpp
     core/ventilation/pressure_solver_fallback.cpp
+    core/ventilation/pressure_solver_fallback_partition.cpp
+    core/ventilation/pressure_solver_fallback_stage_a.cpp
+    core/ventilation/pressure_solver_fallback_mutation.cpp
+    core/ventilation/pressure_solver_fallback_stage_b.cpp
+    core/ventilation/pressure_solver_fallback_decision.cpp
     core/ventilation/pressure_constraints.cpp
+)
+
+set(CORE_SOURCES
+    ${VENTILATION_PRESSURE_SOURCES}
     core/thermal/thermal_solver.cpp
     core/thermal/thermal_solver_linear_direct.cpp
     core/thermal/thermal_direct_internal.cpp
@@ -361,10 +370,7 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         tests_cpp/test_vent_parallel_branch_flow_rates.cpp
         network/ventilation_network.cpp
         network/ventilation_network_outputs.cpp
-        core/ventilation/pressure_solver.cpp
-        core/ventilation/pressure_solver_ceres.cpp
-        core/ventilation/pressure_solver_fallback.cpp
-        core/ventilation/pressure_constraints.cpp
+        ${VENTILATION_PRESSURE_SOURCES}
     )
     target_link_libraries(vtsimnx_solver_cpp_test_vent_parallel_branch_flow_rates
         Boost::boost
@@ -386,10 +392,7 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         network/thermal_network_outputs.cpp
         network/humidity_network.cpp
         network/humidity_network_outputs.cpp
-        core/ventilation/pressure_solver.cpp
-        core/ventilation/pressure_solver_ceres.cpp
-        core/ventilation/pressure_solver_fallback.cpp
-        core/ventilation/pressure_constraints.cpp
+        ${VENTILATION_PRESSURE_SOURCES}
         core/thermal/thermal_solver.cpp
         core/thermal/thermal_solver_linear_direct.cpp
         core/thermal/thermal_direct_internal.cpp
@@ -422,10 +425,7 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         network/thermal_network_outputs.cpp
         network/humidity_network.cpp
         network/humidity_network_outputs.cpp
-        core/ventilation/pressure_solver.cpp
-        core/ventilation/pressure_solver_ceres.cpp
-        core/ventilation/pressure_solver_fallback.cpp
-        core/ventilation/pressure_constraints.cpp
+        ${VENTILATION_PRESSURE_SOURCES}
         core/thermal/thermal_solver.cpp
         core/thermal/thermal_solver_linear_direct.cpp
         core/thermal/thermal_direct_internal.cpp
@@ -449,10 +449,7 @@ if(VTSIMNX_BUILD_CPP_TESTS)
     # 7c) core physics known-solution checks (ventilation / thermal / humidity)
     add_executable(vtsimnx_solver_cpp_test_core_physics_known_solutions
         tests_cpp/test_core_physics_known_solutions.cpp
-        core/ventilation/pressure_solver.cpp
-        core/ventilation/pressure_solver_ceres.cpp
-        core/ventilation/pressure_solver_fallback.cpp
-        core/ventilation/pressure_constraints.cpp
+        ${VENTILATION_PRESSURE_SOURCES}
         core/thermal/thermal_solver.cpp
         core/thermal/thermal_solver_linear_direct.cpp
         core/thermal/thermal_direct_internal.cpp

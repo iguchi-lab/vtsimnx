@@ -6,6 +6,7 @@
 
 #include "core/ventilation/pressure_solver.h"
 
+#include <limits>
 #include <map>
 #include <string>
 #include <vector>
@@ -42,4 +43,46 @@ struct PressureSolver::StageBSetup {
     std::vector<double> pressures;
 };
 
+struct PressureSolver::SupernodePartition {
+    std::vector<Vertex> vertices;
+    std::map<Vertex, int> v2i;
+    std::vector<int> groupOfVertex;
+    std::vector<std::vector<Edge>> incidentEdgesByVertex;
+    size_t highEdgeCount = 0;
+    size_t condensedNodeCount = 0;
+};
+
+struct PressureSolver::StageASolveResult {
+    StageAMapping mapping;
+    std::vector<double> pressures;
+    PressureMap pressureMap;
+    ceres::Solver::Summary summary;
+    bool ok = false;
+    int superCount = 0;
+    double anchorTargetPressure = 0.0;
+    bool hasAnchorTarget = false;
+};
+
+struct PressureSolver::InterfaceFreezeResult {
+    size_t fixedFlowCount = 0;
+    size_t alreadyFixed = 0;
+    bool skipped = false;
+};
+
+struct PressureSolver::StageBSolveResult {
+    StageBSetup setup;
+    PressureMap pressureMap;
+    ceres::Solver::Summary summary;
+    bool ok = false;
+};
+
+struct PressureSolver::FallbackOuterState {
+    double lastCostOuter = std::numeric_limits<double>::infinity();
+    double lastNetworkCostOuter = std::numeric_limits<double>::infinity();
+    PressureMap prevPressureMapFB;
+    PressureMap finalPressureMapFB;
+    FlowRateMap finalFlowRatesFB;
+    FlowBalanceMap finalBalanceFB;
+    bool finalHaveSolution = false;
+};
 

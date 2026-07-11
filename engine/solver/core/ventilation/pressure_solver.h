@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../../vtsim_solver.h"
+#include "core/ventilation/edge_mutation_guard.h"
 #include <ceres/ceres.h>
 #include <functional>
 #include <fstream>
@@ -33,6 +34,19 @@ private:
     struct SolverSetup;
     struct StageAMapping;
     struct StageBSetup;
+    struct SupernodePartition;
+    struct StageASolveResult;
+    struct InterfaceFreezeResult;
+    struct StageBSolveResult;
+    struct FallbackOuterState;
+
+    enum class FallbackOuterAction {
+        AcceptSolution,
+        ContinueOuter,
+        StopOuter
+    };
+
+    using FallbackLogger = std::function<void(int, const std::string&)>;
     
     // 初期圧力の設定
     void setInitialPressures(std::vector<double>& pressures, 
@@ -101,7 +115,44 @@ private:
     bool runStageBTrials(const SimulationConstants& constants,
                          ceres::Problem& problemFB2,
                          ceres::Solver::Summary& fbSummary2,
-                         const std::function<void(int, const std::string&)>& fallbackLog);
+                         const FallbackLogger& fallbackLog);
+    SupernodePartition detectSupernodePartition(
+        const SimulationConstants& constants,
+        const PressureMap& currentPressures);
+    StageASolveResult solveStageAReduced(
+        const SimulationConstants& constants,
+        Graph& g,
+        const SupernodePartition& partition,
+        const PressureMap& prevPressureMapFB,
+        const FallbackLogger& fallbackLog);
+    InterfaceFreezeResult freezeInterfaceFlows(
+        Graph& g,
+        ventilation::EdgeMutationGuard& edgeGuard,
+        const SupernodePartition& partition,
+        const StageAMapping& stageMapping,
+        const PressureMap& pressureMapFB_A,
+        const PressureMap& prevPressureMapFB,
+        int outer,
+        const FallbackLogger& fallbackLog);
+    StageBSolveResult solveStageBFull(
+        const SimulationConstants& constants,
+        Graph& g,
+        const SupernodePartition& partition,
+        const PressureMap& pressureMapFB_A,
+        const FallbackLogger& fallbackLog);
+    FallbackOuterAction evaluateFallbackOuter(
+        const SimulationConstants& constants,
+        Graph& g,
+        const SupernodePartition& partition,
+        const StageASolveResult& stageA,
+        StageBSolveResult& stageB,
+        int outer,
+        int maxOuter,
+        int minOuter,
+        const std::string& outerTag,
+        double massBalanceMaxAbs,
+        FallbackOuterState& state,
+        const FallbackLogger& fallbackLog);
     std::optional<SolverResult> runFallbackLoop(
         const SimulationConstants& constants,
         SolverSetup& setup,
