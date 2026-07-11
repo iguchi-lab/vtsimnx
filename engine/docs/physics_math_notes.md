@@ -32,6 +32,8 @@
 
 - 換気回路網の solver が扱う風量は **体積流量 \(\dot V\) \([m^3/s]\)** です
   - `ventilation_branches[].vol`（`fixed_flow`）も \([m^3/s]\) として扱います
+  - `FlowRateMap` / `FlowBalanceMap` / `ventilationTolerance` も **体積流量収支 [m³/s]**（質量収支ではない）
+  - `enable=false` および `fixed_flow` / `vol` 指定枝は、Ceres 残差・最終 `flow_rate` とも同一規則で扱う
 - 熱の移流では \(\rho c_p \dot V\) を使って \([W]\) に変換します
 - 湿度（絶対湿度 \(x\)）の移流では、\(\rho \dot V\) により **質量流量 \([kg/s]\)** に変換して扱います（\(\rho\) は乾燥空気密度の近似）
 - 濃度（\(c\)）の移流は、old_vtsim 互換として **体積流量 \([m^3/s]\)** ベースで扱います（\(\dot V/V\) が \([1/s]\) になるため）

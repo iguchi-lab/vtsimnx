@@ -8,8 +8,9 @@
 
 namespace ventilation {
 
-// 換気質量収支の物理指標。
-// ventilationTolerance は「計算圧力ノード（calc_p）流量収支の最大絶対値 [kg/s]」として解釈する。
+// 換気体積流量収支の物理指標。
+// ventilationTolerance は「計算圧力ノード（calc_p）体積流量収支の最大絶対値 [m³/s]」として解釈する。
+// （質量流量ではなく体積流量。湿度移流のみ後段で ρ を掛けて [kg/s] に変換する。）
 struct BalanceMetrics {
     double maxAbs = 0.0;
     double l1 = 0.0;
@@ -147,8 +148,8 @@ struct PressureSolutionEvaluation {
 
 // Ceres 停止条件と物理合否を分離する内部設定。
 struct PressureSolverTolerances {
-    double massBalanceMaxAbs = 1e-6;      // [kg/s] max |calc_p node balance|
-    double interfaceFlowMaxAbs = 1e-6;    // [kg/s] max |Q_original - Q_fixed|
+    double massBalanceMaxAbs = 1e-6;      // [m³/s] max |calc_p node volume-flow balance|
+    double interfaceFlowMaxAbs = 1e-6;    // [m³/s] max |Q_original - Q_fixed|
     double ceresFunctionRelative = 1e-12; // Ceres function_tolerance（相対）
     double ceresParameter = 1e-12;        // Ceres parameter_tolerance
     double ceresGradient = 1e-10;         // Ceres gradient_tolerance

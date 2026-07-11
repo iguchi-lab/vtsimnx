@@ -135,18 +135,22 @@ inline double calcFanJacobian(double dp, const EdgeProperties& edgeData) {
 } // namespace FanJacobian
 
 namespace FlowJacobianCommon {
-// 統一されたヤコビアン計算関数（d(flow)/d(dp)）
+// 統一されたヤコビアン計算関数（dQ/d(dp)、Q は体積流量 [m³/s]）
 inline double calculateJacobian(double dp, const EdgeProperties& edgeData) {
+    if (!edgeData.current_enabled || FlowCalculation::isFixedVolumeFlowEdge(edgeData)) {
+        return 0.0;
+    }
     if (edgeData.type == "fan") {
         return FanJacobian::calcFanJacobian(dp, edgeData);
-    } else if (edgeData.type == "simple_opening") {
+    }
+    if (edgeData.type == "simple_opening") {
         return FlowJacobian::calcSimpleOpeningJacobian(dp, edgeData);
-    } else if (edgeData.type == "gap") {
+    }
+    if (edgeData.type == "gap") {
         return FlowJacobian::calcGapJacobian(dp, edgeData);
-    } else if (edgeData.type == "pressure_loss") {
+    }
+    if (edgeData.type == "pressure_loss") {
         return FlowJacobian::calcPressureLossJacobian(dp, edgeData);
-    } else if (edgeData.type == "fixed_flow") {
-        return 0.0;
     }
 
     // その他は互換性のため数値微分（未知タイプが来た時だけ）

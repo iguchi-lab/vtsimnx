@@ -8,7 +8,9 @@
 #include "../archenv/include/archenv.h"
 #include <cmath>
 #include <algorithm>
+#include <functional>
 #include <set>
+#include <unordered_map>
 #include <unordered_set>
 #include <sstream>
 #include <iomanip>
@@ -132,6 +134,162 @@ void PressureSolver::Impl::addFlowBalanceConstraints(const SolverSetup& setup, c
             logFile_);
 
         problem.AddResidualBlock(costFunction, nullptr, const_cast<double*>(setup.pressures.data()));
+    }
+    addPressureGaugeAnchors(setup, problem);
+}
+
+void PressureSolver::Impl::addPressureGaugeAnchors(const SolverSetup& setup, ceres::Problem& problem) {
+    const Graph& graph = network_.getGraph();
+    const size_t vCount = static_cast<size_t>(boost::num_vertices(graph));
+    if (vCount == 0 || setup.pressures.empty()) {
+        return;
+    }
+
+    auto isPressureCouplingEdge = [](const EdgeProperties& ep) {
+        if (!ep.current_enabled || FlowCalculation::isFixedVolumeFlowEdge(ep)) {
+            return false;
+        }
+        return ep.type == "simple_opening" || ep.type == "gap" ||
+               ep.type == "fan" || ep.type == "pressure_loss";
+    };
+
+    // Union-Find over all graph vertices connected by pressure-coupling edges.
+    std::vector<int> parent(static_cast<int>(vCount));
+    for (int i = 0; i < static_cast<int>(vCount); ++i) {
+        parent[static_cast<size_t>(i)] = i;
+    }
+    std::function<int(int)> find = [&](int x) {
+        if (parent[static_cast<size_t>(x)] != x) {
+            parent[static_cast<size_t>(x)] = find(parent[static_cast<size_t>(x)]);
+        }
+        return parent[static_cast<size_t>(x)];
+    };
+    auto unite = [&](int a, int b) {
+        a = find(a);
+        b = find(b);
+        if (a != b) {
+            parent[static_cast<size_t>(b)] = a;
+        }
+    };
+
+    for (auto e : boost::make_iterator_range(boost::edges(graph))) {
+        if (!isPressureCouplingEdge(graph[e])) {
+            continue;
+        }
+        const int sv = static_cast<int>(boost::source(e, graph));
+        const int tv = static_cast<int>(boost::target(e, graph));
+        unite(sv, tv);
+    }
+
+    struct CompInfo {
+        bool hasFixedPressure = false;
+        bool hasUnknown = false;
+        int anchorParam = -1;
+        double anchorTarget = 0.0;
+        std::string anchorKey;
+        bool hasPressureCoupling = false;
+        double fixedFlowBalanceAbsMax = 0.0;
+    };
+    std::unordered_map<int, CompInfo> comps;
+
+    // Mark components that contain pressure-coupling edges.
+    for (auto e : boost::make_iterator_range(boost::edges(graph))) {
+        if (!isPressureCouplingEdge(graph[e])) {
+            continue;
+        }
+        const int root = find(static_cast<int>(boost::source(e, graph)));
+        comps[root].hasPressureCoupling = true;
+    }
+
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        const int root = find(static_cast<int>(v));
+        auto& info = comps[root];
+        const auto& node = graph[v];
+        if (!node.calc_p) {
+            info.hasFixedPressure = true;
+            continue;
+        }
+        const int param = (static_cast<size_t>(v) < setup.vertexToParameterIndexVec.size())
+                              ? setup.vertexToParameterIndexVec[static_cast<size_t>(v)]
+                              : -1;
+        if (param < 0) {
+            continue;
+        }
+        info.hasUnknown = true;
+        if (info.anchorParam < 0) {
+            info.anchorParam = param;
+            info.anchorTarget = std::isfinite(setup.pressures[static_cast<size_t>(param)])
+                                    ? setup.pressures[static_cast<size_t>(param)]
+                                    : (std::isfinite(node.current_p) ? node.current_p : 0.0);
+            info.anchorKey = node.key;
+        }
+    }
+
+    // fixed-flow-only components: check volume-flow realizability on calc_p nodes
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        const auto& node = graph[v];
+        if (!node.calc_p) {
+            continue;
+        }
+        const int root = find(static_cast<int>(v));
+        auto it = comps.find(root);
+        if (it == comps.end() || it->second.hasPressureCoupling) {
+            continue;
+        }
+        double bal = 0.0;
+        if (static_cast<size_t>(v) < setup.incidentEdgesByVertex.size()) {
+            for (Edge e : setup.incidentEdgesByVertex[static_cast<size_t>(v)]) {
+                const auto& ep = graph[e];
+                if (!ep.current_enabled || !FlowCalculation::isFixedVolumeFlowEdge(ep)) {
+                    continue;
+                }
+                const Vertex sv = boost::source(e, graph);
+                const double q = ep.current_vol;
+                bal += (sv == v) ? -q : q;
+            }
+        }
+        it->second.fixedFlowBalanceAbsMax =
+            std::max(it->second.fixedFlowBalanceAbsMax, std::abs(bal));
+    }
+
+    int anchorsAdded = 0;
+    for (const auto& kv : comps) {
+        const CompInfo& info = kv.second;
+        if (!info.hasUnknown) {
+            continue;
+        }
+        if (!info.hasPressureCoupling) {
+            if (info.fixedFlowBalanceAbsMax > 1e-12) {
+                writeLog(logFile_,
+                         "--警告: 固定流量のみの成分で体積流量収支が不整合 | maxAbs=" +
+                             std::to_string(info.fixedFlowBalanceAbsMax));
+            }
+            continue;
+        }
+        if (info.hasFixedPressure) {
+            continue;
+        }
+        if (info.anchorParam < 0) {
+            continue;
+        }
+        // ゲージ自由度を実質的に固定する。弱すぎると不定、弱残差が流量収支を汚染する。
+        // 1ノードの絶対圧を current_p（初期値）にピン留めし、相対圧は流量収支が決める。
+        problem.AddResidualBlock(
+            PressureConstraints::createSoftAnchorConstraint(
+                static_cast<size_t>(info.anchorParam),
+                info.anchorTarget,
+                /*weight=*/1.0,
+                setup.pressures.size()),
+            nullptr,
+            const_cast<double*>(setup.pressures.data()));
+        ++anchorsAdded;
+        writeLog(logFile_,
+                 "--圧力ゲージ固定: 成分に固定圧境界がないため soft anchor を追加 | node=" +
+                     info.anchorKey + " | target_p=" + std::to_string(info.anchorTarget));
+    }
+    if (anchorsAdded > 0) {
+        writeLog(logFile_,
+                 "--圧力ゲージ固定: soft anchor 数=" + std::to_string(anchorsAdded));
     }
 }
 

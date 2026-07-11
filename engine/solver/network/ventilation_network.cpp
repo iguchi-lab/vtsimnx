@@ -126,8 +126,8 @@ void VentilationNetwork::buildFromData(const std::vector<VertexProperties>& allN
         if (!simConstants.pressureCalc) {
             for (auto e : boost::make_iterator_range(boost::edges(graph))) {
                 auto& ep = graph[e];
-                if (ep.type == "fixed_flow" || !ep.vol.empty()) {
-                    ep.flow_rate = ep.current_enabled ? ep.current_vol : 0.0;
+                if (FlowCalculation::isFixedVolumeFlowEdge(ep)) {
+                    ep.flow_rate = FlowCalculation::calculateUnifiedFlow(/*dp=*/0.0, ep);
                 }
             }
         }
@@ -197,12 +197,11 @@ void VentilationNetwork::updateFlowRatesInGraph(const FlowRateMap& flowRates) {
         const auto& targetNode = graph[targetVertex];
         auto& edgeData = graph[edge];
 
+        // 無効／固定体積流量は dp 不要。圧力依存枝のみ差圧から再計算。
+        // 判定条件は FlowCalculation::calculateUnifiedFlow と同一。
         double flow = 0.0;
-        if (!edgeData.current_enabled) {
-            flow = 0.0;
-        } else if (edgeData.type == "fixed_flow" || !edgeData.vol.empty()) {
-            // 固定流量（type=fixed_flow）や vol 指定はそのまま
-            flow = edgeData.current_vol;
+        if (!edgeData.current_enabled || FlowCalculation::isFixedVolumeFlowEdge(edgeData)) {
+            flow = FlowCalculation::calculateUnifiedFlow(/*dp=*/0.0, edgeData);
         } else {
             const double rho_source = calculateDensity(sourceNode.current_t);
             const double rho_target = calculateDensity(targetNode.current_t);
@@ -243,8 +242,8 @@ void VentilationNetwork::updatePropertiesForTimestep(const std::vector<VertexPro
         ep.updateForTimestep(static_cast<int>(timestep));
         // pressure を解かない場合でも、fixed_flow および vol 指定枝は確定値なので flow_rate を追従させる
         // （type 未指定の「換気量固定」/ aircon 送風なども含む）
-        if (ep.type == "fixed_flow" || !ep.vol.empty()) {
-            ep.flow_rate = ep.current_enabled ? ep.current_vol : 0.0;
+        if (FlowCalculation::isFixedVolumeFlowEdge(ep)) {
+            ep.flow_rate = FlowCalculation::calculateUnifiedFlow(/*dp=*/0.0, ep);
         }
     }
 }

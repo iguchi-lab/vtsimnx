@@ -5,6 +5,7 @@
 #include <stdexcept>
 #include <string>
 #include <sstream>
+#include <cmath>
 
 using nlohmann::json;
 
@@ -63,6 +64,102 @@ static inline void ensureUniqueKeyOrThrow(const std::string& where,
         throw std::runtime_error(where + ": 重複するブランチ名が検出されました: \"" + key + "\"");
     }
     seen.insert(key);
+}
+
+
+static inline bool hasPositiveNumber(const json& obj, const char* key) {
+    if (!obj.contains(key) || !obj[key].is_number()) return false;
+    return obj[key].get<double>() > 0.0;
+}
+
+static inline void requirePositiveNumber(const json& obj,
+                                        const char* key,
+                                        const std::string& prefix) {
+    const std::string path = parser_utils::makePath(prefix, key);
+    if (!obj.contains(key) || !obj[key].is_number()) {
+        throw std::runtime_error(path + " is required and must be a positive number");
+    }
+    if (!(obj[key].get<double>() > 0.0)) {
+        throw std::runtime_error(path + " must be > 0");
+    }
+}
+
+static inline void requireFiniteNumber(const json& obj,
+                                       const char* key,
+                                       const std::string& prefix) {
+    const std::string path = parser_utils::makePath(prefix, key);
+    if (!obj.contains(key) || !obj[key].is_number()) {
+        throw std::runtime_error(path + " is required and must be a number");
+    }
+    const double v = obj[key].get<double>();
+    if (!std::isfinite(v)) {
+        throw std::runtime_error(path + " must be finite");
+    }
+}
+
+static inline void validateVentilationBranchTypeParams(const json& branchJson,
+                                                      const EdgeProperties& branch,
+                                                      const std::string& prefix) {
+    const std::string& type = branch.type;
+    if (type == "simple_opening") {
+        requirePositiveNumber(branchJson, "alpha", prefix);
+        requirePositiveNumber(branchJson, "area", prefix);
+        return;
+    }
+    if (type == "gap") {
+        requirePositiveNumber(branchJson, "a", prefix);
+        requireFiniteNumber(branchJson, "n", prefix);
+        if (!(branch.n > 0.0)) {
+            throw std::runtime_error(parser_utils::makePath(prefix, "n") + " must be > 0");
+        }
+        return;
+    }
+    if (type == "fan") {
+        requireFiniteNumber(branchJson, "p_max", prefix);
+        requireFiniteNumber(branchJson, "p1", prefix);
+        requireFiniteNumber(branchJson, "q_max", prefix);
+        requireFiniteNumber(branchJson, "q1", prefix);
+        if (!(branch.q_max >= 0.0) || !(branch.q1 >= 0.0)) {
+            throw std::runtime_error(prefix + ": fan q_max/q1 must be >= 0");
+        }
+        if (!(branch.p_max >= branch.p1)) {
+            throw std::runtime_error(prefix + ": fan requires p_max >= p1");
+        }
+        return;
+    }
+    if (type == "fixed_flow") {
+        if (!branchJson.contains("vol")) {
+            throw std::runtime_error(prefix + ".vol is required for type=fixed_flow");
+        }
+        return;
+    }
+    if (type == "pressure_loss") {
+        requirePositiveNumber(branchJson, "area", prefix);
+        const bool hasK = hasPositiveNumber(branchJson, "k_total");
+        const bool hasFormula =
+            hasPositiveNumber(branchJson, "friction_factor") ||
+            (branchJson.contains("lambda") && branchJson["lambda"].is_number() &&
+             branchJson["lambda"].get<double>() > 0.0);
+        const bool hasGeom =
+            branchJson.contains("length") && branchJson["length"].is_number() &&
+            branchJson.contains("diameter") && branchJson["diameter"].is_number() &&
+            branchJson["diameter"].get<double>() > 0.0;
+        if (!hasK && !(hasFormula && hasGeom)) {
+            throw std::runtime_error(
+                prefix + ": pressure_loss requires positive k_total, or "
+                "friction_factor/lambda with length and positive diameter");
+        }
+        if (!hasK && branch.k_total <= 0.0) {
+            // friction path may leave k_total 0 until solver computes; reject empty formula
+            if (!(branch.friction_factor > 0.0 ||
+                  (branchJson.contains("lambda") && branchJson["lambda"].is_number() &&
+                   branchJson["lambda"].get<double>() > 0.0))) {
+                throw std::runtime_error(prefix + ": pressure_loss effective loss coefficient is invalid");
+            }
+        }
+        return;
+    }
+    throw std::runtime_error(prefix + ".type is unknown: \"" + type + "\"");
 }
 
 } // namespace
@@ -164,6 +261,8 @@ std::vector<EdgeProperties> parseVentilationBranches(const json& config, std::os
                 branchPrefix + ".dust_generation");
         }
         parseEnableField(branchJson, branch.enabled, branch.current_enabled, timestep, branchPrefix);
+
+        validateVentilationBranchTypeParams(branchJson, branch, branchPrefix);
 
         branches.push_back(std::move(branch));
 

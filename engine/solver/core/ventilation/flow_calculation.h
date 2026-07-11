@@ -103,21 +103,33 @@ inline double calcFanFlow(double dp, const EdgeProperties& edgeData) {
     return cond1 * 0.0 + cond2 * flow2 + cond3 * flow3 + cond4 * q_max;
 }
 
-// 統一風量計算インターフェース（ブランチタイプに応じて適切な計算関数を呼び出す）
+// 固定体積流量枝（type=fixed_flow、または vol 時系列指定）
+inline bool isFixedVolumeFlowEdge(const EdgeProperties& edgeData) {
+    return edgeData.type == "fixed_flow" || !edgeData.vol.empty();
+}
+
+// 統一風量計算インターフェース。
+// 戻り値は体積流量 [m³/s]。updateFlowRatesInGraph と同じ有効／固定判定を使う。
 inline double calculateUnifiedFlow(double dp, const EdgeProperties& edgeData) {
-    if (edgeData.type == "simple_opening") {
-        return calcSimpleOpeningFlow(dp, edgeData);
-    } else if (edgeData.type == "gap") {
-        return calcGapFlow(dp, edgeData);
-    } else if (edgeData.type == "fan") {
-        return calcFanFlow(dp, edgeData);
-    } else if (edgeData.type == "pressure_loss") {
-        return calcPressureLossFlow(dp, edgeData);
-    } else if (edgeData.type == "fixed_flow") {
-        return edgeData.current_vol;
-    } else {
+    if (!edgeData.current_enabled) {
         return 0.0;
     }
+    if (isFixedVolumeFlowEdge(edgeData)) {
+        return edgeData.current_vol;
+    }
+    if (edgeData.type == "simple_opening") {
+        return calcSimpleOpeningFlow(dp, edgeData);
+    }
+    if (edgeData.type == "gap") {
+        return calcGapFlow(dp, edgeData);
+    }
+    if (edgeData.type == "fan") {
+        return calcFanFlow(dp, edgeData);
+    }
+    if (edgeData.type == "pressure_loss") {
+        return calcPressureLossFlow(dp, edgeData);
+    }
+    return 0.0;
 }
 
 } // namespace FlowCalculation

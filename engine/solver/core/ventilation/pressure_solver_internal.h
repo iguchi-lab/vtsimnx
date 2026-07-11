@@ -69,7 +69,7 @@ struct PressureSolver::Impl::InterfaceFreezeResult {
     size_t fixedFlowCount = 0;
     size_t alreadyFixed = 0;
     bool skipped = false;
-    // convertToFixedFlow したエッジと、そのときの固定流量 Q_fixed [kg/s]
+    // convertToFixedFlow したエッジと、そのときの固定流量 Q_fixed [m³/s]
     std::vector<std::pair<Edge, double>> frozenFlows;
 };
 

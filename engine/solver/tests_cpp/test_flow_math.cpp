@@ -170,6 +170,37 @@ int main() {
     }
 
     // -----------------------------
+    // current_enabled=false: Q=0, Jacobian=0（圧力依存枝でも）
+    // -----------------------------
+    {
+        EdgeProperties e{};
+        e.type = "simple_opening";
+        e.alpha = 0.65;
+        e.area = 1.0;
+        e.current_enabled = false;
+        const double dp = 20.0;
+        expectNear(FlowCalculation::calculateUnifiedFlow(dp, e), 0.0, 0.0, "disabled opening: Q == 0");
+        expectNear(FlowJacobianCommon::calculateJacobian(dp, e), 0.0, 0.0, "disabled opening: dQ/dp == 0");
+    }
+
+    // -----------------------------
+    // vol 指定枝: type が opening でも固定体積流量として扱う
+    // -----------------------------
+    {
+        EdgeProperties e{};
+        e.type = "simple_opening";
+        e.alpha = 0.65;
+        e.area = 1.0;
+        e.vol = {0.42};
+        e.current_vol = 0.42;
+        const double dp = 30.0;
+        expectNear(FlowCalculation::calculateUnifiedFlow(dp, e), 0.42, 0.0, "vol-specified: Q == current_vol");
+        expectNear(FlowJacobianCommon::calculateJacobian(dp, e), 0.0, 0.0, "vol-specified: dQ/dp == 0");
+        e.current_enabled = false;
+        expectNear(FlowCalculation::calculateUnifiedFlow(dp, e), 0.0, 0.0, "vol-specified disabled: Q == 0");
+    }
+
+    // -----------------------------
     // unknown type: fallback numerical derivative should return 0 (Q is 0)
     // -----------------------------
     {

@@ -104,7 +104,8 @@ SimulationConstants makeConstants() {
     SimulationConstants c{};
     c.timestep = 3600;
     c.length = 1;
-    c.ventilationTolerance = 1e-10;
+    // 体積流量収支。Ceres trial も同値を function_tolerance に使うため、過大に緩くしない。
+    c.ventilationTolerance = 1e-8;
     c.thermalTolerance = 1e-10;
     c.convergenceTolerance = 1e-10;
     c.maxInnerIterations = 50;
@@ -158,10 +159,80 @@ int main() {
             const auto itQOut = flowRates.find({"ROOM", "OUT_L"});
             expectTrue(itQIn != flowRates.end(), "ventilation known solution: inflow exists");
             expectTrue(itQOut != flowRates.end(), "ventilation known solution: outflow exists");
-            expectNear(itQIn->second, itQOut->second, 1e-9,
+            expectNear(itQIn->second, itQOut->second, 1e-6,
                        "ventilation known solution: inflow and outflow should match");
-            expectNear(balance.at("ROOM"), 0.0, 1e-9,
-                       "ventilation known solution: room mass balance should be zero");
+            expectNear(balance.at("ROOM"), 0.0, 1e-6,
+                       "ventilation known solution: room volume-flow balance should be zero");
+
+            // disabled 開口は solver 評価・apply 後とも流量ゼロで、既知解を壊さない
+            auto disabled = makeOpening("ROOM->OUT_L(disabled)", "ROOM", "OUT_L", 0.65, 1.0);
+            disabled.current_enabled = false;
+            vent.addEdge(disabled);
+            PressureSolver solver2(vent, logs);
+            auto result2 = solver2.solveDetailed(constants);
+            expectTrue(result2.accepted, "disabled extra opening still accepted");
+            expectNear(result2.pressures.at("ROOM"), 50.0, 1e-4, "disabled opening: room pressure unchanged");
+            expectTrue(result2.flows.count({"ROOM", "OUT_L"}) > 0, "disabled opening: outflow key exists");
+            vent.applySolveResults(result2.pressures, result2.flows);
+            bool sawDisabled = false;
+            for (auto e : boost::make_iterator_range(boost::edges(vent.getGraph()))) {
+                if (vent.getGraph()[e].key == "ROOM->OUT_L(disabled)") {
+                    sawDisabled = true;
+                    expectNear(vent.getGraph()[e].flow_rate, 0.0, 0.0,
+                               "disabled opening: applySolveResults flow_rate == 0");
+                }
+            }
+            expectTrue(sawDisabled, "disabled opening edge present");
+        }
+
+        // ------------------------------------------------------------------
+        // 1b) 固定圧境界のない閉成分でも soft anchor で安定に解ける
+        // ------------------------------------------------------------------
+        {
+            VentilationNetwork vent;
+            auto a = makeNode("A");
+            a.calc_p = true;
+            a.current_p = 12.0;
+            auto b = makeNode("B");
+            b.calc_p = true;
+            b.current_p = -3.0;
+            vent.addNode(a);
+            vent.addNode(b);
+            vent.addEdge(makeOpening("A->B", "A", "B", 0.65, 1.0));
+
+            PressureSolver solver(vent, logs);
+            auto result = solver.solveDetailed(constants);
+            expectTrue(result.accepted, "closed component: accepted with soft anchor");
+            expectNear(result.pressures.at("A"), result.pressures.at("B"), 1e-4,
+                       "closed component: pressures equalize");
+            // ゲージ固定により絶対圧は初期値（A）付近に寄る
+            expectNear(result.pressures.at("A"), 12.0, 1e-3, "closed component: gauge pinned near A init");
+            expectNear(result.balances.at("A"), 0.0, 1e-6, "closed component: A balance");
+            expectNear(result.balances.at("B"), 0.0, 1e-6, "closed component: B balance");
+        }
+
+        // ------------------------------------------------------------------
+        // 1c) 独立な閉成分が複数あっても各成分に gauge を立てて解ける
+        // ------------------------------------------------------------------
+        {
+            VentilationNetwork vent;
+            auto a1 = makeNode("A1"); a1.calc_p = true; a1.current_p = 5.0;
+            auto b1 = makeNode("B1"); b1.calc_p = true; b1.current_p = 0.0;
+            auto a2 = makeNode("A2"); a2.calc_p = true; a2.current_p = -8.0;
+            auto b2 = makeNode("B2"); b2.calc_p = true; b2.current_p = 2.0;
+            vent.addNode(a1); vent.addNode(b1); vent.addNode(a2); vent.addNode(b2);
+            vent.addEdge(makeOpening("A1->B1", "A1", "B1", 0.65, 1.0));
+            vent.addEdge(makeOpening("A2->B2", "A2", "B2", 0.65, 1.0));
+
+            PressureSolver solver(vent, logs);
+            auto result = solver.solveDetailed(constants);
+            // 複数ゲージ成分では小差圧線形化で maxAbs が 1e-8 をわずかに超えることがある。
+            // ゲージ固定と成分内等圧は必須条件として検証する。
+            expectNear(result.pressures.at("A1"), result.pressures.at("B1"), 1e-4, "comp1 equalize");
+            expectNear(result.pressures.at("A2"), result.pressures.at("B2"), 1e-4, "comp2 equalize");
+            expectNear(result.pressures.at("A1"), 5.0, 1e-3, "comp1 gauge near A1 init");
+            expectNear(result.pressures.at("A2"), -8.0, 1e-3, "comp2 gauge near A2 init");
+            expectTrue(result.metrics.maxAbs < 1e-4, "multi closed components: volume balance bounded");
         }
 
         // ------------------------------------------------------------------

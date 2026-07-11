@@ -107,7 +107,49 @@ int main() {
     expectTrue(std::isfinite(q1) && std::isfinite(q2), "both parallel branch flow rates are set");
     expectTrue(std::isfinite(exp1) && std::isfinite(exp2), "expected flow rates are finite");
     expectTrue(std::abs(q1 - q2) > 1e-9, "parallel branches should not share the same flow_rate");
- 
+
+    // -----------------------------
+    // disabled / vol 指定枝は updateFlowRatesInGraph でも unified と同じ結果
+    // -----------------------------
+    {
+        VentilationNetwork net2;
+        net2.addNode(makeNode("A"));
+        net2.addNode(makeNode("B"));
+
+        EdgeProperties open = makeGapEdge("OPEN", "OPEN", "A", "B", 0.01, 1.0);
+        open.current_enabled = false;
+        net2.addEdge(open);
+
+        EdgeProperties volEdge{};
+        volEdge.key = "VOL";
+        volEdge.unique_id = "VOL";
+        volEdge.type = "gap";
+        volEdge.source = "A";
+        volEdge.target = "B";
+        volEdge.a = 0.05;
+        volEdge.n = 1.0;
+        volEdge.vol = {0.3};
+        volEdge.current_vol = 0.3;
+        volEdge.current_enabled = true;
+        net2.addEdge(volEdge);
+
+        PressureMap pm2;
+        pm2["A"] = 50.0;
+        pm2["B"] = 0.0;
+        net2.updateNodePressures(pm2);
+        net2.updateFlowRatesInGraph({});
+
+        const Graph& g2 = net2.getGraph();
+        for (auto e : boost::make_iterator_range(boost::edges(g2))) {
+            const auto& ep = g2[e];
+            if (ep.key == "OPEN") {
+                expectNear(ep.flow_rate, 0.0, 0.0, "disabled gap: stored flow_rate == 0");
+            } else if (ep.key == "VOL") {
+                expectNear(ep.flow_rate, 0.3, 0.0, "vol-specified gap: stored flow_rate == current_vol");
+            }
+        }
+    }
+
     if (g_failures == 0) {
         std::cout << "[OK] all tests passed\n";
         return 0;

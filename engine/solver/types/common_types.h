@@ -30,8 +30,8 @@ namespace ToleranceConstants {
 
 // 型エイリアス（外部I/F向け: 可読性優先）
 using PressureMap    = std::map<std::string, double>;                         // {node} -> [Pa]
-using FlowRateMap    = std::map<std::pair<std::string, std::string>, double>; // {source, target} -> [kg/s]
-using FlowBalanceMap = std::map<std::string, double>;                         // {node} -> [kg/s]
+using FlowRateMap    = std::map<std::pair<std::string, std::string>, double>; // {source, target} -> [m³/s]
+using FlowBalanceMap = std::map<std::string, double>;                         // {node} -> [m³/s] 体積流量収支
 
 using TemperatureMap = std::map<std::string, double>;                         // {node} -> [K]
 using HeatRateMap    = std::map<std::pair<std::string, std::string>, double>; // {source, target} -> [W]
@@ -45,7 +45,7 @@ struct SimulationConstants {
     std::string endTime;
     int timestep;
     int length;
-    double ventilationTolerance; // 圧力ソルバ: calc_p ノード流量収支の最大絶対値許容 [kg/s]
+    double ventilationTolerance; // 圧力ソルバ: calc_p ノード体積流量収支の最大絶対値許容 [m³/s]
     double thermalTolerance;
     double convergenceTolerance;
     // 追加: 圧力-熱の連成反復の停止判定に使う許容誤差（0以下なら convergenceTolerance を使用）

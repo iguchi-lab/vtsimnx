@@ -39,6 +39,21 @@ void expectNear(double actual, double expected, double tol, const std::string& m
     }
 }
 
+nlohmann::json opening(const std::string& key,
+                       const std::string& src,
+                       const std::string& tgt,
+                       double alpha = 0.65,
+                       double area = 1.0) {
+    return nlohmann::json{
+        {"key", key},
+        {"type", "simple_opening"},
+        {"source", src},
+        {"target", tgt},
+        {"alpha", alpha},
+        {"area", area},
+    };
+}
+
 } // namespace
 
 int main() {
@@ -55,6 +70,8 @@ int main() {
                  {"type", "simple_opening"},
                  {"source", "A"},
                  {"target", "B"},
+                 {"alpha", 0.65},
+                 {"area", 1.0},
              }})},
         };
         std::ostringstream logs;
@@ -70,8 +87,8 @@ int main() {
             {"simulation", {{"log", {{"verbosity", 0}}}}},
             {"ventilation_branches",
              json::array({
-                 {{"key", "DUP"}, {"type", "simple_opening"}, {"source", "A"}, {"target", "B"}},
-                 {{"key", "DUP"}, {"type", "simple_opening"}, {"source", "B"}, {"target", "C"}},
+                 opening("DUP", "A", "B"),
+                 opening("DUP", "B", "C"),
              })},
         };
         std::ostringstream logs;
@@ -83,14 +100,14 @@ int main() {
     // enable: boolean / array の両対応 + デフォルト true
     // -----------------------------
     {
+        auto e1 = opening("E1", "A", "B");
+        e1["enable"] = true;
+        auto e2 = opening("E2", "A", "B");
+        e2["enable"] = json::array({true, false});
+        auto e3 = opening("E3", "A", "B");
         json cfg = {
             {"simulation", {{"log", {{"verbosity", 0}}}}},
-            {"ventilation_branches",
-             json::array({
-                 {{"key", "E1"}, {"type", "simple_opening"}, {"source", "A"}, {"target", "B"}, {"enable", true}},
-                 {{"key", "E2"}, {"type", "simple_opening"}, {"source", "A"}, {"target", "B"}, {"enable", json::array({true, false})}},
-                 {{"key", "E3"}, {"type", "simple_opening"}, {"source", "A"}, {"target", "B"}}, // enable missing => true
-             })},
+            {"ventilation_branches", json::array({e1, e2, e3})},
         };
         std::ostringstream logs;
         const auto b0 = parseVentilationBranches(cfg, logs, 0);
@@ -105,6 +122,74 @@ int main() {
     }
 
     // -----------------------------
+    // unknown type / missing required params
+    // -----------------------------
+    {
+        json cfg = {
+            {"simulation", {{"log", {{"verbosity", 0}}}}},
+            {"ventilation_branches",
+             json::array({{
+                 {"key", "U1"},
+                 {"type", "mystery"},
+                 {"source", "A"},
+                 {"target", "B"},
+             }})},
+        };
+        std::ostringstream logs;
+        expectThrows([&]() { (void)parseVentilationBranches(cfg, logs, 0); },
+                     "unknown ventilation type should throw");
+    }
+    {
+        json cfg = {
+            {"simulation", {{"log", {{"verbosity", 0}}}}},
+            {"ventilation_branches",
+             json::array({{
+                 {"key", "O1"},
+                 {"type", "simple_opening"},
+                 {"source", "A"},
+                 {"target", "B"},
+                 // alpha/area missing
+             }})},
+        };
+        std::ostringstream logs;
+        expectThrows([&]() { (void)parseVentilationBranches(cfg, logs, 0); },
+                     "simple_opening without alpha/area should throw");
+    }
+    {
+        json cfg = {
+            {"simulation", {{"log", {{"verbosity", 0}}}}},
+            {"ventilation_branches",
+             json::array({{
+                 {"key", "G1"},
+                 {"type", "gap"},
+                 {"source", "A"},
+                 {"target", "B"},
+                 {"a", 0.0},
+                 {"n", 1.5},
+             }})},
+        };
+        std::ostringstream logs;
+        expectThrows([&]() { (void)parseVentilationBranches(cfg, logs, 0); },
+                     "gap with a<=0 should throw");
+    }
+    {
+        json cfg = {
+            {"simulation", {{"log", {{"verbosity", 0}}}}},
+            {"ventilation_branches",
+             json::array({{
+                 {"key", "F1"},
+                 {"type", "fixed_flow"},
+                 {"source", "A"},
+                 {"target", "B"},
+                 // vol missing
+             }})},
+        };
+        std::ostringstream logs;
+        expectThrows([&]() { (void)parseVentilationBranches(cfg, logs, 0); },
+                     "fixed_flow without vol should throw");
+    }
+
+    // -----------------------------
     // thermal_branches: source/target 必須
     // -----------------------------
     {
@@ -114,7 +199,6 @@ int main() {
              json::array({{
                  {"key", "T1"},
                  {"type", "conductance"},
-                 // source/target missing
                  {"conductance", 1.0},
                  {"area", 1.0},
              }})},
@@ -154,5 +238,3 @@ int main() {
     std::cerr << "[NG] failures=" << g_failures << "\n";
     return 1;
 }
-
-

@@ -132,7 +132,7 @@ struct EdgeProperties {
     std::string source;
     std::string target;
     std::vector<bool> enabled;
-    bool current_enabled;
+    bool current_enabled = true; // enable 未指定時は有効（パーサ既定と一致）
     double alpha = 0.0;
     double area = 0.0;
     double a = 0.0;
