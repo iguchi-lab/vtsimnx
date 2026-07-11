@@ -59,7 +59,7 @@ async def _lifespan(app: FastAPI):
 
 
 # API ルータ本体。OpenAPI のタイトルやバージョンをここで設定する。
-app = FastAPI(title="VTSimNX API", version="1.0.8", lifespan=_lifespan)
+app = FastAPI(title="VTSimNX API", version="1.1.0", lifespan=_lifespan)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 WORK_DIR = BASE_DIR / "work"

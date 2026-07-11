@@ -9,13 +9,13 @@ Python クライアントで入力を構築し、HTTP engine で計算を実行�
 `vtsimnx/`（Pythonライブラリ）と `engine/`（FastAPI+solver）を同じリポジトリで保守します。
 APIサーバー実装の正本は `engine/` です。
 
-最新リリース: [`v1.0.8`](https://github.com/iguchi-lab/vtsimnx/releases/tag/v1.0.8)
+最新リリース: [`v1.1.0`](https://github.com/iguchi-lab/vtsimnx/releases/tag/v1.1.0)
 
 バージョン整合ポリシー（`pyproject.toml` / FastAPI version / tag）: `docs/release_policy.md`
 
 ## 何ができるか
 
-- `vt.run_calc(...)` を使った回路網計算の実行（engine `/run` 呼び出し）
+- `vt.run_calc(...)` を使った回路網計算の実行（engine `/runs` ポーリング、互換で `/run` も可）
 - `surfaces` / `aircon` / `heat_source` を含む入力JSONの組み立て
 - artifact（結果ファイル、ログ、スキーマ）取得と比較評価
 - 日射/夜間放射/地盤温度/スケジュール等の補助計算
