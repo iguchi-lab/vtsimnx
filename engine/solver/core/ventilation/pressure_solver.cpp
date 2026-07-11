@@ -1,4 +1,4 @@
-#include "core/ventilation/pressure_solver.h"
+#include "core/ventilation/pressure_solver_impl.h"
 #include "core/ventilation/flow_calculation.h"
 #include "core/ventilation/pressure_balance.h"
 #include "core/ventilation/pressure_constraints.h"
@@ -20,15 +20,27 @@ double calculateDensity(double temperature) {
            (archenv::GAS_CONSTANT_DRY_AIR * (temperature + 273.15));
 }
 
-PressureSolver::PressureSolver(VentilationNetwork& network, std::ostream& logFile)
+PressureSolver::Impl::Impl(VentilationNetwork& network, std::ostream& logFile)
     : network_(network), logFile_(logFile) {}
 
-double PressureSolver::calculateTotalPressure(double pressure, double temperature, double height) const {
+PressureSolver::PressureSolver(VentilationNetwork& network, std::ostream& logFile)
+    : impl_(std::make_unique<Impl>(network, logFile)) {}
+
+PressureSolver::~PressureSolver() = default;
+
+PressureSolver::PressureSolver(PressureSolver&&) noexcept = default;
+PressureSolver& PressureSolver::operator=(PressureSolver&&) noexcept = default;
+
+PressureSolver::SolverResult PressureSolver::solvePressures(const SimulationConstants& constants) {
+    return impl_->solvePressures(constants);
+}
+
+double PressureSolver::Impl::calculateTotalPressure(double pressure, double temperature, double height) const {
     double rho = calculateDensity(temperature);
     return pressure - rho * archenv::GRAVITY * height;
 }
 
-std::optional<double> PressureSolver::calculatePressureDifference(
+std::optional<double> PressureSolver::Impl::calculatePressureDifference(
     const VertexProperties& sourceNode,
     const VertexProperties& targetNode,
     const EdgeProperties& edgeData,
@@ -49,7 +61,7 @@ std::optional<double> PressureSolver::calculatePressureDifference(
     return source_total - target_total;
 }
 
-void PressureSolver::setInitialPressures(std::vector<double>& pressures, 
+void PressureSolver::Impl::setInitialPressures(std::vector<double>& pressures, 
                                         const std::vector<std::string>& nodeNames) {
     if (pressures.size() != nodeNames.size()) {
         writeLog(logFile_, "--警告: 圧力配列とノード名配列のサイズが一致しません (" + 
@@ -69,7 +81,7 @@ void PressureSolver::setInitialPressures(std::vector<double>& pressures,
     }
 }
 
-bool PressureSolver::initializeSolverSetup(SolverSetup& setup) {
+bool PressureSolver::Impl::initializeSolverSetup(SolverSetup& setup) {
     const auto& graph = network_.getGraph();
     const size_t vCount = static_cast<size_t>(boost::num_vertices(graph));
     setup.vertexToParameterIndexVec.assign(vCount, -1);
@@ -104,7 +116,7 @@ bool PressureSolver::initializeSolverSetup(SolverSetup& setup) {
     return true;
 }
 
-void PressureSolver::addFlowBalanceConstraints(const SolverSetup& setup, ceres::Problem& problem) {
+void PressureSolver::Impl::addFlowBalanceConstraints(const SolverSetup& setup, ceres::Problem& problem) {
     for (const std::string& nodeName : setup.nodeNames) {
         ceres::CostFunction* costFunction = PressureConstraints::createFlowBalanceConstraint(
             nodeName,
@@ -119,7 +131,7 @@ void PressureSolver::addFlowBalanceConstraints(const SolverSetup& setup, ceres::
     }
 }
 
-PressureMap PressureSolver::extractPressures(const std::vector<double>& pressures,
+PressureMap PressureSolver::Impl::extractPressures(const std::vector<double>& pressures,
                                             const std::vector<std::string>& nodeNames) {
     PressureMap pressureMap;
     for (size_t i = 0; i < nodeNames.size(); ++i) {
@@ -137,7 +149,7 @@ PressureMap PressureSolver::extractPressures(const std::vector<double>& pressure
     return pressureMap;
 }
 
-FlowBalanceMap PressureSolver::verifyBalance(const FlowRateMap& flowRates) {
+FlowBalanceMap PressureSolver::Impl::verifyBalance(const FlowRateMap& flowRates) {
     FlowBalanceMap balance;
 
     const auto& graph = network_.getGraph();
@@ -162,7 +174,7 @@ FlowBalanceMap PressureSolver::verifyBalance(const FlowRateMap& flowRates) {
     return balance;
 }
 
-std::optional<double> PressureSolver::calculateFlowForEdge(const PressureMap& pressureMap, Edge edge) const {
+std::optional<double> PressureSolver::Impl::calculateFlowForEdge(const PressureMap& pressureMap, Edge edge) const {
     const auto& graph = network_.getGraph();
     auto sv = boost::source(edge, graph);
     auto tv = boost::target(edge, graph);
@@ -185,7 +197,7 @@ std::optional<double> PressureSolver::calculateFlowForEdge(const PressureMap& pr
     return flow;
 }
 
-PressureSolver::FlowComputationResult PressureSolver::calculateFlowRates(const PressureMap& pressureMap) {
+PressureSolver::Impl::FlowComputationResult PressureSolver::Impl::calculateFlowRates(const PressureMap& pressureMap) {
     FlowComputationResult result;
     
     const auto& graph = network_.getGraph();
@@ -215,7 +227,7 @@ PressureSolver::FlowComputationResult PressureSolver::calculateFlowRates(const P
     return result;
 }
 
-ventilation::PressureSolutionEvaluation PressureSolver::evaluatePressureSolution(
+ventilation::PressureSolutionEvaluation PressureSolver::Impl::evaluatePressureSolution(
         const PressureMap& pressureMap,
         double massBalanceMaxAbs) {
     ventilation::PressureSolutionEvaluation eval;
@@ -235,7 +247,7 @@ ventilation::PressureSolutionEvaluation PressureSolver::evaluatePressureSolution
     return eval;
 }
 
-ventilation::InterfaceFlowConsistency PressureSolver::evaluateInterfaceFlowConsistency(
+ventilation::InterfaceFlowConsistency PressureSolver::Impl::evaluateInterfaceFlowConsistency(
         const PressureMap& pressureMap,
         const std::vector<std::pair<Edge, double>>& frozenFlows) const {
     ventilation::InterfaceFlowConsistency out;
@@ -256,7 +268,7 @@ ventilation::InterfaceFlowConsistency PressureSolver::evaluateInterfaceFlowConsi
     return out;
 }
 
-std::optional<PressureSolver::SolverResult> PressureSolver::tryPrimaryWarmStart(
+std::optional<PressureSolver::Impl::SolverResult> PressureSolver::Impl::tryPrimaryWarmStart(
         const SimulationConstants& constants,
         SolverSetup& setup,
         const PressureMap& seedPressures,
@@ -289,10 +301,12 @@ std::optional<PressureSolver::SolverResult> PressureSolver::tryPrimaryWarmStart(
         return std::nullopt;
     }
     network_.setLastPressureConverged(true);
-    return SolverResult{pressureMap, eval.flows, eval.allNodeBalances};
+    return makePressureSolveResult(
+        pressureMap, eval.flows, eval.allNodeBalances,
+        /*accepted=*/true, eval.solvedNodeMetrics, "fallback_warmstart");
 }
 
-std::optional<std::map<std::string, double>> PressureSolver::calculateIndividualFlowRates(
+std::optional<std::map<std::string, double>> PressureSolver::Impl::calculateIndividualFlowRates(
     const PressureMap& pressureMap) {
     std::map<std::string, double> individualFlowRates;
     
@@ -315,14 +329,14 @@ std::optional<std::map<std::string, double>> PressureSolver::calculateIndividual
     return individualFlowRates;
 }
 
-PressureSolver::SolverResult PressureSolver::solvePressures(
+PressureSolver::Impl::SolverResult PressureSolver::Impl::solvePressures(
     const SimulationConstants& constants) {
     const auto tols = ventilation::makePressureSolverTolerances(constants);
 
     SolverSetup setup;
     if (!initializeSolverSetup(setup)) {
         network_.setLastPressureConverged(false);
-        return SolverResult{PressureMap{}, FlowRateMap{}, FlowBalanceMap{}};
+        return makePressureSolveResult({}, {}, {}, /*accepted=*/false, {}, "");
     }
     auto& nodeNames = setup.nodeNames;
     auto& pressures = setup.pressures;
@@ -342,7 +356,7 @@ PressureSolver::SolverResult PressureSolver::solvePressures(
         if (fallbackResult) {
             return *fallbackResult;
         }
-        return SolverResult{pressureMap, FlowRateMap{}, FlowBalanceMap{}};
+        return makePressureSolveResult(pressureMap, {}, {}, /*accepted=*/false, {}, "");
     }
 
     const auto& metrics = eval.solvedNodeMetrics;
@@ -369,7 +383,9 @@ PressureSolver::SolverResult PressureSolver::solvePressures(
         writeLog(logFile_,
                  "---圧力計算収束 | mass_maxAbs=" + oss.str() +
                      " | tol=" + std::to_string(tols.massBalanceMaxAbs));
-        return SolverResult{pressureMap, eval.flows, eval.allNodeBalances};
+        return makePressureSolveResult(
+            pressureMap, eval.flows, eval.allNodeBalances,
+            /*accepted=*/true, metrics, "primary");
     }
 
     auto fallbackResult = runFallbackLoop(constants, setup, summary);
@@ -378,5 +394,7 @@ PressureSolver::SolverResult PressureSolver::solvePressures(
     }
 
     network_.setLastPressureConverged(false);
-    return SolverResult{pressureMap, eval.flows, eval.allNodeBalances};
+    return makePressureSolveResult(
+        pressureMap, eval.flows, eval.allNodeBalances,
+        /*accepted=*/false, metrics, "");
 }

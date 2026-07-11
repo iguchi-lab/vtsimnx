@@ -1,5 +1,6 @@
-#include "core/ventilation/pressure_solver.h"
+#include "core/ventilation/pressure_solver_impl.h"
 #include "core/ventilation/pressure_balance.h"
+#include "core/ventilation/flow_jacobian.h"
 #include "core/ventilation/pressure_solver_internal.h"
 #include "network/ventilation_network.h"
 #include "utils/utils.h"
@@ -9,7 +10,7 @@
 #include <cmath>
 #include <vector>
 
-PressureSolver::SupernodePartition PressureSolver::detectSupernodePartition(
+PressureSolver::Impl::SupernodePartition PressureSolver::Impl::detectSupernodePartition(
         const SimulationConstants& constants,
         const PressureMap& currentPressures) {
     Graph& g = network_.getGraph();
@@ -24,14 +25,11 @@ PressureSolver::SupernodePartition PressureSolver::detectSupernodePartition(
         partition.incidentEdgesByVertex[static_cast<size_t>(tv)].push_back(e);
     }
 
-    // 室内同士の高コンダクタンスエッジ抽出（相対閾値: median*ratio）
+    // 室内同士の高コンダクタンスエッジ抽出
     std::vector<Edge> candidateEdges;
     std::vector<double> conductances;
-    std::vector<double> dpAbsList;
-    std::vector<std::string> types;
     candidateEdges.reserve(boost::num_edges(g));
     conductances.reserve(boost::num_edges(g));
-    dpAbsList.reserve(boost::num_edges(g));
 
     auto erange = boost::edges(g);
     for (auto e : boost::make_iterator_range(erange)) {
@@ -53,30 +51,14 @@ PressureSolver::SupernodePartition PressureSolver::detectSupernodePartition(
         double p_t_total = calculateTotalPressure(p_t, tn.current_t, ep.h_to);
         double p_st = p_s_total - p_t_total;
 
-        // 統一近似導関数 dQ/dp をタイプごとに評価
-        double dp_abs = std::max(archenv::TOLERANCE_SMALL, std::abs(p_st));
-        double G = 0.0;
-        if (ep.type == "simple_opening") {
-            double K = ep.alpha * ep.area * std::sqrt(2.0 / archenv::DENSITY_DRY_AIR);
-            G = 0.5 * K / std::sqrt(dp_abs);
-        } else if (ep.type == "gap") {
-            double n = (ep.n != 0.0) ? ep.n : 1.0;
-            G = (ep.a / n) * std::pow(dp_abs, (1.0 / n) - 1.0);
-        } else if (ep.type == "pressure_loss") {
-            double k_total = ep.k_total;
-            if (!(k_total > 0.0) && ep.friction_factor > 0.0 && ep.length >= 0.0 && ep.diameter > 0.0) {
-                k_total = ep.friction_factor * ep.length / ep.diameter + ep.zeta_total;
-            }
-            if (ep.area > 0.0 && k_total > 0.0) {
-                const double C = ep.area * std::sqrt(2.0 / (archenv::DENSITY_DRY_AIR * k_total));
-                G = 0.5 * C / std::sqrt(dp_abs);
-            }
-        }
+        // 共通 Jacobian（dQ/dp）をコンダクタンス近似として使用
+        const double dp_for_jac = (std::abs(p_st) < archenv::TOLERANCE_SMALL)
+                                      ? (p_st >= 0.0 ? archenv::TOLERANCE_SMALL : -archenv::TOLERANCE_SMALL)
+                                      : p_st;
+        const double G = std::abs(FlowJacobianCommon::calculateJacobian(dp_for_jac, ep));
 
         candidateEdges.push_back(e);
         conductances.push_back(G);
-        dpAbsList.push_back(dp_abs);
-        types.push_back(ep.type);
     }
 
     auto vrange = boost::vertices(g);

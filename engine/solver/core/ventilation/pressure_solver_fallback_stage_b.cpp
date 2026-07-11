@@ -1,9 +1,9 @@
-#include "core/ventilation/pressure_solver.h"
+#include "core/ventilation/pressure_solver_impl.h"
 #include "core/ventilation/pressure_constraints.h"
 #include "core/ventilation/pressure_solver_internal.h"
 #include "network/ventilation_network.h"
 
-PressureSolver::StageBSolveResult PressureSolver::solveStageBFull(
+PressureSolver::Impl::StageBSolveResult PressureSolver::Impl::solveStageBFull(
         const SimulationConstants& constants,
         Graph& g,
         const SupernodePartition& partition,

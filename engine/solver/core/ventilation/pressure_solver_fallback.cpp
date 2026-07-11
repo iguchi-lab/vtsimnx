@@ -1,4 +1,5 @@
-#include "core/ventilation/pressure_solver.h"
+#include "core/ventilation/pressure_solver_impl.h"
+#include "core/ventilation/pressure_fallback_solver.h"
 #include "core/ventilation/edge_mutation_guard.h"
 #include "core/ventilation/pressure_balance.h"
 #include "core/ventilation/pressure_solver_internal.h"
@@ -13,20 +14,23 @@
 // Fallbackループ（orchestrator）
 // =============================================================================
 
-std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
+PressureFallbackSolver::PressureFallbackSolver(PressureSolver::Impl& owner)
+    : owner_(owner) {}
+
+std::optional<PressureSolveResult> PressureFallbackSolver::run(
         const SimulationConstants& constants,
-        SolverSetup& setup,
+        PressureSolver::Impl::SolverSetup& setup,
         ceres::Solver::Summary& summary) {
     auto& nodeNames = setup.nodeNames;
     auto& pressures = setup.pressures;
 
-    writeLog(logFile_, "圧力計算フォールバック");
-    FallbackLogger fallbackLog = [&](int indent, const std::string& message) {
+    writeLog(owner_.logFile_, "圧力計算フォールバック");
+    PressureSolver::Impl::FallbackLogger fallbackLog = [&](int indent, const std::string& message) {
         std::string prefix;
         for (int i = 0; i < indent; ++i) {
             prefix += "  ";
         }
-        writeLog(logFile_, prefix + message);
+        writeLog(owner_.logFile_, prefix + message);
     };
     auto formatScientific = [](double value) {
         std::ostringstream os;
@@ -34,7 +38,7 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
         return os.str();
     };
 
-    network_.setLastPressureConverged(false);
+    owner_.network_.setLastPressureConverged(false);
     fallbackLog(0, "エラー: 圧力計算が収束しませんでした");
 
     std::string terminationType;
@@ -53,17 +57,17 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
     }
     fallbackLog(1, "終了理由: " + terminationType);
 
-    PressureMap currentPressures = extractPressures(pressures, nodeNames);
-    FallbackOuterState state;
+    PressureMap currentPressures = owner_.extractPressures(pressures, nodeNames);
+    PressureSolver::Impl::FallbackOuterState state;
     state.prevPressureMapFB = currentPressures;
 
     if (constants.logVerbosity >= 1) {
         fallbackLog(0, "[Fallback] スーパーノード化 + 外気ギャップ固定流量化を適用します");
     }
 
-    Graph& g = network_.getGraph();
+    Graph& g = owner_.network_.getGraph();
     ventilation::EdgeMutationGuard edgeGuard(g);
-    SupernodePartition partition = detectSupernodePartition(constants, currentPressures);
+    PressureSolver::Impl::SupernodePartition partition = owner_.detectSupernodePartition(constants, currentPressures);
 
     const auto tols = ventilation::makePressureSolverTolerances(constants);
     const int maxOuter = 5;
@@ -81,14 +85,14 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
 
         fallbackLog(1, "[A] スーパーノード代表圧フェーズ開始" +
                            std::string(outer >= 2 ? " | source=B(prev)" : " | source=A(current)"));
-        StageASolveResult stageA = solveStageAReduced(
+        PressureSolver::Impl::StageASolveResult stageA = owner_.solveStageAReduced(
             constants, g, partition, state.prevPressureMapFB, fallbackLog);
         if (!ventilation::canProceedToFallbackStageB(stageA.ok, /*interfaceFreezeSkipped=*/false)) {
             fallbackLog(0, "[Fallback] Stage A 未収束のため外部反復を打ち切り");
             break;
         }
 
-        const auto freeze = freezeInterfaceFlows(
+        const auto freeze = owner_.freezeInterfaceFlows(
             g,
             edgeGuard,
             partition,
@@ -103,10 +107,10 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
         }
 
         fallbackLog(1, "[B] 固定流量下でフルノード再解フェーズ開始");
-        StageBSolveResult stageB = solveStageBFull(
+        PressureSolver::Impl::StageBSolveResult stageB = owner_.solveStageBFull(
             constants, g, partition, stageA.pressureMap, fallbackLog);
 
-        FallbackOuterAction action = evaluateFallbackOuter(
+        PressureSolver::Impl::FallbackOuterAction action = owner_.evaluateFallbackOuter(
             constants,
             g,
             edgeGuard,
@@ -122,8 +126,8 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
             state,
             fallbackLog);
 
-        if (action == FallbackOuterAction::AcceptSolution ||
-            action == FallbackOuterAction::StopOuter) {
+        if (action == PressureSolver::Impl::FallbackOuterAction::AcceptSolution ||
+            action == PressureSolver::Impl::FallbackOuterAction::StopOuter) {
             break;
         }
     }
@@ -134,7 +138,7 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
                            ? state.finalPressureMapFB
                            : state.prevPressureMapFB;
     if (seed.empty()) {
-        network_.setLastPressureConverged(false);
+        owner_.network_.setLastPressureConverged(false);
         fallbackLog(0, "[Fallback] warm-start 用の圧力シードがありません");
         return std::nullopt;
     }
@@ -142,13 +146,21 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
     fallbackLog(0, state.finalHaveSolution
                        ? "[Fallback] 復元後候補を初期値に通常ソルバーを再実行します"
                        : "[Fallback] 最終圧力を初期値に通常ソルバーを再実行します");
-    auto warm = tryPrimaryWarmStart(constants, setup, seed, tols.massBalanceMaxAbs);
+    auto warm = owner_.tryPrimaryWarmStart(constants, setup, seed, tols.massBalanceMaxAbs);
     if (warm) {
         fallbackLog(0, "[Fallback] warm-start primary 合格 | 採用");
         return warm;
     }
 
-    network_.setLastPressureConverged(false);
+    owner_.network_.setLastPressureConverged(false);
     fallbackLog(0, "[Fallback] warm-start primary 不合格 | 非収束として報告");
     return std::nullopt;
 }
+
+std::optional<PressureSolver::Impl::SolverResult> PressureSolver::Impl::runFallbackLoop(
+        const SimulationConstants& constants,
+        SolverSetup& setup,
+        ceres::Solver::Summary& summary) {
+    return PressureFallbackSolver(*this).run(constants, setup, summary);
+}
+

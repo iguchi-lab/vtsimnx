@@ -1,10 +1,10 @@
-#include "core/ventilation/pressure_solver.h"
+#include "core/ventilation/pressure_solver_impl.h"
 #include "core/ventilation/edge_mutation_guard.h"
 #include "core/ventilation/pressure_solver_internal.h"
 
 #include <map>
 
-PressureSolver::InterfaceFreezeResult PressureSolver::freezeInterfaceFlows(
+PressureSolver::Impl::InterfaceFreezeResult PressureSolver::Impl::freezeInterfaceFlows(
         Graph& g,
         ventilation::EdgeMutationGuard& edgeGuard,
         const SupernodePartition& partition,

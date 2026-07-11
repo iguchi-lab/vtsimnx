@@ -4,7 +4,8 @@
 // This header is intentionally not included from `pressure_solver.h`
 // to keep public compile-time dependencies low.
 
-#include "core/ventilation/pressure_solver.h"
+#include "core/ventilation/pressure_solver_impl.h"
+#include <ceres/ceres.h>
 
 #include <limits>
 #include <map>
@@ -12,12 +13,12 @@
 #include <utility>
 #include <vector>
 
-struct PressureSolver::TrialResult {
+struct PressureSolver::Impl::TrialResult {
     bool converged = false;
     double usedTolerance = 0.0;
 };
 
-struct PressureSolver::SolverSetup {
+struct PressureSolver::Impl::SolverSetup {
     std::vector<std::string> nodeNames;
     std::vector<double> pressures;
     std::map<Vertex, size_t> vertexToParameterIndex;
@@ -27,7 +28,7 @@ struct PressureSolver::SolverSetup {
     std::vector<std::vector<Edge>> incidentEdgesByVertex;
 };
 
-struct PressureSolver::StageAMapping {
+struct PressureSolver::Impl::StageAMapping {
     std::map<int, size_t> groupToParamIndex;
     std::map<Vertex, size_t> vertexToParamIndex;
     // 高速化用: Vertex -> param index（無ければ -1）
@@ -36,7 +37,7 @@ struct PressureSolver::StageAMapping {
     size_t parameterCount = 0;
 };
 
-struct PressureSolver::StageBSetup {
+struct PressureSolver::Impl::StageBSetup {
     std::map<Vertex, size_t> vertexToParamIndex;
     // 高速化用: Vertex -> param index（無ければ -1）
     std::vector<int> vertexToParamIndexVec;
@@ -44,7 +45,7 @@ struct PressureSolver::StageBSetup {
     std::vector<double> pressures;
 };
 
-struct PressureSolver::SupernodePartition {
+struct PressureSolver::Impl::SupernodePartition {
     std::vector<Vertex> vertices;
     std::map<Vertex, int> v2i;
     std::vector<int> groupOfVertex;
@@ -53,7 +54,7 @@ struct PressureSolver::SupernodePartition {
     size_t condensedNodeCount = 0;
 };
 
-struct PressureSolver::StageASolveResult {
+struct PressureSolver::Impl::StageASolveResult {
     StageAMapping mapping;
     std::vector<double> pressures;
     PressureMap pressureMap;
@@ -64,7 +65,7 @@ struct PressureSolver::StageASolveResult {
     bool hasAnchorTarget = false;
 };
 
-struct PressureSolver::InterfaceFreezeResult {
+struct PressureSolver::Impl::InterfaceFreezeResult {
     size_t fixedFlowCount = 0;
     size_t alreadyFixed = 0;
     bool skipped = false;
@@ -72,14 +73,14 @@ struct PressureSolver::InterfaceFreezeResult {
     std::vector<std::pair<Edge, double>> frozenFlows;
 };
 
-struct PressureSolver::StageBSolveResult {
+struct PressureSolver::Impl::StageBSolveResult {
     StageBSetup setup;
     PressureMap pressureMap;
     ceres::Solver::Summary summary;
     bool ok = false;
 };
 
-struct PressureSolver::FallbackOuterState {
+struct PressureSolver::Impl::FallbackOuterState {
     double lastCostOuter = std::numeric_limits<double>::infinity();
     double lastNetworkCostOuter = std::numeric_limits<double>::infinity();
     PressureMap prevPressureMapFB;

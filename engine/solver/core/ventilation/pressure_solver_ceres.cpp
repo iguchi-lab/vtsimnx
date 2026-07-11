@@ -1,5 +1,6 @@
-#include "core/ventilation/pressure_solver.h"
+#include "core/ventilation/pressure_solver_impl.h"
 #include "core/ventilation/pressure_constraints.h"
+#include "core/ventilation/pressure_solver_trial_spec.h"
 #include "core/ventilation/pressure_solver_internal.h"
 #include "network/ventilation_network.h"
 #include "utils/utils.h"
@@ -38,7 +39,7 @@ std::string formatSeconds(double seconds) {
 
 } // namespace
 
-void PressureSolver::logCeresTiming(const std::string& label,
+void PressureSolver::Impl::logCeresTiming(const std::string& label,
                                     const ceres::Solver::Summary& summary,
                                     std::function<void(const std::string&)> logger) {
     std::string sanitized = sanitizeLogLabel(label);
@@ -60,7 +61,7 @@ void PressureSolver::logCeresTiming(const std::string& label,
 // Ceresソルバー実行ユーティリティ
 // =============================================================================
 
-PressureSolver::TrialResult PressureSolver::runSolverTrial(
+PressureSolver::Impl::TrialResult PressureSolver::Impl::runSolverTrial(
     const std::string& startLog,
     const std::string& successLog,
     ceres::Problem& problem,
@@ -119,7 +120,7 @@ PressureSolver::TrialResult PressureSolver::runSolverTrial(
     return result;
 }
 
-PressureSolver::TrialResult PressureSolver::runTwoStageRelaxation(
+PressureSolver::Impl::TrialResult PressureSolver::Impl::runTwoStageRelaxation(
     const SimulationConstants& constants,
     ceres::Problem& problem,
     ceres::Solver::Summary& summary,
@@ -169,7 +170,7 @@ PressureSolver::TrialResult PressureSolver::runTwoStageRelaxation(
     return result;
 }
 
-PressureSolver::TrialResult PressureSolver::runUltraPreciseTrial(
+PressureSolver::Impl::TrialResult PressureSolver::Impl::runUltraPreciseTrial(
     const SimulationConstants& constants,
     ceres::Problem& problem,
     ceres::Solver::Summary& summary,
@@ -213,79 +214,20 @@ PressureSolver::TrialResult PressureSolver::runUltraPreciseTrial(
 // プライマリソルバー（初回圧力計算）
 // =============================================================================
 
-void PressureSolver::runPrimarySolvers(const SimulationConstants& constants,
+void PressureSolver::Impl::runPrimarySolvers(const SimulationConstants& constants,
                                        ceres::Problem& problem,
                                        ceres::Solver::Summary& summary) {
     bool converged = false;
 
-    struct TrialSpec {
-        const char* startLog;
-        const char* successLog;
-        std::function<void(ceres::Solver::Options&)> configure;
-    };
-    const std::vector<TrialSpec> trials = {
-        {"----①標準設定でソルバーを実行します...", "----標準設定で収束しました",
-         [&](ceres::Solver::Options& options) {
-             options.linear_solver_type = ceres::DENSE_QR;
-             options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
-             options.max_num_iterations = constants.maxInnerIterations;
-             options.function_tolerance = constants.ventilationTolerance;
-             options.parameter_tolerance = constants.ventilationTolerance;
-             options.minimizer_progress_to_stdout = false;
-         }},
-        {"----②堅牢設定でソルバーを再実行します...", "----堅牢設定で収束しました",
-         [&](ceres::Solver::Options& options) {
-             options.trust_region_strategy_type = ceres::DOGLEG;
-             options.linear_solver_type = ceres::DENSE_QR;
-             options.max_num_iterations = std::max(500, static_cast<int>(constants.maxInnerIterations * 2));
-             options.function_tolerance = constants.ventilationTolerance * 0.01;
-             options.parameter_tolerance = constants.ventilationTolerance * 0.01;
-             options.gradient_tolerance = constants.ventilationTolerance * 0.1;
-             options.jacobi_scaling = true;
-             options.use_inner_iterations = true;
-             options.max_trust_region_radius = 1e4;
-             options.initial_trust_region_radius = 1e2;
-             options.minimizer_progress_to_stdout = false;
-         }},
-        {"----③DENSE_SCHUR設定でソルバーを再実行します...", "----DENSE_SCHUR設定で収束しました",
-         [&](ceres::Solver::Options& options) {
-             options.trust_region_strategy_type = ceres::DOGLEG;
-             options.linear_solver_type = ceres::DENSE_SCHUR;
-             options.max_num_iterations = 500;
-             options.function_tolerance = constants.ventilationTolerance * 0.01;
-             options.parameter_tolerance = constants.ventilationTolerance * 0.01;
-             options.gradient_tolerance = constants.ventilationTolerance * 0.1;
-             options.jacobi_scaling = true;
-             options.use_inner_iterations = true;
-             options.max_trust_region_radius = 1e4;
-             options.initial_trust_region_radius = 1e2;
-             options.minimizer_progress_to_stdout = false;
-         }},
-        {"----④SPARSE_NORMAL_CHOLESKY設定でソルバーを再実行します...", "----SPARSE_NORMAL_CHOLESKY設定で収束しました",
-         [&](ceres::Solver::Options& options) {
-             options.trust_region_strategy_type = ceres::DOGLEG;
-             options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
-             options.max_num_iterations = 1000;
-             options.function_tolerance = constants.ventilationTolerance * 0.001;
-             options.parameter_tolerance = constants.ventilationTolerance * 0.001;
-             options.gradient_tolerance = constants.ventilationTolerance * 0.01;
-             options.jacobi_scaling = true;
-             options.use_inner_iterations = true;
-             options.inner_iteration_tolerance = 1e-8;
-             options.max_trust_region_radius = 1e3;
-             options.initial_trust_region_radius = 1e1;
-             options.minimizer_progress_to_stdout = false;
-         }},
-    };
-
-    for (const auto& t : trials) {
+    for (const auto& t : ventilation::primaryTrustRegionTrials()) {
         if (converged) break;
-        converged = runSolverTrial(t.startLog,
-                                   t.successLog,
-                                   problem,
-                                   summary,
-                                   constants.ventilationTolerance,
-                                   t.configure)
+        converged = runSolverTrial(
+                        t.startLog,
+                        t.successLog,
+                        problem,
+                        summary,
+                        constants.ventilationTolerance,
+                        [&](ceres::Solver::Options& o) { t.configure(o, constants); })
                         .converged;
     }
 
@@ -343,15 +285,7 @@ void PressureSolver::runPrimarySolvers(const SimulationConstants& constants,
             summary,
             constants.ventilationTolerance,
             [&](ceres::Solver::Options& options) {
-                options.minimizer_type = ceres::LINE_SEARCH;
-                options.line_search_direction_type = ceres::LBFGS;
-                options.line_search_type = ceres::WOLFE;
-                options.max_num_iterations = 1000;
-                options.function_tolerance = constants.ventilationTolerance;
-                options.parameter_tolerance = constants.ventilationTolerance;
-                options.gradient_tolerance = constants.ventilationTolerance * 10;
-                options.jacobi_scaling = true;
-                options.minimizer_progress_to_stdout = false;
+                ventilation::configureLineSearchLbfgs(options, constants);
             }).converged;
     }
 
@@ -400,7 +334,7 @@ void PressureSolver::runPrimarySolvers(const SimulationConstants& constants,
 // Stage A: スーパーノード代表圧フェーズ
 // =============================================================================
 
-PressureSolver::StageAMapping PressureSolver::buildStageAMapping(
+PressureSolver::Impl::StageAMapping PressureSolver::Impl::buildStageAMapping(
     const Graph& graph,
     const std::vector<Vertex>& vertices,
     const std::vector<int>& groupOfVertex) {
@@ -449,7 +383,7 @@ PressureSolver::StageAMapping PressureSolver::buildStageAMapping(
     return mapping;
 }
 
-std::vector<double> PressureSolver::initializeStageAPressures(
+std::vector<double> PressureSolver::Impl::initializeStageAPressures(
     const Graph& graph,
     const StageAMapping& mapping,
     const PressureMap& prevPressureMapFB) {
@@ -468,7 +402,7 @@ std::vector<double> PressureSolver::initializeStageAPressures(
     return pressures;
 }
 
-void PressureSolver::setupStageAProblem(
+void PressureSolver::Impl::setupStageAProblem(
     ceres::Problem& problemFB,
     const StageAMapping& mapping,
     Graph& graph,
@@ -563,7 +497,7 @@ void PressureSolver::setupStageAProblem(
 // Stage B: フルノード再解フェーズ
 // =============================================================================
 
-PressureSolver::StageBSetup PressureSolver::buildStageBSetup(
+PressureSolver::Impl::StageBSetup PressureSolver::Impl::buildStageBSetup(
     const Graph& graph,
     const PressureMap& stageAPressureMap) {
     StageBSetup setup;
@@ -594,7 +528,7 @@ PressureSolver::StageBSetup PressureSolver::buildStageBSetup(
     return setup;
 }
 
-bool PressureSolver::runStageBTrials(const SimulationConstants& constants,
+bool PressureSolver::Impl::runStageBTrials(const SimulationConstants& constants,
                                      ceres::Problem& problemFB2,
                                      ceres::Solver::Summary& fbSummary2,
                                      const std::function<void(int, const std::string&)>& fallbackLog) {
@@ -621,68 +555,12 @@ bool PressureSolver::runStageBTrials(const SimulationConstants& constants,
         }
     };
 
-    struct FallbackTrialSpec {
-        const char* startMsg;
-        const char* successPrefix;
-        std::function<void(ceres::Solver::Options&)> configure;
-    };
-    const std::vector<FallbackTrialSpec> trials = {
-        {"[B-①] 標準設定でソルバーを実行します", "[B-①] 収束 | residual=",
-         [&](ceres::Solver::Options& o) {
-             o.linear_solver_type = ceres::DENSE_QR;
-             o.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
-             o.max_num_iterations = constants.maxInnerIterations;
-             o.function_tolerance = constants.ventilationTolerance;
-             o.parameter_tolerance = constants.ventilationTolerance;
-             o.minimizer_progress_to_stdout = false;
-         }},
-        {"[B-②] 堅牢設定でソルバーを再実行します", "[B-②] 収束 | residual=",
-         [&](ceres::Solver::Options& o) {
-             o.trust_region_strategy_type = ceres::DOGLEG;
-             o.linear_solver_type = ceres::DENSE_QR;
-             o.max_num_iterations = std::max(500, static_cast<int>(constants.maxInnerIterations * 2));
-             o.function_tolerance = constants.ventilationTolerance * 0.01;
-             o.parameter_tolerance = constants.ventilationTolerance * 0.01;
-             o.gradient_tolerance = constants.ventilationTolerance * 0.1;
-             o.jacobi_scaling = true;
-             o.use_inner_iterations = true;
-             o.max_trust_region_radius = 1e4;
-             o.initial_trust_region_radius = 1e2;
-             o.minimizer_progress_to_stdout = false;
-         }},
-        {"[B-③] DENSE_SCHUR設定でソルバーを再実行します", "[B-③] 収束 | residual=",
-         [&](ceres::Solver::Options& o) {
-             o.trust_region_strategy_type = ceres::DOGLEG;
-             o.linear_solver_type = ceres::DENSE_SCHUR;
-             o.max_num_iterations = 500;
-             o.function_tolerance = constants.ventilationTolerance * 0.01;
-             o.parameter_tolerance = constants.ventilationTolerance * 0.01;
-             o.gradient_tolerance = constants.ventilationTolerance * 0.1;
-             o.jacobi_scaling = true;
-             o.use_inner_iterations = true;
-             o.max_trust_region_radius = 1e4;
-             o.initial_trust_region_radius = 1e2;
-             o.minimizer_progress_to_stdout = false;
-         }},
-        {"[B-④] SPARSE_NORMAL_CHOLESKY設定でソルバーを再実行します", "[B-④] 収束 | residual=",
-         [&](ceres::Solver::Options& o) {
-             o.trust_region_strategy_type = ceres::DOGLEG;
-             o.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
-             o.max_num_iterations = 1000;
-             o.function_tolerance = constants.ventilationTolerance * 0.001;
-             o.parameter_tolerance = constants.ventilationTolerance * 0.001;
-             o.gradient_tolerance = constants.ventilationTolerance * 0.01;
-             o.jacobi_scaling = true;
-             o.use_inner_iterations = true;
-             o.inner_iteration_tolerance = 1e-8;
-             o.max_trust_region_radius = 1e3;
-             o.initial_trust_region_radius = 1e1;
-             o.minimizer_progress_to_stdout = false;
-         }},
-    };
-    for (const auto& t : trials) {
+    for (const auto& t : ventilation::stageBTrustRegionTrials()) {
         if (fbOK2) break;
-        tryTrial(t.startMsg, t.successPrefix, t.configure);
+        tryTrial(
+            t.startLog,
+            t.successLog,
+            [&](ceres::Solver::Options& o) { t.configure(o, constants); });
     }
 
     if (!fbOK2) {

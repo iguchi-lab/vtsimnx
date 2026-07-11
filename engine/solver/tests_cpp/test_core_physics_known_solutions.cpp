@@ -147,7 +147,10 @@ int main() {
             vent.addEdge(makeOpening("ROOM->OUT_L", "ROOM", "OUT_L", 0.65, 1.0));
 
             PressureSolver solver(vent, logs);
-            auto [pressureMap, flowRates, balance] = solver.solvePressures(constants);
+            const auto result = solver.solvePressures(constants);
+            const auto& pressureMap = result.pressures;
+            const auto& flowRates = result.flows;
+            const auto& balance = result.balances;
 
             const auto itRoomP = pressureMap.find("ROOM");
             expectTrue(itRoomP != pressureMap.end(), "ventilation known solution: ROOM pressure exists");
@@ -160,7 +163,7 @@ int main() {
             expectTrue(itQOut != flowRates.end(), "ventilation known solution: outflow exists");
             expectNear(itQIn->second, itQOut->second, 1e-9,
                        "ventilation known solution: inflow and outflow should match");
-            expectNear(balance["ROOM"], 0.0, 1e-9,
+            expectNear(balance.at("ROOM"), 0.0, 1e-9,
                        "ventilation known solution: room mass balance should be zero");
         }
 

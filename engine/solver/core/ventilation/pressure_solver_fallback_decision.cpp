@@ -1,4 +1,4 @@
-#include "core/ventilation/pressure_solver.h"
+#include "core/ventilation/pressure_solver_impl.h"
 #include "core/ventilation/edge_mutation_guard.h"
 #include "core/ventilation/pressure_balance.h"
 #include "core/ventilation/pressure_solver_internal.h"
@@ -9,7 +9,7 @@
 #include <limits>
 #include <sstream>
 
-PressureSolver::FallbackOuterAction PressureSolver::evaluateFallbackOuter(
+PressureSolver::Impl::FallbackOuterAction PressureSolver::Impl::evaluateFallbackOuter(
         const SimulationConstants& constants,
         Graph& g,
         ventilation::EdgeMutationGuard& edgeGuard,

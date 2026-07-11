@@ -1,12 +1,13 @@
-#include "core/ventilation/pressure_solver.h"
+#include "core/ventilation/pressure_solver_impl.h"
 #include "core/ventilation/pressure_solver_internal.h"
+#include "core/ventilation/pressure_solver_trial_spec.h"
 
 #include <algorithm>
 #include <iomanip>
 #include <sstream>
 #include <vector>
 
-PressureSolver::StageASolveResult PressureSolver::solveStageAReduced(
+PressureSolver::Impl::StageASolveResult PressureSolver::Impl::solveStageAReduced(
         const SimulationConstants& constants,
         Graph& g,
         const SupernodePartition& partition,
@@ -52,63 +53,9 @@ PressureSolver::StageASolveResult PressureSolver::solveStageAReduced(
         }
     };
 
-    struct TrialSpecA {
-        const char* label;
-        std::function<void(ceres::Solver::Options&)> configure;
-    };
-    const std::vector<TrialSpecA> trialsA = {
-        {"[A-①] 標準設定でソルバーを実行します", [&](ceres::Solver::Options& o) {
-             o.linear_solver_type = ceres::DENSE_QR;
-             o.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
-             o.max_num_iterations = constants.maxInnerIterations;
-             o.function_tolerance = constants.ventilationTolerance;
-             o.parameter_tolerance = constants.ventilationTolerance;
-             o.minimizer_progress_to_stdout = false;
-         }},
-        {"[A-②] 堅牢設定でソルバーを再実行します", [&](ceres::Solver::Options& o) {
-             o.trust_region_strategy_type = ceres::DOGLEG;
-             o.linear_solver_type = ceres::DENSE_QR;
-             o.max_num_iterations = std::max(500, static_cast<int>(constants.maxInnerIterations * 2));
-             o.function_tolerance = constants.ventilationTolerance * 0.01;
-             o.parameter_tolerance = constants.ventilationTolerance * 0.01;
-             o.gradient_tolerance = constants.ventilationTolerance * 0.1;
-             o.jacobi_scaling = true;
-             o.use_inner_iterations = true;
-             o.max_trust_region_radius = 1e4;
-             o.initial_trust_region_radius = 1e2;
-             o.minimizer_progress_to_stdout = false;
-         }},
-        {"[A-③] DENSE_SCHUR設定でソルバーを再実行します", [&](ceres::Solver::Options& o) {
-             o.trust_region_strategy_type = ceres::DOGLEG;
-             o.linear_solver_type = ceres::DENSE_SCHUR;
-             o.max_num_iterations = 500;
-             o.function_tolerance = constants.ventilationTolerance * 0.01;
-             o.parameter_tolerance = constants.ventilationTolerance * 0.01;
-             o.gradient_tolerance = constants.ventilationTolerance * 0.1;
-             o.jacobi_scaling = true;
-             o.use_inner_iterations = true;
-             o.max_trust_region_radius = 1e4;
-             o.initial_trust_region_radius = 1e2;
-             o.minimizer_progress_to_stdout = false;
-         }},
-        {"[A-④] SPARSE_NORMAL_CHOLESKY設定でソルバーを再実行します", [&](ceres::Solver::Options& o) {
-             o.trust_region_strategy_type = ceres::DOGLEG;
-             o.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
-             o.max_num_iterations = 1000;
-             o.function_tolerance = constants.ventilationTolerance * 0.001;
-             o.parameter_tolerance = constants.ventilationTolerance * 0.001;
-             o.gradient_tolerance = constants.ventilationTolerance * 0.01;
-             o.jacobi_scaling = true;
-             o.use_inner_iterations = true;
-             o.inner_iteration_tolerance = 1e-8;
-             o.max_trust_region_radius = 1e3;
-             o.initial_trust_region_radius = 1e1;
-             o.minimizer_progress_to_stdout = false;
-         }},
-    };
-    for (const auto& t : trialsA) {
+    for (const auto& t : ventilation::stageATrustRegionTrials()) {
         if (fbOKA) break;
-        tryTrialA(t.label, t.configure);
+        tryTrialA(t.startLog, [&](ceres::Solver::Options& o) { t.configure(o, constants); });
     }
 
     if (!fbOKA) {
@@ -134,17 +81,8 @@ PressureSolver::StageASolveResult PressureSolver::solveStageAReduced(
         }
     }
 
-    tryTrialA("[A-⑥] Line Search方式でソルバーを再実行します", [&](ceres::Solver::Options& o) {
-        o.minimizer_type = ceres::LINE_SEARCH;
-        o.line_search_direction_type = ceres::LBFGS;
-        o.line_search_type = ceres::WOLFE;
-        o.max_num_iterations = 1000;
-        o.function_tolerance = constants.ventilationTolerance;
-        o.parameter_tolerance = constants.ventilationTolerance;
-        o.gradient_tolerance = constants.ventilationTolerance * 10;
-        o.jacobi_scaling = true;
-        o.minimizer_progress_to_stdout = false;
-    });
+    tryTrialA("[A-⑥] Line Search方式でソルバーを再実行します",
+              [&](ceres::Solver::Options& o) { ventilation::configureLineSearchLbfgs(o, constants); });
 
     if (!fbOKA) {
         fallbackLog(2, "[A-⑦] 超精密設定で最終試行します");
