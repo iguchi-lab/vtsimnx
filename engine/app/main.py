@@ -38,6 +38,7 @@ from app.builder.validate import ValidationError, ConfigFileError
 from app.api_auth import ApiKeyMiddleware
 from app.jobs import get_run_manager, set_run_manager, RunManager
 from app import simulation as _simulation_mod
+from app.schemas import RawSimConfig, UnknownFieldError, UnknownKeysMode, prepare_raw_config
 
 
 def _sync_test_hooks() -> None:
@@ -239,8 +240,10 @@ class SimulationRequest(BaseModel):
 
     - config: ユーザー入力JSON（raw）。API側で `app.builder.build_config()` により
       正規化/展開してから C++ ソルバに渡す。
+    - unknown_keys: 未知フィールドの扱い（strip=警告して削除 / error=422）
     """
-    config: Dict[str, Any]
+    config: RawSimConfig
+    unknown_keys: UnknownKeysMode = "strip"
     debug: bool = False
     debug_verbosity: int = 2
     # builder オプション（APIから制御）
@@ -253,6 +256,11 @@ class SimulationRequest(BaseModel):
     add_surface_nocturnal: Optional[bool] = None
     add_surface_radiation: Optional[bool] = None
     add_surface_radiation_exclude_glass: Optional[bool] = None
+
+
+def _prepare_request_config(req: SimulationRequest) -> tuple[Dict[str, Any], List[str], List[Dict[str, Any]]]:
+    """型付き config を builder 向け dict にし、未知キー警告を返す。"""
+    return prepare_raw_config(req.config, unknown_keys=req.unknown_keys)
 
 class SimulationResponse(BaseModel):
     """
@@ -286,9 +294,10 @@ def run_simulation(req: SimulationRequest):
     run_id: str | None = None
     try:
         _sync_test_hooks()
+        raw_config, pre_warnings, pre_details = _prepare_request_config(req)
 
         result = execute_simulation(
-            req.config,
+            raw_config,
             debug=req.debug,
             debug_verbosity=req.debug_verbosity,
             add_surface=req.add_surface,
@@ -299,6 +308,9 @@ def run_simulation(req: SimulationRequest):
             add_surface_nocturnal=req.add_surface_nocturnal,
             add_surface_radiation=req.add_surface_radiation,
             add_surface_radiation_exclude_glass=req.add_surface_radiation_exclude_glass,
+            unknown_keys=req.unknown_keys,
+            initial_warnings=pre_warnings,
+            initial_warning_details=pre_details,
         )
         run_id = result.run_id
         return SimulationResponse(
@@ -306,6 +318,8 @@ def run_simulation(req: SimulationRequest):
             warnings=result.warnings,
             warning_details=result.warning_details,
         )
+    except UnknownFieldError as e:
+        raise HTTPException(status_code=422, detail=e.details or str(e))
     except (ValidationError, ConfigFileError, ValueError, KeyError, TypeError) as e:
         logger.info("validation/config error in /run: %s", e)
         raise HTTPException(status_code=400, detail=_build_bad_request_detail(e))
@@ -329,13 +343,15 @@ def _run_simulation_core(
     add_surface_nocturnal: Optional[bool] = None,
     add_surface_radiation: Optional[bool] = None,
     add_surface_radiation_exclude_glass: Optional[bool] = None,
+    unknown_keys: UnknownKeysMode = "strip",
 ) -> SimulationResponse:
     """
     /run と同じ経路で単発実行したいときの共通ロジック（CLI/テスト用）。
     """
     _sync_test_hooks()
+    prepared, pre_warnings, pre_details = prepare_raw_config(raw_config, unknown_keys=unknown_keys)
     result = execute_simulation(
-        raw_config,
+        prepared,
         debug=debug,
         debug_verbosity=debug_verbosity,
         add_surface=add_surface,
@@ -346,6 +362,9 @@ def _run_simulation_core(
         add_surface_nocturnal=add_surface_nocturnal,
         add_surface_radiation=add_surface_radiation,
         add_surface_radiation_exclude_glass=add_surface_radiation_exclude_glass,
+        unknown_keys=unknown_keys,
+        initial_warnings=pre_warnings,
+        initial_warning_details=pre_details,
     )
     return SimulationResponse(
         result=result.output,
@@ -359,7 +378,14 @@ def create_run(req: SimulationRequest, response: Response):
     """非同期ジョブを投入し、run_id を即時返す。重複入力は既存 run_id を 200 で返す。"""
     manager = get_run_manager()
     _sync_test_hooks()
-    request = req.model_dump()
+    try:
+        raw_config, pre_warnings, pre_details = _prepare_request_config(req)
+    except UnknownFieldError as e:
+        raise HTTPException(status_code=422, detail=e.details or str(e))
+    request = req.model_dump(mode="python")
+    request["config"] = raw_config
+    request["initial_warnings"] = pre_warnings
+    request["initial_warning_details"] = pre_details
     job, is_duplicate = manager.submit(request)
     response.status_code = 200 if is_duplicate else 202
     return {
