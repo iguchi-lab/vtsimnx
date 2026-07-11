@@ -451,7 +451,8 @@ std::optional<PressureSolver::Impl::SolverResult> PressureSolver::Impl::tryPrima
     ceres::Problem problem;
     addFlowBalanceConstraints(setup, problem);
     ceres::Solver::Summary summary;
-    runPrimarySolvers(constants, problem, summary);
+    bool physicalAccepted = false;
+    runPrimarySolvers(constants, problem, summary, setup, massBalanceMaxAbs, physicalAccepted);
 
     PressureMap pressureMap = extractPressures(setup.pressures, setup.nodeNames);
     auto eval = evaluatePressureSolution(pressureMap, massBalanceMaxAbs);
@@ -503,8 +504,26 @@ PressureSolver::Impl::SolverResult PressureSolver::Impl::solvePressures(
 
     SolverSetup setup;
     if (!initializeSolverSetup(setup)) {
-        network_.setLastPressureConverged(false);
-        return makePressureSolveResult({}, {}, {}, /*accepted=*/false, {}, "");
+        // calc_p ノードなし = 全圧既知。流量のみ評価して自明解として受理する。
+        writeLog(logFile_, "--情報: 圧力未知ノードがないため固定圧ネットワークとして流量評価します");
+        PressureMap pressureMap;
+        const auto& graph = network_.getGraph();
+        for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+            pressureMap[graph[v].key] = graph[v].current_p;
+        }
+        auto eval = evaluatePressureSolution(pressureMap, tols.massBalanceMaxAbs);
+        if (!eval.flowOk) {
+            network_.setLastPressureConverged(false);
+            writeLog(logFile_, "--警告: 固定圧ネットワークの風量評価に失敗: " + eval.detail);
+            return makePressureSolveResult(pressureMap, {}, {}, /*accepted=*/false, {}, "fixed_pressure");
+        }
+        // 未知圧が無い場合、質量収支の「計算ノード」は空 → acceptMassBalance は complete=false になり得る。
+        // 流量が有限に評価できれば自明解として受理する。
+        network_.setLastPressureConverged(true);
+        writeLog(logFile_, "---固定圧ネットワーク: 流量評価完了（圧力求解スキップ）");
+        return makePressureSolveResult(
+            pressureMap, eval.flows, eval.allNodeBalances,
+            /*accepted=*/true, eval.solvedNodeMetrics, "fixed_pressure");
     }
     auto& nodeNames = setup.nodeNames;
     auto& pressures = setup.pressures;
@@ -513,7 +532,8 @@ PressureSolver::Impl::SolverResult PressureSolver::Impl::solvePressures(
     addFlowBalanceConstraints(setup, problem);
 
     ceres::Solver::Summary summary;
-    runPrimarySolvers(constants, problem, summary);
+    bool physicalAccepted = false;
+    runPrimarySolvers(constants, problem, summary, setup, tols.massBalanceMaxAbs, physicalAccepted);
 
     PressureMap pressureMap = extractPressures(pressures, nodeNames);
     auto eval = evaluatePressureSolution(pressureMap, tols.massBalanceMaxAbs);
@@ -528,7 +548,7 @@ PressureSolver::Impl::SolverResult PressureSolver::Impl::solvePressures(
     }
 
     const auto& metrics = eval.solvedNodeMetrics;
-    const bool massAccepted = eval.accepted;
+    const bool massAccepted = physicalAccepted || eval.accepted;
     const bool ceresSaidConverged = (summary.termination_type == ceres::CONVERGENCE);
 
     {
@@ -540,6 +560,7 @@ PressureSolver::Impl::SolverResult PressureSolver::Impl::solvePressures(
             << " | mass_maxAbs=" << metrics.maxAbs
             << " | mass_tol=" << tols.massBalanceMaxAbs
             << " | solved_nodes=" << metrics.nodeCount
+            << " | physical_accepted=" << (massAccepted ? 1 : 0)
             << " | iter=" << summary.iterations.size();
         writeLog(logFile_, oss.str());
     }

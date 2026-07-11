@@ -64,7 +64,10 @@ struct PressureSolver::Impl {
                                  double anchorWeight = 1.0);
     void runPrimarySolvers(const SimulationConstants& constants,
                            ceres::Problem& problem,
-                           ceres::Solver::Summary& summary);
+                           ceres::Solver::Summary& summary,
+                           SolverSetup& setup,
+                           double massBalanceMaxAbs,
+                           bool& physicalAccepted);
     TrialResult runSolverTrial(const std::string& startLog,
                                const std::string& successLog,
                                ceres::Problem& problem,
@@ -117,6 +120,8 @@ struct PressureSolver::Impl {
     bool runStageBTrials(const SimulationConstants& constants,
                          ceres::Problem& problemFB2,
                          ceres::Solver::Summary& fbSummary2,
+                         StageBSetup& setup,
+                         double massBalanceMaxAbs,
                          const FallbackLogger& fallbackLog);
     SupernodePartition detectSupernodePartition(
         const SimulationConstants& constants,

@@ -3,6 +3,7 @@
 #include "network/node_state_view.h"
 #include "vtsim_solver.h"
 #include <cstdint>
+#include <memory>
 #include <vector>
 #include <fstream>
 #include <ostream>
@@ -15,6 +16,12 @@
 using json = nlohmann::json;
 
 class VentilationNetwork; // forward declaration
+
+namespace ThermalSolverLinearDirect {
+namespace detail {
+struct DirectTSolverContext;
+} // namespace detail
+} // namespace ThermalSolverLinearDirect
 
 // 熱回路網クラス
 class ThermalNetwork {
@@ -71,7 +78,17 @@ private:
     // buildFromData のたびに増加。DirectT のトポロジキャッシュ無効化に使う。
     std::uint64_t topologyRevision_ = 0;
 
+    // DirectT キャッシュ・作業バッファ（ネットワーク単位で所有し並列実行時の競合を避ける）
+    std::unique_ptr<ThermalSolverLinearDirect::detail::DirectTSolverContext> directTContext_;
+
 public:
+    ThermalNetwork();
+    ~ThermalNetwork();
+    ThermalNetwork(const ThermalNetwork&) = delete;
+    ThermalNetwork& operator=(const ThermalNetwork&) = delete;
+    ThermalNetwork(ThermalNetwork&&) noexcept;
+    ThermalNetwork& operator=(ThermalNetwork&&) noexcept;
+
     // 1) Node/Graph access
     const Graph& getGraph() const { return graph; }
     Graph& getGraph() { return graph; }
@@ -79,7 +96,10 @@ public:
     ConstNodeStateView nodeStateView() const {
         return ConstNodeStateView{graph, keyToVertex, topologyRevision_};
     }
-    NodeStateView nodeStateView() { return NodeStateView{graph, keyToVertex, topologyRevision_}; }
+    NodeStateView nodeStateView() {
+        return NodeStateView{graph, keyToVertex, topologyRevision_};
+    }
+    ThermalSolverLinearDirect::detail::DirectTSolverContext& directTContext();
 
     // ノード・エッジ操作
     Vertex addNode(const VertexProperties& node);

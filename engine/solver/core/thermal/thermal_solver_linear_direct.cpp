@@ -28,7 +28,11 @@ std::string makeRhsCachedLabel(const std::string& method) {
 } // namespace
 
 DirectTCacheStats getDirectTCacheStats() {
-    const auto& stats = detail::defaultDirectTContext().stats;
+    return getDirectTCacheStats(detail::defaultDirectTContext());
+}
+
+DirectTCacheStats getDirectTCacheStats(detail::DirectTSolverContext& ctx) {
+    const auto& stats = ctx.stats;
     DirectTCacheStats s;
     s.calls = stats.calls;
     s.coeffSigChanged = stats.coeffSigChanged;
@@ -77,7 +81,10 @@ void solveTemperaturesLinearDirect(ThermalNetwork& network,
     }
 
     const size_t n = ctx.topology.nodeNames.size();
-    if (n == 0) return;
+    if (n == 0) {
+        network.setLastThermalConvergence(true, 0.0, 0.0, "DirectT(no-active-node)");
+        return;
+    }
 
     if (needRebuildTopo || ctx.systemGraphPtr != &graph || ctx.systemN != n || ctx.system.colIndices.size() != n) {
         ctx.system.initWithPattern(ctx.topology.rowColsPattern);

@@ -175,10 +175,15 @@ void VentilationNetwork::syncTemperaturesFromThermalNetwork(const ThermalNetwork
 }
 
 // 圧力計算
+PressureSolveResult VentilationNetwork::solvePressureDetailed(const SimulationConstants& constants,
+                                                              std::ostream& logs) {
+    PressureSolver solver(*this, logs);
+    return solver.solveDetailed(constants);
+}
+
 std::tuple<PressureMap, std::map<std::pair<std::string, std::string>, double>, FlowBalanceMap>
 VentilationNetwork::solvePressure(const SimulationConstants& constants, std::ostream& logs) {
-    PressureSolver solver(*this, logs);
-    return solver.solvePressures(constants);
+    return solvePressureDetailed(constants, logs).asTuple();
 }
 
 // 流量マップからグラフを一括更新

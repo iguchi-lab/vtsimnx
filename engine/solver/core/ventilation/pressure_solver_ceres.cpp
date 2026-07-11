@@ -217,22 +217,38 @@ PressureSolver::Impl::TrialResult PressureSolver::Impl::runUltraPreciseTrial(
 
 void PressureSolver::Impl::runPrimarySolvers(const SimulationConstants& constants,
                                        ceres::Problem& problem,
-                                       ceres::Solver::Summary& summary) {
-    bool converged = false;
+                                       ceres::Solver::Summary& summary,
+                                       SolverSetup& setup,
+                                       double massBalanceMaxAbs,
+                                       bool& physicalAccepted) {
+    physicalAccepted = false;
+    auto checkPhysical = [&]() -> bool {
+        if (!std::isfinite(summary.final_cost)) return false;
+        PressureMap pressureMap = extractPressures(setup.pressures, setup.nodeNames);
+        auto eval = evaluatePressureSolution(pressureMap, massBalanceMaxAbs);
+        if (eval.flowOk && eval.accepted) {
+            physicalAccepted = true;
+            writeLog(logFile_, "----物理収支合格のため試行を終了します (mass_maxAbs=" +
+                                   std::to_string(eval.solvedNodeMetrics.maxAbs) + ")");
+            return true;
+        }
+        return false;
+    };
 
     for (const auto& t : ventilation::primaryTrustRegionTrials()) {
-        if (converged) break;
-        converged = runSolverTrial(
+        if (physicalAccepted) break;
+        (void)runSolverTrial(
                         t.startLog,
                         t.successLog,
                         problem,
                         summary,
                         constants.ventilationTolerance,
-                        [&](ceres::Solver::Options& o) { t.configure(o, constants); })
-                        .converged;
+                        [&](ceres::Solver::Options& o) { t.configure(o, constants); });
+        // Ceres 終了理由は診断のみ。物理合格で試行終了（NO_CONVERGENCE でも可）。
+        if (checkPhysical()) break;
     }
 
-    if (!converged) {
+    if (!physicalAccepted) {
         writeLog(logFile_, "----⑤段階的緩和法でソルバーを再実行します...");
         TrialResult r = runTwoStageRelaxation(
             constants,
@@ -255,11 +271,13 @@ void PressureSolver::Impl::runPrimarySolvers(const SimulationConstants& constant
                 oss << ", 反復回数=" << s1.num_successful_steps;
                 writeLog(logFile_, oss.str());
             });
-        converged = r.converged;
-        if (!converged) {
+        (void)r;
+        if (checkPhysical()) {
+            writeLog(logFile_, "----段階的緩和法で物理収支が合格しました");
+        } else {
             std::ostringstream oss;
             oss << std::scientific << std::setprecision(6);
-            oss << "-----段階2未収束: 終了理由=";
+            oss << "-----段階2後も物理不合格: 終了理由=";
             switch(summary.termination_type) {
                 case ceres::CONVERGENCE: oss << "CONVERGENCE"; break;
                 case ceres::NO_CONVERGENCE: oss << "NO_CONVERGENCE (最大反復回数到達)"; break;
@@ -272,14 +290,10 @@ void PressureSolver::Impl::runPrimarySolvers(const SimulationConstants& constant
                 << ", 反復回数=" << summary.num_successful_steps;
             writeLog(logFile_, oss.str());
         }
-
-        if (converged) {
-            writeLog(logFile_, "----段階的緩和法で収束しました");
-        }
     }
 
-    if (!converged) {
-        converged = runSolverTrial(
+    if (!physicalAccepted) {
+        (void)runSolverTrial(
             "----⑥Line Search方式でソルバーを再実行します...",
             "----Line Search方式で収束しました",
             problem,
@@ -287,10 +301,13 @@ void PressureSolver::Impl::runPrimarySolvers(const SimulationConstants& constant
             constants.ventilationTolerance,
             [&](ceres::Solver::Options& options) {
                 ventilation::configureLineSearchLbfgs(options, constants);
-            }).converged;
+            });
+        if (checkPhysical()) {
+            writeLog(logFile_, "----Line Search方式で物理収支が合格しました");
+        }
     }
 
-    if (!converged) {
+    if (!physicalAccepted) {
         writeLog(logFile_, "----⑦超精密設定で最終試行します...");
         const double refCost = summary.final_cost;
         TrialResult r = runUltraPreciseTrial(
@@ -302,14 +319,12 @@ void PressureSolver::Impl::runPrimarySolvers(const SimulationConstants& constant
             [&](double usedTol) {
                 writeLog(logFile_, "-----調整済み許容誤差: " + std::to_string(usedTol));
             });
-        converged = r.converged;
-
-        if (converged) {
-            writeLog(logFile_, "----超精密設定で収束しました");
+        if (checkPhysical()) {
+            writeLog(logFile_, "----超精密設定で物理収支が合格しました");
         } else {
             std::ostringstream oss;
             oss << std::scientific << std::setprecision(6);
-            oss << "-----超精密設定未収束: 終了理由=";
+            oss << "-----超精密設定後も物理不合格: 終了理由=";
             switch(summary.termination_type) {
                 case ceres::CONVERGENCE: oss << "CONVERGENCE"; break;
                 case ceres::NO_CONVERGENCE: oss << "NO_CONVERGENCE (最大反復回数到達)"; break;
@@ -324,10 +339,11 @@ void PressureSolver::Impl::runPrimarySolvers(const SimulationConstants& constant
         }
     }
 
-        if (!converged) {
-            writeLog(logFile_, "----全てのソルバー手法で収束に失敗しました");
-            writeLog(logFile_, "----最終残差: " + std::to_string(summary.final_cost) +
-                               " (目標: " + std::to_string(constants.ventilationTolerance) + ")");
+    if (!physicalAccepted) {
+        writeLog(logFile_, "----全てのソルバー手法で物理収支合格に至りませんでした");
+        writeLog(logFile_, "----最終残差: " + std::to_string(summary.final_cost) +
+                           " (Ceres function_tol 目標: " +
+                           std::to_string(constants.ventilationTolerance) + ")");
     }
 }
 
@@ -541,15 +557,30 @@ PressureSolver::Impl::StageBSetup PressureSolver::Impl::buildStageBSetup(
 bool PressureSolver::Impl::runStageBTrials(const SimulationConstants& constants,
                                      ceres::Problem& problemFB2,
                                      ceres::Solver::Summary& fbSummary2,
+                                     StageBSetup& setup,
+                                     double massBalanceMaxAbs,
                                      const std::function<void(int, const std::string&)>& fallbackLog) {
-    bool fbOK2 = false;
+    bool physicalAccepted = false;
     auto log2 = [&](const std::string& msg) { fallbackLog(2, msg); };
+
+    auto checkPhysical = [&]() -> bool {
+        if (!std::isfinite(fbSummary2.final_cost)) return false;
+        PressureMap pressureMap = extractPressures(setup.pressures, setup.nodeNames);
+        auto eval = evaluatePressureSolution(pressureMap, massBalanceMaxAbs);
+        if (eval.flowOk && eval.accepted) {
+            physicalAccepted = true;
+            std::ostringstream os;
+            os << std::scientific << std::setprecision(6) << eval.solvedNodeMetrics.maxAbs;
+            fallbackLog(2, "[B] 仮ネットワーク物理収支合格 | mass_maxAbs=" + os.str());
+            return true;
+        }
+        return false;
+    };
 
     auto tryTrial = [&](const std::string& startMsg,
                         const std::string& successPrefix,
-                        const std::function<void(ceres::Solver::Options&)>& configure,
-                        bool allowIfAlreadyOk = false) {
-        if (fbOK2 && !allowIfAlreadyOk) return;
+                        const std::function<void(ceres::Solver::Options&)>& configure) {
+        if (physicalAccepted) return;
         TrialResult r = runSolverTrial(startMsg,
                                        /*successLog=*/"",
                                        problemFB2,
@@ -557,23 +588,24 @@ bool PressureSolver::Impl::runStageBTrials(const SimulationConstants& constants,
                                        constants.ventilationTolerance,
                                        configure,
                                        log2);
-        fbOK2 = r.converged;
-        if (fbOK2) {
+        // Ceres CONVERGENCE は診断。物理合格で打ち切る。
+        if (r.converged) {
             std::ostringstream os;
             os << std::scientific << std::setprecision(6) << fbSummary2.final_cost;
             fallbackLog(2, successPrefix + os.str() + " | tol=" + std::to_string(r.usedTolerance));
         }
+        (void)checkPhysical();
     };
 
     for (const auto& t : ventilation::stageBTrustRegionTrials()) {
-        if (fbOK2) break;
+        if (physicalAccepted) break;
         tryTrial(
             t.startLog,
             t.successLog,
             [&](ceres::Solver::Options& o) { t.configure(o, constants); });
     }
 
-    if (!fbOK2) {
+    if (!physicalAccepted) {
         fallbackLog(2, "[B-⑤] 段階的緩和法でソルバーを再実行します");
         TrialResult r = runTwoStageRelaxation(
             constants,
@@ -587,24 +619,22 @@ bool PressureSolver::Impl::runStageBTrials(const SimulationConstants& constants,
                 fallbackLog(3, "[B-⑤] 段階1完了 | residual=" + os.str());
             },
             log2);
-        {
-            fbOK2 = r.converged;
-            if (fbOK2) {
-                std::ostringstream os;
-                os << std::scientific << std::setprecision(6) << fbSummary2.final_cost;
-                fallbackLog(2, "[B-⑤] 収束 | residual=" + os.str() + " | tol=" +
-                                   std::to_string(r.usedTolerance));
-            }
+        (void)r;
+        if (checkPhysical()) {
+            std::ostringstream os;
+            os << std::scientific << std::setprecision(6) << fbSummary2.final_cost;
+            fallbackLog(2, "[B-⑤] 物理合格 | residual=" + os.str() + " | tol=" +
+                               std::to_string(r.usedTolerance));
         }
     }
 
     tryTrial("[B-⑥] Line Search方式でソルバーを再実行します",
-             "[B-⑥] 収束 | residual=",
+             "[B-⑥] Ceres CONVERGENCE | residual=",
              [&](ceres::Solver::Options& o) {
                  ventilation::configureLineSearchLbfgs(o, constants);
              });
 
-    if (!fbOK2) {
+    if (!physicalAccepted) {
         fallbackLog(2, "[B-⑦] 超精密設定で最終試行します");
         const double refCost = fbSummary2.final_cost;
         TrialResult r = runUltraPreciseTrial(
@@ -617,15 +647,16 @@ bool PressureSolver::Impl::runStageBTrials(const SimulationConstants& constants,
                 fallbackLog(3, "[B-⑦] 調整済み許容誤差=" + std::to_string(usedTol));
             },
             log2);
-        fbOK2 = r.converged;
-        if (fbOK2) {
+        (void)r;
+        if (checkPhysical()) {
             std::ostringstream os;
             os << std::scientific << std::setprecision(6) << fbSummary2.final_cost;
-            fallbackLog(2, "[B-⑦] 収束 | residual=" + os.str() + " | tol=" +
+            fallbackLog(2, "[B-⑦] 物理合格 | residual=" + os.str() + " | tol=" +
                                std::to_string(r.usedTolerance));
         }
     }
 
-    return fbOK2;
+    // ok: 仮ネットワーク上で質量収支合格（復元後の iface は decision 側）
+    return physicalAccepted;
 }
 

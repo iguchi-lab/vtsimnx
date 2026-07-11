@@ -352,9 +352,9 @@ int main() {
                     gAdv[e].current_enabled = false;
                 }
             }
-            const auto before = ThermalSolverLinearDirect::getDirectTCacheStats();
+            const auto before = ThermalSolverLinearDirect::getDirectTCacheStats(thermal.directTContext());
             solver.solveTemperatures(constants);
-            const auto after = ThermalSolverLinearDirect::getDirectTCacheStats();
+            const auto after = ThermalSolverLinearDirect::getDirectTCacheStats(thermal.directTContext());
             expectTrue(after.coeffSigChanged > before.coeffSigChanged,
                        "advection enable off: coeffSigChanged");
             expectTrue(after.fullBuild > before.fullBuild,

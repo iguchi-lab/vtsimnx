@@ -2,6 +2,7 @@
 #include "network/ventilation_network.h"
 #include "core/thermal/thermal_solver.h"
 #include "core/thermal/thermal_solver_linear_direct.h"
+#include "core/thermal/thermal_direct_internal.h"
 #include "core/thermal/thermal_direct_response.h"
 #include "utils/utils.h"
 
@@ -16,6 +17,17 @@
 
 #include <boost/graph/adjacency_list.hpp>
 #include <boost/range/iterator_range.hpp>
+
+ThermalNetwork::ThermalNetwork()
+    : directTContext_(std::make_unique<ThermalSolverLinearDirect::detail::DirectTSolverContext>()) {}
+
+ThermalNetwork::~ThermalNetwork() = default;
+ThermalNetwork::ThermalNetwork(ThermalNetwork&&) noexcept = default;
+ThermalNetwork& ThermalNetwork::operator=(ThermalNetwork&&) noexcept = default;
+
+ThermalSolverLinearDirect::detail::DirectTSolverContext& ThermalNetwork::directTContext() {
+    return *directTContext_;
+}
 
 // ノードを追加
 Vertex ThermalNetwork::addNode(const VertexProperties& node) {
@@ -112,8 +124,8 @@ void ThermalNetwork::buildFromData(const std::vector<VertexProperties>& allNodes
     lastThermalMethod.clear();
     invalidateCaches();
     ++topologyRevision_;
-    // Graph オブジェクトのアドレスは変わらないため、DirectT の既定コンテキストを明示破棄する。
-    ThermalSolverLinearDirect::resetDirectTSolverContext();
+    // Graph オブジェクトのアドレスは変わらないため、このネットワークの DirectT コンテキストを破棄する。
+    directTContext_->reset();
 
     if (simConstants.temperatureCalc || simConstants.humidityCalc || simConstants.concentrationCalc) {
         writeLog(logs, "  熱回路網を作成中...");

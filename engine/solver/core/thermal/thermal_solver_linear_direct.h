@@ -37,6 +37,7 @@ void solveTemperaturesLinearDirect(
 
 // テスト/診断用（キャッシュ挙動の検証に使用）
 DirectTCacheStats getDirectTCacheStats();
+DirectTCacheStats getDirectTCacheStats(detail::DirectTSolverContext& ctx);
 void resetDirectTCacheStats();
 // 既定コンテキストを明示的に初期化（キャッシュ破棄）する
 void resetDirectTSolverContext();

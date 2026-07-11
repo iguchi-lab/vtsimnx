@@ -390,6 +390,35 @@ if(VTSIMNX_BUILD_CPP_TESTS)
     add_test(NAME vtsimnx_solver_cpp_test_pressure_solver_safety
              COMMAND vtsimnx_solver_cpp_test_pressure_solver_safety)
 
+    # 6a2) pressure acceptance / coupled-step gate / fixed-pressure / empty thermal
+    add_executable(vtsimnx_solver_cpp_test_pressure_acceptance_coupling
+        tests_cpp/test_pressure_acceptance_coupling.cpp
+        simulation_coupled_step.cpp
+        network/ventilation_network.cpp
+        network/ventilation_network_outputs.cpp
+        network/thermal_network.cpp
+        network/thermal_network_outputs.cpp
+        ${VENTILATION_PRESSURE_SOURCES}
+        core/thermal/thermal_solver.cpp
+        core/thermal/thermal_solver_linear_direct.cpp
+        core/thermal/thermal_direct_internal.cpp
+        core/thermal/thermal_direct_topology.cpp
+        core/thermal/thermal_direct_rhs.cpp
+        core/thermal/thermal_direct_build.cpp
+        core/thermal/thermal_direct_solve.cpp
+        core/thermal/thermal_direct_postprocess.cpp
+    )
+    target_link_libraries(vtsimnx_solver_cpp_test_pressure_acceptance_coupling
+        Boost::boost
+        ceres
+    )
+    target_compile_options(vtsimnx_solver_cpp_test_pressure_acceptance_coupling PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_test_pressure_acceptance_coupling
+             COMMAND vtsimnx_solver_cpp_test_pressure_acceptance_coupling)
+
     # 6b) ventilation network: parallel branches should keep per-branch flow_rate (no aggregation copy)
     add_executable(vtsimnx_solver_cpp_test_vent_parallel_branch_flow_rates
         tests_cpp/test_vent_parallel_branch_flow_rates.cpp

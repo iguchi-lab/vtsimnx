@@ -18,7 +18,8 @@ void ThermalSolver::solveTemperatures(const SimulationConstants& constants) {
     // デフォルト: 絶対温度 AT=b を直接解く（高速）
     // 互換性より単純さを優先し、フォールバック実装は持たない（失敗時は状態だけ保持して戻る）
     try {
-        ThermalSolverLinearDirect::solveTemperaturesLinearDirect(network_, constants, logFile_);
+        ThermalSolverLinearDirect::solveTemperaturesLinearDirect(
+            network_, constants, logFile_, network_.directTContext());
     } catch (const std::exception& e) {
         writeLog(logFile_, std::string("----警告: DirectT solver failed: ") + e.what());
         // 直近の状態を上位が判断できるように保持する（温度は更新されない）

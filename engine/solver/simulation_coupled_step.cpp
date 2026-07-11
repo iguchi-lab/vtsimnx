@@ -20,15 +20,23 @@ CoupledStepData performCoupledStepCalculation(VentilationNetwork& ventNetwork,
     if (constants.pressureCalc) {
         std::unique_ptr<ScopedLogSection> pressureScope;
         if (logEnabled) pressureScope = std::make_unique<ScopedLogSection>(logs, "圧力計算");
+        PressureSolveResult pressureResult;
         {
             ScopedTimer timer(timings, "pressure_solve_iteration", meta);
-            std::tie(step.pressureMap, step.flowRates, step.flowBalance) =
-                ventNetwork.solvePressure(constants, logs);
+            pressureResult = ventNetwork.solvePressureDetailed(constants, logs);
+        }
+        step.pressureMap = std::move(pressureResult.pressures);
+        step.flowRates = std::move(pressureResult.flows);
+        step.flowBalance = std::move(pressureResult.balances);
+
+        // 不採用解はグラフへ反映せず、熱計算にも進まない（ThermalNotConverged で隠さない）
+        if (!pressureResult.accepted) {
+            throw simulation::Error(
+                simulation::ErrorCode::PressureNotConverged,
+                std::string("Pressure solver did not accept solution during coupled step (method=") +
+                    (pressureResult.method.empty() ? "none" : pressureResult.method) + ")");
         }
         ventNetwork.applySolveResults(step.pressureMap, step.flowRates);
-
-        // runSimulation 側の1回目チェックと同じ条件で止めたいので、ここでは totalIterations を見ない
-        // （未収束フラグは solve 後に network 側に保持される）
     }
 
     // 熱計算

@@ -36,7 +36,13 @@ PressureSolver::Impl::StageBSolveResult PressureSolver::Impl::solveStageBFull(
                             problemFB2,
                             /*anchorWeight=*/1.0);
 
-    result.ok = runStageBTrials(constants, problemFB2, result.summary, fallbackLog);
+    result.ok = runStageBTrials(
+        constants,
+        problemFB2,
+        result.summary,
+        result.setup,
+        ventilation::makePressureSolverTolerances(constants).massBalanceMaxAbs,
+        fallbackLog);
 
     auto vrB = boost::vertices(g);
     for (auto v : boost::make_iterator_range(vrB)) {

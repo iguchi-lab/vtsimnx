@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/ventilation/pressure_solve_result.h"
 #include "network/node_state_view.h"
 #include "vtsim_solver.h"
 #include <vector>
@@ -69,6 +70,9 @@ public:
                                      long timestep);
 
     // 3) Solve
+    // accepted / metrics / method を含む詳細結果。連成側はこちらを使う。
+    PressureSolveResult solvePressureDetailed(const SimulationConstants& constants, std::ostream& logs);
+    // 互換: pressures/flows/balances の 3 要素タプルのみ（accepted は捨てる）
     std::tuple<PressureMap, std::map<std::pair<std::string, std::string>, double>, FlowBalanceMap> solvePressure(
         const SimulationConstants& constants, std::ostream& logs);
 
