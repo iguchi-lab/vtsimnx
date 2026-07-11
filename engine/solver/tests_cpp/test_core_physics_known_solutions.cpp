@@ -147,10 +147,7 @@ int main() {
             vent.addEdge(makeOpening("ROOM->OUT_L", "ROOM", "OUT_L", 0.65, 1.0));
 
             PressureSolver solver(vent, logs);
-            const auto result = solver.solvePressures(constants);
-            const auto& pressureMap = result.pressures;
-            const auto& flowRates = result.flows;
-            const auto& balance = result.balances;
+            auto [pressureMap, flowRates, balance] = solver.solvePressures(constants);
 
             const auto itRoomP = pressureMap.find("ROOM");
             expectTrue(itRoomP != pressureMap.end(), "ventilation known solution: ROOM pressure exists");

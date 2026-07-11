@@ -16,7 +16,7 @@
 class PressureFallbackSolver;
 
 struct PressureSolver::Impl {
-    using SolverResult = PressureSolveResult;
+    using SolverResult = PressureSolveResult; // 内部は詳細結果を返す
 
     Impl(VentilationNetwork& network, std::ostream& logFile);
 

@@ -5,8 +5,9 @@
 
 #include <string>
 #include <tuple>
+#include <utility>
 
-// 圧力ソルバの戻り値。公開 API（VentilationNetwork::solvePressure）は asTuple() で互換維持。
+// 圧力ソルバの詳細戻り値。公開の 3 変数 structured binding は solvePressures() 側で互換維持。
 struct PressureSolveResult {
     PressureMap pressures;
     FlowRateMap flows;
@@ -16,8 +17,17 @@ struct PressureSolveResult {
     // "primary" / "fallback_warmstart" / ""（未収束など）
     std::string method;
 
-    std::tuple<PressureMap, FlowRateMap, FlowBalanceMap> asTuple() const {
-        return std::tuple<PressureMap, FlowRateMap, FlowBalanceMap>(pressures, flows, balances);
+    using TupleType = std::tuple<PressureMap, FlowRateMap, FlowBalanceMap>;
+
+    TupleType asTuple() const& {
+        return TupleType{pressures, flows, balances};
+    }
+
+    TupleType asTuple() && {
+        return TupleType{
+            std::move(pressures),
+            std::move(flows),
+            std::move(balances)};
     }
 };
 

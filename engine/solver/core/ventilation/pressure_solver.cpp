@@ -31,8 +31,12 @@ PressureSolver::~PressureSolver() = default;
 PressureSolver::PressureSolver(PressureSolver&&) noexcept = default;
 PressureSolver& PressureSolver::operator=(PressureSolver&&) noexcept = default;
 
-PressureSolver::SolverResult PressureSolver::solvePressures(const SimulationConstants& constants) {
+PressureSolveResult PressureSolver::solveDetailed(const SimulationConstants& constants) {
     return impl_->solvePressures(constants);
+}
+
+PressureSolver::SolverResult PressureSolver::solvePressures(const SimulationConstants& constants) {
+    return solveDetailed(constants).asTuple();
 }
 
 double PressureSolver::Impl::calculateTotalPressure(double pressure, double temperature, double height) const {

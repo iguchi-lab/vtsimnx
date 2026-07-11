@@ -5,6 +5,7 @@
 
 #include <iosfwd>
 #include <memory>
+#include <tuple>
 
 // 前方宣言
 class VentilationNetwork;
@@ -15,7 +16,8 @@ double calculateDensity(double temperature);
 // 圧力ソルバ（公開 API）。Ceres / fallback 実装詳細は Impl 側。
 class PressureSolver {
 public:
-    using SolverResult = PressureSolveResult;
+    // 既存互換: auto [pressures, flows, balances] = solver.solvePressures(...);
+    using SolverResult = std::tuple<PressureMap, FlowRateMap, FlowBalanceMap>;
 
     PressureSolver(VentilationNetwork& network, std::ostream& logFile);
     ~PressureSolver();
@@ -25,7 +27,10 @@ public:
     PressureSolver(PressureSolver&&) noexcept;
     PressureSolver& operator=(PressureSolver&&) noexcept;
 
-    // Ceres Solver + LM法を使った圧力計算
+    // 詳細結果（accepted / metrics / method 付き）
+    PressureSolveResult solveDetailed(const SimulationConstants& constants);
+
+    // 3-tuple 互換ラッパ（一時オブジェクトからは maps を move）
     SolverResult solvePressures(const SimulationConstants& constants);
 
 private:
