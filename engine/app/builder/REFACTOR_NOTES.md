@@ -58,8 +58,10 @@ surfaces リファクタ後、他モジュールで検討・対応するとよ�
 
 ---
 
-## 実施済み（本メモ作成時に反映）
+## 実施済み
 
 - **utils.py**: `series_summary_for_log` を追加。
 - **heat_sources.py / moisture.py**: 上記を利用するよう変更。
-- **thermal.py**: `_scalar_initial_temperature` を surfaces から import するよう変更。
+- **thermal.py**: `_scalar_initial_temperature` を surfaces / surface_layers から import。
+- **surfaces.py 分割**: `surface_constants` / `surface_layers` / `surface_rc` / `surface_response` / `surface_solar` / `surface_radiation`。`surfaces.py` は facade + `process_surfaces`。
+- **BuildOptions**: `build_options.py` に dataclass 化し、`builder.py` のオプション解決を集約。

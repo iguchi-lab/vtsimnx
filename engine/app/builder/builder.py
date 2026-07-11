@@ -6,6 +6,7 @@ import gzip
 import json
 import time
 
+from .build_options import BuildOptions
 from .logger import get_logger
 from .parsers import parse_all
 from .surfaces import process_surfaces
@@ -19,135 +20,7 @@ from .validate import validate_dict_with_warnings, validate_dict_with_warning_de
 logger = get_logger(__name__)
 
 
-def _pick_bool(obj: dict[str, Any], name: str) -> bool | None:
-    v = obj.get(name)
-    return v if isinstance(v, bool) else None
-
-
-def _resolve_builder_options(
-    raw: Dict[str, Any],
-    *,
-    add_surface: bool | None,
-    add_aircon: bool | None,
-    add_capacity: bool | None,
-    add_moisture_capacity: bool | None,
-    add_surface_solar: bool | None,
-    add_surface_nocturnal: bool | None,
-    add_surface_radiation: bool | None,
-    add_surface_radiation_exclude_glass: bool | None,
-    surface_layer_method: str,
-    response_method: str,
-    response_terms: int | None,
-) -> tuple[bool, bool, bool, bool, bool, bool, bool, bool, str, str, int | None]:
-    builder_opt = raw.get("builder")
-    if isinstance(builder_opt, dict):
-        if add_surface is None:
-            add_surface = _pick_bool(builder_opt, "add_surface")
-        if add_aircon is None:
-            add_aircon = _pick_bool(builder_opt, "add_aircon")
-        if add_capacity is None:
-            add_capacity = _pick_bool(builder_opt, "add_capacity")
-        if add_moisture_capacity is None:
-            add_moisture_capacity = _pick_bool(builder_opt, "add_moisture_capacity")
-        if add_surface_solar is None:
-            add_surface_solar = _pick_bool(builder_opt, "add_surface_solar")
-        if add_surface_nocturnal is None:
-            add_surface_nocturnal = _pick_bool(builder_opt, "add_surface_nocturnal")
-        if add_surface_radiation is None:
-            add_surface_radiation = _pick_bool(builder_opt, "add_surface_radiation")
-        if add_surface_radiation_exclude_glass is None:
-            add_surface_radiation_exclude_glass = _pick_bool(builder_opt, "add_surface_radiation_exclude_glass")
-
-    # 互換: トップレベルに置くのも許可（builder より優先度は低い）
-    if add_surface is None and isinstance(raw.get("add_surface"), bool):
-        add_surface = raw.get("add_surface")
-    if add_aircon is None and isinstance(raw.get("add_aircon"), bool):
-        add_aircon = raw.get("add_aircon")
-    if add_capacity is None and isinstance(raw.get("add_capacity"), bool):
-        add_capacity = raw.get("add_capacity")
-    if add_moisture_capacity is None and isinstance(raw.get("add_moisture_capacity"), bool):
-        add_moisture_capacity = raw.get("add_moisture_capacity")
-    if add_surface_solar is None and isinstance(raw.get("add_surface_solar"), bool):
-        add_surface_solar = raw.get("add_surface_solar")
-    if add_surface_nocturnal is None and isinstance(raw.get("add_surface_nocturnal"), bool):
-        add_surface_nocturnal = raw.get("add_surface_nocturnal")
-    if add_surface_radiation is None and isinstance(raw.get("add_surface_radiation"), bool):
-        add_surface_radiation = raw.get("add_surface_radiation")
-    if add_surface_radiation_exclude_glass is None and isinstance(raw.get("add_surface_radiation_exclude_glass"), bool):
-        add_surface_radiation_exclude_glass = raw.get("add_surface_radiation_exclude_glass")
-
-    # 最終デフォルト（従来互換: 指定が無ければ全て True）
-    add_surface = True if add_surface is None else bool(add_surface)
-    add_aircon = True if add_aircon is None else bool(add_aircon)
-    add_capacity = True if add_capacity is None else bool(add_capacity)
-    add_moisture_capacity = True if add_moisture_capacity is None else bool(add_moisture_capacity)
-    add_surface_solar = True if add_surface_solar is None else bool(add_surface_solar)
-    add_surface_nocturnal = True if add_surface_nocturnal is None else bool(add_surface_nocturnal)
-    add_surface_radiation = True if add_surface_radiation is None else bool(add_surface_radiation)
-    add_surface_radiation_exclude_glass = (
-        False if add_surface_radiation_exclude_glass is None else bool(add_surface_radiation_exclude_glass)
-    )
-
-    # JSON から builder オプションを読み取る（関数引数が既定値のときだけ反映）
-    if surface_layer_method == "rc":
-        if isinstance(builder_opt, dict):
-            v = builder_opt.get("surface_layer_method")
-            if isinstance(v, str) and v:
-                surface_layer_method = v
-            rm = builder_opt.get("response_method")
-            if response_method == "arx_rc" and isinstance(rm, str) and rm:
-                response_method = rm
-            rt = builder_opt.get("response_terms")
-            if response_terms is None and rt is not None:
-                try:
-                    response_terms = int(rt)
-                except Exception:
-                    raise ValueError(f"builder.response_terms must be int, got {rt!r}")
-        v2 = raw.get("surface_layer_method")
-        if isinstance(v2, str) and v2:
-            surface_layer_method = v2
-        if response_method == "arx_rc":
-            rm2 = raw.get("response_method")
-            if isinstance(rm2, str) and rm2:
-                response_method = rm2
-        if response_terms is None:
-            rt2 = raw.get("response_terms")
-            if rt2 is not None:
-                try:
-                    response_terms = int(rt2)
-                except Exception:
-                    raise ValueError(f"response_terms must be int, got {rt2!r}")
-
-    return (
-        add_surface,
-        add_aircon,
-        add_capacity,
-        add_moisture_capacity,
-        add_surface_solar,
-        add_surface_nocturnal,
-        add_surface_radiation,
-        add_surface_radiation_exclude_glass,
-        surface_layer_method,
-        response_method,
-        response_terms,
-    )
-
-
-def _build_output_json(
-    raw: Dict[str, Any],
-    *,
-    add_surface: bool,
-    add_aircon: bool,
-    add_capacity: bool,
-    add_moisture_capacity: bool,
-    add_surface_solar: bool,
-    add_surface_nocturnal: bool,
-    add_surface_radiation: bool,
-    add_surface_radiation_exclude_glass: bool,
-    surface_layer_method: str,
-    response_method: str,
-    response_terms: int | None,
-) -> Dict[str, Any]:
+def _build_output_json(raw: Dict[str, Any], *, options: BuildOptions) -> Dict[str, Any]:
     logger.info("設定データのパース開始: keys=%d", len(raw) if isinstance(raw, dict) else -1)
     sim_config, node_config, ventilation_config, thermal_config, surface_config, aircon_config = parse_all(raw)
     logger.info(
@@ -159,20 +32,20 @@ def _build_output_json(
         len(aircon_config) if aircon_config is not None else -1,
     )
 
-    if surface_config and add_surface:
+    if surface_config and options.add_surface:
         sim_length = int(sim_config["index"]["length"])
         add_nodes, add_tb = process_surfaces(
             surface_config,
             sim_length,
             node_config=node_config,
-            add_solar=add_surface_solar,
-            add_nocturnal=add_surface_nocturnal,
-            add_radiation=add_surface_radiation,
-            radiation_exclude_glass=add_surface_radiation_exclude_glass,
-            layer_method=surface_layer_method,
+            add_solar=options.add_surface_solar,
+            add_nocturnal=options.add_surface_nocturnal,
+            add_radiation=options.add_surface_radiation,
+            radiation_exclude_glass=options.add_surface_radiation_exclude_glass,
+            layer_method=options.surface_layer_method,
             time_step=float(sim_config["index"]["timestep"]),
-            response_method=response_method,
-            response_terms=response_terms,
+            response_method=options.response_method,
+            response_terms=options.response_terms,
         )
         node_config.extend(add_nodes)
         thermal_config.extend(add_tb)
@@ -197,7 +70,7 @@ def _build_output_json(
         logger.exception("humidity_source の処理に失敗しました: %s", e)
         raise
 
-    if aircon_config and add_aircon:
+    if aircon_config and options.add_aircon:
         # 設定ノード(set)で calc_x/c=true の場合、aircon ノードにもフラグを引き継ぐ。
         # これをしないと aircon ノードの current_x/current_c が 0 固定になり、
         # 室内循環時に湿度・濃度が不自然に低下しうる。
@@ -225,14 +98,14 @@ def _build_output_json(
     elif aircon_config:
         logger.info("空調の処理をスキップします。")
 
-    if add_capacity:
+    if options.add_capacity:
         add_nodes, add_thermal_branches = process_capacities(node_config, sim_config["index"]["timestep"])
         node_config.extend(add_nodes)
         thermal_config.extend(add_thermal_branches)
     else:
         logger.info("熱容量の処理をスキップします。")
 
-    if add_moisture_capacity:
+    if options.add_moisture_capacity:
         add_nodes, add_thermal_branches = process_moisture_capacities(node_config, sim_config["index"]["timestep"])
         node_config.extend(add_nodes)
         thermal_config.extend(add_thermal_branches)
@@ -293,19 +166,7 @@ def _build_core(
     build_counts: tuple[int, int, int] | None = None  # (nodes, thermal_branches, ventilation_branches)
     try:
         raw = deepcopy(raw_config)
-        (
-            add_surface,
-            add_aircon,
-            add_capacity,
-            add_moisture_capacity,
-            add_surface_solar,
-            add_surface_nocturnal,
-            add_surface_radiation,
-            add_surface_radiation_exclude_glass,
-            surface_layer_method,
-            response_method,
-            response_terms,
-        ) = _resolve_builder_options(
+        options = BuildOptions.resolve(
             raw,
             add_surface=add_surface,
             add_aircon=add_aircon,
@@ -320,20 +181,7 @@ def _build_core(
             response_terms=response_terms,
         )
 
-        output_json = _build_output_json(
-            raw,
-            add_surface=add_surface,
-            add_aircon=add_aircon,
-            add_capacity=add_capacity,
-            add_moisture_capacity=add_moisture_capacity,
-            add_surface_solar=add_surface_solar,
-            add_surface_nocturnal=add_surface_nocturnal,
-            add_surface_radiation=add_surface_radiation,
-            add_surface_radiation_exclude_glass=add_surface_radiation_exclude_glass,
-            surface_layer_method=surface_layer_method,
-            response_method=response_method,
-            response_terms=response_terms,
-        )
+        output_json = _build_output_json(raw, options=options)
         build_counts = (
             len(output_json.get("nodes") or []),
             len(output_json.get("thermal_branches") or []),
@@ -494,5 +342,3 @@ def build_config(
         response_terms=response_terms,
     )
     return validated
-
-

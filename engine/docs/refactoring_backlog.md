@@ -60,11 +60,9 @@
 
 ## 2. Medium Priority（次段）
 
-### M1. `engine/app/builder/surfaces.py` の分割
+### M1. `engine/app/builder/surfaces.py` の分割 — **完了**
 
-- 課題: RC/応答係数/日射/放射が1ファイルに集中。
-- 方針: `surface_rc.py`, `surface_response.py`, `surface_radiation.py` に分割。
-- 受け入れ条件: 既存 builder 入力に対して出力差分ゼロ（順序差のみ許容）。
+- 実施: `surface_constants` / `surface_layers` / `surface_rc` / `surface_response` / `surface_solar` / `surface_radiation` に分割。`surfaces.py` は facade。
 
 ### M2. `solver_runner.py` の責務分離
 
@@ -72,12 +70,9 @@
 - 方針: `SolverInvocation` / `ArtifactWriter` / `InputCache` を分割。
 - 受け入れ条件: `run_solver` API互換、`test_solver_runner_*` 通過。
 
-### M3. builder オプションの dataclass 化
+### M3. builder オプションの dataclass 化 — **完了**
 
-- 対象: `engine/app/builder/builder.py`, `engine/app/main.py`
-- 課題: 同一オプション群の引数が重複し、追加時の修正漏れが起きやすい。
-- 方針: `BuildOptions` dataclass を導入し内部経路を統一。
-- 受け入れ条件: `/run` の既存リクエスト仕様は据え置き。
+- 実施: `engine/app/builder/build_options.py` の `BuildOptions.resolve()`。公開 `build_config*` シグネチャは維持。
 
 ## 3. Low Priority（余力時）
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .logger import get_logger
-from .surfaces import _scalar_initial_temperature
+from .surface_layers import _scalar_initial_temperature
 
 logger = get_logger(__name__)
 

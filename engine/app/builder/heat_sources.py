@@ -5,8 +5,9 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 
 from .logger import get_logger
+from .surface_constants import DEFAULT_ETA_LW
+from .surface_radiation import collect_room_side_surfaces
 from .utils import convert_to_json_compatible, series_summary_for_log
-from .surfaces import DEFAULT_ETA_LW, collect_room_side_surfaces
 from .validate import ConfigFileError
 
 logger = get_logger(__name__)
