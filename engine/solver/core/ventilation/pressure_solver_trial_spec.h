@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "../../types/common_types.h"
+#include "core/ventilation/pressure_balance.h"
 
 namespace ventilation {
 
@@ -18,12 +19,23 @@ struct SolverTrialSpec {
     std::function<void(ceres::Solver::Options&, const SimulationConstants&)> configure;
 };
 
+// Ceres 停止条件は相対値。ventilationTolerance（体積流量収支 [m³/s]）とは分離する。
+inline void applyCeresStopTolerances(ceres::Solver::Options& o,
+                                     const SimulationConstants& c,
+                                     double functionScale = 1.0,
+                                     double parameterScale = 1.0,
+                                     double gradientScale = 1.0) {
+    const auto t = makePressureSolverTolerances(c);
+    o.function_tolerance = t.ceresFunctionRelative * functionScale;
+    o.parameter_tolerance = t.ceresParameter * parameterScale;
+    o.gradient_tolerance = t.ceresGradient * gradientScale;
+}
+
 inline void configureStandardLmQr(ceres::Solver::Options& o, const SimulationConstants& c) {
     o.linear_solver_type = ceres::DENSE_QR;
     o.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
     o.max_num_iterations = static_cast<int>(c.maxInnerIterations);
-    o.function_tolerance = c.ventilationTolerance;
-    o.parameter_tolerance = c.ventilationTolerance;
+    applyCeresStopTolerances(o, c);
     o.minimizer_progress_to_stdout = false;
 }
 
@@ -31,9 +43,9 @@ inline void configureRobustDoglegQr(ceres::Solver::Options& o, const SimulationC
     o.trust_region_strategy_type = ceres::DOGLEG;
     o.linear_solver_type = ceres::DENSE_QR;
     o.max_num_iterations = std::max(500, static_cast<int>(c.maxInnerIterations * 2));
-    o.function_tolerance = c.ventilationTolerance * 0.01;
-    o.parameter_tolerance = c.ventilationTolerance * 0.01;
-    o.gradient_tolerance = c.ventilationTolerance * 0.1;
+    // 堅牢試行は反復・トラスト領域を広げるが、停止条件の次元は Ceres 相対のまま。
+    applyCeresStopTolerances(o, c, /*functionScale=*/10.0, /*parameterScale=*/10.0,
+                             /*gradientScale=*/10.0);
     o.jacobi_scaling = true;
     o.use_inner_iterations = true;
     o.max_trust_region_radius = 1e4;
@@ -45,9 +57,7 @@ inline void configureDoglegDenseSchur(ceres::Solver::Options& o, const Simulatio
     o.trust_region_strategy_type = ceres::DOGLEG;
     o.linear_solver_type = ceres::DENSE_SCHUR;
     o.max_num_iterations = 500;
-    o.function_tolerance = c.ventilationTolerance * 0.01;
-    o.parameter_tolerance = c.ventilationTolerance * 0.01;
-    o.gradient_tolerance = c.ventilationTolerance * 0.1;
+    applyCeresStopTolerances(o, c, 10.0, 10.0, 10.0);
     o.jacobi_scaling = true;
     o.use_inner_iterations = true;
     o.max_trust_region_radius = 1e4;
@@ -59,9 +69,7 @@ inline void configureDoglegSparseCholesky(ceres::Solver::Options& o, const Simul
     o.trust_region_strategy_type = ceres::DOGLEG;
     o.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
     o.max_num_iterations = 1000;
-    o.function_tolerance = c.ventilationTolerance * 0.001;
-    o.parameter_tolerance = c.ventilationTolerance * 0.001;
-    o.gradient_tolerance = c.ventilationTolerance * 0.01;
+    applyCeresStopTolerances(o, c, 100.0, 100.0, 100.0);
     o.jacobi_scaling = true;
     o.use_inner_iterations = true;
     o.inner_iteration_tolerance = 1e-8;
@@ -75,9 +83,7 @@ inline void configureLineSearchLbfgs(ceres::Solver::Options& o, const Simulation
     o.line_search_direction_type = ceres::LBFGS;
     o.line_search_type = ceres::WOLFE;
     o.max_num_iterations = 1000;
-    o.function_tolerance = c.ventilationTolerance;
-    o.parameter_tolerance = c.ventilationTolerance;
-    o.gradient_tolerance = c.ventilationTolerance * 10;
+    applyCeresStopTolerances(o, c, 1.0, 1.0, 10.0);
     o.jacobi_scaling = true;
     o.minimizer_progress_to_stdout = false;
 }

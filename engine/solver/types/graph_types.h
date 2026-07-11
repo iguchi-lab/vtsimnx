@@ -138,7 +138,9 @@ struct EdgeProperties {
     double a = 0.0;
     double n = 0.0;
     std::vector<double> vol;
-    double current_vol;
+    double current_vol = 0.0;
+    // JSON に vol が存在したか（スカラーでも配列でも true）。固定体積流量判定に使う。
+    bool has_prescribed_vol = false;
     double h_from = 0.0;
     double h_to = 0.0;
     double p_max = 0.0;

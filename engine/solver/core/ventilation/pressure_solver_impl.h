@@ -56,6 +56,12 @@ struct PressureSolver::Impl {
     void addFlowBalanceConstraints(const SolverSetup& setup, ceres::Problem& problem);
     // 圧力依存有効枝の連結成分ごとに、固定圧境界が無ければ soft anchor を1つ追加
     void addPressureGaugeAnchors(const SolverSetup& setup, ceres::Problem& problem);
+    void addPressureGaugeAnchors(const Graph& graph,
+                                 const std::vector<int>& vertexToParameterIndexVec,
+                                 const std::vector<double>& pressures,
+                                 const std::vector<std::vector<Edge>>* incidentEdgesByVertex,
+                                 ceres::Problem& problem,
+                                 double anchorWeight = 1.0);
     void runPrimarySolvers(const SimulationConstants& constants,
                            ceres::Problem& problem,
                            ceres::Solver::Summary& summary);

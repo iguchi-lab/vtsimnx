@@ -191,8 +191,10 @@ int main() {
         e.type = "simple_opening";
         e.alpha = 0.65;
         e.area = 1.0;
-        e.vol = {0.42};
+        e.has_prescribed_vol = true;
         e.current_vol = 0.42;
+        // 配列が空でも has_prescribed_vol だけで固定扱いになること
+        expectTrue(e.vol.empty(), "vol-specified: series may be empty");
         const double dp = 30.0;
         expectNear(FlowCalculation::calculateUnifiedFlow(dp, e), 0.42, 0.0, "vol-specified: Q == current_vol");
         expectNear(FlowJacobianCommon::calculateJacobian(dp, e), 0.0, 0.0, "vol-specified: dQ/dp == 0");

@@ -227,7 +227,11 @@ void testMakeTolerancesUsesVentilationTolerance() {
     const auto t = ventilation::makePressureSolverTolerances(c);
     expectNear(t.massBalanceMaxAbs, 3.5e-4, 0.0, "massBalanceMaxAbs from ventilationTolerance");
     expectNear(t.interfaceFlowMaxAbs, 3.5e-4, 0.0, "interfaceFlowMaxAbs from ventilationTolerance");
-    expectTrue(t.ceresFunctionRelative > 0.0, "ceres relative default");
+    expectNear(t.ceresFunctionRelative, 1e-12, 0.0, "ceres function relative default");
+    expectNear(t.ceresParameter, 1e-12, 0.0, "ceres parameter default");
+    expectNear(t.ceresGradient, 1e-10, 0.0, "ceres gradient default");
+    expectTrue(t.ceresFunctionRelative != t.massBalanceMaxAbs,
+               "ceres stop tol must differ from volume-flow acceptance");
 }
 
 } // namespace

@@ -189,6 +189,30 @@ int main() {
                      "fixed_flow without vol should throw");
     }
 
+    {
+        json cfg = {
+            {"simulation", {{"log", {{"verbosity", 0}}}}},
+            {"ventilation_branches",
+             json::array({{
+                 {"key", "V1"},
+                 {"type", "simple_opening"},
+                 {"source", "A"},
+                 {"target", "B"},
+                 {"alpha", 0.65},
+                 {"area", 1.0},
+                 {"vol", 0.42},
+             }})},
+        };
+        std::ostringstream logs;
+        const auto b = parseVentilationBranches(cfg, logs, 0);
+        expectTrue(b.size() == 1, "scalar vol branch parsed");
+        if (b.size() == 1) {
+            expectTrue(b[0].has_prescribed_vol, "scalar vol sets has_prescribed_vol");
+            expectNear(b[0].current_vol, 0.42, 0.0, "scalar vol current_vol");
+            expectTrue(!b[0].vol.empty(), "scalar vol stored as one-element series");
+        }
+    }
+
     // -----------------------------
     // thermal_branches: source/target 必須
     // -----------------------------

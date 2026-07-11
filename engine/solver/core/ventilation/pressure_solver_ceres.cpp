@@ -136,9 +136,8 @@ PressureSolver::Impl::TrialResult PressureSolver::Impl::runTwoStageRelaxation(
     options1.trust_region_strategy_type = ceres::DOGLEG;
     options1.linear_solver_type = ceres::DENSE_QR;
     options1.max_num_iterations = 200;
-    options1.function_tolerance = constants.ventilationTolerance * 10;
-    options1.parameter_tolerance = constants.ventilationTolerance * 10;
-    options1.gradient_tolerance = constants.ventilationTolerance;
+    ventilation::applyCeresStopTolerances(options1, constants, /*functionScale=*/100.0,
+                                          /*parameterScale=*/100.0, /*gradientScale=*/10.0);
     options1.jacobi_scaling = true;
     options1.minimizer_progress_to_stdout = false;
 
@@ -152,9 +151,7 @@ PressureSolver::Impl::TrialResult PressureSolver::Impl::runTwoStageRelaxation(
     options2.trust_region_strategy_type = ceres::DOGLEG;
     options2.linear_solver_type = ceres::DENSE_QR;
     options2.max_num_iterations = 1000;
-    options2.function_tolerance = constants.ventilationTolerance * 0.01;
-    options2.parameter_tolerance = constants.ventilationTolerance * 0.01;
-    options2.gradient_tolerance = constants.ventilationTolerance * 0.1;
+    ventilation::applyCeresStopTolerances(options2, constants);
     options2.jacobi_scaling = true;
     options2.use_inner_iterations = true;
     options2.minimizer_progress_to_stdout = false;
@@ -183,11 +180,10 @@ PressureSolver::Impl::TrialResult PressureSolver::Impl::runUltraPreciseTrial(
     options.linear_solver_type = ceres::DENSE_QR;
     options.max_num_iterations = 5000;
 
-    // tolFactor は Ceres 内部停止の緩和のみ。最終物理合否には使わない。
-    const double tolFactor = std::max(1.0, referenceCost / constants.ventilationTolerance * 0.1);
-    options.function_tolerance = constants.ventilationTolerance * tolFactor;
-    options.parameter_tolerance = constants.ventilationTolerance * tolFactor;
-    options.gradient_tolerance = constants.ventilationTolerance * tolFactor * 10;
+    // Ceres 相対停止のみを緩和。最終物理合否（ventilationTolerance）とは分離する。
+    const auto tols = ventilation::makePressureSolverTolerances(constants);
+    const double tolFactor = std::max(1.0, referenceCost / std::max(tols.massBalanceMaxAbs, 1e-30) * 0.1);
+    ventilation::applyCeresStopTolerances(options, constants, tolFactor, tolFactor, tolFactor * 10);
     options.jacobi_scaling = true;
     options.use_inner_iterations = true;
     options.inner_iteration_tolerance = 1e-12;
@@ -476,7 +472,7 @@ void PressureSolver::Impl::setupStageAProblem(
                                 ? (groupMean[gid] / static_cast<double>(groupCount[gid]))
                                 : 0.0;
             problemFB.AddResidualBlock(
-                PressureConstraints::createSoftAnchorConstraint(idx, target, 1e-9, parameterCount),
+                PressureConstraints::createSoftAnchorConstraint(idx, target, /*weight=*/1.0, parameterCount),
                 nullptr,
                 parameterData);
         }
@@ -591,15 +587,7 @@ bool PressureSolver::Impl::runStageBTrials(const SimulationConstants& constants,
     tryTrial("[B-⑥] Line Search方式でソルバーを再実行します",
              "[B-⑥] 収束 | residual=",
              [&](ceres::Solver::Options& o) {
-                 o.minimizer_type = ceres::LINE_SEARCH;
-                 o.line_search_direction_type = ceres::LBFGS;
-                 o.line_search_type = ceres::WOLFE;
-                 o.max_num_iterations = 1000;
-                 o.function_tolerance = constants.ventilationTolerance;
-                 o.parameter_tolerance = constants.ventilationTolerance;
-                 o.gradient_tolerance = constants.ventilationTolerance * 10;
-                 o.jacobi_scaling = true;
-                 o.minimizer_progress_to_stdout = false;
+                 ventilation::configureLineSearchLbfgs(o, constants);
              });
 
     if (!fbOK2) {

@@ -28,12 +28,13 @@ PressureSolver::Impl::StageBSolveResult PressureSolver::Impl::solveStageBFull(
         );
         problemFB2.AddResidualBlock(costFunction, nullptr, pressuresFBB.data());
     }
-    if (!nodeNamesFBB.empty()) {
-        problemFB2.AddResidualBlock(
-            PressureConstraints::createSoftAnchorConstraint(0, 0.0, 1e-9, pressuresFBB.size()),
-            nullptr,
-            pressuresFBB.data());
-    }
+    // Primary と同じ連結成分解析で、固定圧境界のない成分へゲージアンカーを付ける。
+    addPressureGaugeAnchors(g,
+                            result.setup.vertexToParamIndexVec,
+                            pressuresFBB,
+                            &partition.incidentEdgesByVertex,
+                            problemFB2,
+                            /*anchorWeight=*/1.0);
 
     result.ok = runStageBTrials(constants, problemFB2, result.summary, fallbackLog);
 

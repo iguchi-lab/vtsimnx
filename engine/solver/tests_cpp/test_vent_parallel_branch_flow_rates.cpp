@@ -128,7 +128,7 @@ int main() {
         volEdge.target = "B";
         volEdge.a = 0.05;
         volEdge.n = 1.0;
-        volEdge.vol = {0.3};
+        volEdge.has_prescribed_vol = true;
         volEdge.current_vol = 0.3;
         volEdge.current_enabled = true;
         net2.addEdge(volEdge);

@@ -119,11 +119,17 @@ static inline void validateVentilationBranchTypeParams(const json& branchJson,
         requireFiniteNumber(branchJson, "p1", prefix);
         requireFiniteNumber(branchJson, "q_max", prefix);
         requireFiniteNumber(branchJson, "q1", prefix);
+        if (!(branch.p_max > 0.0)) {
+            throw std::runtime_error(prefix + ": fan p_max must be > 0");
+        }
         if (!(branch.q_max >= 0.0) || !(branch.q1 >= 0.0)) {
             throw std::runtime_error(prefix + ": fan q_max/q1 must be >= 0");
         }
-        if (!(branch.p_max >= branch.p1)) {
-            throw std::runtime_error(prefix + ": fan requires p_max >= p1");
+        if (!(branch.p1 >= 0.0 && branch.p1 <= branch.p_max)) {
+            throw std::runtime_error(prefix + ": fan requires 0 <= p1 <= p_max");
+        }
+        if (!(branch.q1 <= branch.q_max)) {
+            throw std::runtime_error(prefix + ": fan requires 0 <= q1 <= q_max");
         }
         return;
     }
@@ -142,12 +148,17 @@ static inline void validateVentilationBranchTypeParams(const json& branchJson,
              branchJson["lambda"].get<double>() > 0.0);
         const bool hasGeom =
             branchJson.contains("length") && branchJson["length"].is_number() &&
+            branchJson["length"].get<double>() >= 0.0 &&
             branchJson.contains("diameter") && branchJson["diameter"].is_number() &&
             branchJson["diameter"].get<double>() > 0.0;
         if (!hasK && !(hasFormula && hasGeom)) {
             throw std::runtime_error(
                 prefix + ": pressure_loss requires positive k_total, or "
-                "friction_factor/lambda with length and positive diameter");
+                "friction_factor/lambda with length>=0 and positive diameter");
+        }
+        if (branchJson.contains("length") && branchJson["length"].is_number() &&
+            branchJson["length"].get<double>() < 0.0) {
+            throw std::runtime_error(parser_utils::makePath(prefix, "length") + " must be >= 0");
         }
         if (!hasK && branch.k_total <= 0.0) {
             // friction path may leave k_total 0 until solver computes; reject empty formula
@@ -237,12 +248,17 @@ std::vector<EdgeProperties> parseVentilationBranches(const json& config, std::os
 
         // 時系列（配列/単一両対応）
         if (branchJson.contains("vol")) {
+            branch.has_prescribed_vol = true;
             branch.current_vol = parser_utils::readScalarOrSeries<double>(
                 branchJson["vol"],
                 branch.vol,
                 static_cast<size_t>(timestep),
                 0.0,
                 branchPrefix + ".vol");
+            // スカラー指定でも固定流量判定できるよう、系列が空なら現在値を1要素で保持
+            if (branch.vol.empty()) {
+                branch.vol.push_back(branch.current_vol);
+            }
         }
         if (branchJson.contains("humidity_generation")) {
             branch.current_humidity_generation = parser_utils::readScalarOrSeries<double>(

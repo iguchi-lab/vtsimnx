@@ -101,10 +101,10 @@
 | `a` | 開口率 | number | - |
 | `n` | 隙間係数 | number | - |
 | `p_max` | 最大静圧 | number | Pa |
-| `q_max` | 最大風量 | number | m3/h |
+| `q_max` | 最大風量 | number | m3/h（builder 入力）→ solver JSON では m3/s |
 | `p1` | 点の静圧 | number | Pa |
-| `q1` | 点の風量 | number | m3/h |
-| `vol` | 風量 | number \| number[] | m3/h |
+| `q1` | 点の風量 | number | m3/h（builder 入力）→ solver JSON では m3/s |
+| `vol` | 風量 | number \| number[] | m3/h（builder 入力）→ solver JSON / C++ 内部は **m3/s** |
 | `k_total` | 圧損係数（合成） | number | `pressure_loss` 用 |
 | `friction_factor` | 摩擦係数 λ | number | `pressure_loss` 用 |
 | `length` | 要素長 | number | m, `pressure_loss` 用 |

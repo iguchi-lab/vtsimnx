@@ -104,7 +104,7 @@ SimulationConstants makeConstants() {
     SimulationConstants c{};
     c.timestep = 3600;
     c.length = 1;
-    // 体積流量収支。Ceres trial も同値を function_tolerance に使うため、過大に緩くしない。
+    // 体積流量収支の物理合否。Ceres 停止条件とは分離（ceresFunctionRelative 等）。
     c.ventilationTolerance = 1e-8;
     c.thermalTolerance = 1e-10;
     c.convergenceTolerance = 1e-10;
@@ -226,13 +226,13 @@ int main() {
 
             PressureSolver solver(vent, logs);
             auto result = solver.solveDetailed(constants);
-            // 複数ゲージ成分では小差圧線形化で maxAbs が 1e-8 をわずかに超えることがある。
-            // ゲージ固定と成分内等圧は必須条件として検証する。
+            expectTrue(result.accepted, "multi closed components accepted");
+            expectTrue(result.metrics.maxAbs <= constants.ventilationTolerance,
+                       "multi closed components: maxAbs within ventilationTolerance");
             expectNear(result.pressures.at("A1"), result.pressures.at("B1"), 1e-4, "comp1 equalize");
             expectNear(result.pressures.at("A2"), result.pressures.at("B2"), 1e-4, "comp2 equalize");
             expectNear(result.pressures.at("A1"), 5.0, 1e-3, "comp1 gauge near A1 init");
             expectNear(result.pressures.at("A2"), -8.0, 1e-3, "comp2 gauge near A2 init");
-            expectTrue(result.metrics.maxAbs < 1e-4, "multi closed components: volume balance bounded");
         }
 
         // ------------------------------------------------------------------
