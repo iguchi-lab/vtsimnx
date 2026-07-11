@@ -116,7 +116,7 @@ def test_run_calc_poll_success():
         out = vt.run_calc(
             base,
             {"simulation": {"index": {"length": 1, "timestep": 1}}},
-            with_dataframes=False,
+            as_result=False,
             compress_request=False,
             poll_interval=0.05,
             timeout=5.0,
@@ -140,7 +140,7 @@ def test_run_calc_poll_failed():
             vt.run_calc(
                 base,
                 {"simulation": {"index": {"length": 1, "timestep": 1}}},
-                with_dataframes=False,
+                as_result=False,
                 compress_request=False,
                 poll_interval=0.05,
                 timeout=5.0,
@@ -162,7 +162,7 @@ def test_run_calc_poll_timeout():
             vt.run_calc(
                 base,
                 {"simulation": {"index": {"length": 1, "timestep": 1}}},
-                with_dataframes=False,
+                as_result=False,
                 compress_request=False,
                 poll_interval=0.05,
                 timeout=0.2,

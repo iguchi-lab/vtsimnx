@@ -50,7 +50,7 @@ def test_run_calc_serializes_pandas_series():
             "nodes": [{"key": "外部", "t": s}],
         }
 
-        _ = vt.run_calc(base_url, cfg, output_path=None, with_dataframes=False, compress_request=False,
+        _ = vt.run_calc(base_url, cfg, output_path=None, as_result=False, compress_request=False,
                 use_legacy_run=True)
 
         assert isinstance(_State.received, dict)
@@ -77,7 +77,7 @@ def test_run_calc_does_not_mutate_input_config():
             "nodes": [{"key": "外部", "t": pd.Series([1.0, 2.0, None])}],
         }
 
-        _ = vt.run_calc(base_url, cfg, output_path=None, with_dataframes=False, compress_request=False,
+        _ = vt.run_calc(base_url, cfg, output_path=None, as_result=False, compress_request=False,
                 use_legacy_run=True)
 
         # run_calc 実行後も、呼び出し側の simulation.index は DatetimeIndex のまま
@@ -101,7 +101,7 @@ def test_run_calc_default_does_not_write_output_file(tmp_path, monkeypatch):
             "nodes": [{"key": "外部", "t": pd.Series([1.0, 2.0, None])}],
         }
 
-        _ = vt.run_calc(base_url, cfg, with_dataframes=False, compress_request=False,
+        _ = vt.run_calc(base_url, cfg, as_result=False, compress_request=False,
                 use_legacy_run=True)
         assert not (tmp_path / "calc_result.json").exists()
     finally:

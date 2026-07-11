@@ -121,7 +121,7 @@ def test_run_calc_get_series_df_prefers_output_index():
                 }
             },
             output_path=None,
-            with_dataframes=True,
+            as_result=True,
             compress_request=False,  # このスタブはgzipを解凍しない,
                 use_legacy_run=True)
 

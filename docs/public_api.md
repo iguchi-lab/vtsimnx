@@ -15,13 +15,22 @@
 
 | 記号 | 戻り値 / 備考 |
 |---|---|
-| `run_calc` | `CalcRunResult` |
-| `CalcRunResult` | 実行結果コンテナ |
+| `run_calc` | 既定で `CalcRunResult`（`as_result=True`）。`as_result=False` で生 dict |
+| `CalcRunResult` | 遅延ロード結果コンテナ（`raise_on_error` 可） |
 | `RunCalcAPIError` | API エラー |
 | `get_artifact_file` | `Path` / bytes / DataFrame（`.f32.bin` は DataFrame） |
 | `get_artifact_bytes` | `bytes` |
 | `__version__` / `get_version` | `str`（正本は `pyproject.toml`） |
 | `units` | 単位定数モジュール |
+
+`run_calc` の戻り値モード:
+
+| 引数 | 意味 |
+|---|---|
+| `as_result=True`（推奨・既定） | `CalcRunResult`（DataFrame は遅延ロード） |
+| `as_result=False` | API レスポンス dict |
+| `with_dataframes=...` | `as_result` の旧別名（`DeprecationWarning`） |
+| `raise_on_error=True` | 系列/ログ取得失敗を例外にする（既定は `errors` に記録して `None`） |
 
 成果物まわりの追加 stable（`vtsimnx.artifacts` から）:
 

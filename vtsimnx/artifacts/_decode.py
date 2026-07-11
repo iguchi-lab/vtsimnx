@@ -37,6 +37,40 @@ def validate_f32_schema(schema: Dict[str, Any]) -> int:
     return T
 
 
+def build_time_index(
+    index_spec: Dict[str, Any],
+    *,
+    expected_length: int,
+) -> Optional[pd.DatetimeIndex]:
+    """
+    index_spec（start/timestep/length）から DatetimeIndex を復元する。
+
+    expected_length と length が一致しない場合、または必須フィールドが不正な場合は None。
+    run_calc / artifacts の共通正本。
+    """
+    start = index_spec.get("start")
+    timestep = index_spec.get("timestep")
+    length = index_spec.get("length")
+    if not isinstance(start, str) or not start:
+        return None
+    if not isinstance(timestep, int) or timestep < 0:
+        return None
+    if not isinstance(length, int) or length <= 0:
+        return None
+    if length != int(expected_length):
+        return None
+
+    start_ts = pd.to_datetime(start)
+    if timestep == 0:
+        idx = pd.DatetimeIndex([start_ts] * length)
+    else:
+        idx = pd.date_range(
+            start=start_ts, periods=length, freq=pd.to_timedelta(timestep, unit="s")
+        )
+    idx.name = "time"
+    return idx
+
+
 def apply_time_index(
     df: pd.DataFrame,
     index_spec: Dict[str, Any],
@@ -44,22 +78,10 @@ def apply_time_index(
     expected_length: int,
 ) -> None:
     """index_spec（start/timestep/length）に基づいて df.index を time 軸にする。"""
-    start = index_spec.get("start")
-    timestep = index_spec.get("timestep")
-    length = index_spec.get("length")
-    if not (isinstance(start, str) and isinstance(timestep, int) and isinstance(length, int)):
+    idx = build_time_index(index_spec, expected_length=expected_length)
+    if idx is None:
         return
-    if length != expected_length:
-        return
-
-    start_ts = pd.to_datetime(start)
-    if timestep == 0:
-        df.index = pd.DatetimeIndex([start_ts] * expected_length)
-    else:
-        df.index = pd.date_range(
-            start=start_ts, periods=expected_length, freq=pd.to_timedelta(timestep, unit="s")
-        )
-    df.index.name = "time"
+    df.index = idx
 
 
 def attach_series_units(df: pd.DataFrame, series_name: str) -> None:
@@ -117,6 +139,7 @@ def decode_f32_series(
 __all__ = [
     "load_json_bytes",
     "validate_f32_schema",
+    "build_time_index",
     "apply_time_index",
     "attach_series_units",
     "decode_f32_series",

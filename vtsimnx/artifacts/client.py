@@ -38,6 +38,16 @@ class ArtifactClient:
         self._manifest = None
         self._schema = None
 
+    def seed_manifest(self, manifest: Union[Dict[str, Any], NormalizedManifest]) -> NormalizedManifest:
+        """
+        既知の manifest / run レスポンスでキャッシュを埋める（追加の manifest GET を避ける）。
+        """
+        if isinstance(manifest, NormalizedManifest):
+            self._manifest = manifest
+        else:
+            self._manifest = NormalizedManifest.from_dict(manifest)
+        return self._manifest
+
     def get_manifest(self, *, refresh: bool = False) -> NormalizedManifest:
         if self._manifest is None or refresh:
             self._manifest = fetch_normalized_manifest(

@@ -7,8 +7,7 @@ from typing import Any, Dict, Optional
 
 import requests
 
-
-API_KEY_HEADER = "X-API-Key"
+from vtsimnx._http_auth import API_KEY_HEADER, api_key_headers as _api_key_headers
 
 
 class RunCalcAPIError(RuntimeError):
@@ -28,13 +27,6 @@ class RunCalcAPIError(RuntimeError):
         self.status_code = status_code
         self.detail = detail
         self.response = response
-
-
-def _api_key_headers(api_key: Optional[str]) -> Dict[str, str]:
-    key = (api_key or "").strip()
-    if not key:
-        return {}
-    return {API_KEY_HEADER: key}
 
 
 def _format_http_error(resp: requests.Response, *, endpoint: str = "/runs") -> RunCalcAPIError:

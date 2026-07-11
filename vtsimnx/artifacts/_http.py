@@ -6,7 +6,7 @@ from typing import Any, Dict, Optional
 
 import requests
 
-from vtsimnx.run_calc._http import _api_key_headers
+from vtsimnx._http_auth import api_key_headers
 
 from .errors import ArtifactHTTPError
 from ._schema import NormalizedManifest
@@ -21,7 +21,7 @@ def resolve_api_key(api_key: Optional[str]) -> Optional[str]:
 
 
 def headers(api_key: Optional[str]) -> Dict[str, str]:
-    return _api_key_headers(resolve_api_key(api_key))
+    return api_key_headers(resolve_api_key(api_key))
 
 
 def fetch_manifest(

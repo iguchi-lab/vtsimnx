@@ -26,7 +26,7 @@ def main() -> int:
         }
     }
     try:
-        result = vt.run_calc(args.base_url, config_json, with_dataframes=True)
+        result = vt.run_calc(args.base_url, config_json, as_result=True)
     except Exception as e:
         print(f"run_calc 実行に失敗しました: {type(e).__name__}: {e}", file=sys.stderr)
         return 1

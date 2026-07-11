@@ -1,15 +1,19 @@
 """
 materials パッケージ（窓口）。
 
-`vtsimnx.materials` は「材料物性テーブル（dict）」として公開する。
+`vtsimnx.materials` は「材料物性テーブル（読み取り専用 Mapping）」として公開する。
 既存の table 定義をベースに、materials 配下の CSV（旧/新フォーマット）を
 読める場合は追加マージする。
+
+カスタム材料を足す場合は ``copy_materials()`` または ``get_material()`` で
+可変なコピーを取得してから編集する。
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Dict, Any
+from types import MappingProxyType
+from typing import Any, Dict, Mapping
 
 import pandas as pd
 
@@ -93,12 +97,39 @@ def _load_materials_from_csv() -> Dict[str, Dict[str, float]]:
     return csv_materials
 
 
-# CSV を取り込んだ上で table を後勝ちにし、table.py を優先
-materials: Dict[str, Dict[str, float]] = {
-    **_load_materials_from_csv(),
-    **_table_materials,
-}
+def _freeze_materials(raw: Dict[str, Dict[str, float]]) -> MappingProxyType:
+    frozen_rows = {
+        name: MappingProxyType({"lambda": float(props["lambda"]), "v_capa": float(props["v_capa"])})
+        for name, props in raw.items()
+    }
+    return MappingProxyType(frozen_rows)
 
-__all__ = ["materials"]
+
+# CSV を取り込んだ上で table を後勝ちにし、table.py を優先。公開面は読み取り専用。
+materials: Mapping[str, Mapping[str, float]] = _freeze_materials(
+    {
+        **_load_materials_from_csv(),
+        **_table_materials,
+    }
+)
 
 
+def get_material(name: str) -> Dict[str, float]:
+    """
+    材料名の物性を可変 dict で返す（``lambda`` [W/(m·K)], ``v_capa`` [J/(m³·K)]）。
+
+    公開 ``materials`` は読み取り専用のため、編集や ``**`` 展開前のコピー取得に使う。
+    """
+    try:
+        props = materials[name]
+    except KeyError as e:
+        raise KeyError(f"unknown material: {name!r}") from e
+    return {"lambda": float(props["lambda"]), "v_capa": float(props["v_capa"])}
+
+
+def copy_materials() -> Dict[str, Dict[str, float]]:
+    """公開テーブル全体の可変ディープコピーを返す（カスタム材料の追加用）。"""
+    return {name: get_material(name) for name in materials}
+
+
+__all__ = ["materials", "get_material", "copy_materials"]

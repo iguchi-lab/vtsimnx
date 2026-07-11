@@ -55,7 +55,7 @@ def test_run_calc_writes_request_json(tmp_path):
             base_url,
             cfg,
             output_path=None,
-            with_dataframes=False,
+            as_result=False,
             compress_request=False,
             request_output_path=req_path,
                 use_legacy_run=True)

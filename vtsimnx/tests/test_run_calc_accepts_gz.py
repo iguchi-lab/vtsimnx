@@ -46,7 +46,7 @@ def test_run_calc_accepts_json_gz(tmp_path):
 
     try:
         base_url = f"http://127.0.0.1:{port}"
-        _ = vt.run_calc(base_url, p, output_path=None, with_dataframes=False, compress_request=False,
+        _ = vt.run_calc(base_url, p, output_path=None, as_result=False, compress_request=False,
                 use_legacy_run=True)
 
         assert isinstance(_State.received, dict)

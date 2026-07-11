@@ -1,6 +1,6 @@
 import pandas as pd
 
-from vtsimnx.run_calc.run_calc import _time_index_from_config, _time_index_from_output
+from vtsimnx.run_calc._index import _time_index_from_config, _time_index_from_output
 
 
 def test_time_index_from_config_builds_datetimeindex():

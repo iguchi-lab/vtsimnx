@@ -182,7 +182,7 @@ def test_run_calc_with_dataframes_is_lazy():
             base_url,
             {"simulation": {"index": {"length": 2, "timestep": 1}}},
             output_path=None,
-            with_dataframes=True,
+            as_result=True,
             compress_request=False,  # このスタブはgzipを解凍しない,
                 use_legacy_run=True)
 
@@ -239,7 +239,7 @@ def test_run_calc_with_dataframes_raises_original_error_message():
                 base_url,
                 {"simulation": {"index": {"length": 2, "timestep": 1}}},
                 output_path=None,
-                with_dataframes=True,
+                as_result=True,
                 compress_request=False,
                 use_legacy_run=True)
     finally:

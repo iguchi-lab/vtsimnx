@@ -47,7 +47,7 @@ def test_run_calc_sends_api_key_header():
         _ = vt.run_calc(
             base_url,
             cfg,
-            with_dataframes=False,
+            as_result=False,
             compress_request=False,
             api_key="my-secret",
                 use_legacy_run=True)
@@ -67,7 +67,7 @@ def test_run_calc_reads_api_key_from_env(monkeypatch):
     try:
         base_url = f"http://127.0.0.1:{port}"
         cfg = {"simulation": {"index": {"length": 2, "timestep": 1}}}
-        _ = vt.run_calc(base_url, cfg, with_dataframes=False, compress_request=False,
+        _ = vt.run_calc(base_url, cfg, as_result=False, compress_request=False,
                 use_legacy_run=True)
         assert _State.api_key == "env-secret"
     finally:

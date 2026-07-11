@@ -47,46 +47,48 @@ layers = {
 ここでは:
 
 - `t`: 各層の厚さ [m]
-- `materials[...]`: 物性（λ, ρ, c 等）が dict で展開される
+- `materials[...]`: 物性（`lambda`, `v_capa`）が Mapping で展開される
 
-`vt.materials` の 1 要素は、概ね次のような内容です（例: 合板）。
+`vt.materials` の 1 要素は次の内容です（例: 合板）。
 
 ```python
 import vtsimnx as vt
 
 name = "合板"
-print(name, vt.materials[name])
-# 出力イメージ:
-# 合板 {'lambda': 0.13, 'rho': 550.0, 'cp': 1210.0, ...}
+print(name, dict(vt.materials[name]))
+# 合板 {'lambda': 0.16, 'v_capa': 715806.0}
 ```
 
-典型的なキー:
+公開キー:
 
-- `lambda` または `k`: 熱伝導率 [W/(m·K)]
-- `rho`: 密度 [kg/m³]
-- `cp`: 比熱 [J/(kg·K)]
-- 必要に応じて放射率・比透過率など（モデルが参照する分だけ）
+- `lambda`: 熱伝導率 [W/(m·K)]
+- `v_capa`: 体積熱容量 [J/(m³·K)]
 
 **カスタム材料を作りたい場合**:
 
 ```python
-import copy
 import vtsimnx as vt
+from vtsimnx.materials import copy_materials, get_material
 
-materials = copy.deepcopy(vt.materials)
+# テーブル全体を可変コピーして追加する（推奨）
+materials = copy_materials()
 materials["自作断熱材"] = {
-    "lambda": 0.030,   # W/mK
-    "rho": 30.0,       # kg/m3
-    "cp": 1400.0,      # J/kgK
+    "lambda": 0.030,   # W/(m·K)
+    "v_capa": 42000.0, # J/(m³·K)
 }
+
+# 1材料だけコピーする場合
+gypsum = get_material("せっこうボード")
 
 layers["外壁_自作断熱"] = [
     {"key": "自作断熱材", **materials["自作断熱材"], "t": 0.100},
-    {"key": "せっこうボード", **materials["せっこうボード"], "t": 0.0125},
+    {"key": "せっこうボード", **gypsum, "t": 0.0125},
 ]
 ```
 
-- ライブラリ同梱の `vt.materials` を直接書き換えるより、上記のように **ローカルコピー (`materials`) を作って上書きする** と安全です。
+- `vt.materials` は読み取り専用（`MappingProxyType`）です。直接の代入・書き換えはできません。
+- カスタム材料は `copy_materials()` / `get_material()` で可変コピーを取ってから編集してください。
+- 公開物性は `lambda` [W/(m·K)] と `v_capa` [J/(m³·K)] です。
 - 厚さ `t` の単位は常に **メートル [m]** で揃えてください（cm ではない点に注意）。 例: 12mm → `0.012`。
 
 #### 2.2 表面カタログ `surface`（部位ごとのテンプレート）

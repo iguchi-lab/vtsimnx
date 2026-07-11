@@ -5,30 +5,30 @@ from typing import Any, Dict, Optional
 import numpy as np
 import pandas as pd
 
+from vtsimnx.artifacts._decode import build_time_index
+
 from ._response import _output_block
 
 
-def _time_index_from_spec(spec: Dict[str, Any], *, expected_length: int) -> Optional[pd.DatetimeIndex]:
-    """
-    index spec dict（start/end/timestep/length）から DatetimeIndex を復元する。
-    expected_length と length が一致しない場合は None。
-    """
-    start = spec.get("start")
-    timestep = spec.get("timestep")
-    length = spec.get("length")
-    if not isinstance(start, str) or not start:
+def _index_spec_from_config(config: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    if not isinstance(config, dict):
         return None
-    if not isinstance(timestep, int) or timestep < 0:
+    sim = config.get("simulation")
+    if not isinstance(sim, dict):
         return None
-    if not isinstance(length, int) or length <= 0:
-        return None
-    if length != int(expected_length):
-        return None
+    spec = sim.get("index")
+    return spec if isinstance(spec, dict) else None
 
-    start_ts = pd.to_datetime(start)
-    if timestep == 0:
-        return pd.DatetimeIndex([start_ts] * length)
-    return pd.date_range(start=start_ts, periods=length, freq=pd.to_timedelta(timestep, unit="s"))
+
+def _index_spec_from_output(resp_json: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    output = _output_block(resp_json)
+    spec = output.get("index")
+    return spec if isinstance(spec, dict) else None
+
+
+def _time_index_from_spec(spec: Dict[str, Any], *, expected_length: int) -> Optional[pd.DatetimeIndex]:
+    """index spec dict から DatetimeIndex を復元（正本は artifacts.build_time_index）。"""
+    return build_time_index(spec, expected_length=expected_length)
 
 
 def _time_index_from_config(config: Optional[Dict[str, Any]], *, expected_length: int) -> Optional[pd.DatetimeIndex]:
@@ -36,15 +36,10 @@ def _time_index_from_config(config: Optional[Dict[str, Any]], *, expected_length
     config["simulation"]["index"] が dict（start/end/timestep/length）なら DatetimeIndex を復元する。
     expected_length と length が一致しない場合は None。
     """
-    if not isinstance(config, dict):
+    spec = _index_spec_from_config(config)
+    if spec is None:
         return None
-    sim = config.get("simulation")
-    if not isinstance(sim, dict):
-        return None
-    spec = sim.get("index")
-    if not isinstance(spec, dict):
-        return None
-    return _time_index_from_spec(spec, expected_length=expected_length)
+    return build_time_index(spec, expected_length=expected_length)
 
 
 def _time_index_from_output(resp_json: Dict[str, Any], *, expected_length: int) -> Optional[pd.DatetimeIndex]:
@@ -52,11 +47,25 @@ def _time_index_from_output(resp_json: Dict[str, Any], *, expected_length: int) 
     APIレスポンス（/runのJSON）に含まれる output.index から DatetimeIndex を復元する。
     expected_length と length が一致しない場合は None。
     """
-    output = _output_block(resp_json)
-    spec = output.get("index")
-    if not isinstance(spec, dict):
+    spec = _index_spec_from_output(resp_json)
+    if spec is None:
         return None
-    return _time_index_from_spec(spec, expected_length=expected_length)
+    return build_time_index(spec, expected_length=expected_length)
+
+
+def _pick_index_spec(
+    resp_json: Dict[str, Any],
+    config: Optional[Dict[str, Any]],
+    *,
+    expected_length: int,
+) -> Optional[Dict[str, Any]]:
+    """output.index を優先し、長さ不一致なら config の index へフォールバック。"""
+    for spec in (_index_spec_from_output(resp_json), _index_spec_from_config(config)):
+        if spec is None:
+            continue
+        if build_time_index(spec, expected_length=expected_length) is not None:
+            return spec
+    return None
 
 
 def _normalize_simulation_index_inplace(cfg: Dict[str, Any]) -> None:
@@ -115,8 +124,9 @@ def _normalize_simulation_index_inplace(cfg: Dict[str, Any]) -> None:
 
 __all__ = [
     "_normalize_simulation_index_inplace",
+    "_pick_index_spec",
+    "_index_spec_from_config",
+    "_index_spec_from_output",
     "_time_index_from_config",
     "_time_index_from_output",
 ]
-
-

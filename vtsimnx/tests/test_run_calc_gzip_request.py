@@ -48,7 +48,7 @@ def test_run_calc_compress_request_gzip():
     try:
         base_url = f"http://127.0.0.1:{port}"
         cfg = {"simulation": {"index": {"length": 2, "timestep": 1}}}
-        _ = vt.run_calc(base_url, cfg, output_path=None, with_dataframes=False, compress_request=True,
+        _ = vt.run_calc(base_url, cfg, output_path=None, as_result=False, compress_request=True,
                 use_legacy_run=True)
 
         assert _State.content_encoding == "gzip"

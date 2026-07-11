@@ -60,7 +60,7 @@ def test_run_calc_raises_readable_api_error_on_400():
             vt.run_calc(
                 f"http://127.0.0.1:{port}",
                 {"simulation": {"index": {"length": 1, "timestep": 1}}},
-                with_dataframes=False,
+                as_result=False,
                 compress_request=False,
                 use_legacy_run=True)
         assert e.value.status_code == 400

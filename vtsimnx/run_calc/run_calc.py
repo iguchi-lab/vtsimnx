@@ -2,19 +2,20 @@ import json
 import copy
 import os
 import time
+import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-import numpy as np
 import pandas as pd
 
+from vtsimnx.artifacts import ArtifactClient, decode_f32_series
 from vtsimnx.artifacts._schema import extract_manifest_error, extract_result_files
+from vtsimnx.artifacts.errors import ArtifactError, ArtifactNotFound
 from vtsimnx.run_calc._http import RunCalcAPIError, _post_run, _submit_and_wait
 from vtsimnx.run_calc._index import (
     _normalize_simulation_index_inplace,
-    _time_index_from_config,
-    _time_index_from_output,
+    _pick_index_spec,
 )
 from vtsimnx.run_calc._io import _write_json
 from vtsimnx.run_calc._response import _output_block
@@ -23,19 +24,56 @@ from vtsimnx.utils.jsonable import to_jsonable
 __all__ = ["CalcRunResult", "RunCalcAPIError", "run_calc"]
 
 
+def _resolve_as_result(
+    *,
+    as_result: Optional[bool],
+    with_dataframes: Optional[bool],
+) -> bool:
+    """
+    戻り値モードを解決する。
+
+    - 推奨: ``as_result``（True なら CalcRunResult、False なら生 dict）
+    - ``with_dataframes`` は旧別名（DeprecationWarning）
+    """
+    if as_result is not None and with_dataframes is not None:
+        if bool(as_result) != bool(with_dataframes):
+            raise ValueError(
+                "as_result と with_dataframes の値が一致しません "
+                f"(as_result={as_result!r}, with_dataframes={with_dataframes!r})"
+            )
+        warnings.warn(
+            "with_dataframes は非推奨です。as_result を使ってください "
+            "(True=CalcRunResult, False=生のレスポンス dict)。",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        return bool(as_result)
+    if as_result is not None:
+        return bool(as_result)
+    if with_dataframes is not None:
+        warnings.warn(
+            "with_dataframes は非推奨です。as_result を使ってください "
+            "(True=CalcRunResult, False=生のレスポンス dict)。"
+            " なお with_dataframes=True でも DataFrame は遅延ロードです。",
+            DeprecationWarning,
+            stacklevel=3,
+        )
+        return bool(with_dataframes)
+    return True
+
+
 @dataclass
 class CalcRunResult:
     """
-    run_calc(with_dataframes=True) の戻り値。
+    run_calc(as_result=True) の戻り値。
 
-    以前は run_calc() 内で全系列を DataFrame 化していましたが、
-    大量のHTTP GET / 復元コストがかかるため、現在は「必要になったときだけ」
-    DataFrame を取得・復元する（遅延ロード）方式にしています。
+    系列 DataFrame は必要になったときだけ取得・復元する（遅延ロード）。
 
-    - output: /run のレスポンス（manifest相当のJSON）
+    - output: /run または /runs/.../result のレスポンス（manifest相当のJSON）
     - artifact_dir: 成果物ディレクトリ名
     - base_url: APIベースURL
     - result_files: series_name -> filename（*.f32.bin 等）
+    - raise_on_error: True なら系列/ログ取得失敗時に例外を再送出（既定は errors に記録して None）
     """
 
     output: Dict[str, Any]
@@ -45,23 +83,38 @@ class CalcRunResult:
     # 送信した設定（クライアント側）。indexの復元などに使う
     config: Optional[Dict[str, Any]] = field(default=None, repr=False)
     api_key: Optional[str] = field(default=None, repr=False)
+    raise_on_error: bool = False
     errors: Dict[str, str] = field(default_factory=dict)
     _dataframes: Dict[str, pd.DataFrame] = field(default_factory=dict, repr=False)
     _log_text: Optional[str] = field(default=None, repr=False)
-    _schema: Optional[Dict[str, Any]] = field(default=None, repr=False)
-    _artifact_client: Any = field(default=None, repr=False)
+    _artifact_client: Optional[ArtifactClient] = field(default=None, repr=False)
     client_profile: Dict[str, Any] = field(default_factory=dict)
     _series_profiles: Dict[str, Dict[str, Any]] = field(default_factory=dict, repr=False)
     _log_profile: Dict[str, Any] = field(default_factory=dict, repr=False)
 
-    def _get_artifact_client(self):
+    def _get_artifact_client(self) -> ArtifactClient:
         if self._artifact_client is None:
-            from vtsimnx.artifacts import ArtifactClient
-
-            self._artifact_client = ArtifactClient(
+            client = ArtifactClient(
                 self.base_url, self.artifact_dir, api_key=self.api_key
             )
+            # /runs レスポンスを seed し、追加の manifest GET を避ける
+            client.seed_manifest(self.output)
+            self._artifact_client = client
         return self._artifact_client
+
+    def _want_raise(self, raise_on_error: Optional[bool]) -> bool:
+        return self.raise_on_error if raise_on_error is None else bool(raise_on_error)
+
+    def _handle_fetch_error(
+        self,
+        key: str,
+        exc: BaseException,
+        *,
+        raise_on_error: Optional[bool],
+    ) -> None:
+        self.errors[key] = f"{type(exc).__name__}: {exc}"
+        if self._want_raise(raise_on_error):
+            raise exc
 
     @property
     def dataframes(self) -> Dict[str, pd.DataFrame]:
@@ -148,12 +201,13 @@ class CalcRunResult:
             },
         }
 
-    def get_log_text(self) -> Optional[str]:
+    def get_log_text(self, *, raise_on_error: Optional[bool] = None) -> Optional[str]:
         """
         solver.log などのログ本文を返す（必要なら取得）。
 
         - /runレスポンスに log.text が埋まっている場合はそれを使う（HTTP GET不要）
-        - 無い場合は log_file を見て get_artifact_file() で取得する
+        - 無い場合は log_file を見て ArtifactClient で取得する
+        - 失敗時は既定で errors['__log__'] に記録して None。raise_on_error=True なら例外
         """
         if self._log_text is not None:
             return self._log_text
@@ -173,14 +227,6 @@ class CalcRunResult:
             return None
 
         try:
-            # 遅延import（import順の循環を避ける）
-            from vtsimnx.artifacts import ArtifactClient
-            from vtsimnx.artifacts.errors import ArtifactError
-        except ImportError as e:
-            self.errors["__log__"] = f"ImportError: {e}"
-            return None
-
-        try:
             t0 = time.perf_counter()
             client = self._get_artifact_client()
             raw = client.get_bytes(log_file)
@@ -192,52 +238,61 @@ class CalcRunResult:
             }
             return self._log_text
         except ArtifactError as e:
-            self.errors["__log__"] = f"{type(e).__name__}: {e}"
+            self._handle_fetch_error("__log__", e, raise_on_error=raise_on_error)
         except (TypeError, ValueError, OSError) as e:
-            self.errors["__log__"] = f"{type(e).__name__}: {e}"
+            self._handle_fetch_error("__log__", e, raise_on_error=raise_on_error)
         except Exception as e:
             # 通信系など実行時依存の失敗は「取得失敗」として扱う
-            self.errors["__log__"] = f"RuntimeError: {type(e).__name__}: {e}"
+            wrapped = RuntimeError(f"{type(e).__name__}: {e}")
+            wrapped.__cause__ = e
+            self._handle_fetch_error("__log__", wrapped, raise_on_error=raise_on_error)
 
         return None
 
-    def get_series_df(self, series_name: str) -> Optional[pd.DataFrame]:
+    def get_series_df(
+        self,
+        series_name: str,
+        *,
+        raise_on_error: Optional[bool] = None,
+    ) -> Optional[pd.DataFrame]:
         """
         指定系列の DataFrame を取得する（必要なら取得して復元）。
+
+        - 系列が無い / 非 f32.bin の場合は既定で None。raise_on_error=True なら ArtifactNotFound
+        - 取得・復元失敗時は既定で errors[series] に記録して None。raise_on_error=True なら例外
         """
         if series_name in self._dataframes:
             return self._dataframes[series_name]
 
         fname = self.result_files.get(series_name)
         if not isinstance(fname, str) or not fname:
+            exc = ArtifactNotFound(f"series not in result_files: {series_name!r}")
+            if self._want_raise(raise_on_error):
+                raise exc
             return None
 
         # ここでは *.f32.bin のみ対象（他は bytes で返る想定）
         if not fname.endswith(".f32.bin"):
-            return None
-
-        try:
-            # 遅延import（import順の循環を避ける）
-            from vtsimnx.artifacts import decode_f32_series
-            from vtsimnx.artifacts.errors import ArtifactError
-        except ImportError as e:
-            self.errors[series_name] = f"ImportError: {e}"
+            exc = ArtifactNotFound(f"series is not f32.bin: {series_name!r} -> {fname!r}")
+            if self._want_raise(raise_on_error):
+                raise exc
             return None
 
         try:
             client = self._get_artifact_client()
             t0 = time.perf_counter()
-            if self._schema is None:
-                t_schema0 = time.perf_counter()
-                self._schema = client.get_schema()
-                t_schema1 = time.perf_counter()
-                schema_fetch_ms = (t_schema1 - t_schema0) * 1000.0
-            else:
-                schema_fetch_ms = 0.0
 
-            schema = self._schema
-            if not isinstance(schema, dict):
-                raise TypeError(f"schema.json: expected dict, got {type(schema).__name__}")
+            t_schema0 = time.perf_counter()
+            schema_was_cached = client._schema is not None
+            schema = client.get_schema()
+            t_schema1 = time.perf_counter()
+            schema_fetch_ms = 0.0 if schema_was_cached else (t_schema1 - t_schema0) * 1000.0
+
+            T = schema.get("length")
+            if not isinstance(T, int):
+                raise TypeError(f"schema.json length が不正です: {T!r}")
+
+            index_spec = _pick_index_spec(self.output, self.config, expected_length=T)
 
             t_bin0 = time.perf_counter()
             data = client.get_bytes(fname)
@@ -247,26 +302,10 @@ class CalcRunResult:
                 data,
                 schema,
                 series_name,
-                index_spec=None,
+                index_spec=index_spec,
                 source_name=fname,
             )
-            T = int(df.shape[0])
-            N = int(df.shape[1])
             t_df = time.perf_counter()
-
-            # 可能なら時間軸インデックスを付与
-            # - まずAPIレスポンス(output.index) を優先
-            # - 無ければクライアントが送った simulation.index から復元
-            try:
-                idx = _time_index_from_output(self.output, expected_length=T)
-                if idx is None:
-                    idx = _time_index_from_config(self.config, expected_length=T)
-                if idx is not None:
-                    df.index = idx
-                    df.index.name = "time"
-            except (TypeError, ValueError) as e:
-                # 取得自体は成功させたいので、index付与の失敗は errors に記録して続行
-                self.errors["__index__"] = f"{type(e).__name__}: {e}"
 
             self._dataframes[series_name] = df
             t_end = time.perf_counter()
@@ -276,25 +315,27 @@ class CalcRunResult:
                 "bin_download_ms": (t_bin1 - t_bin0) * 1000.0,
                 "dataframe_build_ms": (t_df - t_bin1) * 1000.0,
                 "bytes": len(data),
-                "rows": T,
-                "cols": N,
+                "rows": int(df.shape[0]),
+                "cols": int(df.shape[1]),
             }
             return df
         except ArtifactError as e:
-            self.errors[series_name] = f"{type(e).__name__}: {e}"
+            self._handle_fetch_error(series_name, e, raise_on_error=raise_on_error)
         except (TypeError, ValueError, json.JSONDecodeError) as e:
-            self.errors[series_name] = f"{type(e).__name__}: {e}"
+            self._handle_fetch_error(series_name, e, raise_on_error=raise_on_error)
         except Exception as e:
-            self.errors[series_name] = f"RuntimeError: {type(e).__name__}: {e}"
+            wrapped = RuntimeError(f"{type(e).__name__}: {e}")
+            wrapped.__cause__ = e
+            self._handle_fetch_error(series_name, wrapped, raise_on_error=raise_on_error)
 
         return None
 
-    def load_all_dataframes(self) -> Dict[str, pd.DataFrame]:
+    def load_all_dataframes(self, *, raise_on_error: Optional[bool] = None) -> Dict[str, pd.DataFrame]:
         """
         全系列をロードする（旧挙動に近い動き）。
         """
         for series_name in list(self.result_files.keys()):
-            _ = self.get_series_df(series_name)
+            _ = self.get_series_df(series_name, raise_on_error=raise_on_error)
         return self._dataframes
 
 
@@ -303,7 +344,9 @@ def run_calc(
     config_json: Union[Dict[str, Any], str, Path],
     output_path: Optional[str] = None,
     *,
-    with_dataframes: bool = True,
+    as_result: Optional[bool] = None,
+    with_dataframes: Optional[bool] = None,
+    raise_on_error: bool = False,
     compress_request: bool = True,
     timeout: float = 900.0,
     api_key: Optional[str] = None,
@@ -311,6 +354,21 @@ def run_calc(
     use_legacy_run: bool = False,
     poll_interval: float = 1.0,
 ) -> Union[Dict[str, Any], CalcRunResult]:
+    """
+    シミュレーションを実行する。
+
+    Parameters
+    ----------
+    as_result:
+        True（既定）なら ``CalcRunResult`` を返す。False なら API レスポンス dict を返す。
+        DataFrame 自体は作らない（遅延ロード）。
+    with_dataframes:
+        ``as_result`` の旧別名（非推奨）。意味は as_result と同じ。
+    raise_on_error:
+        ``CalcRunResult`` 生成時に渡し、系列/ログ取得失敗を例外にする（既定は soft-fail）。
+    """
+    return_result = _resolve_as_result(as_result=as_result, with_dataframes=with_dataframes)
+
     client_profile: Dict[str, Any] = {}
     t_total0 = time.perf_counter()
 
@@ -376,7 +434,7 @@ def run_calc(
     t_total1 = time.perf_counter()
     client_profile["run_calc_total_ms"] = (t_total1 - t_total0) * 1000.0
 
-    if not with_dataframes:
+    if not return_result:
         return resp_json
 
     output = _output_block(resp_json)
@@ -398,5 +456,6 @@ def run_calc(
         result_files=result_files,
         config=config_json,
         api_key=api_key,
+        raise_on_error=bool(raise_on_error),
         client_profile=client_profile,
     )
