@@ -71,9 +71,26 @@ def run_workdir(run_id: str) -> Path:
     return path
 
 
+def _artifact_dir_completeness_score(path: Path) -> int:
+    """solver 成果物が揃っているディレクトリを優先するための簡易スコア。"""
+    score = 0
+    try:
+        if (path / "schema.json").is_file():
+            score += 100
+        if (path / "solver.log").is_file():
+            score += 50
+        score += sum(1 for _ in path.glob("*.f32.bin"))
+    except OSError:
+        return 0
+    return score
+
+
 def resolve_artifact_path(artifact_dir: str) -> Optional[Path]:
     """
     artifact_dir（basename）を work/ 直下または work/runs/*/ 配下から解決する。
+
+    同名ディレクトリが複数ある場合は、schema.json / solver.log / f32.bin が
+    揃っている方を優先する（builder.log だけ置いた空シェルを誤選択しない）。
     """
     if not isinstance(artifact_dir, str) or not artifact_dir:
         return None
@@ -81,17 +98,20 @@ def resolve_artifact_path(artifact_dir: str) -> Optional[Path]:
         return None
 
     work_root = (BASE_DIR / "work").resolve()
+    candidates: list[Path] = []
     direct = (work_root / artifact_dir).resolve()
     if work_root in direct.parents and direct.is_dir():
-        return direct
+        candidates.append(direct)
 
     runs_root = work_root / "runs"
     if runs_root.is_dir():
         for candidate in runs_root.glob(f"*/{artifact_dir}"):
             resolved = candidate.resolve()
             if work_root in resolved.parents and resolved.is_dir():
-                return resolved
-    return None
+                candidates.append(resolved)
+    if not candidates:
+        return None
+    return max(candidates, key=_artifact_dir_completeness_score)
 
 
 def cleanup_run_workdir(run_id: str, *, keep_artifacts: bool = True) -> None:
@@ -129,6 +149,8 @@ def _artifact_dir_from_output(work_dir: Path, output_data: Dict[str, Any]) -> Op
     """
     C++ ソルバが返す output.json の `artifact_dir` から、work_dir 配下の artifact パスを解決する。
     work_dir 直下に無ければ work/runs/*/ も検索する。
+
+    注意: 未作成パスを返さない（mkdir で空シェルを作ってしまうのを防ぐ）。
     """
     artifact_dir = output_data.get("artifact_dir")
     if not isinstance(artifact_dir, str) or not artifact_dir:
@@ -136,7 +158,9 @@ def _artifact_dir_from_output(work_dir: Path, output_data: Dict[str, Any]) -> Op
 
     artifact_dir_path = (work_dir / artifact_dir).resolve()
     work_root = work_dir.resolve()
-    if (work_root in artifact_dir_path.parents or artifact_dir_path == work_root):
+    if artifact_dir_path.is_dir() and (
+        work_root in artifact_dir_path.parents or artifact_dir_path == work_root
+    ):
         return artifact_dir_path
 
     # run 隔離後: attach/manifest が共有 work/ を渡しても見つかるようにする
@@ -277,15 +301,15 @@ def attach_builder_log_to_artifacts(
         except (ValueError, OSError):
             pass
 
-    work_dir = BASE_DIR / "work"
-    artifact_dir_path = _artifact_dir_from_output(work_dir, output_data)
+    # ソルバが作った実ディレクトリを使う（work/ 直下に空の artifacts.* を新規作成しない）
+    artifact_dir_name = output_data.get("artifact_dir")
+    artifact_dir_path = None
+    if isinstance(artifact_dir_name, str) and artifact_dir_name:
+        artifact_dir_path = resolve_artifact_path(artifact_dir_name)
     if artifact_dir_path is None:
-        artifact_dir_name = output_data.get("artifact_dir")
-        if isinstance(artifact_dir_name, str):
-            artifact_dir_path = resolve_artifact_path(artifact_dir_name)
-    if artifact_dir_path is None:
+        artifact_dir_path = _artifact_dir_from_output(BASE_DIR / "work", output_data)
+    if artifact_dir_path is None or not artifact_dir_path.is_dir():
         return None
-    artifact_dir_path.mkdir(parents=True, exist_ok=True)
 
     dest = artifact_dir_path / artifact_filename
     try:
