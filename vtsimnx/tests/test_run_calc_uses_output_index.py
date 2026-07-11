@@ -7,6 +7,17 @@ import numpy as np
 import vtsimnx as vt
 
 
+ARTIFACT_DIR = "output.artifacts.123"
+
+
+def _send(handler: BaseHTTPRequestHandler, status: int, body: bytes, content_type: str) -> None:
+    handler.send_response(status)
+    handler.send_header("Content-Type", content_type)
+    handler.send_header("Content-Length", str(len(body)))
+    handler.end_headers()
+    handler.wfile.write(body)
+
+
 class _Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path != "/run":
@@ -24,7 +35,7 @@ class _Handler(BaseHTTPRequestHandler):
 
         body = {
             "output": {
-                "artifact_dir": "output.artifacts.123",
+                "artifact_dir": ARTIFACT_DIR,
                 "index": {
                     "start": "2025-01-01 00:00:00",
                     "end": "2025-01-01 01:00:00",
@@ -32,6 +43,7 @@ class _Handler(BaseHTTPRequestHandler):
                     "length": 2,
                 },
                 "result_files": {
+                    "schema": "schema.json",
                     "vent_flow_rate": "vent.flow_rate.f32.bin",
                 },
             }
@@ -44,7 +56,26 @@ class _Handler(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def do_GET(self):
-        if self.path == "/work/output.artifacts.123/schema.json":
+        base = f"/artifacts/{ARTIFACT_DIR}"
+        if self.path == f"{base}/manifest":
+            manifest = {
+                "output": {
+                    "index": {
+                        "start": "2025-01-01 00:00:00",
+                        "end": "2025-01-01 01:00:00",
+                        "timestep": 3600,
+                        "length": 2,
+                    },
+                    "result_files": {
+                        "schema": "schema.json",
+                        "vent_flow_rate": "vent.flow_rate.f32.bin",
+                    },
+                }
+            }
+            _send(self, 200, json.dumps(manifest).encode("utf-8"), "application/json; charset=utf-8")
+            return
+
+        if self.path == f"{base}/download/schema":
             schema = {
                 "dtype": "f32le",
                 "layout": "timestep-major",
@@ -53,22 +84,12 @@ class _Handler(BaseHTTPRequestHandler):
                     "vent_flow_rate": {"keys": ["c1", "c2"]},
                 },
             }
-            raw = json.dumps(schema).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Content-Length", str(len(raw)))
-            self.end_headers()
-            self.wfile.write(raw)
+            _send(self, 200, json.dumps(schema).encode("utf-8"), "application/json; charset=utf-8")
             return
 
-        if self.path == "/work/output.artifacts.123/vent.flow_rate.f32.bin":
+        if self.path == f"{base}/download/vent_flow_rate":
             arr = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.dtype("<f4"))  # (T=2, N=2)
-            raw = arr.tobytes()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/octet-stream")
-            self.send_header("Content-Length", str(len(raw)))
-            self.end_headers()
-            self.wfile.write(raw)
+            _send(self, 200, arr.tobytes(), "application/octet-stream")
             return
 
         self.send_response(404)
@@ -101,8 +122,8 @@ def test_run_calc_get_series_df_prefers_output_index():
             },
             output_path=None,
             with_dataframes=True,
-            compress_request=False,  # このスタブはgzipを解凍しない
-        )
+            compress_request=False,  # このスタブはgzipを解凍しない,
+                use_legacy_run=True)
 
         df = res.get_series_df("vent_flow_rate")
         assert df is not None
@@ -112,5 +133,3 @@ def test_run_calc_get_series_df_prefers_output_index():
     finally:
         server.shutdown()
         server.server_close()
-
-

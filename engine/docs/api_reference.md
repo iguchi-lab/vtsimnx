@@ -8,17 +8,23 @@
 
 ## 認証
 
-- 現在は認証なし
+- `X-API-Key` ヘッダ（環境変数 `VTSIMNX_API_KEYS` で有効化。未設定時は認証なし）
 
 ## エンドポイント一覧
 
 | Method | Path | 用途 |
 |---|---|---|
 | GET | `/ping` | ヘルスチェック |
-| POST | `/run` | シミュレーション実行 |
+| POST | `/runs` | 非同期ジョブ投入（推奨） |
+| GET | `/runs/{run_id}` | ジョブ状態・進捗 |
+| GET | `/runs/{run_id}/result` | 完了時の結果取得 |
+| DELETE | `/runs/{run_id}` | ジョブキャンセル |
+| POST | `/run` | 同期シミュレーション（互換・デバッグ用） |
 | GET | `/artifacts/{artifact_dir}/manifest` | 実行結果メタ情報取得 |
 | GET | `/artifacts/{artifact_dir}/files` | ダウンロード可能キー一覧取得 |
 | GET | `/artifacts/{artifact_dir}/download/{key}` | artifact ファイル実体ダウンロード |
+
+ジョブ表はプロセス内メモリ上に保持します。**uvicorn は `workers=1` を推奨**します（マルチワーカーではジョブ状態を共有しません）。並列度は `VTSIMNX_MAX_WORKERS`（既定 1）で制御します。
 
 ---
 
@@ -32,9 +38,57 @@
 
 ---
 
+## POST /runs
+
+非同期ジョブを投入し、即時に `run_id` を返します。同一入力（canonical JSON の sha256）が `queued` / `running` の既存ジョブと一致する場合は、その `run_id` を **200** で返します。
+
+### Request Body
+
+`POST /run` と同じ（`config` / `debug` / `add_*`）。
+
+### Response 202（新規） / 200（重複）
+
+```json
+{
+  "run_id": "a1b2c3...",
+  "status": "queued",
+  "input_hash": "sha256hex..."
+}
+```
+
+## GET /runs/{run_id}
+
+### Response 200
+
+```json
+{
+  "run_id": "a1b2c3...",
+  "status": "running",
+  "input_hash": "...",
+  "created_at": "...",
+  "started_at": "...",
+  "finished_at": null,
+  "progress": {"stage": "solver", "message": "running solver"},
+  "artifact_dir": null,
+  "error": null
+}
+```
+
+`status`: `queued` | `running` | `succeeded` | `failed` | `cancelled`
+
+## GET /runs/{run_id}/result
+
+完了時のみ `POST /run` と同じ `SimulationResponse` を返します。未完了は **409**。
+
+## DELETE /runs/{run_id}
+
+`queued` は即キャンセル。`running` はキャンセルフラグを立て、可能なら solver 子プロセスを terminate します。
+
+---
+
 ## POST /run
 
-builder 入力 (`config`) を受け取り、solver 実行結果を返します。
+builder 入力 (`config`) を受け取り、solver 実行結果を**同期**で返します（互換 API。長時間計算は `POST /runs` を推奨）。
 
 ### Request Body
 
@@ -177,4 +231,5 @@ curl -L -o solver.log  http://127.0.0.1:8000/artifacts/<artifact_dir>/download/l
 
 - `Content-Encoding: gzip` のリクエストボディを受け付けます。
 - `artifact_dir` および配布ファイルはパストラバーサル対策済みです。
+- 成果物取得は `/artifacts/...` に一本化しています。`/work` の静的公開は行いません。
 - OpenAPI は起動後に `/docs`（Swagger UI）と `/openapi.json` でも参照できます。

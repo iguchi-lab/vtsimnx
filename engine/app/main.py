@@ -2,7 +2,8 @@
 FastAPI ベースの VTSimNX API エンドポイント定義。
 
 - /ping: ライブネス/ヘルスチェック
-- /run: C++ ソルバを呼び出して結果 JSON を返す
+- /run: 同期シミュレーション（互換）
+- /runs: 非同期ジョブ API
 """
 #
 # 注意: `python3 app/main.py ...` のように「パッケージ配下のファイルをスクリプト実行」すると、
@@ -15,9 +16,8 @@ from pathlib import Path as _Path
 if __name__ == "__main__" and (globals().get("__package__") in (None, "")):
     sys.path.insert(0, str(_Path(__file__).resolve().parents[1]))
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Response
 from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
 from starlette.responses import JSONResponse
 from pydantic import BaseModel, Field
 from typing import Any, Dict, Tuple, List, Optional
@@ -29,22 +29,37 @@ import logging
 import uuid
 import tempfile
 import time
-from app.solver_runner import run_solver, force_log_verbosity
-from app.solver_runner import (
-    attach_builder_log_to_artifacts,
-    attach_log_tail_to_output,
-    write_artifact_manifest,
-)
+from contextlib import asynccontextmanager
+
+from app.solver_runner import resolve_artifact_path, run_solver
+from app.simulation import execute_simulation
 from app.builder import build_config_with_warning_details
 from app.builder.validate import ValidationError, ConfigFileError
-from app.builder.logger import use_builder_log_file, cleanup_default_work_logs
 from app.api_auth import ApiKeyMiddleware
+from app.jobs import get_run_manager, set_run_manager, RunManager
+from app import simulation as _simulation_mod
 
+
+def _sync_test_hooks() -> None:
+    """テストが main 上のシンボルを差し替えた場合に simulation へ反映する。"""
+    _simulation_mod._run_solver_hook = run_solver
+    _simulation_mod.build_config_with_warning_details = build_config_with_warning_details
 # Uvicorn のロガー設定に追従して出す（traceback を残すため）
 logger = logging.getLogger(__name__)
 
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    manager = RunManager()
+    set_run_manager(manager)
+    try:
+        yield
+    finally:
+        manager.shutdown(wait=False)
+        set_run_manager(None)
+
+
 # API ルータ本体。OpenAPI のタイトルやバージョンをここで設定する。
-app = FastAPI(title="VTSimNX API", version="1.0.8")
+app = FastAPI(title="VTSimNX API", version="1.0.8", lifespan=_lifespan)
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 WORK_DIR = BASE_DIR / "work"
@@ -111,14 +126,11 @@ app.add_middleware(GZipRequestMiddleware)
 app.add_middleware(ApiKeyMiddleware)
 
 def _resolve_artifact_dir(artifact_dir: str) -> Path:
-    # パストラバーサル防止: work配下のディレクトリに限定
+    # パストラバーサル防止: basename のみ。work/ 直下または work/runs/*/ を検索
     if "/" in artifact_dir or "\\" in artifact_dir or ".." in artifact_dir:
         raise HTTPException(status_code=400, detail="invalid artifact_dir")
-    p = (WORK_DIR / artifact_dir).resolve()
-    work_root = WORK_DIR.resolve()
-    if work_root not in p.parents:
-        raise HTTPException(status_code=400, detail="invalid artifact_dir")
-    if not p.exists() or not p.is_dir():
+    p = resolve_artifact_path(artifact_dir)
+    if p is None:
         raise HTTPException(status_code=404, detail="artifact_dir not found")
     return p
 
@@ -268,105 +280,40 @@ def ping():
 @app.post("/run", response_model=SimulationResponse)
 def run_simulation(req: SimulationRequest):
     """
-    入力 JSON（config）を C++ ソルバに渡して、結果 JSON を返す。
-
-    Args:
-        req: クライアントから受け取った `SimulationRequest`。`config` を含む。
-
-    Returns:
-        `SimulationResponse`: ソルバの出力を `result` に格納して返す。
-
-    Raises:
-        HTTPException(500): ソルバ実行や結果読み取りで例外が発生した場合に返す。
+    入力 JSON（config）を C++ ソルバに渡して、結果 JSON を返す（同期・互換API）。
+    長時間計算は POST /runs を推奨。
     """
     run_id: str | None = None
-    api_t0 = time.perf_counter()
     try:
-        # 1リクエスト=1 run_id を先に決める（builderログとsolver成果物を紐付けるため）
-        run_id = uuid.uuid4().hex
+        _sync_test_hooks()
 
-        # builder ログは /tmp に一時出力（work/logs には出さない）。
-        # その後、solver の artifacts が確定したら artifacts 直下へコピーして manifest に載せ、元の一時ファイルは削除する。
-        tmp_dir = os.getenv("VTSIMNX_BUILDER_TMP_DIR") or tempfile.gettempdir()
-        builder_log_tmp = Path(tmp_dir) / f"vtsimnx.builder.{run_id}.log"
-
-        # ユーザー入力（raw）を solver 用 config に変換（正規化/展開/検証）
-        build_stats_out: list = []
-        builder_t0 = time.perf_counter()
-        with use_builder_log_file(builder_log_tmp):
-            try:
-                built_config, warnings, warning_details = build_config_with_warning_details(
-                    req.config,
-                    output_path=None,
-                    add_surface=req.add_surface,
-                    add_aircon=req.add_aircon,
-                    add_capacity=req.add_capacity,
-                    add_moisture_capacity=req.add_moisture_capacity,
-                    add_surface_solar=req.add_surface_solar,
-                    add_surface_nocturnal=req.add_surface_nocturnal,
-                    add_surface_radiation=req.add_surface_radiation,
-                    add_surface_radiation_exclude_glass=req.add_surface_radiation_exclude_glass,
-                    build_stats_out=build_stats_out,
-                )
-            except (ValidationError, ConfigFileError, ValueError, KeyError, TypeError) as e:
-                logger.info("validation/config error in /run: %s", e)
-                raise HTTPException(status_code=400, detail=_build_bad_request_detail(e))
-        builder_t1 = time.perf_counter()
-
-        # API側でログ冗長度を統制（debug=falseなら常に1に落とす）
-        # ※ build_config の後に適用することで、builder の未知キー削除で落ちないようにする
-        force_log_verbosity(built_config, debug=req.debug, debug_verbosity=req.debug_verbosity, default_verbosity=1)
-
-        # manifest は builder_log を追記してから書きたいので、一旦書かずに返してもらう。
-        # テストでは run_solver を「引数1個のlambda」でモックしているので、kwargs が使えない場合はフォールバックする。
-        solver_t0 = time.perf_counter()
-        try:
-            output = run_solver(built_config, run_id=run_id, write_manifest=False)
-        except TypeError:
-            # モック想定（本番のsolverでここに落ちるのは基本的に想定しない）
-            output = run_solver(built_config)
-        solver_t1 = time.perf_counter()
-
-        # builderログを artifacts へ取り込み、manifest(output) に参照を追加（ビルド結果行は attach 内で追記）
-        artifact_t0 = time.perf_counter()
-        attach_builder_log_to_artifacts(
-            output,
-            builder_log_path=builder_log_tmp,
-            artifact_filename="builder.log",
-            delete_source=True,
-            build_config=built_config,
+        result = execute_simulation(
+            req.config,
+            debug=req.debug,
+            debug_verbosity=req.debug_verbosity,
+            add_surface=req.add_surface,
+            add_aircon=req.add_aircon,
+            add_capacity=req.add_capacity,
+            add_moisture_capacity=req.add_moisture_capacity,
+            add_surface_solar=req.add_surface_solar,
+            add_surface_nocturnal=req.add_surface_nocturnal,
+            add_surface_radiation=req.add_surface_radiation,
+            add_surface_radiation_exclude_glass=req.add_surface_radiation_exclude_glass,
         )
-        # 失敗時はログ末尾をレスポンスへ同梱し、外部クライアントでも即原因確認できるようにする
-        status = output.get("status")
-        has_error = isinstance(output.get("error"), str) and bool(str(output.get("error")).strip())
-        if has_error or (isinstance(status, str) and status.lower() == "error"):
-            attach_log_tail_to_output(output)
-        write_artifact_manifest(output)
-        artifact_t1 = time.perf_counter()
-
-        api_t1 = time.perf_counter()
-        api_timings = {
-            "builder_ms": (builder_t1 - builder_t0) * 1000.0,
-            "solver_ms": (solver_t1 - solver_t0) * 1000.0,
-            "artifact_postprocess_ms": (artifact_t1 - artifact_t0) * 1000.0,
-            "api_total_ms": (api_t1 - api_t0) * 1000.0,
-        }
-        _attach_api_timings(output, api_timings)
-    except (ValidationError, ConfigFileError) as e:
-        # 入力不正は 400
+        run_id = result.run_id
+        return SimulationResponse(
+            result=result.output,
+            warnings=result.warnings,
+            warning_details=result.warning_details,
+        )
+    except (ValidationError, ConfigFileError, ValueError, KeyError, TypeError) as e:
         logger.info("validation/config error in /run: %s", e)
         raise HTTPException(status_code=400, detail=_build_bad_request_detail(e))
     except HTTPException:
         raise
     except Exception as e:
-        # エラー時は 500 を返す
         logger.exception("internal error in /run")
         raise HTTPException(status_code=500, detail=_build_internal_error_detail(e, run_id=run_id))
-    finally:
-        # 既定の work/logs は一次置き場として扱い、都度クリーンアップする。
-        cleanup_default_work_logs()
-
-    return SimulationResponse(result=output, warnings=warnings, warning_details=warning_details)
 
 
 def _run_simulation_core(
@@ -385,60 +332,81 @@ def _run_simulation_core(
 ) -> SimulationResponse:
     """
     /run と同じ経路で単発実行したいときの共通ロジック（CLI/テスト用）。
-    FastAPI の依存注入や HTTP レイヤに依存しない。
     """
-    try:
-        api_t0 = time.perf_counter()
-        run_id = uuid.uuid4().hex
-        tmp_dir = os.getenv("VTSIMNX_BUILDER_TMP_DIR") or tempfile.gettempdir()
-        builder_log_tmp = Path(tmp_dir) / f"vtsimnx.builder.{run_id}.log"
-        build_stats_out: list = []
-        builder_t0 = time.perf_counter()
-        with use_builder_log_file(builder_log_tmp):
-            built_config, warnings, warning_details = build_config_with_warning_details(
-                raw_config,
-                output_path=None,
-                add_surface=add_surface,
-                add_aircon=add_aircon,
-                add_capacity=add_capacity,
-                add_moisture_capacity=add_moisture_capacity,
-                add_surface_solar=add_surface_solar,
-                add_surface_nocturnal=add_surface_nocturnal,
-                add_surface_radiation=add_surface_radiation,
-                add_surface_radiation_exclude_glass=add_surface_radiation_exclude_glass,
-                build_stats_out=build_stats_out,
-            )
-        builder_t1 = time.perf_counter()
-        force_log_verbosity(built_config, debug=debug, debug_verbosity=debug_verbosity, default_verbosity=1)
-        solver_t0 = time.perf_counter()
-        output = run_solver(built_config, run_id=run_id, write_manifest=False)
-        solver_t1 = time.perf_counter()
-        artifact_t0 = time.perf_counter()
-        attach_builder_log_to_artifacts(
-            output,
-            builder_log_path=builder_log_tmp,
-            artifact_filename="builder.log",
-            delete_source=True,
-            build_config=built_config,
+    _sync_test_hooks()
+    result = execute_simulation(
+        raw_config,
+        debug=debug,
+        debug_verbosity=debug_verbosity,
+        add_surface=add_surface,
+        add_aircon=add_aircon,
+        add_capacity=add_capacity,
+        add_moisture_capacity=add_moisture_capacity,
+        add_surface_solar=add_surface_solar,
+        add_surface_nocturnal=add_surface_nocturnal,
+        add_surface_radiation=add_surface_radiation,
+        add_surface_radiation_exclude_glass=add_surface_radiation_exclude_glass,
+    )
+    return SimulationResponse(
+        result=result.output,
+        warnings=result.warnings,
+        warning_details=result.warning_details,
+    )
+
+
+@app.post("/runs")
+def create_run(req: SimulationRequest, response: Response):
+    """非同期ジョブを投入し、run_id を即時返す。重複入力は既存 run_id を 200 で返す。"""
+    manager = get_run_manager()
+    _sync_test_hooks()
+    request = req.model_dump()
+    job, is_duplicate = manager.submit(request)
+    response.status_code = 200 if is_duplicate else 202
+    return {
+        "run_id": job.run_id,
+        "status": job.status,
+        "input_hash": job.input_hash,
+    }
+
+
+@app.get("/runs/{run_id}")
+def get_run_status(run_id: str):
+    job = get_run_manager().get(run_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="run not found")
+    return job.to_status_dict()
+
+
+@app.get("/runs/{run_id}/result", response_model=SimulationResponse)
+def get_run_result(run_id: str):
+    job = get_run_manager().get(run_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="run not found")
+    if job.status == "succeeded" and isinstance(job.result, dict):
+        return SimulationResponse(**job.result)
+    if job.status in ("queued", "running"):
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "not_ready", "message": f"run status is {job.status}", "run_id": run_id},
         )
-        status = output.get("status")
-        has_error = isinstance(output.get("error"), str) and bool(str(output.get("error")).strip())
-        if has_error or (isinstance(status, str) and status.lower() == "error"):
-            attach_log_tail_to_output(output)
-        write_artifact_manifest(output)
-        artifact_t1 = time.perf_counter()
-        api_t1 = time.perf_counter()
-        api_timings = {
-            "builder_ms": (builder_t1 - builder_t0) * 1000.0,
-            "solver_ms": (solver_t1 - solver_t0) * 1000.0,
-            "artifact_postprocess_ms": (artifact_t1 - artifact_t0) * 1000.0,
-            "api_total_ms": (api_t1 - api_t0) * 1000.0,
-        }
-        _attach_api_timings(output, api_timings)
-        return SimulationResponse(result=output, warnings=warnings, warning_details=warning_details)
-    finally:
-        # CLI/テスト経路でも work/logs の一時ログを残さない。
-        cleanup_default_work_logs()
+    if job.status == "cancelled":
+        raise HTTPException(
+            status_code=409,
+            detail={"code": "cancelled", "message": "run was cancelled", "run_id": run_id, **(job.error or {})},
+        )
+    raise HTTPException(
+        status_code=500,
+        detail=job.error or {"code": "internal_error", "message": "run failed", "run_id": run_id},
+    )
+
+
+@app.delete("/runs/{run_id}")
+def cancel_run(run_id: str):
+    job = get_run_manager().cancel(run_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="run not found")
+    return job.to_status_dict()
+
 
 @app.get("/artifacts/{artifact_dir}/manifest")
 def get_artifact_manifest(artifact_dir: str):
@@ -488,9 +456,6 @@ def download_artifact_file(artifact_dir: str, key: str):
         raise HTTPException(status_code=404, detail="file not found")
 
     return FileResponse(path=str(file_path), media_type=media_type, filename=filename)
-
-# 静的ファイル配信: プロジェクト直下の work/ を /work に配信
-app.mount("/work", StaticFiles(directory=str(WORK_DIR)), name="work")
 
 
 if __name__ == "__main__":

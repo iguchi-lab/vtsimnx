@@ -8,13 +8,24 @@ import pytest
 import vtsimnx as vt
 
 
+ARTIFACT_DIR = "output.artifacts.123"
+
+
 class _State:
     post_run = 0
-    get_work = 0
+    get_artifacts = 0
     get_schema = 0
     get_manifest = 0
     get_bin = 0
     get_log = 0
+
+
+def _send(handler: BaseHTTPRequestHandler, status: int, body: bytes, content_type: str) -> None:
+    handler.send_response(status)
+    handler.send_header("Content-Type", content_type)
+    handler.send_header("Content-Length", str(len(body)))
+    handler.end_headers()
+    handler.wfile.write(body)
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -38,7 +49,7 @@ class _Handler(BaseHTTPRequestHandler):
         # 結果（/run レスポンス）: log.text があるので log 取得はHTTP不要にできる
         body = {
             "result": {
-                "artifact_dir": "output.artifacts.123",
+                "artifact_dir": ARTIFACT_DIR,
                 "log_file": "solver.log",
                 "log": {"text": "preloaded log"},
                 "timings": [
@@ -46,6 +57,7 @@ class _Handler(BaseHTTPRequestHandler):
                     {"name": "simulation_total", "duration_ms": 120.5},
                 ],
                 "result_files": {
+                    "schema": "schema.json",
                     "vent_flow_rate": "vent.flow_rate.f32.bin",
                     "vent_pressure": "vent.pressure.f32.bin",
                 },
@@ -59,11 +71,26 @@ class _Handler(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def do_GET(self):
-        # get_artifact_file は /work/{artifact_dir}/{filename} を叩く想定
-        if self.path.startswith("/work/output.artifacts.123/"):
-            _State.get_work += 1
+        base = f"/artifacts/{ARTIFACT_DIR}"
+        if self.path.startswith(base):
+            _State.get_artifacts += 1
 
-        if self.path == "/work/output.artifacts.123/schema.json":
+        if self.path == f"{base}/manifest":
+            _State.get_manifest += 1
+            manifest = {
+                "output": {
+                    "log_file": "solver.log",
+                    "result_files": {
+                        "schema": "schema.json",
+                        "vent_flow_rate": "vent.flow_rate.f32.bin",
+                        "vent_pressure": "vent.pressure.f32.bin",
+                    },
+                }
+            }
+            _send(self, 200, json.dumps(manifest).encode("utf-8"), "application/json; charset=utf-8")
+            return
+
+        if self.path == f"{base}/download/schema":
             _State.get_schema += 1
             schema = {
                 "dtype": "f32le",
@@ -74,62 +101,24 @@ class _Handler(BaseHTTPRequestHandler):
                     "vent_pressure": {"keys": ["p1"]},
                 },
             }
-            raw = json.dumps(schema).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Content-Length", str(len(raw)))
-            self.end_headers()
-            self.wfile.write(raw)
+            _send(self, 200, json.dumps(schema).encode("utf-8"), "application/json; charset=utf-8")
             return
 
-        if self.path == "/work/output.artifacts.123/manifest.json":
-            _State.get_manifest += 1
-            manifest = {
-                "result": {
-                    "result_files": {
-                        "vent_flow_rate": "vent.flow_rate.f32.bin",
-                        "vent_pressure": "vent.pressure.f32.bin",
-                    },
-                }
-            }
-            raw = json.dumps(manifest).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Content-Length", str(len(raw)))
-            self.end_headers()
-            self.wfile.write(raw)
-            return
-
-        if self.path == "/work/output.artifacts.123/vent.flow_rate.f32.bin":
+        if self.path == f"{base}/download/vent_flow_rate":
             _State.get_bin += 1
             arr = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.dtype("<f4"))  # (T=2, N=2)
-            raw = arr.tobytes()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/octet-stream")
-            self.send_header("Content-Length", str(len(raw)))
-            self.end_headers()
-            self.wfile.write(raw)
+            _send(self, 200, arr.tobytes(), "application/octet-stream")
             return
 
-        if self.path == "/work/output.artifacts.123/vent.pressure.f32.bin":
+        if self.path == f"{base}/download/vent_pressure":
             _State.get_bin += 1
             arr = np.array([10.0, 20.0], dtype=np.dtype("<f4"))  # (T=2, N=1)
-            raw = arr.tobytes()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/octet-stream")
-            self.send_header("Content-Length", str(len(raw)))
-            self.end_headers()
-            self.wfile.write(raw)
+            _send(self, 200, arr.tobytes(), "application/octet-stream")
             return
 
-        if self.path == "/work/output.artifacts.123/solver.log":
+        if self.path == f"{base}/download/log":
             _State.get_log += 1
-            raw = b"hello\n"
-            self.send_response(200)
-            self.send_header("Content-Type", "text/plain; charset=utf-8")
-            self.send_header("Content-Length", str(len(raw)))
-            self.end_headers()
-            self.wfile.write(raw)
+            _send(self, 200, b"hello\n", "text/plain; charset=utf-8")
             return
 
         self.send_response(404)
@@ -155,7 +144,7 @@ class _ErrorHandler(BaseHTTPRequestHandler):
 
         body = {
             "result": {
-                "artifact_dir": "output.artifacts.123",
+                "artifact_dir": ARTIFACT_DIR,
                 "status": "error",
                 "error": "nodes[928].pre_temp must be array<number>",
                 "log_file": "solver.log",
@@ -175,6 +164,13 @@ class _ErrorHandler(BaseHTTPRequestHandler):
 
 
 def test_run_calc_with_dataframes_is_lazy():
+    _State.post_run = 0
+    _State.get_artifacts = 0
+    _State.get_schema = 0
+    _State.get_manifest = 0
+    _State.get_bin = 0
+    _State.get_log = 0
+
     server = HTTPServer(("127.0.0.1", 0), _Handler)
     port = server.server_address[1]
     t = threading.Thread(target=server.serve_forever, daemon=True)
@@ -187,12 +183,12 @@ def test_run_calc_with_dataframes_is_lazy():
             {"simulation": {"index": {"length": 2, "timestep": 1}}},
             output_path=None,
             with_dataframes=True,
-            compress_request=False,  # このスタブはgzipを解凍しない
-        )
+            compress_request=False,  # このスタブはgzipを解凍しない,
+                use_legacy_run=True)
 
         # /run 以外の GET は、まだ走っていない（遅延ロード）
         assert _State.post_run == 1
-        assert _State.get_work == 0
+        assert _State.get_artifacts == 0
         assert hasattr(res, "get_series_df")
         assert isinstance(res.client_profile, dict)
         assert "run_calc_total_ms" in res.client_profile
@@ -245,9 +241,7 @@ def test_run_calc_with_dataframes_raises_original_error_message():
                 output_path=None,
                 with_dataframes=True,
                 compress_request=False,
-            )
+                use_legacy_run=True)
     finally:
         server.shutdown()
         server.server_close()
-
-

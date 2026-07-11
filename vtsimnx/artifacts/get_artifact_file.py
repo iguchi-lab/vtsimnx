@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import os
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -20,45 +20,92 @@ def _resolve_api_key(api_key: Optional[str]) -> Optional[str]:
     return env_key or None
 
 
-def _candidate_relpaths(filename: str) -> List[str]:
-    relpaths = [filename]
-    if not filename.startswith("artifacts/"):
-        relpaths.append(f"artifacts/{filename}")
-    # 順序維持で重複除去
-    return list(dict.fromkeys(relpaths))
+def _headers(api_key: Optional[str]) -> Dict[str, str]:
+    return _api_key_headers(_resolve_api_key(api_key))
 
 
-def _get_bytes(
+def _get_manifest(
     base_url: str,
     artifact_dir: str,
-    relpath: str,
-    timeout: float,
     *,
+    timeout: float,
+    api_key: Optional[str] = None,
+) -> Dict[str, Any]:
+    url = base_url.rstrip("/") + f"/artifacts/{artifact_dir}/manifest"
+    resp = requests.get(url, headers=_headers(api_key), timeout=timeout)
+    resp.raise_for_status()
+    obj = resp.json()
+    if not isinstance(obj, dict):
+        raise TypeError(f"manifest response must be dict, got {type(obj).__name__}")
+    return obj
+
+
+def _filename_to_key_map(manifest: Dict[str, Any]) -> Dict[str, str]:
+    """
+    manifest から「ファイル名 -> download key」の対応を作る。
+    """
+    mapping: Dict[str, str] = {"manifest.json": "manifest"}
+    out = manifest.get("output") if isinstance(manifest.get("output"), dict) else {}
+
+    log_file = out.get("log_file") if isinstance(out, dict) else None
+    if isinstance(log_file, str) and log_file:
+        mapping[log_file] = "log"
+    else:
+        mapping["solver.log"] = "log"
+
+    builder_log = out.get("builder_log_file") if isinstance(out, dict) else None
+    if isinstance(builder_log, str) and builder_log:
+        mapping[builder_log] = "builder_log"
+    else:
+        mapping.setdefault("builder.log", "builder_log")
+
+    result_files: Dict[str, str] = {}
+    try:
+        result_files = extract_result_files(manifest)
+    except ValueError:
+        result_files = {}
+    for key, filename in result_files.items():
+        if isinstance(filename, str) and filename:
+            mapping[filename] = key
+
+    files = manifest.get("files")
+    if isinstance(files, dict):
+        for key, filename in files.items():
+            if isinstance(key, str) and isinstance(filename, str) and filename:
+                mapping[filename] = key
+
+    return mapping
+
+
+def _resolve_download_key(manifest: Dict[str, Any], name_or_filename: str) -> str:
+    raw = name_or_filename.strip().lstrip("/")
+    basename = raw.split("/")[-1]
+    mapping = _filename_to_key_map(manifest)
+    known_keys = set(mapping.values())
+
+    if basename in mapping:
+        return mapping[basename]
+    if raw in known_keys:
+        return raw
+    if basename in known_keys:
+        return basename
+    raise KeyError(
+        f"artifact key/filename not found in manifest whitelist: {name_or_filename!r}"
+    )
+
+
+def _download_by_key(
+    base_url: str,
+    artifact_dir: str,
+    key: str,
+    *,
+    timeout: float,
     api_key: Optional[str] = None,
 ) -> bytes:
-    url = base_url.rstrip("/") + f"/work/{artifact_dir}/{relpath.lstrip('/')}"
-    resp = requests.get(url, headers=_api_key_headers(_resolve_api_key(api_key)), timeout=timeout)
+    url = base_url.rstrip("/") + f"/artifacts/{artifact_dir}/download/{key}"
+    resp = requests.get(url, headers=_headers(api_key), timeout=timeout)
     resp.raise_for_status()
     return resp.content
-
-
-def _get_bytes_fallback(
-    base_url: str,
-    artifact_dir: str,
-    relpaths: List[str],
-    timeout: float,
-    *,
-    api_key: Optional[str] = None,
-) -> bytes:
-    last_exc: Optional[Exception] = None
-    for p in relpaths:
-        try:
-            return _get_bytes(base_url, artifact_dir, p, timeout=timeout, api_key=api_key)
-        except Exception as e:
-            last_exc = e
-    if last_exc is not None:
-        raise last_exc
-    raise RuntimeError("no candidate path provided")
 
 
 def _load_json_bytes(raw: bytes) -> Dict[str, Any]:
@@ -69,18 +116,6 @@ def _load_json_bytes(raw: bytes) -> Dict[str, Any]:
     if not isinstance(obj, dict):
         raise TypeError(f"expected JSON object, got {type(obj).__name__}")
     return obj
-
-
-def _get_json_fallback(
-    base_url: str,
-    artifact_dir: str,
-    relpaths: List[str],
-    *,
-    timeout: float,
-    api_key: Optional[str] = None,
-) -> Dict[str, Any]:
-    raw = _get_bytes_fallback(base_url, artifact_dir, relpaths, timeout=timeout, api_key=api_key)
-    return _load_json_bytes(raw)
 
 
 def _infer_index_spec_from_manifest(manifest: Dict[str, Any]) -> Optional[Dict[str, Any]]:
@@ -114,26 +149,6 @@ def _apply_time_index_inplace(df: "pd.DataFrame", index_spec: Dict[str, Any], *,
     df.index.name = "time"
 
 
-def _get_artifact_bytes_with_used_path(
-    base_url: str,
-    artifact_dir: str,
-    filename: str,
-    *,
-    timeout: float,
-    api_key: Optional[str] = None,
-) -> tuple[bytes, str]:
-    # まずは指定されたパスで取得（ダメなら artifacts/ 配下も試す）
-    last_exc: Optional[Exception] = None
-    for rel in _candidate_relpaths(filename):
-        try:
-            return _get_bytes(base_url, artifact_dir, rel, timeout=timeout, api_key=api_key), rel
-        except Exception as e:
-            last_exc = e
-    if last_exc is not None:
-        raise last_exc
-    raise RuntimeError("no candidate path provided")
-
-
 def get_artifact_bytes(
     base_url: str,
     artifact_dir: str,
@@ -142,19 +157,22 @@ def get_artifact_bytes(
     output_path: Optional[str] = None,
     timeout: float = 60.0,
     api_key: Optional[str] = None,
+    manifest: Optional[Dict[str, Any]] = None,
 ) -> bytes:
     """
     成果物ディレクトリからファイルを1つ取得して bytes を返す（復元はしない）。
 
     想定API:
-      GET {base_url}/work/{artifact_dir}/{filename}
+      GET {base_url}/artifacts/{artifact_dir}/manifest
+      GET {base_url}/artifacts/{artifact_dir}/download/{key}
 
-    - filename が見つからない場合は artifacts/filename もフォールバックで試す
+    - filename は実ファイル名（例: schema.json）または download key（例: schema）
     - output_path を指定すると保存も行う
     """
-    data, _used = _get_artifact_bytes_with_used_path(
-        base_url, artifact_dir, filename, timeout=timeout, api_key=api_key
-    )
+    if manifest is None:
+        manifest = _get_manifest(base_url, artifact_dir, timeout=timeout, api_key=api_key)
+    key = _resolve_download_key(manifest, filename)
+    data = _download_by_key(base_url, artifact_dir, key, timeout=timeout, api_key=api_key)
     if output_path is not None:
         with open(output_path, "wb") as f:
             f.write(data)
@@ -175,42 +193,33 @@ def get_artifact_file(
     成果物ディレクトリからファイルを1つ取得する。
 
     想定API:
-      GET {base_url}/work/{artifact_dir}/{filename}
+      GET {base_url}/artifacts/{artifact_dir}/manifest
+      GET {base_url}/artifacts/{artifact_dir}/download/{key}
 
     - output_path を指定すると、取得した内容をそのパスに保存する（Noneなら保存しない）
-    - `.f32.bin` の場合は `schema.json` と `manifest.json` を参照して DataFrame に復元して返す
+    - `.f32.bin` の場合は `schema` と `manifest` を参照して DataFrame に復元して返す
       - dtype: schema.json の "f32le" -> np.dtype("<f4")
       - layout: schema.json の "timestep-major" -> shape=(T, N)
     - それ以外は取得したバイト列を返す
     """
-    data, used_relpath = _get_artifact_bytes_with_used_path(
-        base_url, artifact_dir, filename, timeout=timeout, api_key=api_key
-    )
-    filename = used_relpath
+    manifest = _get_manifest(base_url, artifact_dir, timeout=timeout, api_key=api_key)
+    key = _resolve_download_key(manifest, filename)
+    data = _download_by_key(base_url, artifact_dir, key, timeout=timeout, api_key=api_key)
 
     if output_path is not None:
         with open(output_path, "wb") as f:
             f.write(data)
 
-    # 自動復元: *.f32.bin は DataFrame を返す
-    if not filename.endswith(".f32.bin"):
+    result_files = extract_result_files(manifest)
+    bin_basename = result_files.get(key) if key in result_files else filename.split("/")[-1]
+    if not isinstance(bin_basename, str):
+        bin_basename = filename.split("/")[-1]
+
+    if not bin_basename.endswith(".f32.bin"):
         return data
 
-    # schema/manifest は配置ゆれがあるので両方試す
-    schema = _get_json_fallback(
-        base_url,
-        artifact_dir,
-        ["schema.json", "artifacts/schema.json"],
-        timeout=timeout,
-        api_key=api_key,
-    )
-    manifest = _get_json_fallback(
-        base_url,
-        artifact_dir,
-        ["manifest.json", "artifacts/manifest.json"],
-        timeout=timeout,
-        api_key=api_key,
-    )
+    schema_raw = _download_by_key(base_url, artifact_dir, "schema", timeout=timeout, api_key=api_key)
+    schema = _load_json_bytes(schema_raw)
 
     dtype = schema.get("dtype")
     layout = schema.get("layout")
@@ -223,15 +232,13 @@ def get_artifact_file(
     if not isinstance(T, int) or T < 0:
         raise ValueError(f"schema.json length が不正です: {T!r}")
 
-    result_files = extract_result_files(manifest)
-    bin_basename = filename.split("/")[-1]
-
-    # manifest: series_name -> bin_filename なので逆引き
     series_name: Optional[str] = None
     for k, v in result_files.items():
         if v == bin_basename:
             series_name = k
             break
+    if series_name is None and key in result_files:
+        series_name = key
     if series_name is None:
         raise KeyError(f"manifest.json から {bin_basename} に対応する series 名が見つかりませんでした")
 
@@ -256,5 +263,3 @@ def get_artifact_file(
             # index付与に失敗してもDataFrame自体は返す
             pass
     return df
-
-

@@ -62,7 +62,7 @@ def test_run_calc_raises_readable_api_error_on_400():
                 {"simulation": {"index": {"length": 1, "timestep": 1}}},
                 with_dataframes=False,
                 compress_request=False,
-            )
+                use_legacy_run=True)
         assert e.value.status_code == 400
         assert "[invalid_config]" in str(e.value)
         assert "ノード 'X' が存在しません" in str(e.value)
@@ -108,7 +108,7 @@ def test_run_calc_raises_value_error_with_log_tail_on_sim_error():
                 f"http://127.0.0.1:{port}",
                 {"simulation": {"index": {"length": 1, "timestep": 1}}},
                 compress_request=False,
-            )
+                use_legacy_run=True)
         assert "did not converge" in str(e.value)
         assert "artifact_dir=artifacts.1" in str(e.value)
         assert "tail line" in str(e.value)

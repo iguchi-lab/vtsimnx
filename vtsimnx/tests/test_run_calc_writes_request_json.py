@@ -58,7 +58,7 @@ def test_run_calc_writes_request_json(tmp_path):
             with_dataframes=False,
             compress_request=False,
             request_output_path=req_path,
-        )
+                use_legacy_run=True)
 
         saved = json.loads(req_path.read_text(encoding="utf-8"))
         assert saved["nodes"][0]["t"] == [1.0, 2.0, None]

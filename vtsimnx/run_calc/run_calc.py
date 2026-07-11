@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 from vtsimnx.artifacts._schema import extract_manifest_error, extract_result_files
-from vtsimnx.run_calc._http import RunCalcAPIError, _post_run
+from vtsimnx.run_calc._http import RunCalcAPIError, _post_run, _submit_and_wait
 from vtsimnx.run_calc._index import (
     _normalize_simulation_index_inplace,
     _time_index_from_config,
@@ -303,6 +303,8 @@ def run_calc(
     timeout: float = 900.0,
     api_key: Optional[str] = None,
     request_output_path: Optional[Union[str, Path]] = None,
+    use_legacy_run: bool = False,
+    poll_interval: float = 1.0,
 ) -> Union[Dict[str, Any], CalcRunResult]:
     client_profile: Dict[str, Any] = {}
     t_total0 = time.perf_counter()
@@ -340,17 +342,29 @@ def run_calc(
 
     http_profile: Dict[str, Any] = {}
     t_post0 = time.perf_counter()
-    resp_json = _post_run(
-        base_url,
-        payload=payload,
-        compress_request=compress_request,
-        timeout=timeout,
-        api_key=api_key,
-        profile_out=http_profile,
-    )
+    if use_legacy_run:
+        resp_json = _post_run(
+            base_url,
+            payload=payload,
+            compress_request=compress_request,
+            timeout=timeout,
+            api_key=api_key,
+            profile_out=http_profile,
+        )
+    else:
+        resp_json = _submit_and_wait(
+            base_url,
+            payload=payload,
+            compress_request=compress_request,
+            timeout=timeout,
+            api_key=api_key,
+            poll_interval=poll_interval,
+            profile_out=http_profile,
+        )
     t_post1 = time.perf_counter()
     client_profile.update(http_profile)
     client_profile["run_post_ms"] = (t_post1 - t_post0) * 1000.0
+    client_profile["use_legacy_run"] = bool(use_legacy_run)
 
     if output_path is not None:
         _write_json(output_path, resp_json)

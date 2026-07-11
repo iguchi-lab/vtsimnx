@@ -6,26 +6,42 @@ import numpy as np
 import vtsimnx as vt
 
 
+ARTIFACT_DIR = "output.artifacts.123"
+
+
+def _send(handler: BaseHTTPRequestHandler, status: int, body: bytes, content_type: str) -> None:
+    handler.send_response(status)
+    handler.send_header("Content-Type", content_type)
+    handler.send_header("Content-Length", str(len(body)))
+    handler.end_headers()
+    handler.wfile.write(body)
+
+
 class _Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        # get_artifact_file の想定: /work/<artifact_dir>/<filename>
-        if self.path in (
-            "/work/output.artifacts.123/solver.log",
-            "/work/output.artifacts.123/artifacts/solver.log",  # フォールバック経路
-        ):
-            raw = b"hello\n"
-            self.send_response(200)
-            self.send_header("Content-Type", "text/plain; charset=utf-8")
-            self.send_header("Content-Length", str(len(raw)))
-            self.end_headers()
-            self.wfile.write(raw)
+        if self.path == f"/artifacts/{ARTIFACT_DIR}/manifest":
+            manifest = {
+                "output": {
+                    "log_file": "solver.log",
+                    "result_files": {"schema": "schema.json"},
+                },
+                "files": {
+                    "schema": "schema.json",
+                    "log": "solver.log",
+                    "manifest": "manifest.json",
+                },
+            }
+            _send(self, 200, json.dumps(manifest).encode("utf-8"), "application/json; charset=utf-8")
+            return
+
+        if self.path == f"/artifacts/{ARTIFACT_DIR}/download/log":
+            _send(self, 200, b"hello\n", "text/plain; charset=utf-8")
             return
 
         self.send_response(404)
         self.end_headers()
 
     def log_message(self, format, *args):
-        # テスト出力を静かにする
         return
 
 
@@ -45,7 +61,7 @@ def test_get_artifact_file(tmp_path):
         out_path = tmp_path / "solver.log"
         data = vt.get_artifact_file(
             f"http://127.0.0.1:{port}",
-            "output.artifacts.123",
+            ARTIFACT_DIR,
             "solver.log",
             output_path=str(out_path),
         )
@@ -58,25 +74,7 @@ def test_get_artifact_file(tmp_path):
 
 class _HandlerDF(BaseHTTPRequestHandler):
     def do_GET(self):
-        # get_artifact_file の想定: /work/<artifact_dir>/<filename>
-        if self.path == "/work/output.artifacts.123/schema.json":
-            schema = {
-                "dtype": "f32le",
-                "layout": "timestep-major",
-                "length": 2,
-                "series": {
-                    "vent_flow_rate": {"keys": ["c1", "c2"]},
-                },
-            }
-            raw = json.dumps(schema).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Content-Length", str(len(raw)))
-            self.end_headers()
-            self.wfile.write(raw)
-            return
-
-        if self.path == "/work/output.artifacts.123/manifest.json":
+        if self.path == f"/artifacts/{ARTIFACT_DIR}/manifest":
             manifest = {
                 "output": {
                     "index": {
@@ -86,26 +84,29 @@ class _HandlerDF(BaseHTTPRequestHandler):
                         "length": 2,
                     },
                     "result_files": {
+                        "schema": "schema.json",
                         "vent_flow_rate": "vent.flow_rate.f32.bin",
                     },
                 }
             }
-            raw = json.dumps(manifest).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Content-Length", str(len(raw)))
-            self.end_headers()
-            self.wfile.write(raw)
+            _send(self, 200, json.dumps(manifest).encode("utf-8"), "application/json; charset=utf-8")
             return
 
-        if self.path == "/work/output.artifacts.123/vent.flow_rate.f32.bin":
+        if self.path == f"/artifacts/{ARTIFACT_DIR}/download/schema":
+            schema = {
+                "dtype": "f32le",
+                "layout": "timestep-major",
+                "length": 2,
+                "series": {
+                    "vent_flow_rate": {"keys": ["c1", "c2"]},
+                },
+            }
+            _send(self, 200, json.dumps(schema).encode("utf-8"), "application/json; charset=utf-8")
+            return
+
+        if self.path == f"/artifacts/{ARTIFACT_DIR}/download/vent_flow_rate":
             arr = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.dtype("<f4"))  # (T=2, N=2)
-            raw = arr.tobytes()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/octet-stream")
-            self.send_header("Content-Length", str(len(raw)))
-            self.end_headers()
-            self.wfile.write(raw)
+            _send(self, 200, arr.tobytes(), "application/octet-stream")
             return
 
         self.send_response(404)
@@ -125,7 +126,7 @@ def test_get_artifact_file_df_sets_time_index_from_manifest_output_index():
         base_url = f"http://127.0.0.1:{port}"
         df = vt.get_artifact_file(
             base_url,
-            "output.artifacts.123",
+            ARTIFACT_DIR,
             "vent.flow_rate.f32.bin",
             output_path=None,
         )
@@ -137,5 +138,3 @@ def test_get_artifact_file_df_sets_time_index_from_manifest_output_index():
     finally:
         server.shutdown()
         server.server_close()
-
-

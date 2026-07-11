@@ -6,21 +6,39 @@ import pytest
 
 import app.solver_runner as sr
 
+def _patch_popen(monkeypatch, *, returncode: int, stdout: str = "", stderr: str = ""):
+    class DummyProc:
+        def __init__(self):
+            self.returncode = returncode
+            self._stdout = stdout
+            self._stderr = stderr
+
+        def communicate(self, timeout=None):
+            return self._stdout, self._stderr
+
+        def terminate(self):
+            return None
+
+        def kill(self):
+            return None
+
+        def wait(self, timeout=None):
+            return self.returncode
+
+    def fake_popen(*_a, **_k):
+        return DummyProc()
+
+    monkeypatch.setattr(subprocess, "Popen", fake_popen)
+
+
+
 
 def test_invoke_solver_raises_on_nonzero_exit(tmp_path, monkeypatch):
     inp = tmp_path / "input.json"
     out = tmp_path / "output.json"
     inp.write_text("{}", encoding="utf-8")
 
-    class DummyResult:
-        returncode = 7
-        stdout = "OUT"
-        stderr = "ERR"
-
-    def fake_run(*_args, **_kwargs):
-        return DummyResult()
-
-    monkeypatch.setattr(subprocess, "run", fake_run)
+    _patch_popen(monkeypatch, returncode=7, stdout="OUT", stderr="ERR")
 
     with pytest.raises(RuntimeError) as e:
         sr._invoke_solver(inp, out, cwd=tmp_path)
@@ -38,12 +56,7 @@ def test_invoke_solver_returns_when_nonzero_exit_but_output_exists(tmp_path, mon
         encoding="utf-8",
     )
 
-    class DummyResult:
-        returncode = 1
-        stdout = ""
-        stderr = "load failed"
-
-    monkeypatch.setattr(subprocess, "run", lambda *_a, **_k: DummyResult())
+    _patch_popen(monkeypatch, returncode=1, stdout="", stderr="load failed")
     sr._invoke_solver(inp, out, cwd=tmp_path)  # should not raise
 
 
@@ -71,12 +84,7 @@ def test_invoke_solver_raises_if_output_missing(tmp_path, monkeypatch):
     out = tmp_path / "output.json"
     inp.write_text("{}", encoding="utf-8")
 
-    class DummyResult:
-        returncode = 0
-        stdout = ""
-        stderr = ""
-
-    monkeypatch.setattr(subprocess, "run", lambda *_a, **_k: DummyResult())
+    _patch_popen(monkeypatch, returncode=0, stdout="", stderr="")
 
     with pytest.raises(RuntimeError) as e:
         sr._invoke_solver(inp, out, cwd=tmp_path)
@@ -95,8 +103,9 @@ def test_run_solver_writes_input_and_overwrites_output(tmp_path, monkeypatch):
     old_output = work / "output.json"
     old_output.write_text('{"old": true}', encoding="utf-8")
 
-    def fake_invoke(input_path: Path, output_path: Path, cwd: Path) -> None:
-        assert cwd == work
+    def fake_invoke(input_path: Path, output_path: Path, cwd: Path, **kwargs) -> None:
+        assert cwd.parent == work / "runs"
+        assert cwd.name  # run_id
         # 入力が書かれていること
         data = json.loads(input_path.read_text(encoding="utf-8"))
         assert data["simulation"]["index"]["length"] == 1
@@ -132,7 +141,7 @@ def test_run_solver_uses_unique_io_paths_and_cleans_up(tmp_path, monkeypatch):
 
     seen = []
 
-    def fake_invoke(input_path: Path, output_path: Path, cwd: Path) -> None:
+    def fake_invoke(input_path: Path, output_path: Path, cwd: Path, **kwargs) -> None:
         seen.append((input_path, output_path))
         output_path.write_text('{"status":"ok","artifact_dir":"x","log_file":"solver.log","result_files":{}}', encoding="utf-8")
 
@@ -178,7 +187,7 @@ def test_run_solver_keep_run_files_env_keeps_input_output(tmp_path, monkeypatch)
 
     seen = {}
 
-    def fake_invoke(input_path: Path, output_path: Path, cwd: Path) -> None:
+    def fake_invoke(input_path: Path, output_path: Path, cwd: Path, **kwargs) -> None:
         seen["inp"] = input_path
         seen["out"] = output_path
         output_path.write_text('{"status":"ok","artifact_dir":"x","log_file":"solver.log","result_files":{}}', encoding="utf-8")
@@ -210,7 +219,7 @@ def test_run_solver_input_cache_reuses_same_input_file_and_does_not_delete(tmp_p
 
     seen = []
 
-    def fake_invoke(input_path: Path, output_path: Path, cwd: Path) -> None:
+    def fake_invoke(input_path: Path, output_path: Path, cwd: Path, **kwargs) -> None:
         seen.append(input_path)
         output_path.write_text('{"status":"ok","artifact_dir":"x","log_file":"solver.log","result_files":{}}', encoding="utf-8")
 

@@ -17,32 +17,25 @@ def _serve(handler_cls):
     return server, port
 
 
+def _send(handler: BaseHTTPRequestHandler, status: int, body: bytes, content_type: str) -> None:
+    handler.send_response(status)
+    handler.send_header("Content-Type", content_type)
+    handler.send_header("Content-Length", str(len(body)))
+    handler.end_headers()
+    handler.wfile.write(body)
+
+
 class _BaseDFHandler(BaseHTTPRequestHandler):
     schema_dtype = "f32le"
     schema_layout = "timestep-major"
     schema_length = 2
     index_length = 2
     bin_size_ok = True
+    artifact_dir = "output.artifacts.123"
 
     def do_GET(self):
-        if self.path == "/work/output.artifacts.123/schema.json":
-            schema = {
-                "dtype": self.schema_dtype,
-                "layout": self.schema_layout,
-                "length": self.schema_length,
-                "series": {
-                    "vent_flow_rate": {"keys": ["c1", "c2"]},
-                },
-            }
-            raw = json.dumps(schema).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Content-Length", str(len(raw)))
-            self.end_headers()
-            self.wfile.write(raw)
-            return
-
-        if self.path == "/work/output.artifacts.123/manifest.json":
+        base = f"/artifacts/{self.artifact_dir}"
+        if self.path == f"{base}/manifest":
             manifest = {
                 "output": {
                     "index": {
@@ -52,29 +45,32 @@ class _BaseDFHandler(BaseHTTPRequestHandler):
                         "length": self.index_length,
                     },
                     "result_files": {
+                        "schema": "schema.json",
                         "vent_flow_rate": "vent.flow_rate.f32.bin",
                     },
                 }
             }
-            raw = json.dumps(manifest).encode("utf-8")
-            self.send_response(200)
-            self.send_header("Content-Type", "application/json; charset=utf-8")
-            self.send_header("Content-Length", str(len(raw)))
-            self.end_headers()
-            self.wfile.write(raw)
+            _send(self, 200, json.dumps(manifest).encode("utf-8"), "application/json; charset=utf-8")
             return
 
-        if self.path == "/work/output.artifacts.123/vent.flow_rate.f32.bin":
+        if self.path == f"{base}/download/schema":
+            schema = {
+                "dtype": self.schema_dtype,
+                "layout": self.schema_layout,
+                "length": self.schema_length,
+                "series": {
+                    "vent_flow_rate": {"keys": ["c1", "c2"]},
+                },
+            }
+            _send(self, 200, json.dumps(schema).encode("utf-8"), "application/json; charset=utf-8")
+            return
+
+        if self.path == f"{base}/download/vent_flow_rate":
             if self.bin_size_ok:
                 arr = np.array([1.0, 2.0, 3.0, 4.0], dtype=np.dtype("<f4"))  # (T=2, N=2)
             else:
                 arr = np.array([1.0, 2.0, 3.0], dtype=np.dtype("<f4"))  # mismatch
-            raw = arr.tobytes()
-            self.send_response(200)
-            self.send_header("Content-Type", "application/octet-stream")
-            self.send_header("Content-Length", str(len(raw)))
-            self.end_headers()
-            self.wfile.write(raw)
+            _send(self, 200, arr.tobytes(), "application/octet-stream")
             return
 
         self.send_response(404)
@@ -176,5 +172,3 @@ def test_extract_result_files_raises_with_output_error_message():
 
     with pytest.raises(ValueError, match="nodes\\[928\\]\\.pre_temp must be array<number>"):
         extract_result_files(manifest)
-
-

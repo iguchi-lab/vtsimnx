@@ -9,6 +9,13 @@ API 仕様（エンドポイント、入力、レスポンス、エラー）は 
 python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
+**推奨**: uvicorn `workers=1`（ジョブ表はプロセス内メモリのため）。並列実行数は環境変数で制御します。
+
+```bash
+export VTSIMNX_MAX_WORKERS=2   # ThreadPool 上限（既定 1）
+python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
 確認:
 
 ```bash
@@ -50,16 +57,35 @@ echo $! > .uvicorn.pid
 
 ## 3. API 利用の最小フロー
 
-1) `/run` を呼び出して `artifact_dir` を得る  
+推奨（非同期）:
+
+1) `POST /runs` で `run_id` を得る  
+2) `GET /runs/{run_id}` をポーリングし `succeeded` を待つ  
+3) `GET /runs/{run_id}/result` で結果（`artifact_dir` 含む）を得る  
+4) `/artifacts/{artifact_dir}/...` で成果物を取得する
+
+互換（同期）:
+
+1) `POST /run` を呼び出して `artifact_dir` を得る  
 2) `/artifacts/{artifact_dir}/files` でキー一覧を得る  
 3) `/artifacts/{artifact_dir}/download/{key}` で必要ファイルを取得する
 
-例:
+例（非同期）:
+
+```bash
+RUN=$(curl -sS -X POST http://127.0.0.1:8000/runs \
+  -H 'Content-Type: application/json' \
+  -d '{"config": {"simulation": {"index": {"start":"2025-01-01T00:00:00Z","end":"2025-01-01T01:00:00Z","timestep":60,"length":60}}, "nodes": [{"key":"N1"}], "ventilation_branches": [], "thermal_branches": []}}')
+echo "$RUN"
+# {"run_id":"...","status":"queued","input_hash":"..."}
+```
+
+例（同期・互換）:
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8000/run \
   -H 'Content-Type: application/json' \
-  -d '{"config": {"simulation": {"step": 1, "timestep": 3600}, "nodes": [], "ventilation_branches": [], "thermal_branches": []}}'
+  -d '{"config": {"simulation": {"index": {"start":"2025-01-01T00:00:00Z","end":"2025-01-01T01:00:00Z","timestep":60,"length":60}}, "nodes": [{"key":"N1"}], "ventilation_branches": [], "thermal_branches": []}}'
 ```
 
 ```bash
@@ -79,7 +105,9 @@ curl -L -o solver.log http://127.0.0.1:8000/artifacts/<artifact_dir>/download/lo
 | 症状 | 原因候補 | 対策 |
 |---|---|---|
 | しばらくして落ちる | `--reload` 利用 | 常駐運用は `--reload` なし |
-| `/run` が返らない | solver ハング | `VTSIMNX_SOLVER_TIMEOUT` を設定 |
+| `/run` や `/runs` が返らない | solver ハング | `VTSIMNX_SOLVER_TIMEOUT` を設定 |
+| ジョブ状態が別プロセスで見えない | uvicorn マルチワーカー | `workers=1` を使う |
+| 同時実行を増やしたい | 既定ワーカー数 1 | `VTSIMNX_MAX_WORKERS` を設定 |
 | プロセスが突然消える | OOM killer | 計算サイズ見直し、メモリ増強、システムログ確認 |
 | 単発エラーで止まる | 単一ワーカー | systemd / supervisord で自動再起動 |
 
