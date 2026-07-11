@@ -28,9 +28,8 @@ def test_run_solver_returns_json(tmp_path, monkeypatch):
     # artifacts が作られていること（最低限: log と schema）
     artifact_dir = output.get("artifact_dir")
     assert isinstance(artifact_dir, str) and artifact_dir
-    work_dir = tmp_path / "work"
-    art = work_dir / artifact_dir
-    assert art.exists() and art.is_dir()
+    art = sr.resolve_artifact_path(artifact_dir)
+    assert art is not None and art.exists() and art.is_dir()
     assert (art / output.get("log_file", "solver.log")).exists()
     assert (art / "schema.json").exists()
 

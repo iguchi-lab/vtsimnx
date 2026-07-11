@@ -76,7 +76,11 @@ void postprocessAndReport(ThermalNetwork& network,
     network.setLastThermalConvergence(rmseB <= constants.thermalTolerance, rmseB, maxB, method);
 
     constexpr std::uint64_t kStatsLogInterval = 500;
-    if ((stats.calls % kStatsLogInterval) == 0) {
+    // VTSIMNX_TIMINGS 有効時は毎呼び出しで cache stats を出し、性能ベンチで
+    // luFactorize / topoRebuild を短ケースでも拾えるようにする。
+    const bool timingsEnv = (std::getenv("VTSIMNX_TIMINGS") != nullptr);
+    const std::uint64_t statsInterval = timingsEnv ? 1 : kStatsLogInterval;
+    if (stats.calls > 0 && (stats.calls % statsInterval) == 0) {
         std::ostringstream ss;
         ss << "--------DirectT cache stats: calls=" << stats.calls
            << ", n=" << n

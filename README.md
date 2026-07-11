@@ -9,9 +9,10 @@ Python クライアントで入力を構築し、HTTP engine で計算を実行�
 `vtsimnx/`（Pythonライブラリ）と `engine/`（FastAPI+solver）を同じリポジトリで保守します。
 APIサーバー実装の正本は `engine/` です。
 
-最新リリース: [`v1.2.0`](https://github.com/iguchi-lab/vtsimnx/releases/tag/v1.2.0)
+最新リリース: [`v1.3.0`](https://github.com/iguchi-lab/vtsimnx/releases/tag/v1.3.0)
 
-バージョン整合ポリシー（`pyproject.toml` / FastAPI version / tag）: `docs/release_policy.md`
+バージョン正本は `pyproject.toml`（API / `get_version()` / tag が参照）。運用: `docs/release_policy.md`  
+公開 API の安定性: `docs/public_api.md`　単位系: `docs/units.md`
 
 ## 何ができるか
 
@@ -67,6 +68,8 @@ python examples/run_calc_minimal.py
 - API契約: `engine/docs/api_reference.md`
 - builder 入力仕様（正本）: `engine/docs/builder_json.md`
 - 検証戦略: `docs/validation_strategy.md`
+- 公開 API 安定性: `docs/public_api.md`
+- 単位系: `docs/units.md`
 - リリース運用: `docs/release_policy.md`
 
 ## CI（公開チェック）

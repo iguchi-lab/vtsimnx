@@ -19,9 +19,15 @@ python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 確認:
 
 ```bash
+curl -sS http://127.0.0.1:8000/health/live
+curl -sS http://127.0.0.1:8000/health/ready
+curl -sS http://127.0.0.1:8000/version
 curl -sS http://127.0.0.1:8000/ping
 # {"status":"ok"}
 ```
+
+公開運用では **TLS 終端（リバースプロキシ等）を前提**とし、`X-API-Key` を平文 HTTP で送らないでください。  
+成果物の TTL / 容量は `VTSIMNX_ARTIFACT_TTL_SEC` 等で制御します（詳細は `docs/api_reference.md`）。
 
 開発時のみ:
 

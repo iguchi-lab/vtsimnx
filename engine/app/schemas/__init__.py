@@ -17,6 +17,8 @@ from .config import (
     dump_config_without_extras,
     prepare_raw_config,
 )
+from .request import SimulationRequest
+from .response import SimulationResponse
 
 __all__ = [
     "AirconModel",
@@ -26,6 +28,8 @@ __all__ = [
     "SimulationCalcFlag",
     "SimulationIndex",
     "SimulationLog",
+    "SimulationRequest",
+    "SimulationResponse",
     "SimulationSection",
     "SimulationTolerance",
     "SurfaceModel",

@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "case": "thermal_rc_wall",
+      "builder_ms": 89.22,
+      "solver_wall_ms": 19.879,
+      "solver_simulation_total_ms": 0.718,
+      "solver_load_input_ms": 0.145,
+      "max_memory_kib": 57332,
+      "lu_factorize": 0,
+      "topo_rebuild": 1,
+      "pattern_rebuild": 1,
+      "aircon_recompute_count": 0,
+      "coupled_iterations_sum": 12,
+      "artifact_size_bytes": 15062,
+      "timings_count": 114
+    },
+    {
+      "case": "stiff_pressure",
+      "builder_ms": 90.975,
+      "solver_wall_ms": 27.48,
+      "solver_simulation_total_ms": 2.553,
+      "solver_load_input_ms": 0.271,
+      "max_memory_kib": 57600,
+      "lu_factorize": null,
+      "topo_rebuild": null,
+      "pattern_rebuild": null,
+      "aircon_recompute_count": 0,
+      "coupled_iterations_sum": 6,
+      "artifact_size_bytes": 12781,
+      "timings_count": 60
+    },
+    {
+      "case": "hvac_heating",
+      "builder_ms": 99.169,
+      "solver_wall_ms": 19.932,
+      "solver_simulation_total_ms": 1.096,
+      "solver_load_input_ms": 0.135,
+      "max_memory_kib": 58752,
+      "lu_factorize": 1,
+      "topo_rebuild": 1,
+      "pattern_rebuild": 1,
+      "aircon_recompute_count": 0,
+      "coupled_iterations_sum": 6,
+      "artifact_size_bytes": 11975,
+      "timings_count": 60
+    }
+  ]
+}

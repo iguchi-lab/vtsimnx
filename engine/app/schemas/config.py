@@ -9,6 +9,25 @@ from typing import Any, Dict, List, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.units import (
+    AREA_M2,
+    CONCENTRATION,
+    CONDUCTANCE_W_K,
+    HEAT_RATE_W,
+    HUMIDITY_RATIO,
+    LENGTH_M,
+    MOISTURE_GEN_KG_S,
+    PRESSURE_PA,
+    SOLAR_IRRADIANCE_W_M2,
+    TEMPERATURE_C,
+    THERMAL_MASS_J_K,
+    TIME_S,
+    U_VALUE_W_M2K,
+    VOLUME_FLOW_M3_S,
+    VOLUME_M3,
+    field_extra,
+)
+
 
 UnknownKeysMode = Literal["strip", "error"]
 
@@ -23,16 +42,23 @@ class _StrictExtraBase(BaseModel):
 
 
 class SimulationIndex(_StrictExtraBase):
-    start: str
-    end: str
-    timestep: Union[int, float]
-    length: int
+    start: str = Field(description="シミュレーション開始時刻（ISO8601 等）")
+    end: str = Field(description="シミュレーション終了時刻")
+    timestep: Union[int, float] = Field(
+        description="時間刻み",
+        json_schema_extra=field_extra(TIME_S),
+    )
+    length: int = Field(description="ステップ数")
 
 
 class SimulationTolerance(_StrictExtraBase):
-    ventilation: Optional[float] = None
-    thermal: Optional[float] = None
-    convergence: Optional[float] = None
+    ventilation: Optional[float] = Field(default=None, description="圧力/換気残差許容")
+    thermal: Optional[float] = Field(
+        default=None,
+        description="熱収支残差許容",
+        json_schema_extra=field_extra(HEAT_RATE_W),
+    )
+    convergence: Optional[float] = Field(default=None, description="連成収束許容")
 
 
 class SimulationCalcFlag(_StrictExtraBase):
@@ -58,17 +84,35 @@ class NodeModel(_StrictExtraBase):
     type: Optional[str] = None
     subtype: Optional[str] = None
     comment: Optional[str] = None
-    t: Optional[ScalarOrSeries] = None
-    p: Optional[ScalarOrSeries] = None
-    x: Optional[ScalarOrSeries] = None
-    c: Optional[ScalarOrSeries] = None
+    t: Optional[ScalarOrSeries] = Field(
+        default=None, description="温度", json_schema_extra=field_extra(TEMPERATURE_C)
+    )
+    p: Optional[ScalarOrSeries] = Field(
+        default=None, description="圧力", json_schema_extra=field_extra(PRESSURE_PA)
+    )
+    x: Optional[ScalarOrSeries] = Field(
+        default=None,
+        description="絶対湿度",
+        json_schema_extra=field_extra(HUMIDITY_RATIO),
+    )
+    c: Optional[ScalarOrSeries] = Field(
+        default=None, description="濃度", json_schema_extra=field_extra(CONCENTRATION)
+    )
     calc_t: Optional[bool] = None
     calc_p: Optional[bool] = None
     calc_x: Optional[bool] = None
     calc_c: Optional[bool] = None
-    v: Optional[float] = None
-    beta: Optional[ScalarOrSeries] = None
-    thermal_mass: Optional[float] = None
+    v: Optional[float] = Field(
+        default=None, description="気積", json_schema_extra=field_extra(VOLUME_M3)
+    )
+    beta: Optional[ScalarOrSeries] = Field(
+        default=None, description="沈着係数", json_schema_extra=field_extra("1/s")
+    )
+    thermal_mass: Optional[float] = Field(
+        default=None,
+        description="熱容量",
+        json_schema_extra=field_extra(THERMAL_MASS_J_K),
+    )
     moisture_capacity: Optional[float] = None
     moisture_capacity_unit: Optional[str] = None
     w: Optional[ScalarOrSeries] = None
@@ -76,7 +120,11 @@ class NodeModel(_StrictExtraBase):
     in_node: Optional[str] = None
     set_node: Optional[str] = None
     outside_node: Optional[str] = None
-    pre_temp: Optional[ScalarOrSeries] = None
+    pre_temp: Optional[ScalarOrSeries] = Field(
+        default=None,
+        description="エアコン設定温度",
+        json_schema_extra=field_extra(TEMPERATURE_C),
+    )
     model: Optional[str] = None
     mode: Optional[ScalarOrSeries] = None
     ac_spec: Optional[Dict[str, Any]] = None
@@ -90,25 +138,47 @@ class VentilationBranchModel(_StrictExtraBase):
     source: Optional[str] = None
     target: Optional[str] = None
     enable: Optional[Union[bool, List[bool]]] = None
-    h_from: Optional[float] = None
-    h_to: Optional[float] = None
+    h_from: Optional[float] = Field(
+        default=None, description="出発高さ", json_schema_extra=field_extra(LENGTH_M)
+    )
+    h_to: Optional[float] = Field(
+        default=None, description="到達高さ", json_schema_extra=field_extra(LENGTH_M)
+    )
     eta: Optional[ScalarOrSeries] = None
-    alpha: Optional[float] = None
-    area: Optional[float] = None
+    alpha: Optional[float] = Field(
+        default=None, description="有効開口率", json_schema_extra=field_extra("-")
+    )
+    area: Optional[float] = Field(
+        default=None, description="開口面積", json_schema_extra=field_extra(AREA_M2)
+    )
     a: Optional[float] = None
     n: Optional[float] = None
-    p_max: Optional[float] = None
+    p_max: Optional[float] = Field(
+        default=None, description="最大静圧", json_schema_extra=field_extra(PRESSURE_PA)
+    )
     q_max: Optional[float] = None
     p1: Optional[float] = None
     q1: Optional[float] = None
-    vol: Optional[ScalarOrSeries] = None
+    vol: Optional[ScalarOrSeries] = Field(
+        default=None,
+        description="固定風量（builder/solver 基本単位は m3/s）",
+        json_schema_extra=field_extra(VOLUME_FLOW_M3_S),
+    )
     k_total: Optional[float] = None
     friction_factor: Optional[float] = None
     lambda_: Optional[float] = Field(default=None, alias="lambda")
-    length: Optional[float] = None
-    diameter: Optional[float] = None
+    length: Optional[float] = Field(
+        default=None, json_schema_extra=field_extra(LENGTH_M)
+    )
+    diameter: Optional[float] = Field(
+        default=None, json_schema_extra=field_extra(LENGTH_M)
+    )
     zeta_total: Optional[float] = None
-    humidity_generation: Optional[ScalarOrSeries] = None
+    humidity_generation: Optional[ScalarOrSeries] = Field(
+        default=None,
+        description="発湿",
+        json_schema_extra=field_extra(MOISTURE_GEN_KG_S),
+    )
     dust_generation: Optional[ScalarOrSeries] = None
 
 
@@ -120,10 +190,24 @@ class ThermalBranchModel(_StrictExtraBase):
     source: Optional[str] = None
     target: Optional[str] = None
     enable: Optional[Union[bool, List[bool]]] = None
-    conductance: Optional[float] = None
-    u_value: Optional[float] = None
-    area: Optional[float] = None
-    heat_generation: Optional[ScalarOrSeries] = None
+    conductance: Optional[float] = Field(
+        default=None,
+        description="熱コンダクタンス",
+        json_schema_extra=field_extra(CONDUCTANCE_W_K),
+    )
+    u_value: Optional[float] = Field(
+        default=None,
+        description="熱貫流率",
+        json_schema_extra=field_extra(U_VALUE_W_M2K),
+    )
+    area: Optional[float] = Field(
+        default=None, description="面積", json_schema_extra=field_extra(AREA_M2)
+    )
+    heat_generation: Optional[ScalarOrSeries] = Field(
+        default=None,
+        description="発熱",
+        json_schema_extra=field_extra(HEAT_RATE_W),
+    )
     resp_a_src: Optional[List[float]] = None
     resp_b_src: Optional[List[float]] = None
     resp_c_src: Optional[List[float]] = None
@@ -134,12 +218,27 @@ class ThermalBranchModel(_StrictExtraBase):
 
 
 class SurfaceLayerModel(_StrictExtraBase):
-    lambda_: Optional[float] = Field(default=None, alias="lambda")
-    t: Optional[float] = None
-    v_capa: Optional[float] = None
+    lambda_: Optional[float] = Field(
+        default=None,
+        alias="lambda",
+        description="熱伝導率",
+        json_schema_extra=field_extra("W/(m·K)"),
+    )
+    t: Optional[float] = Field(
+        default=None, description="厚さ", json_schema_extra=field_extra(LENGTH_M)
+    )
+    v_capa: Optional[float] = Field(
+        default=None,
+        description="容積比熱",
+        json_schema_extra=field_extra("J/(m3·K)"),
+    )
     air_layer: Optional[bool] = None
     ventilated_air_layer: Optional[bool] = None
-    thermal_resistance: Optional[float] = None
+    thermal_resistance: Optional[float] = Field(
+        default=None,
+        description="熱抵抗",
+        json_schema_extra=field_extra("m2·K/W"),
+    )
     r_value: Optional[float] = None
     r: Optional[float] = None
     air_v_capa: Optional[float] = None
@@ -151,13 +250,23 @@ class SurfaceLayerModel(_StrictExtraBase):
 class SurfaceModel(_StrictExtraBase):
     key: str
     part: Optional[str] = None
-    area: Optional[float] = None
+    area: Optional[float] = Field(
+        default=None, description="面積", json_schema_extra=field_extra(AREA_M2)
+    )
     layers: Optional[List[SurfaceLayerModel]] = None
-    u_value: Optional[float] = None
+    u_value: Optional[float] = Field(
+        default=None,
+        description="熱貫流率",
+        json_schema_extra=field_extra(U_VALUE_W_M2K),
+    )
     alpha_i: Optional[float] = None
     alpha_o: Optional[float] = None
     layer_method: Optional[str] = None
-    solar: Optional[ScalarOrSeries] = None
+    solar: Optional[ScalarOrSeries] = Field(
+        default=None,
+        description="日射取得",
+        json_schema_extra=field_extra(SOLAR_IRRADIANCE_W_M2),
+    )
     eta: Optional[float] = None
     epsilon: Optional[float] = None
     response: Optional[Dict[str, Any]] = None
@@ -167,11 +276,19 @@ class AirconModel(_StrictExtraBase):
     key: str
     set: Optional[str] = None
     outside: Optional[str] = None
-    pre_temp: Optional[ScalarOrSeries] = None
+    pre_temp: Optional[ScalarOrSeries] = Field(
+        default=None,
+        description="設定温度",
+        json_schema_extra=field_extra(TEMPERATURE_C),
+    )
     mode: Optional[ScalarOrSeries] = None
     model: Optional[str] = None
     ac_spec: Optional[Dict[str, Any]] = None
-    vol: Optional[ScalarOrSeries] = None
+    vol: Optional[ScalarOrSeries] = Field(
+        default=None,
+        description="送風量",
+        json_schema_extra=field_extra(VOLUME_FLOW_M3_S),
+    )
     in_: Optional[str] = Field(default=None, alias="in")
     out: Optional[str] = None
 

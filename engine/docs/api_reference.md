@@ -4,17 +4,30 @@
 
 ## Base URL
 
-- 例: `http://127.0.0.1:8000`
+- 例: `https://api.example.com`（**公開運用は TLS 終端を前提**）
+- ローカル開発例: `http://127.0.0.1:8000`
 
 ## 認証
 
-- `X-API-Key` ヘッダ（環境変数 `VTSIMNX_API_KEYS` で有効化。未設定時は認証なし）
+- ヘッダ: `X-API-Key`
+- 有効化: 次のいずれかが非空のとき
+  - `VTSIMNX_API_KEY`（単一）
+  - `VTSIMNX_API_KEYS`（カンマ/改行区切り。`id:secret` 形式可）
+  - `VTSIMNX_API_KEYS_JSON`（`[{"id":"ops","key":"...","revoked":false}]`）
+- 未設定時は認証なし（ローカル開発用）
+- 照合は定数時間比較。失効キー（`revoked: true`）は拒否
+- キー秘密はログに出ません（監査ログは `key_id` のみ）
+- レート制限: `VTSIMNX_RATE_LIMIT_PER_MIN`（既定 120、0 で無効）
+- 認証不要: `/ping`, `/health/live`, `/health/ready`, `/version`
 
 ## エンドポイント一覧
 
 | Method | Path | 用途 |
 |---|---|---|
-| GET | `/ping` | ヘルスチェック |
+| GET | `/health/live` | プロセス生存（liveness） |
+| GET | `/health/ready` | solver / work / 依存の準備（readiness） |
+| GET | `/version` | API / client / solver / schema バージョン |
+| GET | `/ping` | 後方互換ヘルス（live と同等） |
 | POST | `/runs` | 非同期ジョブ投入（推奨） |
 | GET | `/runs/{run_id}` | ジョブ状態・進捗 |
 | GET | `/runs/{run_id}/result` | 完了時の結果取得 |
@@ -26,7 +39,54 @@
 
 ジョブ表はプロセス内メモリ上に保持します。**uvicorn は `workers=1` を推奨**します（マルチワーカーではジョブ状態を共有しません）。並列度は `VTSIMNX_MAX_WORKERS`（既定 1）で制御します。
 
+### Artifact 保持ポリシー
+
+| 環境変数 | 既定 | 意味 |
+|---|---|---|
+| `VTSIMNX_ARTIFACT_TTL_SEC` | 604800（7日） | 成果物 TTL（0 で無効） |
+| `VTSIMNX_ARTIFACT_MAX_BYTES_PER_RUN` | 2GiB | run あたり上限（0 で無効） |
+| `VTSIMNX_ARTIFACT_MAX_TOTAL_BYTES` | 50GiB | work 全体上限（0 で無効） |
+| `VTSIMNX_ARTIFACT_STORE` | `local` | 保存先（現状 local のみ。抽象化済み） |
+
+起動/終了時に TTL・全体上限に基づき削除します。実行中 run の成果物は削除対象外です。認証有効時は成果物に `owner_key_id` が付き、他キーからの取得は 403 になります。
+
 ---
+
+## GET /health/live
+
+### Response 200
+
+```json
+{"status":"ok"}
+```
+
+## GET /health/ready
+
+### Response 200 / 503
+
+```json
+{
+  "status": "ok",
+  "checks": {
+    "solver_binary": {"ok": true, "path": ".../build/vtsimnx_solver"},
+    "work_dir": {"ok": true, "path": ".../work"},
+    "python:fastapi": {"ok": true}
+  }
+}
+```
+
+## GET /version
+
+`api_version` / `client_version` は `pyproject.toml` の `project.version` を正本とします（`engine/app/versioning.py`）。
+
+```json
+{
+  "api_version": "<pyproject project.version>",
+  "client_version": "<installed or same as api_version>",
+  "solver": {"path": "...", "present": true},
+  "schema_format_version": 5
+}
+```
 
 ## GET /ping
 
@@ -147,56 +207,72 @@ builder 入力 (`config`) を受け取り、solver 実行結果を**同期**で�
 
 ### Error Response
 
+すべてのエラーは次の形に統一されます。
+
+```json
+{
+  "error": {
+    "code": "invalid_config",
+    "message": "...",
+    "path": ["nodes", 0, "key"],
+    "hint": "...",
+    "run_id": "..."
+  }
+}
+```
+
+`path` / `hint` / `run_id` は省略されることがあります。
+
+#### 代表的な `error.code`
+
+| code | HTTP | 意味 |
+|---|---|---|
+| `unauthorized` | 401 | API キー不正・欠落 |
+| `rate_limited` | 429 | レート制限超過 |
+| `invalid_gzip` / `gzip_too_large` / `body_too_large` | 400/413 | gzip リクエスト不正 |
+| `validation_error` / `unknown_field` | 422 | Pydantic / 未知キー |
+| `invalid_config` / `invalid_config_missing_field` | 400 | builder 入力不正 |
+| `artifact_not_found` / `manifest_not_found` / `file_not_found` | 404 | 成果物欠落 |
+| `forbidden_artifact` / `forbidden_run` | 403 | 所有者キー不一致 |
+| `not_ready` / `cancelled` | 409 | 非同期ジョブ未完了/取消 |
+| `internal_error` / `solver_binary_not_found` / `solver_timeout` / `solver_execution_failed` | 500 | 実行時エラー |
+
 #### 422 Unprocessable Entity（未知フィールド・`unknown_keys=error`）
 
 ```json
 {
-  "detail": [
-    {
-      "type": "unknown_field",
-      "loc": ["config", "nodes[0]", "typo"],
-      "msg": "nodes[0] に未定義のフィールド 'typo' があります",
-      "input": "typo"
-    }
-  ]
+  "error": {
+    "code": "unknown_field",
+    "message": "...",
+    "path": ["config", "nodes[0]", "typo"],
+    "hint": "...",
+    "details": [ { "type": "unknown_field", "loc": ["config", "nodes[0]", "typo"], "msg": "..." } ]
+  }
 }
 ```
-
-Pydantic の通常バリデーション失敗（型不一致など）も 422 になります。
 
 #### 400 Bad Request（入力不正）
 
 ```json
 {
-  "detail": {
+  "error": {
     "code": "invalid_config",
     "message": "..."
   }
 }
 ```
 
-代表的な `detail.code`:
-
-- `invalid_config`
-- `invalid_config_missing_field`
-
 #### 500 Internal Server Error（実行時エラー）
 
 ```json
 {
-  "detail": {
+  "error": {
     "code": "internal_error",
     "message": "...",
     "run_id": "..."
   }
 }
 ```
-
-代表的な `detail.code`:
-
-- `internal_error`
-- `solver_binary_not_found`
-- `solver_execution_failed`
 
 ---
 

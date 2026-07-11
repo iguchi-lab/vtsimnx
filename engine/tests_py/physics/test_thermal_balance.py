@@ -1,46 +1,23 @@
+from __future__ import annotations
+
 import json
-import struct
-from pathlib import Path
 
 import pytest
 
-import app.solver_runner as sr
-from app.builder import build_config
-
-
-GOLDEN_PATH = Path(__file__).resolve().parent / "golden" / "thermal_regression_golden.json"
-
-
-def _run_from_raw(
-    *,
-    raw_config: dict,
-    run_id: str,
-    tmp_base_dir: Path,
-) -> tuple[dict, Path]:
-    cfg = build_config(
-        raw_config,
-        output_path=None,
-        add_aircon=False,
-        add_capacity=True,
-        add_surface=True,
-    )
-    cfg.setdefault("simulation", {}).setdefault("log", {})["verbosity"] = 0
-    output = sr.run_solver(cfg, run_id=run_id, write_manifest=False)
-    artifact_dir = tmp_base_dir / "work" / output["artifact_dir"]
-    return output, artifact_dir
-
-
-def _read_series(artifact_dir: Path, output: dict, series_name: str, key: str) -> list[float]:
-    schema = json.loads((artifact_dir / "schema.json").read_text(encoding="utf-8"))
-    keys = schema["series"][series_name]["keys"]
-    idx = keys.index(key)
-    width = len(keys)
-    length = int(schema["length"])
-
-    bin_path = artifact_dir / output["result_files"][series_name]
-    raw = bin_path.read_bytes()
-    vals = struct.unpack("<" + "f" * (len(raw) // 4), raw)
-    return [float(vals[t * width + idx]) for t in range(length)]
+from .conftest import requires_solver
+from .helpers import (
+    THERMAL_GOLDEN_PATH,
+    assert_all_finite,
+    assert_artifact_no_nan_inf,
+    assert_convergence_from_log,
+    assert_energy_balance_residuals,
+    assert_monotone_non_increasing,
+    read_series,
+    read_series_matrix,
+    read_solver_log,
+    run_from_raw,
+)
+from . import tolerances as tol
 
 
 def _raw_two_layer_wall_rc_case() -> dict:
@@ -107,7 +84,6 @@ def _raw_equivalent_uvalue_case(*, method: str) -> dict:
         ],
     }
     if method == "response":
-        # U値（定常）と等価な1項CTFを明示し、RCと同一挙動の回帰点を作る。
         raw["surfaces"][0]["layer_method"] = "response"
         raw["surfaces"][0]["response"] = {
             "resp_a_src": [0.5],
@@ -120,47 +96,59 @@ def _raw_equivalent_uvalue_case(*, method: str) -> dict:
     return raw
 
 
-@pytest.mark.skipif(not Path(sr.SOLVER_EXE).exists(), reason="solver binary not found")
-def test_physical_golden_room_cooling_rc(monkeypatch, tmp_path):
-    monkeypatch.setattr(sr, "BASE_DIR", tmp_path)
-    golden = json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))
+@pytest.mark.physics
+@requires_solver
+def test_physical_golden_room_cooling_rc(solver_workdir):
+    golden = json.loads(THERMAL_GOLDEN_PATH.read_text(encoding="utf-8"))
     expected = golden["two_layer_wall_rc"]["room_temperature"]
 
-    out, art = _run_from_raw(
+    out, art = run_from_raw(
         raw_config=_raw_two_layer_wall_rc_case(),
         run_id="physics_rc_golden",
-        tmp_base_dir=tmp_path,
+        tmp_base_dir=solver_workdir,
+        log_verbosity=1,
     )
-    actual = _read_series(art, out, "thermal_temperature", "room")
+    actual = read_series(art, out, "thermal_temperature", "room")
 
     assert len(actual) == len(expected)
     for a, e in zip(actual, expected):
         assert abs(a - e) <= 1e-4
 
-    # 物理的な健全性チェック: 外気0C・室20C・発熱なしなら単調減少する。
-    assert all(actual[i + 1] <= actual[i] + 1e-6 for i in range(len(actual) - 1))
+    assert_monotone_non_increasing(actual)
     assert actual[-1] < actual[0]
+    assert_artifact_no_nan_inf(art, out)
+    assert_energy_balance_residuals(art, out, nodes=["room"])
+    assert_convergence_from_log(read_solver_log(art, out), expect_thermal=True)
+
+    for series_name in (
+        "thermal_heat_rate_convection",
+        "thermal_heat_rate_conduction",
+        "thermal_heat_rate_capacity",
+    ):
+        _keys, rows = read_series_matrix(art, out, series_name)
+        for t, row in enumerate(rows):
+            assert_all_finite(row, label=f"{series_name}[{t}]")
 
 
-@pytest.mark.skipif(not Path(sr.SOLVER_EXE).exists(), reason="solver binary not found")
-def test_rc_vs_response_numeric_regression(monkeypatch, tmp_path):
-    monkeypatch.setattr(sr, "BASE_DIR", tmp_path)
-    golden = json.loads(GOLDEN_PATH.read_text(encoding="utf-8"))
+@pytest.mark.physics
+@requires_solver
+def test_rc_vs_response_numeric_regression(solver_workdir):
+    golden = json.loads(THERMAL_GOLDEN_PATH.read_text(encoding="utf-8"))
     expected = golden["equivalent_uvalue_rc_vs_response"]["room_temperature"]
 
-    out_rc, art_rc = _run_from_raw(
+    out_rc, art_rc = run_from_raw(
         raw_config=_raw_equivalent_uvalue_case(method="rc"),
         run_id="equiv_rc",
-        tmp_base_dir=tmp_path,
+        tmp_base_dir=solver_workdir,
     )
-    out_resp, art_resp = _run_from_raw(
+    out_resp, art_resp = run_from_raw(
         raw_config=_raw_equivalent_uvalue_case(method="response"),
         run_id="equiv_response",
-        tmp_base_dir=tmp_path,
+        tmp_base_dir=solver_workdir,
     )
 
-    rc = _read_series(art_rc, out_rc, "thermal_temperature", "room")
-    resp = _read_series(art_resp, out_resp, "thermal_temperature", "room")
+    rc = read_series(art_rc, out_rc, "thermal_temperature", "room")
+    resp = read_series(art_resp, out_resp, "thermal_temperature", "room")
 
     assert len(rc) == len(resp) == len(expected)
     for r, e in zip(rc, expected):
@@ -170,3 +158,10 @@ def test_rc_vs_response_numeric_regression(monkeypatch, tmp_path):
 
     max_abs_diff = max(abs(r - s) for r, s in zip(rc, resp))
     assert max_abs_diff <= 1e-6
+
+    assert_artifact_no_nan_inf(art_rc, out_rc)
+    assert_artifact_no_nan_inf(art_resp, out_resp)
+    assert_energy_balance_residuals(art_rc, out_rc, nodes=["room"])
+    assert_convergence_from_log(read_solver_log(art_rc, out_rc), expect_thermal=True)
+    # response 法は heat_rate 符号規約が異なる場合があるため、収束ログと有限性を主検証にする
+    assert_convergence_from_log(read_solver_log(art_resp, out_resp), expect_thermal=True)

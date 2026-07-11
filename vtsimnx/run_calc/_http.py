@@ -43,7 +43,11 @@ def _format_http_error(resp: requests.Response, *, endpoint: str = "/runs") -> R
     try:
         body = resp.json()
         if isinstance(body, dict):
-            detail = body.get("detail", body)
+            # 新形式 {"error": {...}} を優先し、旧 {"detail": ...} も受理
+            if isinstance(body.get("error"), dict):
+                detail = body["error"]
+            else:
+                detail = body.get("detail", body)
         else:
             detail = body
     except Exception:
@@ -62,6 +66,9 @@ def _format_http_error(resp: requests.Response, *, endpoint: str = "/runs") -> R
         hint = detail.get("hint")
         if isinstance(hint, str) and hint.strip():
             parts.append(f"hint: {hint.strip()}")
+        path = detail.get("path")
+        if isinstance(path, list) and path:
+            parts.append(f"path={path}")
         artifact_dir = detail.get("artifact_dir")
         if isinstance(artifact_dir, str) and artifact_dir:
             parts.append(f"artifact_dir={artifact_dir}")

@@ -6,18 +6,21 @@
 ## 基本方針
 
 - セマンティックバージョニング（`MAJOR.MINOR.PATCH`）を採用します。
-- リリース時は、少なくとも次を同期します。
-  - `pyproject.toml` の `project.version`
-  - `engine/app/main.py` の FastAPI version
-  - Git tag（例: `v1.0.0`）
-  - GitHub Release ノート
+- **バージョンの正本は `pyproject.toml` の `project.version` のみ**です。
+  - Python: `vtsimnx.get_version()` / `vtsimnx.__version__`
+  - FastAPI / OpenAPI / `GET /version` の `api_version`: `engine/app/versioning.py` 経由で同じ値を参照
+  - README の「最新リリース」リンクと Git tag（`vX.Y.Z`）はリリース時に正本へ合わせる
 - API サーバー実装の正本は monorepo 内 `engine/` とする（別repo運用を前提にしない）
+
+手動で FastAPI の `version=` 文字列を別途同期する必要はありません。
 
 ## 互換性の目安
 
-- **MAJOR**: 破壊的変更（API契約・入力仕様の非互換）
-- **MINOR**: 後方互換の機能追加
+- **MAJOR**: 破壊的変更（API契約・入力仕様の非互換）、deprecated API の削除
+- **MINOR**: 後方互換の機能追加、experimental API の変更は許容
 - **PATCH**: バグ修正・ドキュメント修正
+
+公開 API の安定性区分は `docs/public_api.md` を参照してください。
 
 ## ドキュメントとサンプルの対応
 
@@ -28,19 +31,21 @@
 
 ## リリース手順（最小）
 
-1. バージョン文字列を更新
-2. ビルド/主要動作を確認（wheel build, 最小 run）
+1. `pyproject.toml` の `project.version` だけを更新する
+2. ビルド/主要動作を確認（`python -m build --wheel`, 最小 run）
 3. 変更を commit
-4. タグ作成（`vX.Y.Z`）
+4. タグ作成（`vX.Y.Z`、正本と同じ番号）
 5. `main` とタグを push
 6. GitHub Release を作成
 7. `README.md` の latest release リンクを必要に応じて更新
 
 ## チェックリスト
 
-- [ ] `pyproject.toml` version 更新
-- [ ] `engine/app/main.py` version 更新
+- [ ] `pyproject.toml` の `project.version` 更新（これだけが版の正本）
+- [ ] `python -c "from vtsimnx import get_version; print(get_version())"` が正本と一致
+- [ ] `GET /version` の `api_version` が正本と一致（engine 起動時）
 - [ ] `python -m build --wheel` 成功
 - [ ] `examples/run_calc_minimal.py` など最小導線の確認
-- [ ] tag / release 作成
-- [ ] release note に主変更点・注意点を記載
+- [ ] tag / release 作成（`v` + 正本）
+- [ ] README の latest release リンク更新
+- [ ] release note に主変更点・注意点・deprecated 削除予定を記載

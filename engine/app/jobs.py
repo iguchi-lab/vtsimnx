@@ -180,6 +180,7 @@ class RunManager:
                 unknown_keys=str(req.get("unknown_keys") or "strip"),
                 initial_warnings=req.get("initial_warnings") or [],
                 initial_warning_details=req.get("initial_warning_details") or [],
+                owner_key_id=req.get("owner_key_id"),
             )
             with self._lock:
                 job = self._jobs.get(run_id)

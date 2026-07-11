@@ -6,13 +6,14 @@ httpx = pytest.importorskip("httpx")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-import app.main as main_mod  # noqa: E402
+import app.solver_runner as sr  # noqa: E402
 from app.main import app  # noqa: E402
 
 
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
-    monkeypatch.setattr(main_mod, "WORK_DIR", tmp_path)
+    # resolve_artifact_path は solver_runner.BASE_DIR/work を見る
+    monkeypatch.setattr(sr, "BASE_DIR", tmp_path)
     monkeypatch.delenv("VTSIMNX_API_KEY", raising=False)
     monkeypatch.delenv("VTSIMNX_API_KEYS", raising=False)
     return TestClient(app)
@@ -25,8 +26,8 @@ def test_work_static_mount_is_removed(client):
 
 def test_artifacts_download_uses_manifest_whitelist(client, tmp_path):
     artifact_dir = "artifacts.demo"
-    art = tmp_path / artifact_dir
-    art.mkdir()
+    art = tmp_path / "work" / artifact_dir
+    art.mkdir(parents=True)
     (art / "solver.log").write_text("ok\n", encoding="utf-8")
     (art / "secret.txt").write_text("should not be readable\n", encoding="utf-8")
     manifest = {

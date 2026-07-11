@@ -33,10 +33,14 @@ engine 側の実装詳細は参照先として残しつつ、ここでは「利�
 
 ## 信頼性と運用
 
+- `public_api.md`
+  - stable / experimental / deprecated と戻り値の目安
+- `units.md`
+  - 温度・圧力・流量・熱量などの単位（コード正本 `vtsimnx.units`）
 - `validation_strategy.md`
   - 検証ピラミッド、保証範囲、未保証範囲
 - `release_policy.md`
-  - version/tag/docs/examples の対応ルール
+  - バージョン正本（pyproject）と tag/docs/examples の対応ルール
 
 補足（空調）:
 

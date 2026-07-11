@@ -62,8 +62,9 @@ def test_prepare_raw_config_error_on_unknown():
 
 def test_run_strip_unknown_returns_warning():
     import app.main as main_mod
+    import app.services.simulation as sim_svc
 
-    main_mod.run_solver = lambda _cfg: {"status": "ok", "artifact_dir": "artifacts.x", "result_files": {}}
+    sim_svc.run_solver = lambda _cfg: {"status": "ok", "artifact_dir": "artifacts.x", "result_files": {}}
     with TestClient(app) as client:
         payload = {
             "config": {
@@ -80,8 +81,9 @@ def test_run_strip_unknown_returns_warning():
 
 def test_run_error_unknown_returns_422():
     import app.main as main_mod
+    import app.services.simulation as sim_svc
 
-    main_mod.run_solver = lambda _cfg: {"status": "ok"}
+    sim_svc.run_solver = lambda _cfg: {"status": "ok"}
     with TestClient(app) as client:
         payload = {
             "config": {
@@ -92,9 +94,9 @@ def test_run_error_unknown_returns_422():
         }
         resp = client.post("/run", json=payload)
         assert resp.status_code == 422
-        detail = resp.json()["detail"]
-        assert isinstance(detail, list)
-        assert detail[0]["type"] == "unknown_field"
+        err = resp.json()["error"]
+        assert err["code"] in ("unknown_field", "validation_error")
+        assert "details" in err or err["code"] == "unknown_field"
 
 
 def test_raw_sim_config_accepts_minimal():

@@ -34,7 +34,7 @@ def test_run_calc_raises_readable_api_error_on_400():
             if n > 0:
                 self.rfile.read(n)
             body = {
-                "detail": {
+                "error": {
                     "code": "invalid_config",
                     "message": "ノード 'X' が存在しません",
                     "hint": "nodes に参照先ノードを追加してください。",
