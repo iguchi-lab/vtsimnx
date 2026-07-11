@@ -38,6 +38,9 @@ print(vt.get_version())
 
 例: `from vtsimnx.archenv import solar_gain_by_angles`
 
+archenv の DataFrame 列名は英語キーが正本です（`vtsimnx.archenv.columns`）。  
+`calc_R` / `calc_C` / `calc_RC` および `_alt_deg_from_sin` 等はパッケージ公開面から外しています（`vtsimnx.archenv.comfort` 内の `_calc_*` を参照）。
+
 ## deprecated（廃止予定）
 
 トップレベル名は `2.0.0` で削除予定です。代替は `vtsimnx.schedule` です。

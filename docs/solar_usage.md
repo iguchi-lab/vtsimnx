@@ -3,7 +3,7 @@
 `solar` 関連モジュールは、主に次の2ステップを扱います。
 
 1. 太陽位置（高度・方位）を求める
-2. 日射データ（全天/直達/拡散）から、任意面や窓への日射熱取得量を求める
+2. 日射データ（全天/直達/拡散）から、任意面や窓へのsolar_gainを求める
 
 本ドキュメントでは、公開関数の使い方と、入力の考え方をまとめます。
 
@@ -21,7 +21,7 @@
   - `0` = 水平上向き
   - `90` = 鉛直
 - 日射の基本量
-  - `ghi`（GHI）: 水平面全天日射量
+  - `ghi`（GHI）: ghi
   - `dni`（DNI）: 法線面直達日射量
   - `dhi`（DHI）: 水平面拡散日射量
 
@@ -39,8 +39,8 @@
   - `lat`, `lon`: 緯度・経度（deg）
   - `td`: 時刻補正（h）
 - 出力（主な列）:
-  - `太陽高度 hs`
-  - `太陽方位角 AZs`
+  - `solar_altitude_deg`
+  - `solar_azimuth_deg`
   - `sin/cos` 系の中間列
 
 ### `astro_sun_loc(idx, lat=..., lon=..., td=...)`
@@ -66,13 +66,13 @@
   - `s_ig`: GHI
   - `s_hs`: 太陽高度（deg）
 - 出力:
-  - `晴天指数 Kt`
-  - `水平面拡散日射量 Id`
-  - `法線面直達日射量 Ib`
+  - `clearness_index_kt`
+  - `dhi`
+  - `dni`
 
 ### `solar_gain_by_angles(...)`
 
-任意の面（方位角・傾斜角）の日射熱取得量を計算する基本APIです。
+任意の面（方位角・傾斜角）のsolar_gainを計算する基本APIです。
 
 代表的な引数（主要部）:
 
@@ -103,8 +103,9 @@ solar_gain_by_angles(
     - 複数入力を与える場合、index は完全一致していること（不一致は `ValueError`）
   - そのほか: `glass`, `return_details`, `solar_mode`, `use_astro`, `time_alignment`, `timestamp_ref`
 - 出力:
-  - 既定: `日射熱取得量` の `Series` を返す
-  - `return_details=True` のとき `DataFrame` を返し、`入射角cos`、直達/拡散/反射、`Ib/Id/hs/AZs` を含む
+  - 既定: `solar_gain` の `Series` を返す
+  - `return_details=True` のとき `DataFrame` を返し、`cos_incidence`、直達/拡散/反射、`dni`/`dhi`/`solar_altitude_deg`/`solar_azimuth_deg` を含む
+  - 列名の正本は英語（`vtsimnx.archenv.columns`）。日本語への変換は `rename_to_japanese`
   - `glass=False` は壁面、`glass=True` はガラスを対象に内訳を作る
 
 ### `solar_gain_by_angles_with_shade(...)`
@@ -140,11 +141,11 @@ solar_gain_by_angles_with_shade(
   - `z`: 外向き法線方向正（窓面は `z=0`）
 - 挙動:
   - 拡散・反射は**変更しない**
-  - 直達のみ `日向率(1-η)` を掛ける（`η`: 被影率）
+  - 直達のみ `sunlit_ratio` を掛ける（`η`: 被影率）
   - 複数ポリゴンは重なりを二重計上しない（和集合面積）
 - 追加出力列:
-  - 既定: `日射熱取得量` の `Series`
-  - `return_details=True` のとき `被影率η`, `日向率(1-η)` を含む詳細 `DataFrame`
+  - 既定: `solar_gain` の `Series`
+  - `return_details=True` のとき `shade_ratio`, `sunlit_ratio` を含む詳細 `DataFrame`
 
 ---
 
@@ -152,12 +153,12 @@ solar_gain_by_angles_with_shade(
 
 最初に用語だけ整理:
 
-- `ghi` (Global Horizontal Irradiance): 水平面全天日射量
+- `ghi` (Global Horizontal Irradiance): ghi
 - `dni` (Direct Normal Irradiance): 法線面直達日射量
 - `dhi` (Diffuse Horizontal Irradiance): 水平面拡散日射量
 
 HASP 等の気象データを使う場合は、典型的に  
-`ghi = df["水平面全天日射量"]`、`dni = df["直達日射量"]`、`dhi = df["水平面拡散日射量"]`  
+`ghi = df["ghi"]`、`dni = df["直達日射量"]`、`dhi = df["水平面拡散日射量"]`  
 のように対応付けて渡します（データに `ghi` がない場合は `dni + dhi` で使う運用でも可）。
 
 ### 3-1. 基本（DNI + DHI を直接与える）
@@ -190,7 +191,7 @@ import pandas as pd
 import vtsimnx as vt
 
 idx = pd.date_range("2026-06-21 06:00:00", periods=12, freq="1h")
-s_ghi = pd.Series(300.0, index=idx)  # ghi: 水平面全天日射量
+s_ghi = pd.Series(300.0, index=idx)  # ghi: ghi
 
 out = vt.solar_gain_by_angles(
     azimuth_deg=-90.0,  # 東面
@@ -233,7 +234,7 @@ out = vt.solar_gain_by_angles_with_shade(
     return_details=True,
 )
 
-print(out[["被影率η", "日向率(1-η)"]].head())
+print(out[["shade_ratio", "sunlit_ratio"]].head())
 ```
 
 ---

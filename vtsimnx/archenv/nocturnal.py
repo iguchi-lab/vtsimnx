@@ -1,14 +1,24 @@
+"""夜間放射（長波）の推算。"""
 from __future__ import annotations
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
-from .archenv import vapor_pressure_from_rh_pa, to_kelvin, MJ_to_Wh, Sigma
+from . import columns as C
+from .archenv import SIGMA_NOCTURNAL, MJ_to_Wh, to_kelvin, vapor_pressure_from_rh_pa
 
 
-def rn(t, h):
-    """夜間放射量 [MJ/m2] を推算する。"""
-    return (94.21 + 39.06 * np.sqrt(vapor_pressure_from_rh_pa(t, h) / 100) - 0.85 * Sigma * np.power(to_kelvin(t), 4)) * 4.187 / 1000
+def rn(t: pd.Series | np.ndarray | float, h: pd.Series | np.ndarray | float) -> pd.Series | np.ndarray | float:
+    """夜間放射量 [MJ/m2] を推算する。
+
+    t: 気温 [degC]
+    h: 相対湿度 [%]
+    """
+    return (
+        94.21
+        + 39.06 * np.sqrt(vapor_pressure_from_rh_pa(t, h) / 100)
+        - 0.85 * SIGMA_NOCTURNAL * np.power(to_kelvin(t), 4)
+    ) * 4.187 / 1000
 
 
 def nocturnal_gain_by_angles(
@@ -20,25 +30,13 @@ def nocturnal_gain_by_angles(
     return_details: bool = False,
 ) -> pd.DataFrame | pd.Series:
     """
-    傾斜角だけ指定して、その面の夜間放射量（長波放射）を返す。
+    傾斜角だけ指定して、その面の夜間放射量（長波放射）[Wh/m2] を返す。
 
     入力（どちらか）:
-      - t_out + rh_out: rn(t,h) から水平面の夜間放射量を推算
+      - t_out [degC] + rh_out [%]: rn(t,h) から水平面の夜間放射量を推算
       - rn_horizontal: 水平面の夜間放射量 [Wh/m2] を直接与える
 
-    tilt_deg:
-      0=水平上向き, 90=鉛直
-
-    モデル:
-      旧 make_nocturnal の vertical_factor=0.5 を一般化し、
-      等方天空の view factor を用いて
-        (F_sky = (1+cosβ)/2)
-      で水平面の夜間放射量をスケールする。
-      （β=0 → 1.0, β=90 → 0.5）
-
-    return_details:
-      - False: 夜間放射量のみ（Series）を返す（既定）
-      - True : `夜間放射量_水平` を含む DataFrame を返す
+    tilt_deg: 0=水平上向き, 90=鉛直
     """
     if not (0.0 <= float(tilt_deg) <= 180.0):
         raise ValueError("nocturnal_gain_by_angles: tilt_deg must be in [0, 180].")
@@ -62,15 +60,14 @@ def nocturnal_gain_by_angles(
     beta = np.radians(float(tilt_deg))
     f_sky = (1.0 + float(np.cos(beta))) / 2.0
 
-    s_nocturnal = (rn_horizontal * f_sky).rename("夜間放射量")
+    s_nocturnal = (rn_horizontal * f_sky).rename(C.NOCTURNAL_RADIATION)
     if not return_details:
         return s_nocturnal
 
     out = pd.DataFrame(index=rn_horizontal.index)
-    out["夜間放射量_水平"] = rn_horizontal
-    out["夜間放射量"] = s_nocturnal
+    out[C.NOCTURNAL_RADIATION_HORIZONTAL] = rn_horizontal
+    out[C.NOCTURNAL_RADIATION] = s_nocturnal
     return out
 
+
 __all__ = ["rn", "nocturnal_gain_by_angles"]
-
-

@@ -401,9 +401,15 @@ def _shade_ratio_on_window(
     return pd.Series(eta_arr, index=azs_deg.index, dtype="float64")
 
 
+# 公開エイリアス
+shade_ratio_on_window = _shade_ratio_on_window
+normalize_shade_polygons = _normalize_shade_polygons
+
 __all__ = [
     "_to_window_local_2d",
     "_normalize_shade_polygons",
     "_shade_ratio_on_window",
+    "shade_ratio_on_window",
+    "normalize_shade_polygons",
 ]
 

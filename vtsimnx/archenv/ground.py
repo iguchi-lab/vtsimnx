@@ -3,6 +3,8 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
+from . import columns as C
+
 
 def _as_depth_array(depth_m: float | list[float] | np.ndarray) -> np.ndarray:
     if np.isscalar(depth_m):
@@ -108,7 +110,7 @@ def ground_temperature_by_depth(
       - solar_horizontal / nocturnal_horizontal が None の場合、その項は 0 扱い。
       - 熱容量は体積熱容量 [J/m3/K] を指定する。
       - depth_m がスカラーのとき既定戻り値は Series、複数深さは DataFrame。
-      - return_details=True で `地表等価温度` 列を含む DataFrame を返す。
+      - return_details=True で surface_equivalent_temperature 列を含む DataFrame を返す。
       - spinup=True のとき、同じ入力気象を `spinup_cycles` 回繰り返して計算し、
         最終周期（1 周期分）のみを返す。
     """
@@ -186,20 +188,20 @@ def ground_temperature_by_depth(
     ts_out = pd.Series(ts_np[out_start:], index=idx, dtype="float64")
 
     if len(depths) == 1:
-        s = pd.Series(target[:, 0], index=idx, name="地盤温度")
+        s = pd.Series(target[:, 0], index=idx, name=C.GROUND_TEMPERATURE)
         if not return_details:
             return s
         out = pd.DataFrame(index=idx)
-        out["地表等価温度"] = ts_out
-        out["地盤温度"] = s
+        out[C.SURFACE_EQUIVALENT_TEMPERATURE] = ts_out
+        out[C.GROUND_TEMPERATURE] = s
         return out
 
     out = pd.DataFrame(index=idx)
     for j, d in enumerate(depths):
-        out[f"地盤温度_{d:.3f}m"] = target[:, j]
+        out[C.ground_temperature_at_depth(d)] = target[:, j]
     if not return_details:
         return out
-    out.insert(0, "地表等価温度", ts_out)
+    out.insert(0, C.SURFACE_EQUIVALENT_TEMPERATURE, ts_out)
     return out
 
 

@@ -45,4 +45,4 @@ def test_solar_gain_by_angles_return_details_has_base_columns():
 
     assert isinstance(out, pd.DataFrame)
     assert out.index.equals(idx)
-    assert {"法線面直達日射量 Ib", "水平面拡散日射量 Id", "太陽高度 hs", "太陽方位角 AZs"}.issubset(set(out.columns))
+    assert {"dni", "dhi", "solar_altitude_deg", "solar_azimuth_deg"}.issubset(set(out.columns))

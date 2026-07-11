@@ -32,10 +32,10 @@
 | **Air_Cp** | 1.005 | kJ/(kg·K) | 空気の定圧比熱 |
 | **Vap_Cp** | 1.846 | kJ/(kg·K) | 水蒸気の定圧比熱 |
 | **Vap_L** | 2501.1 | kJ/kg | 水蒸気の蒸発潜熱 |
-| **Sigma** | 4.88e-8 | — | ステファン・ボルツマン定数 |
+| **SIGMA_NOCTURNAL** (`Sigma` 互換エイリアス) | 4.88e-8 | — | 夜間放射推算用の工学定数（SI の Stefan–Boltzmann 5.67e-8 ではない） |
 | **Solar_I** | 1365 | W/m² | 太陽定数 |
 
-- **capa_air(v)**: 容積 v [m³] の空気の熱容量 [J/K]。内部で `v * 1.005 * 1.2 * 1000`（= 1206 J/(m³·K)）を使用。  
+- **capa_air(v, t_c=20)**: 容積 v [m³] の空気の熱容量 [J/K]。`v * Air_Cp * air_density(t_c) * 1000`。  
   → 中空層・通気層の**熱容量**は builder では 1298（SimHeat/材料表準拠）を採用しているため、builder と core の `capa_air` は異なる値になる。日射・夜間放射などの**計算**では core の定数のみ使用。
 
 ### 2.2 空気密度（`core/vtsimnx/archenv/archenv.py`）

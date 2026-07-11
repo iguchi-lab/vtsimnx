@@ -16,8 +16,8 @@ def test_sun_loc_time_columns_match_legacy_definition():
     n_legacy = pd.Series([(t - pd.Timestamp(t.year, 1, 1)).days + 1.5 for t in idx], index=idx, dtype="float64")
     h_legacy = pd.Series([t.hour + t.minute / 60.0 + td for t in idx], index=idx, dtype="float64")
 
-    assert np.allclose(df["元日からの通し日数 N"].to_numpy(dtype="float64"), n_legacy.to_numpy(dtype="float64"))
-    assert np.allclose(df["時刻 H"].to_numpy(dtype="float64"), h_legacy.to_numpy(dtype="float64"))
+    assert np.allclose(df["day_of_year_n"].to_numpy(dtype="float64"), n_legacy.to_numpy(dtype="float64"))
+    assert np.allclose(df["hour_h"].to_numpy(dtype="float64"), h_legacy.to_numpy(dtype="float64"))
 
 
 def test_sun_loc_basic_output_columns_present():
@@ -25,12 +25,12 @@ def test_sun_loc_basic_output_columns_present():
     df = sun_loc(idx)
 
     required = {
-        "元日からの通し日数 N",
-        "時刻 H",
-        "太陽高度 hs",
-        "太陽方位角 AZs",
-        "太陽高度の正弦 sin_hs",
-        "太陽高度の余弦 cos_hs",
+        "day_of_year_n",
+        "hour_h",
+        "solar_altitude_deg",
+        "solar_azimuth_deg",
+        "sin_solar_altitude",
+        "cos_solar_altitude",
     }
     assert required.issubset(set(df.columns))
     assert df.index.equals(idx)

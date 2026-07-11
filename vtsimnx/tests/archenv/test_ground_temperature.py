@@ -16,7 +16,7 @@ def test_ground_temperature_by_depth_constant_boundary_equals_deep_temp():
     )
 
     assert isinstance(out, pd.Series)
-    assert out.name == "地盤温度"
+    assert out.name == "ground_temperature"
     np.testing.assert_allclose(out.to_numpy(), 10.0, atol=1e-9)
 
 
@@ -32,7 +32,7 @@ def test_ground_temperature_by_depth_multiple_depths_returns_dataframe():
     )
 
     assert isinstance(out, pd.DataFrame)
-    assert list(out.columns) == ["地盤温度_0.100m", "地盤温度_1.000m", "地盤温度_3.000m"]
+    assert list(out.columns) == ["ground_temperature_0.100m", "ground_temperature_1.000m", "ground_temperature_3.000m"]
     assert out.index.equals(idx)
 
 

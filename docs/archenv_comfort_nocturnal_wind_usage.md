@@ -7,6 +7,8 @@
 - 地盤温度: `ground_temperature_by_depth`（`ground.py`）
 - 快適性: `calc_PMV`, `calc_PPD`, `calc_fungal_index`（`comfort.py`）
 
+列名の正本は英語キー（`vtsimnx.archenv.columns`）です。日本語レガシー名への変換は `rename_to_japanese` / `with_japanese_column_aliases` を使えます。
+
 ---
 
 ## 1. 風圧計算（`make_wind`）
@@ -30,8 +32,8 @@
 ### 出力
 
 - `df`（中間DataFrame）
-  - `風速_E/S/W/N`
-  - `風圧_E/S/W/N/H`
+  - `wind_speed_e` / `wind_speed_s` / `wind_speed_w` / `wind_speed_n`
+  - `wind_pressure_e` / `wind_pressure_s` / `wind_pressure_w` / `wind_pressure_n` / `wind_pressure_h`
 - `wind_pressure`（`dict[str, Series]`）
   - `"E"`, `"S"`, `"W"`, `"N"`, `"H"` の5方向
 
@@ -46,7 +48,7 @@ d = pd.Series([4, 8, 12], index=idx)   # E, S, W 相当
 s = pd.Series([2.0, 3.5, 1.8], index=idx)
 
 df_wind, p = vt.make_wind(d, s)
-print(df_wind[["風圧_E", "風圧_S", "風圧_W", "風圧_N", "風圧_H"]])
+print(df_wind[["wind_pressure_e", "wind_pressure_s", "wind_pressure_w", "wind_pressure_n", "wind_pressure_h"]])
 print(p["E"].head())
 ```
 
@@ -86,25 +88,25 @@ print(p["E"].head())
 - view factor  
   `F_sky = (1 + cos(beta)) / 2`
 - 面の夜間放射量  
-  `夜間放射量（面） = rn_horizontal * F_sky`
+  `nocturnal_radiation = rn_horizontal * F_sky`
 
 ### 出力
 
-- 既定: `夜間放射量` の `Series`
+- 既定: `nocturnal_radiation` の `Series`
 - `return_details=True`:
-  - `夜間放射量_水平`（= 入力 `rn_horizontal`）
-  - `夜間放射量`
+  - `nocturnal_radiation_horizontal`（= 入力 `rn_horizontal`）
+  - `nocturnal_radiation`
 
 戻り値モード（イメージ）:
 
 ```text
 return_details=False (既定)
-  -> Series: 夜間放射量
+  -> Series: nocturnal_radiation
 
 return_details=True
   -> DataFrame:
-       - 夜間放射量_水平
-       - 夜間放射量
+       - nocturnal_radiation_horizontal
+       - nocturnal_radiation
 ```
 
 ### 例（温湿度から推算）
@@ -144,7 +146,7 @@ out = vt.nocturnal_gain_by_angles(
 
 ---
 
-## 3. 地盤温度（`ground_temperature_by_depth`）
+## 3. ground_temperature（`ground_temperature_by_depth`）
 
 ### 関数
 
@@ -152,7 +154,7 @@ out = vt.nocturnal_gain_by_angles(
 
 ### 何をするか
 
-不易層条件（深さ・温度）と気象時系列から、任意深さの地盤温度を 1 次元熱伝導で推定します。  
+不易層条件（深さ・温度）と気象時系列から、任意深さのground_temperatureを 1 次元熱伝導で推定します。  
 地盤物性（熱伝導率・体積熱容量）を引数で指定できます。
 
 ### 主な入力
@@ -160,7 +162,7 @@ out = vt.nocturnal_gain_by_angles(
 - `depth_m`: 取得したい深さ [m]（単一値または配列）
 - `t_out`: 外気温 `Series`（必須）
 - `solar_horizontal`: 水平面日射量 `Series`（任意）
-- `nocturnal_horizontal`: 水平面夜間放射量 `Series`（任意）
+- `nocturnal_horizontal`: 水平面nocturnal_radiation `Series`（任意）
 - `deep_layer_depth_m`: 不易層深さ [m]（既定 `10.0`）
 - `deep_layer_temp_c`: 不易層温度 [degC]（既定 `10.0`）
 - `thermal_conductivity_w_mk`: 熱伝導率 [W/m/K]
@@ -168,7 +170,7 @@ out = vt.nocturnal_gain_by_angles(
 - `spinup`: 助走モード（既定 `False`）
 - `spinup_cycles`: 助走の繰り返し回数（既定 `5`）
 
-### 境界条件（地表等価温度）
+### 境界条件（surface_equivalent_temperature）
 
 `Ts = t_out + a_solar * solar_horizontal - a_noct * nocturnal_horizontal`
 
@@ -178,11 +180,11 @@ out = vt.nocturnal_gain_by_angles(
 ### 出力
 
 - `depth_m` が単一 + `return_details=False`（既定）:
-  - `地盤温度` の `Series`
+  - `ground_temperature` の `Series`
 - `depth_m` が複数:
-  - `地盤温度_0.100m` のような列を持つ `DataFrame`
+  - `ground_temperature_0.100m` のような列を持つ `DataFrame`
 - `return_details=True`:
-  - `地表等価温度` を先頭列として追加
+  - `surface_equivalent_temperature` を先頭列として追加
 
 助走モード（`spinup=True`）:
 
@@ -279,7 +281,8 @@ print(pmv, ppd)
 
 ### 入力
 
-- `h`: 相対湿度（実装上は値をそのまま式に入れる）
+- `h`: 相対湿度 **[%]**（C++ と同じ。`0..100`）
+  - 後方互換: `0 < h <= 1` は割合とみなし `DeprecationWarning`
 - `t`: 温度 [degC]
 
 ### 例
@@ -287,14 +290,13 @@ print(pmv, ppd)
 ```python
 import vtsimnx as vt
 
-fi = vt.calc_fungal_index(h=0.9, t=25.0)  # 0-1スケール入力の例
+fi = vt.calc_fungal_index(h=90.0, t=25.0)  # 相対湿度 90%
 print(fi)
 ```
 
 ### 注意
 
-- `comfort.py` の docstring には「`h` は 0-1 or 0-100」とありますが、式本体では正規化していません。  
-  運用時は、プロジェクト内で湿度スケール（0-1 か 0-100）を統一して使うことを推奨します。
+- 湿度スケールの正本は **パーセント** です（engine C++ と一致）。
 
 ---
 

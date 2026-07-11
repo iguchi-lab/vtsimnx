@@ -22,7 +22,7 @@ def test_solar_gain_by_angles_with_shade_default_returns_series():
     )
 
     assert isinstance(out, pd.Series)
-    assert out.name == "日射熱取得量"
+    assert out.name == "solar_gain"
 
 
 def test_solar_gain_by_angles_with_shade_no_overlap_matches_base():
@@ -54,17 +54,17 @@ def test_solar_gain_by_angles_with_shade_no_overlap_matches_base():
     )
 
     np.testing.assert_allclose(
-        shaded["日向率(1-η)"].to_numpy(),
+        shaded["sunlit_ratio"].to_numpy(),
         1.0,
         atol=1e-9,
     )
     np.testing.assert_allclose(
-        shaded["直達日射量の面成分 Ib"].to_numpy(),
-        base["直達日射量の面成分 Ib"].to_numpy(),
+        shaded["beam_on_surface"].to_numpy(),
+        base["beam_on_surface"].to_numpy(),
     )
     np.testing.assert_allclose(
-        shaded["日射熱取得量"].to_numpy(),
-        base["日射熱取得量"].to_numpy(),
+        shaded["solar_gain"].to_numpy(),
+        base["solar_gain"].to_numpy(),
     )
 
 
@@ -88,13 +88,13 @@ def test_solar_gain_by_angles_with_shade_full_cover_zeroes_direct():
         return_details=True,
     )
 
-    assert np.allclose(out["被影率η"].to_numpy(), 1.0)
-    assert np.allclose(out["日向率(1-η)"].to_numpy(), 0.0)
-    assert np.allclose(out["直達日射量の面成分 Ib"].to_numpy(), 0.0)
+    assert np.allclose(out["shade_ratio"].to_numpy(), 1.0)
+    assert np.allclose(out["sunlit_ratio"].to_numpy(), 0.0)
+    assert np.allclose(out["beam_on_surface"].to_numpy(), 0.0)
 
     np.testing.assert_allclose(
-        out["日射熱取得量"].to_numpy(),
-        (out["水平面拡散日射量の拡散成分"] + out["水平面拡散日射量の反射成分"]).to_numpy(),
+        out["solar_gain"].to_numpy(),
+        (out["diffuse_sky_on_surface"] + out["diffuse_ground_reflected"]).to_numpy(),
     )
 
 
@@ -120,9 +120,9 @@ def test_solar_gain_by_angles_with_shade_accepts_multiple_polygons():
         return_details=True,
     )
 
-    assert np.allclose(out["被影率η"].to_numpy(), 1.0)
-    assert np.allclose(out["日向率(1-η)"].to_numpy(), 0.0)
-    assert np.allclose(out["直達日射量の面成分 Ib"].to_numpy(), 0.0)
+    assert np.allclose(out["shade_ratio"].to_numpy(), 1.0)
+    assert np.allclose(out["sunlit_ratio"].to_numpy(), 0.0)
+    assert np.allclose(out["beam_on_surface"].to_numpy(), 0.0)
 
 
 def test_solar_gain_by_angles_with_shade_overlapping_polygons_not_double_counted():
@@ -148,8 +148,8 @@ def test_solar_gain_by_angles_with_shade_overlapping_polygons_not_double_counted
         return_details=True,
     )
 
-    assert np.allclose(out["被影率η"].to_numpy(), 1.0, atol=1e-9)
-    assert np.allclose(out["日向率(1-η)"].to_numpy(), 0.0, atol=1e-9)
+    assert np.allclose(out["shade_ratio"].to_numpy(), 1.0, atol=1e-9)
+    assert np.allclose(out["sunlit_ratio"].to_numpy(), 0.0, atol=1e-9)
 
 
 def test_solar_gain_by_angles_with_shade_top_center_origin_matches_center_origin():
@@ -189,8 +189,8 @@ def test_solar_gain_by_angles_with_shade_top_center_origin_matches_center_origin
         return_details=True,
     )
 
-    np.testing.assert_allclose(out_center["被影率η"].to_numpy(), out_top["被影率η"].to_numpy(), atol=1e-9)
-    np.testing.assert_allclose(out_center["日向率(1-η)"].to_numpy(), out_top["日向率(1-η)"].to_numpy(), atol=1e-9)
+    np.testing.assert_allclose(out_center["shade_ratio"].to_numpy(), out_top["shade_ratio"].to_numpy(), atol=1e-9)
+    np.testing.assert_allclose(out_center["sunlit_ratio"].to_numpy(), out_top["sunlit_ratio"].to_numpy(), atol=1e-9)
 
 
 def test_solar_gain_by_angles_with_shade_auto_reorders_crossed_quad_vertices():
@@ -229,8 +229,8 @@ def test_solar_gain_by_angles_with_shade_auto_reorders_crossed_quad_vertices():
         return_details=True,
     )
 
-    np.testing.assert_allclose(out_ordered["被影率η"].to_numpy(), out_crossed["被影率η"].to_numpy(), atol=1e-9)
-    np.testing.assert_allclose(out_ordered["日向率(1-η)"].to_numpy(), out_crossed["日向率(1-η)"].to_numpy(), atol=1e-9)
+    np.testing.assert_allclose(out_ordered["shade_ratio"].to_numpy(), out_crossed["shade_ratio"].to_numpy(), atol=1e-9)
+    np.testing.assert_allclose(out_ordered["sunlit_ratio"].to_numpy(), out_crossed["sunlit_ratio"].to_numpy(), atol=1e-9)
 
 
 def test_solar_gain_by_angles_with_shade_eta_zero_when_sun_below_horizon():
@@ -251,5 +251,5 @@ def test_solar_gain_by_angles_with_shade_eta_zero_when_sun_below_horizon():
         return_details=True,
     )
 
-    assert float(out.iloc[0, 9]) <= 0.0  # 太陽高度 hs
-    assert np.isclose(float(out.iloc[0, 5]), 0.0, atol=1e-12)  # 被影率η
+    assert float(out.iloc[0, 9]) <= 0.0  # solar_altitude_deg
+    assert np.isclose(float(out.iloc[0, 5]), 0.0, atol=1e-12)  # shade_ratio

@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from vtsimnx.archenv import (
     MJ_to_Wh,
@@ -48,3 +49,18 @@ def test_enthalpy_relation_holds():
 def test_capa_air_and_f_from_x_scalar():
     assert capa_air(1.0) > 0.0
     assert vapor_pressure_from_humidity_ratio_gpkg_pa(0.0) == 0.0
+    # density via air_density(20)
+    expected = 1.0 * 1.005 * air_density(20.0) * 1000.0
+    assert capa_air(1.0) == pytest.approx(expected)
+
+
+def test_fungal_index_percent_matches_fraction_compat():
+    from vtsimnx.archenv import calc_fungal_index
+    import warnings
+
+    fi_pct = calc_fungal_index(90.0, 25.0)
+    with warnings.catch_warnings(record=True) as w:
+        warnings.simplefilter("always")
+        fi_frac = calc_fungal_index(0.9, 25.0)
+    assert any(issubclass(x.category, DeprecationWarning) for x in w)
+    assert fi_pct == pytest.approx(fi_frac)

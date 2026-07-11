@@ -15,7 +15,7 @@ def test_make_wind_basic_output_shapes():
     assert df.index.equals(idx)
     assert wp["E"].index.equals(idx)
     assert wp["H"].index.equals(idx)
-    assert (df["風圧_H"] <= 0.0).all()
+    assert (df["wind_pressure_h"] <= 0.0).all()
 
 
 def test_make_wind_rejects_negative_speed():

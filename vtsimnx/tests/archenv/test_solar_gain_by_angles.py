@@ -29,12 +29,12 @@ def test_solar_gain_by_angles_vertical_diffuse_parts_do_not_depend_on_azimuth():
     )
 
     np.testing.assert_allclose(
-        south["水平面拡散日射量の拡散成分"].to_numpy(),
-        east["水平面拡散日射量の拡散成分"].to_numpy(),
+        south["diffuse_sky_on_surface"].to_numpy(),
+        east["diffuse_sky_on_surface"].to_numpy(),
     )
     np.testing.assert_allclose(
-        south["水平面拡散日射量の反射成分"].to_numpy(),
-        east["水平面拡散日射量の反射成分"].to_numpy(),
+        south["diffuse_ground_reflected"].to_numpy(),
+        east["diffuse_ground_reflected"].to_numpy(),
     )
 
 

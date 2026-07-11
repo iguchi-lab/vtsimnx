@@ -1,12 +1,12 @@
 import pandas as pd
 import pytest
 
-from vtsimnx.archenv.solar_shade import _normalize_shade_polygons, _shade_ratio_on_window
+from vtsimnx.archenv.solar_shade import normalize_shade_polygons, shade_ratio_on_window
 
 
 def test_normalize_shade_polygons_rejects_too_few_vertices():
     with pytest.raises(ValueError):
-        _ = _normalize_shade_polygons([(0.0, 0.0, 0.0), (1.0, 0.0, 0.0)])
+        _ = normalize_shade_polygons([(0.0, 0.0, 0.0), (1.0, 0.0, 0.0)])
 
 
 @pytest.mark.parametrize(
@@ -25,7 +25,7 @@ def test_shade_ratio_on_window_rejects_non_positive_window_size(window_width, wi
     shade = [[(-1.0, 1.0, 0.0), (1.0, 1.0, 0.0), (1.0, -1.0, 0.0), (-1.0, -1.0, 0.0)]]
 
     with pytest.raises(ValueError):
-        _ = _shade_ratio_on_window(
+        _ = shade_ratio_on_window(
             azs_deg=az,
             hs_deg=hs,
             surface_az_deg=0.0,
@@ -42,7 +42,7 @@ def test_shade_ratio_on_window_is_zero_at_night():
     hs = pd.Series([-10.0], index=idx)
     shade = [[(-2.0, 2.0, 0.0), (2.0, 2.0, 0.0), (2.0, -2.0, 0.0), (-2.0, -2.0, 0.0)]]
 
-    eta = _shade_ratio_on_window(
+    eta = shade_ratio_on_window(
         azs_deg=az,
         hs_deg=hs,
         surface_az_deg=0.0,

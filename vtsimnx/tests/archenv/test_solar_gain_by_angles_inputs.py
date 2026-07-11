@@ -18,7 +18,7 @@ def test_solar_gain_by_angles_default_returns_series():
     )
 
     assert isinstance(out, pd.Series)
-    assert out.name == "日射熱取得量"
+    assert out.name == "solar_gain"
 
 
 def test_solar_gain_by_angles_accepts_ig_only():
@@ -34,8 +34,8 @@ def test_solar_gain_by_angles_accepts_ig_only():
         return_details=True,
     )
 
-    assert "日射熱取得量" in out.columns
-    assert np.all(out["水平面拡散日射量 Id"].to_numpy() >= -1e-9)
+    assert "solar_gain" in out.columns
+    assert np.all(out["dhi"].to_numpy() >= -1e-9)
 
 
 def test_solar_gain_by_angles_accepts_ig_and_ib_restores_id_nonnegative():
@@ -54,7 +54,7 @@ def test_solar_gain_by_angles_accepts_ig_and_ib_restores_id_nonnegative():
     )
 
     # Id >= 0 になる（IbはIG/sin(hs)で丸め）
-    assert np.all(out["水平面拡散日射量 Id"].to_numpy() >= -1e-9)
+    assert np.all(out["dhi"].to_numpy() >= -1e-9)
 
 
 def test_solar_gain_by_angles_accepts_ib_and_id():
@@ -72,10 +72,10 @@ def test_solar_gain_by_angles_accepts_ib_and_id():
         return_details=True,
     )
 
-    assert "法線面直達日射量 Ib" in out.columns
-    assert "水平面拡散日射量 Id" in out.columns
-    assert np.allclose(out["法線面直達日射量 Ib"].to_numpy(), 800.0)
-    assert np.allclose(out["水平面拡散日射量 Id"].to_numpy(), 100.0)
+    assert "dni" in out.columns
+    assert "dhi" in out.columns
+    assert np.allclose(out["dni"].to_numpy(), 800.0)
+    assert np.allclose(out["dhi"].to_numpy(), 100.0)
 
 
 def test_solar_gain_by_angles_diffuse_only_zeroes_direct_terms():
@@ -95,12 +95,12 @@ def test_solar_gain_by_angles_diffuse_only_zeroes_direct_terms():
     )
 
     # 直達を 0 扱い
-    assert np.allclose(out["直達日射量の面成分 Ib"].to_numpy(), 0.0)
+    assert np.allclose(out["beam_on_surface"].to_numpy(), 0.0)
 
     # 合計は拡散+反射のみになる
     np.testing.assert_allclose(
-        out["日射熱取得量"].to_numpy(),
-        (out["水平面拡散日射量の拡散成分"] + out["水平面拡散日射量の反射成分"]).to_numpy(),
+        out["solar_gain"].to_numpy(),
+        (out["diffuse_sky_on_surface"] + out["diffuse_ground_reflected"]).to_numpy(),
     )
 
 
@@ -124,9 +124,9 @@ def test_solar_gain_by_angles_horizontal_equals_ghi():
         return_details=True,
     )
 
-    sin_hs = np.sin(np.radians(out["太陽高度 hs"].to_numpy()))
+    sin_hs = np.sin(np.radians(out["solar_altitude_deg"].to_numpy()))
     ghi_expected = s_id.to_numpy() + s_ib.to_numpy() * np.maximum(sin_hs, 0.0)
-    np.testing.assert_allclose(out["日射熱取得量"].to_numpy(), ghi_expected, rtol=0, atol=1e-6)
+    np.testing.assert_allclose(out["solar_gain"].to_numpy(), ghi_expected, rtol=0, atol=1e-6)
 
 
 def test_solar_gain_by_angles_rejects_ghi_plus_dhi_only():

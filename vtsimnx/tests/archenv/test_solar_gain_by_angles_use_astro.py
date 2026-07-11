@@ -19,7 +19,7 @@ def test_solar_gain_by_angles_use_astro_runs():
         return_details=True,
     )
 
-    assert "太陽方位角 AZs" in out.columns
-    assert "太陽高度 hs" in out.columns
+    assert "solar_azimuth_deg" in out.columns
+    assert "solar_altitude_deg" in out.columns
 
 

@@ -1,13 +1,13 @@
 import pytest
 
 import vtsimnx as vt
-from vtsimnx.archenv import calc_C, calc_R, calc_RC
+from vtsimnx.archenv.comfort import _calc_C, _calc_R, _calc_RC
 
 
 def test_calc_rc_components_consistency():
-    r = calc_R(1.0, 25.0, 20.0)
-    c = calc_C(1.0, 3.0, 25.0, 20.0)
-    rc = calc_RC(1.0, 3.0, 25.0, 20.0, 20.0)
+    r = _calc_R(1.0, 25.0, 20.0)
+    c = _calc_C(1.0, 3.0, 25.0, 20.0)
+    rc = _calc_RC(1.0, 3.0, 25.0, 20.0, 20.0)
     assert rc == pytest.approx(r + c)
 
 

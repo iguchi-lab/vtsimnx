@@ -68,6 +68,6 @@ def test_sep_direct_diffuse_basic_shape_and_columns():
     df = sep_direct_diffuse(s_ig, s_hs)
 
     assert df.index.equals(idx)
-    assert {"水平面全天日射量", "太陽高度", "晴天指数 Kt", "水平面拡散日射量 Id", "法線面直達日射量 Ib"}.issubset(
+    assert {"ghi", "solar_altitude_deg", "clearness_index_kt", "dhi", "dni"}.issubset(
         set(df.columns)
     )

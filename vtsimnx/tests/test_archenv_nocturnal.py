@@ -20,7 +20,7 @@ def test_nocturnal_gain_by_angles_from_t_and_rh():
 
     assert isinstance(s, pd.Series)
     assert s.index.equals(idx)
-    assert s.name == "夜間放射量"
+    assert s.name == "nocturnal_radiation"
 
 
 def test_nocturnal_gain_by_angles_accepts_rn_horizontal():
@@ -29,8 +29,8 @@ def test_nocturnal_gain_by_angles_accepts_rn_horizontal():
 
     out = vt.nocturnal_gain_by_angles(tilt_deg=0.0, rn_horizontal=rn_h, return_details=True)
 
-    assert list(out.columns) == ["夜間放射量_水平", "夜間放射量"]
-    assert out["夜間放射量"].tolist() == rn_h.tolist()
+    assert list(out.columns) == ["nocturnal_radiation_horizontal", "nocturnal_radiation"]
+    assert out["nocturnal_radiation"].tolist() == rn_h.tolist()
 
 
 def test_nocturnal_gain_by_angles_rejects_mismatched_index():
