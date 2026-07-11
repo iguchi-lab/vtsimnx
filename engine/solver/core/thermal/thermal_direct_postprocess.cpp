@@ -1,4 +1,5 @@
 #include "core/thermal/thermal_direct_internal.h"
+#include "core/thermal/thermal_edge_physics.h"
 
 namespace ThermalSolverLinearDirect::detail {
 
@@ -12,46 +13,9 @@ void postprocessAndReport(ThermalNetwork& network,
                           std::ostream& logFile,
                           std::chrono::high_resolution_clock::time_point startTime,
                           DirectTStats& stats) {
-    using thermal_direct_response::evalResponseQSrc;
-    using thermal_direct_response::evalResponseQTgt;
-
     std::vector<double> heatBalance(curV, 0.0);
     for (auto e : boost::make_iterator_range(boost::edges(graph))) {
-        Vertex sv = boost::source(e, graph), tv = boost::target(e, graph);
-        auto& ep = graph[e];
-        if (!ep.current_enabled) {
-            ep.heat_rate = 0.0;
-            if (ep.getTypeCode() == EdgeProperties::TypeCode::ResponseConduction) {
-                ep.current_q_src = 0.0;
-                ep.current_q_tgt = 0.0;
-            }
-            continue;
-        }
-        double Ts = graph[sv].current_t, Tt = graph[tv].current_t;
-        auto tc = ep.getTypeCode();
-        if (tc == EdgeProperties::TypeCode::ResponseConduction) {
-            double qs = evalResponseQSrc(ep, Ts, Tt), qt = evalResponseQTgt(ep, Ts, Tt);
-            heatBalance[static_cast<size_t>(sv)] -= qs;
-            heatBalance[static_cast<size_t>(tv)] -= qt;
-            ep.heat_rate = (qs + qt) / 2.0;
-            ep.current_q_src = qs;
-            ep.current_q_tgt = qt;
-        } else if (tc == EdgeProperties::TypeCode::Advection) {
-            double Q = HeatCalculation::calcAdvectionHeat(Ts, Tt, ep);
-            if (ep.flow_rate > 0) {
-                if (ep.is_aircon_inflow && graph[tv].on) Q = 0.0;
-                heatBalance[static_cast<size_t>(tv)] += Q;
-            } else {
-                if (graph[sv].getTypeCode() == VertexProperties::TypeCode::Aircon && graph[sv].on) Q = 0.0;
-                heatBalance[static_cast<size_t>(sv)] += Q;
-            }
-            ep.heat_rate = Q;
-        } else {
-            double Q = HeatCalculation::calculateUnifiedHeat(Ts, Tt, ep);
-            ep.heat_rate = Q;
-            heatBalance[static_cast<size_t>(sv)] -= Q;
-            heatBalance[static_cast<size_t>(tv)] += Q;
-        }
+        thermal_edge_physics::accumulatePostprocess(graph, e, heatBalance);
     }
     for (size_t i = 0; i < curV; ++i) {
         heatBalance[i] += graph[i].heat_source;
@@ -75,15 +39,16 @@ void postprocessAndReport(ThermalNetwork& network,
         std::chrono::high_resolution_clock::now() - startTime);
     const double durMs = static_cast<double>(durUs.count()) / 1000.0;
 
+    const double balanceTolW = effectiveThermalBalanceToleranceW(constants);
     std::ostringstream oss;
     oss << "--------熱計算(線形): "
-        << (rmseB <= constants.thermalTolerance ? "収束" : "未収束")
+        << (rmseB <= balanceTolW ? "収束" : "未収束")
         << " (method=" << method
         << ", RMSE=" << std::scientific << std::setprecision(6) << rmseB
         << ", maxBalance=" << maxB
         << ", time=" << std::fixed << std::setprecision(3) << durMs << "ms)";
     writeLog(logFile, oss.str());
-    network.setLastThermalConvergence(rmseB <= constants.thermalTolerance, rmseB, maxB, method);
+    network.setLastThermalConvergence(rmseB <= balanceTolW, rmseB, maxB, method);
 
     constexpr std::uint64_t kStatsLogInterval = 500;
     // VTSIMNX_TIMINGS 有効時は毎呼び出しで cache stats を出し、性能ベンチで
@@ -118,5 +83,3 @@ void postprocessAndReport(ThermalNetwork& network,
 }
 
 } // namespace ThermalSolverLinearDirect::detail
-
-

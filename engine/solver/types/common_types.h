@@ -46,7 +46,12 @@ struct SimulationConstants {
     int timestep;
     int length;
     double ventilationTolerance; // 圧力ソルバ: calc_p ノード体積流量収支の最大絶対値許容 [m³/s]
+    // thermalTolerance は後方互換の代表値（空調温度差 [K]）。
+    // 用途別の正本は以下3つ（パーサ未指定時は thermal と同じ値で埋める）。
     double thermalTolerance;
+    double airconTemperatureToleranceK = 0.0;                 // 空調ON/OFF判定 [K]
+    double thermalBalanceToleranceW = 0.0;                    // 熱収支RMSE合否 [W]
+    double thermalLinearResidualRelativeTolerance = 0.0;      // DirectT の max|Ax-b| / max(1,|b|) 相対許容
     double convergenceTolerance;
     // 追加: 圧力-熱の連成反復の停止判定に使う許容誤差（0以下なら convergenceTolerance を使用）
     // 単位: pressure [Pa], temperature [K]
@@ -78,5 +83,18 @@ struct SimulationConstants {
     // フォールバック関連の補助出力(csv/txt)を有効化
     bool exportFallbackArtifacts = true;
 };
+
+// thermalTolerance のみ設定したテスト/旧コード向けの実効値。
+inline double effectiveAirconTemperatureToleranceK(const SimulationConstants& c) noexcept {
+    return (c.airconTemperatureToleranceK > 0.0) ? c.airconTemperatureToleranceK : c.thermalTolerance;
+}
+inline double effectiveThermalBalanceToleranceW(const SimulationConstants& c) noexcept {
+    return (c.thermalBalanceToleranceW > 0.0) ? c.thermalBalanceToleranceW : c.thermalTolerance;
+}
+inline double effectiveThermalLinearResidualRelativeTolerance(const SimulationConstants& c) noexcept {
+    return (c.thermalLinearResidualRelativeTolerance > 0.0)
+               ? c.thermalLinearResidualRelativeTolerance
+               : c.thermalTolerance;
+}
 
 

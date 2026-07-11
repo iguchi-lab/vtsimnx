@@ -6,8 +6,9 @@ cannot silently lock in wrong physics without an invariant check.
 
 from __future__ import annotations
 
-# Thermal network residual (W). Matches simulation.tolerance.thermal default
-# used in baseline cases (1e-6). Log `maxBalance` is compared against this.
+# Thermal network residual (W). Prefer simulation.tolerance.thermal_balance;
+# falls back to simulation.tolerance.thermal when unset (baseline 1e-6).
+# Log `maxBalance` is compared against this.
 THERMAL_BALANCE_ABS_W = 1e-5
 # Rationale: DirectT reports maxBalance on the order of 1e-12..1e-13 for the
 # simple conductance case; allow headroom for float32 artifact reconstruction

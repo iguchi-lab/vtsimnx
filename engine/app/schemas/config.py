@@ -52,13 +52,42 @@ class SimulationIndex(_StrictExtraBase):
 
 
 class SimulationTolerance(_StrictExtraBase):
-    ventilation: Optional[float] = Field(default=None, description="圧力/換気残差許容")
+    ventilation: Optional[float] = Field(
+        default=None,
+        description="圧力/換気残差許容 [m³/s]",
+        json_schema_extra=field_extra(VOLUME_FLOW_M3_S),
+    )
     thermal: Optional[float] = Field(
         default=None,
-        description="熱収支残差許容",
-        json_schema_extra=field_extra(HEAT_RATE_W),
+        description="互換代表値（未指定の用途別キーへコピー）。従来は熱/空調で共用",
     )
     convergence: Optional[float] = Field(default=None, description="連成収束許容")
+    aircon_temperature: Optional[float] = Field(
+        default=None,
+        description="空調ON/OFF温度差許容 [K]",
+    )
+    thermal_balance: Optional[float] = Field(
+        default=None,
+        description="熱収支RMSE合否許容 [W]",
+        json_schema_extra=field_extra(HEAT_RATE_W),
+    )
+    thermal_linear_residual: Optional[float] = Field(
+        default=None,
+        description="DirectT 線形残差の相対許容 max|Ax-b|/max(1,|b|)",
+    )
+    coupling_pressure: Optional[float] = Field(
+        default=None,
+        description="連成(圧力)許容 [Pa]",
+        json_schema_extra=field_extra(PRESSURE_PA),
+    )
+    coupling_temperature: Optional[float] = Field(
+        default=None,
+        description="連成(温度)許容 [K]",
+    )
+    coupling_humidity: Optional[float] = Field(
+        default=None,
+        description="連成(湿気)許容",
+    )
 
 
 class SimulationCalcFlag(_StrictExtraBase):

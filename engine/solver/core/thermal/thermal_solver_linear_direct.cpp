@@ -152,11 +152,23 @@ void solveTemperaturesLinearDirect(ThermalNetwork& network,
         } else {
             if (ctx.rhsBuffer.size() != static_cast<int>(n)) ctx.rhsBuffer.resize(static_cast<int>(n));
             for (size_t i = 0; i < n; ++i) ctx.rhsBuffer[static_cast<int>(i)] = ctx.system.b[i];
-            solved = detail::solveWithCachedFactorization(ctx, ctx.rhsBuffer, temperatures, constants.thermalTolerance, logFile, method);
+            solved = detail::solveWithCachedFactorization(
+                ctx,
+                ctx.rhsBuffer,
+                temperatures,
+                effectiveThermalLinearResidualRelativeTolerance(constants),
+                logFile,
+                method);
         }
     } else {
         ++ctx.stats.solveFull;
-        solved = detail::solveSparseDirect(ctx, ctx.system, temperatures, constants.thermalTolerance, logFile, method);
+        solved = detail::solveSparseDirect(
+            ctx,
+            ctx.system,
+            temperatures,
+            effectiveThermalLinearResidualRelativeTolerance(constants),
+            logFile,
+            method);
         if (solved) ctx.sparseLu.coeffSig = coeffSig;
     }
 

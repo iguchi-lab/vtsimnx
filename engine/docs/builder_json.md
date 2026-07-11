@@ -59,6 +59,15 @@ builder が期待するトップレベルは概ね以下です:
 }
 ```
 
+`tolerance.thermal` は後方互換の代表値です。用途別に分けたい場合は任意キーを追加できます。
+
+| キー | 単位 | 用途 |
+|---|---|---|
+| `thermal` | （代表値） | 未指定の用途別キーへコピー。従来どおり必須 |
+| `aircon_temperature` | K | 空調ON/OFFの温度差判定 |
+| `thermal_balance` | W | 熱収支RMSEの合否 |
+| `thermal_linear_residual` | 相対 | DirectT の `max\|Ax-b\| / max(1,\|b\|)` 判定 |
+
 ---
 
 ### 3. `builder` オプション

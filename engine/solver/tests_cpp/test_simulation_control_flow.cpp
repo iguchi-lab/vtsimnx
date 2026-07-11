@@ -1,3 +1,4 @@
+#include <cmath>
 #include <iostream>
 #include <optional>
 #include <sstream>
@@ -37,6 +38,13 @@ void fail(const std::string& msg) {
 
 void expectTrue(bool cond, const std::string& msg) {
     if (!cond) fail(msg);
+}
+
+void expectNear(double actual, double expected, double tol, const std::string& msg) {
+    const double diff = std::abs(actual - expected);
+    if (diff > tol) {
+        fail(msg + " actual=" + std::to_string(actual) + " expected=" + std::to_string(expected));
+    }
 }
 
 void expectEqAction(InnerCouplingAction actual, InnerCouplingAction expected, const std::string& msg) {
@@ -217,6 +225,24 @@ void testParserPositiveIntegerIterations() {
         expectTrue(c.maxInnerIterations == 12, "parser: max_inner integer");
         expectTrue(c.maxCouplingIterations == 12, "parser: coupling default copy");
         expectTrue(c.maxAirconControlIterations == 12, "parser: aircon default copy");
+    }
+
+    {
+        auto j = minimalSimJson();
+        j["simulation"]["tolerance"]["thermal"] = 1e-3;
+        j["simulation"]["tolerance"]["aircon_temperature"] = 0.5;
+        j["simulation"]["tolerance"]["thermal_balance"] = 2.0;
+        j["simulation"]["tolerance"]["thermal_linear_residual"] = 1e-8;
+        const auto c = parseSimulationConstants(j, logs);
+        expectNear(c.thermalTolerance, 1e-3, 0.0, "parser: thermal compat");
+        expectNear(c.airconTemperatureToleranceK, 0.5, 0.0, "parser: aircon_temperature");
+        expectNear(c.thermalBalanceToleranceW, 2.0, 0.0, "parser: thermal_balance");
+        expectNear(c.thermalLinearResidualRelativeTolerance, 1e-8, 0.0,
+                   "parser: thermal_linear_residual");
+        expectNear(effectiveAirconTemperatureToleranceK(c), 0.5, 0.0, "effective aircon");
+        expectNear(effectiveThermalBalanceToleranceW(c), 2.0, 0.0, "effective balance");
+        expectNear(effectiveThermalLinearResidualRelativeTolerance(c), 1e-8, 0.0,
+                   "effective linear residual");
     }
 
     {

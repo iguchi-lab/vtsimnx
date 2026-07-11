@@ -1,4 +1,5 @@
 #include "core/thermal/thermal_direct_internal.h"
+#include "core/thermal/thermal_edge_physics.h"
 
 namespace ThermalSolverLinearDirect::detail {
 
@@ -67,10 +68,6 @@ std::uint64_t computeCoeffSignature(const Graph& graph, const TopologyCache& top
 }
 
 void rebuildRhsPrecomputeForCoeffSig(const Graph& graph, TopologyCache& topo, std::uint64_t coeffSig) {
-    using thermal_direct_response::responseArea;
-    using thermal_direct_response::evalResponseHistoryWattSrc;
-    using thermal_direct_response::evalResponseHistoryWattTgt;
-
     const size_t n = topo.parameterIndexToVertex.size();
     topo.knownTermsByRow.assign(n, {});
     topo.heatGenByRow.assign(n, {});
@@ -112,54 +109,22 @@ void rebuildRhsPrecomputeForCoeffSig(const Graph& graph, TopologyCache& topo, st
         }
 
         for (auto edge : topo.incidentEdges[static_cast<size_t>(procV)]) {
-            Vertex sv = boost::source(edge, graph);
-            Vertex tv = boost::target(edge, graph);
             const auto& ep = graph[edge];
-            if (!ep.current_enabled) continue;
-            const auto tc = ep.getTypeCode();
+            if (!thermal_edge_physics::isActive(ep)) continue;
 
-            if (tc == EdgeProperties::TypeCode::Conductance) {
-                const double k = ep.conductance;
-                if (sv == procV) {
-                    addKnown(i, sv, -k);
-                    addKnown(i, tv, +k);
-                } else {
-                    addKnown(i, sv, +k);
-                    addKnown(i, tv, -k);
-                }
-            } else if (tc == EdgeProperties::TypeCode::Advection) {
-                double flowRate = ep.flow_rate;
-                if (std::abs(flowRate) < archenv::FLOW_RATE_MIN) continue;
-                const double mDotCp = archenv::DENSITY_DRY_AIR * archenv::SPECIFIC_HEAT_AIR * flowRate;
-                if (flowRate > 0) {
-                    if (tv == procV && !(ep.is_aircon_inflow && graph[tv].on)) {
-                        addKnown(i, sv, +mDotCp);
-                        addKnown(i, tv, -mDotCp);
-                    }
-                } else {
-                    if (sv == procV && !(graph[sv].getTypeCode() == VertexProperties::TypeCode::Aircon && graph[sv].on)) {
-                        addKnown(i, tv, -mDotCp);
-                        addKnown(i, sv, +mDotCp);
-                    }
-                }
-            } else if (tc == EdgeProperties::TypeCode::HeatGeneration) {
-                if (sv == procV) addHeatGen(i, edge, +1.0);
-                else addHeatGen(i, edge, -1.0);
+            const Vertex sv = boost::source(edge, graph);
+            thermal_edge_physics::assembleTemperatureCoeffsAtNode(
+                graph,
+                edge,
+                procV,
+                1.0,
+                [&](Vertex col, double aCoeff) { addKnown(i, col, aCoeff); });
+
+            const auto tc = ep.getTypeCode();
+            if (tc == EdgeProperties::TypeCode::HeatGeneration) {
+                addHeatGen(i, edge, thermal_edge_physics::heatGenerationRhsSignAtNode(procV, sv));
             } else if (tc == EdgeProperties::TypeCode::ResponseConduction) {
-                const double area = responseArea(ep);
-                if (sv == procV) {
-                    const double a0 = ep.resp_a_src.empty() ? 0.0 : ep.resp_a_src[0];
-                    const double b0 = ep.resp_b_src.empty() ? 0.0 : ep.resp_b_src[0];
-                    addKnown(i, sv, -area * a0);
-                    addKnown(i, tv, -area * b0);
-                    addRespHist(i, edge, true, 1.0);
-                } else {
-                    const double a0 = ep.resp_a_tgt.empty() ? 0.0 : ep.resp_a_tgt[0];
-                    const double b0 = ep.resp_b_tgt.empty() ? 0.0 : ep.resp_b_tgt[0];
-                    addKnown(i, tv, -area * a0);
-                    addKnown(i, sv, -area * b0);
-                    addRespHist(i, edge, false, 1.0);
-                }
+                addRespHist(i, edge, thermal_edge_physics::responseHistIsSrcSide(procV, sv), 1.0);
             }
         }
 
@@ -197,8 +162,7 @@ void buildRhsOnlyAbsoluteFast(const Graph& graph, const TopologyCache& topo, std
         }
 
         const Vertex rowV = topo.parameterIndexToVertex[i];
-        // 後処理の熱収支は「流入和 + heat_source = 0」。A*T が流入和に対応するため RHS は -heat_source。
-        bOut[i] -= graph[rowV].heat_source;
+        bOut[i] += thermal_edge_physics::heatSourceToRhs(graph[rowV].heat_source);
 
         if (i < topo.knownTermsByRow.size()) {
             for (const auto& t : topo.knownTermsByRow[i]) {
@@ -209,11 +173,13 @@ void buildRhsOnlyAbsoluteFast(const Graph& graph, const TopologyCache& topo, std
         }
         if (i < topo.heatGenByRow.size()) {
             for (const auto& tg : topo.heatGenByRow[i]) {
+                if (!thermal_edge_physics::isActive(graph[tg.e])) continue;
                 bOut[i] += tg.sign * graph[tg.e].current_heat_generation;
             }
         }
         if (i < topo.responseHistByRow.size()) {
             for (const auto& rh : topo.responseHistByRow[i]) {
+                if (!thermal_edge_physics::isActive(graph[rh.e])) continue;
                 const auto& ep = graph[rh.e];
                 const double hW = rh.isSrc ? evalResponseHistoryWattSrc(ep) : evalResponseHistoryWattTgt(ep);
                 bOut[i] += rh.factor * (+hW);
@@ -223,5 +189,3 @@ void buildRhsOnlyAbsoluteFast(const Graph& graph, const TopologyCache& topo, std
 }
 
 } // namespace ThermalSolverLinearDirect::detail
-
-

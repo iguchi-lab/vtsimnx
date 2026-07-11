@@ -81,9 +81,43 @@ SimulationConstants parseSimulationConstants(const nlohmann::json& config,
         throw std::runtime_error("Missing or invalid 'simulation.tolerance.thermal' (number required)");
     }
     outConstants.thermalTolerance = tol["thermal"];
+    // 用途別の正本。個別キーが無ければ thermal を共通初期値として埋める（後方互換）。
+    outConstants.airconTemperatureToleranceK = outConstants.thermalTolerance;
+    outConstants.thermalBalanceToleranceW = outConstants.thermalTolerance;
+    outConstants.thermalLinearResidualRelativeTolerance = outConstants.thermalTolerance;
     logLine([&](std::ostringstream& oss) {
-        oss << "  温度許容誤差: " << outConstants.thermalTolerance;
+        oss << "  温度許容誤差(thermal/互換・空調[K]): " << outConstants.thermalTolerance;
     });
+    if (tol.contains("aircon_temperature")) {
+        if (!tol["aircon_temperature"].is_number()) {
+            throw std::runtime_error(
+                "Missing or invalid 'simulation.tolerance.aircon_temperature' (number required)");
+        }
+        outConstants.airconTemperatureToleranceK = tol["aircon_temperature"];
+        logLine([&](std::ostringstream& oss) {
+            oss << "  空調温度許容誤差[K]: " << outConstants.airconTemperatureToleranceK;
+        });
+    }
+    if (tol.contains("thermal_balance")) {
+        if (!tol["thermal_balance"].is_number()) {
+            throw std::runtime_error(
+                "Missing or invalid 'simulation.tolerance.thermal_balance' (number required)");
+        }
+        outConstants.thermalBalanceToleranceW = tol["thermal_balance"];
+        logLine([&](std::ostringstream& oss) {
+            oss << "  熱収支許容誤差[W]: " << outConstants.thermalBalanceToleranceW;
+        });
+    }
+    if (tol.contains("thermal_linear_residual")) {
+        if (!tol["thermal_linear_residual"].is_number()) {
+            throw std::runtime_error(
+                "Missing or invalid 'simulation.tolerance.thermal_linear_residual' (number required)");
+        }
+        outConstants.thermalLinearResidualRelativeTolerance = tol["thermal_linear_residual"];
+        logLine([&](std::ostringstream& oss) {
+            oss << "  熱線形残差相対許容: " << outConstants.thermalLinearResidualRelativeTolerance;
+        });
+    }
     if (!tol.contains("convergence") || !tol["convergence"].is_number()) {
         throw std::runtime_error("Missing or invalid 'simulation.tolerance.convergence' (number required)");
     }

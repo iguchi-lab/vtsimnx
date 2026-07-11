@@ -38,7 +38,8 @@ AirconIterationAction runAirconIteration(AirconIterationContext& ctx,
 
         ScopedTimer timer(ctx.timings, "aircon_control", meta);
         allAirconControlled =
-            ctx.aircon.controlAllAircons(ctx.thermal, ctx.constants.thermalTolerance, ctx.logs);
+            ctx.aircon.controlAllAircons(
+                ctx.thermal, effectiveAirconTemperatureToleranceK(ctx.constants), ctx.logs);
     }
 
     if (!allAirconControlled) {

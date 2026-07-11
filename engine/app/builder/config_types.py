@@ -1,4 +1,5 @@
 from typing import TypedDict, List, Optional
+from typing_extensions import NotRequired
 from enum import Enum
 import numpy as np
 
@@ -36,8 +37,14 @@ class IndexType(TypedDict):
 
 class ToleranceType(TypedDict):
     ventilation: float
-    thermal: float
+    thermal: float  # 互換代表値（既定では空調温度差[K]と各用途の初期値）
     convergence: float
+    aircon_temperature: NotRequired[float]  # 空調ON/OFF温度差 [K]
+    thermal_balance: NotRequired[float]  # 熱収支RMSE合否 [W]
+    thermal_linear_residual: NotRequired[float]  # DirectT 相対残差許容
+    coupling_pressure: NotRequired[float]
+    coupling_temperature: NotRequired[float]
+    coupling_humidity: NotRequired[float]
 
 
 class CalcFlagType(TypedDict):

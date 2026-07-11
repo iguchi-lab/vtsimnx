@@ -501,7 +501,7 @@ bool solveSparseDirect(DirectTSolverContext& ctx,
         oss << "--------疎直接法(DirectT): residual too large: max|Ax-b|="
             << std::scientific << std::setprecision(6) << maxResidual
             << " > tol=" << scaledTol
-            << " (thermalTolerance=" << tolerance
+            << " (thermalLinearResidualRelativeTolerance=" << tolerance
             << ", bScale=" << bScale
             << ", method=" << methodLabel << ")";
         writeLog(logFile, oss.str());
@@ -665,7 +665,7 @@ bool solveWithCachedFactorization(DirectTSolverContext& ctx,
             oss << "--------疎直接法(DirectT cached): residual too large: max|Ax-b|="
                 << std::scientific << std::setprecision(6) << maxResidual
                 << " > tol=" << scaledTol
-                << " (thermalTolerance=" << tolerance
+                << " (thermalLinearResidualRelativeTolerance=" << tolerance
                 << ", bScale=" << bScale
                 << ", method=" << methodLabel << ")";
             writeLog(logFile, oss.str());
