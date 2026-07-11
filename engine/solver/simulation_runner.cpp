@@ -5,33 +5,19 @@
 #include "network/contaminant_network.h"
 #include "aircon/aircon_controller.h"
 #include "core/humidity/humidity_solver.h"
+#include "simulation_coupled_step.h"
+#include "simulation_coupling_control.h"
 #include "simulation_runner_helpers.h"
 #include "transport/concentration_solver.h"
 #include "utils/utils.h"
 
-#include <sstream>
 #include <limits>
 #include <cmath>
 #include <fstream>
+#include <memory>
 #include <ostream>
 #include <string>
 #include <boost/range/iterator_range.hpp>
-
-// 連成計算（pressure/thermal）1回分の「確定データ」をまとめる
-struct CoupledStepData {
-    PressureMap pressureMap;
-    FlowRateMap flowRates;
-    FlowBalanceMap flowBalance;
-};
-
-static CoupledStepData
-performCoupledStepCalculation(VentilationNetwork& ventNetwork,
-                              ThermalNetwork& thermalNetwork,
-                              const SimulationConstants& constants,
-                              std::ostream& logs,
-                              int& totalIterations,
-                              TimingList& timings,
-                              const std::string& meta);
 
 namespace {
 using namespace simulation::detail;
@@ -153,7 +139,6 @@ static void runCoupledInnerLoop(VentilationNetwork& ventNetwork,
     std::vector<double> prevPressuresByKey;
     std::vector<double> prevHumidityByVertex;
     std::vector<double> baseHeatSourceByVertex;
-    CoupledDelta lastDelta{};
     double lastLatentAppliedW = 0.0;
     core::humidity::HumiditySolveStats lastHumiditySolveStats{};
     int coupledIter = 0;
@@ -208,13 +193,7 @@ static void runCoupledInnerLoop(VentilationNetwork& ventNetwork,
                 step.flowRates, logs, timings,
                 meta + ",iteration=" + std::to_string(outerIteration + 1) +
                            ",coupledIter=" + std::to_string(coupledIter));
-            if (logEnabled && !lastHumiditySolveStats.converged) {
-                writeLog(
-                    logs,
-                    "湿気ソルバ未収束(内側反復継続): iter=" + std::to_string(lastHumiditySolveStats.iterations) +
-                        ", maxDiff=" + std::to_string(lastHumiditySolveStats.finalMaxDiff) +
-                        ", active=" + std::to_string(lastHumiditySolveStats.activeVertices));
-            }
+            logHumiditySolverNotConverged(logs, logEnabled, lastHumiditySolveStats);
             relaxHumidityByVertex(thermalNetwork.getGraph(), ventNetwork, prevHumidityByVertex, constants.humidityRelaxation);
         }
 
@@ -224,83 +203,48 @@ static void runCoupledInnerLoop(VentilationNetwork& ventNetwork,
         const double latentAppliedThisIter = 0.0;
         lastLatentAppliedW = latentAppliedThisIter;
 
-        // 1回目で pressure が未収束なら停止（従来と同じ）
-        if (constants.pressureCalc && coupledIter == 1 && !ventNetwork.getLastPressureConverged()) {
-            if (logEnabled) {
-                writeLog(logs, "エラー: フォールバック後も未収束のため停止します（最終通常解の再試行は無効化）");
-            }
-            throw std::runtime_error("Disabled final normal solve: stopping after fallback non-convergence");
-        }
-
-        // 連成計算が不要な場合、1回の計算後に抜ける
-        if (!needsInnerCoupledIteration(constants)) {
-            if (logEnabled) writeLog(logs, "内側連成反復は不要です（有効状態量が1つ以下）");
-            break;
-        }
-
-        // 変化量を計算してログ出力
+        // 変化量を計算
         auto delta = computeCoupledDelta(constants, ventNetwork, thermalNetwork,
                                          prevPressuresByKey, prevTempsByVertex);
         if (humidityActive) {
             delta.humidityChange = calculateHumidityChangeByVertex(thermalNetwork.getGraph(), prevHumidityByVertex);
         }
-        lastDelta = delta;
-        if (logEnabled) {
-            writeLog(
-                logs,
-                "圧力変化量: " + std::to_string(delta.pressureChange) +
-                    " Pa, 温度変化量: " + std::to_string(delta.temperatureChange) +
-                    " K, 湿気変化量: " + std::to_string(delta.humidityChange) +
-                    " kg/kg(DA), 潜熱反映: " + std::to_string(latentAppliedThisIter) +
-                    " W, 湿気反復: " + std::to_string(lastHumiditySolveStats.iterations) +
-                    ", 湿気残差: " + std::to_string(lastHumiditySolveStats.finalMaxDiff));
+
+        const InnerCouplingEval eval = evaluateInnerCoupling(
+            constants,
+            humidityActive,
+            coupledIter,
+            delta,
+            ventNetwork.getLastPressureConverged());
+
+        // ログ: 打ち切り系は評価後、変化量ログは Continue / BreakConverged / ThrowMax の前に出す
+        // 従来順序:
+        // 1) pressure non-conv → log + throw (変化量ログなし)
+        // 2) no need → log + break (変化量ログなし)
+        // 3) delta log
+        // 4) converged → log + break
+        // 5) max iter → log + throw
+        if (eval.action == InnerCouplingAction::ThrowPressureNonConvergence) {
+            logPressureFallbackStop(logs, logEnabled);
+            throw std::runtime_error("Disabled final normal solve: stopping after fallback non-convergence");
+        }
+        if (eval.action == InnerCouplingAction::BreakNoNeed) {
+            logInnerCouplingNotNeeded(logs, logEnabled);
+            break;
         }
 
-        // 収束判定（2回目以降）
-        if (coupledIter > 1) {
-            const double pTol = couplingPressureTol(constants);
-            const double tTol = couplingTemperatureTol(constants);
-            const double xTol = couplingHumidityTol(constants);
-            const bool pOk = !constants.pressureCalc || (delta.pressureChange < pTol);
-            const bool tOk = !constants.temperatureCalc || (delta.temperatureChange < tTol);
-            const bool xOk = !humidityActive || (delta.humidityChange < xTol);
-            if (pOk && tOk && xOk) {
-                if (logEnabled) {
-                    writeLog(logs, "空気-熱-湿気 連成計算が収束しました (" +
-                                        std::to_string(coupledIter) + "回)");
-                }
-                break;
-            }
+        logInnerCouplingDelta(logs, logEnabled, delta, latentAppliedThisIter, lastHumiditySolveStats);
+
+        if (eval.action == InnerCouplingAction::BreakConverged) {
+            logInnerCouplingConverged(logs, logEnabled, coupledIter);
+            break;
         }
-
-        if (coupledIter >= static_cast<int>(constants.maxInnerIteration)) {
-            if (logEnabled) {
-                const double pTol = couplingPressureTol(constants);
-                const double tTol = couplingTemperatureTol(constants);
-                const double xTol = couplingHumidityTol(constants);
-                const double pRatio = constants.pressureCalc ? (lastDelta.pressureChange / std::max(1e-30, pTol)) : 0.0;
-                const double tRatio = constants.temperatureCalc ? (lastDelta.temperatureChange / std::max(1e-30, tTol)) : 0.0;
-                const double xRatio = humidityActive ? (lastDelta.humidityChange / std::max(1e-30, xTol)) : 0.0;
-
-                std::string dominant = "none";
-                double domRatio = -1.0;
-                if (constants.pressureCalc && pRatio > domRatio) { domRatio = pRatio; dominant = "pressure"; }
-                if (constants.temperatureCalc && tRatio > domRatio) { domRatio = tRatio; dominant = "temperature"; }
-                if (humidityActive && xRatio > domRatio) { domRatio = xRatio; dominant = "humidity"; }
-
-                std::ostringstream oss;
-                oss << "連成計算が最大反復回数に到達: iter=" << coupledIter
-                    << ", dominant=" << dominant
-                    << ", pressure=" << lastDelta.pressureChange << "/" << pTol
-                    << ", temperature=" << lastDelta.temperatureChange << "/" << tTol
-                    << ", humidity=" << lastDelta.humidityChange << "/" << xTol
-                    << ", latentApplied=" << lastLatentAppliedW << " W"
-                    << ", humidityIter=" << lastHumiditySolveStats.iterations
-                    << ", humidityResidual=" << lastHumiditySolveStats.finalMaxDiff;
-                writeLog(logs, oss.str());
-            }
+        if (eval.action == InnerCouplingAction::ThrowMaxIteration) {
+            logInnerCouplingMaxIteration(logs, logEnabled, coupledIter, eval,
+                                         lastLatentAppliedW, lastHumiditySolveStats);
             throw std::runtime_error("Maximum iteration count reached: stopping after maximum iteration count");
         }
+        // Continue: next iteration
     }
 }
 
@@ -367,59 +311,6 @@ static void buildTimestepResult(const SimulationConstants& constants,
 }
 
 } // namespace
-
-// 換気・熱計算の「1回分」を実行する（runSimulation 側で収束反復を制御する）
-static CoupledStepData
-performCoupledStepCalculation(VentilationNetwork& ventNetwork,
-                              ThermalNetwork& thermalNetwork,
-                              const SimulationConstants& constants,
-                              std::ostream& logs,
-                              int& totalIterations,
-                              TimingList& timings,
-                              const std::string& meta) {
-    (void)totalIterations; // runSimulation 側で反復回数を管理する
-    const bool logEnabled = (constants.logVerbosity > 0);
-    CoupledStepData step;
-
-        // 換気計算
-        if (constants.pressureCalc) {
-            std::unique_ptr<ScopedLogSection> pressureScope;
-            if (logEnabled) pressureScope = std::make_unique<ScopedLogSection>(logs, "圧力計算");
-            {
-                ScopedTimer timer(timings, "pressure_solve_iteration", meta);
-                std::tie(step.pressureMap, step.flowRates, step.flowBalance) =
-                    ventNetwork.solvePressure(constants, logs);
-            }
-            ventNetwork.applySolveResults(step.pressureMap, step.flowRates);
-
-        // runSimulation 側の1回目チェックと同じ条件で止めたいので、ここでは totalIterations を見ない
-        // （未収束フラグは solve 後に network 側に保持される）
-        }
-
-        // 熱計算
-        if (constants.temperatureCalc) {
-            // pressureCalc=false の場合でも fixed_flow 等で flow_rate が入るため、移流用に同期する
-            if (!constants.pressureCalc) {
-                thermalNetwork.syncFlowRatesFromVentilationNetwork(ventNetwork);
-        } else {
-            // 熱計算が有効な場合、換気計算結果を熱回路網に同期
-            thermalNetwork.syncFlowRatesFromVentilationNetwork(ventNetwork);
-            }
-            std::unique_ptr<ScopedLogSection> thermalScope;
-            if (logEnabled) thermalScope = std::make_unique<ScopedLogSection>(logs, "熱計算");
-            {
-                ScopedTimer timer(timings, "thermal_solve_iteration", meta);
-                thermalNetwork.solveTemperature(constants, logs);
-            }
-
-            // pressureCalc=false の場合、換気側で温度（密度）を参照する計算が走らないため更新不要
-            if (constants.pressureCalc) {
-                ventNetwork.syncTemperaturesFromThermalNetwork(thermalNetwork);
-            }
-        }
-
-    return step;
-}
 
 void runSimulation(VentilationNetwork& ventNetwork,
                    ThermalNetwork& thermalNetwork,
@@ -506,7 +397,7 @@ void runSimulation(VentilationNetwork& ventNetwork,
                 timings,
                 meta + ",iteration=" + std::to_string(iteration + 1));
             if (airconRes.shouldRecompute) {
-                if (logEnabled) writeLog(logs, "エアコン制御の修正が行われました。再計算を実行します。");
+                logAirconRecompute(logs, logEnabled);
                 continue;
             }
             // 収束判定:
@@ -514,26 +405,17 @@ void runSimulation(VentilationNetwork& ventNetwork,
             const bool thermalOk = thermalNetwork.getLastThermalConverged();
             if (!thermalOk) {
                 // 無限ループや「誤って収束扱い」を避けるため、未収束になった時点でエラー終了する
-                if (logEnabled) {
-                    std::ostringstream oss;
-                    oss << "　エラー: 熱計算が未収束のため停止します (method="
-                        << thermalNetwork.getLastThermalMethod()
-                        << ", RMSE=" << std::scientific << std::setprecision(6) << thermalNetwork.getLastThermalRmseBalance()
-                        << ", maxBalance=" << std::scientific << std::setprecision(6) << thermalNetwork.getLastThermalMaxBalance()
-                        << ", loop=" << (iteration + 1)
-                        << ")";
-                    writeLog(logs, oss.str());
-                }
+                logThermalNotConverged(logs, logEnabled,
+                                       thermalNetwork.getLastThermalMethod(),
+                                       thermalNetwork.getLastThermalRmseBalance(),
+                                       thermalNetwork.getLastThermalMaxBalance(),
+                                       iteration + 1);
                 throw std::runtime_error("Thermal solver did not converge: stopping to avoid infinite loop");
             }
             loopConverged = airconRes.allControlled;
         }
         if (loopConverged) {
-            if (logEnabled) {
-                writeLog(logs,
-                         "圧力-温度連成計算-エアコン制御ループ " +
-                             std::to_string(iteration + 1) + " が収束しました。");
-            }
+            logOuterLoopConverged(logs, logEnabled, iteration + 1);
             break;   // 全てのエアコンが制御完了の場合、反復を終了
         }
     }
@@ -553,9 +435,5 @@ void runSimulation(VentilationNetwork& ventNetwork,
     buildTimestepResult(constants, ventNetwork, thermalNetwork, humidityNetwork, contaminantNetwork,
                        airconController, step.flowRates, logs, timestepResultOut);
 
-    if (logEnabled) {
-        writeLog(logs,
-                 "タイムステップ終了  総連成反復回数: " + std::to_string(totalIterations),
-                 true);
-    }
+    logTimestepFinished(logs, logEnabled, totalIterations);
 }

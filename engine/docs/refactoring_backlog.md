@@ -25,13 +25,13 @@
   - `/run` `/artifacts/*` のレスポンス互換が維持される。
   - 既存テストが全通過する。
 
-### H2. `engine/solver/simulation_runner.cpp` の連成ループ分割
+### H2. `engine/solver/simulation_runner.cpp` の連成ループ分割 — **完了**
 
 - 対象: `engine/solver/simulation_runner.cpp`
-- 課題: 連成制御・ログ・反復判定・状態復元が密結合で変更リスクが高い。
-- 方針:
-  - `performCoupledStepCalculation` と収束判定を独立関数へ分離。
-  - ログ組み立てを計算本体から分離する。
+- 実施:
+  - `simulation_coupled_step.{h,cpp}`: `CoupledStepData` + `performCoupledStepCalculation`
+  - `simulation_coupling_control.{h,cpp}`: 内側収束判定 (`evaluateInnerCoupling`) + ログ組み立て
+  - `simulation_runner.cpp` は外側/内側オーケストレーション中心に整理
 - 受け入れ条件:
   - 既存ケースで `solver.log` の収束結果が一致（文言差は許容範囲定義）。
   - 性能退行がない（`simulation_total` が +3% 以内）。
@@ -47,13 +47,13 @@
   - 既存 `run_calc` の呼び出しコード変更不要。
   - remote モードで挙動互換、light モードを将来追加可能。
 
-### H4. 熱ソルバのキャッシュ状態をコンテキスト化
+### H4. 熱ソルバのキャッシュ状態をコンテキスト化 — **完了**
 
 - 対象: `engine/solver/core/thermal/*`
-- 課題: グローバルキャッシュ（LU/トポロジ/統計）が将来の並列化と衝突しやすい。
-- 方針:
-  - `DirectTSolverContext` を導入し、状態を構造体へ寄せる。
-  - テストから明示的に初期化/破棄できるようにする。
+- 実施:
+  - `DirectTSolverContext` に LU/トポロジ/KLU/統計/解再利用を集約
+  - `defaultDirectTContext()` + `resetDirectTSolverContext()` で明示初期化/破棄
+  - `solveTemperaturesLinearDirect(..., DirectTSolverContext&)` オーバーロードを追加
 - 受け入れ条件:
   - `test_thermal_direct_cache` 系が通過。
   - 既存性能が維持される。

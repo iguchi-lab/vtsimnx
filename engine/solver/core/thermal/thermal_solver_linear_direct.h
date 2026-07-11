@@ -9,6 +9,10 @@ class ThermalNetwork;
 
 namespace ThermalSolverLinearDirect {
 
+namespace detail {
+struct DirectTSolverContext;
+}
+
 struct DirectTCacheStats {
     std::uint64_t calls = 0;
     std::uint64_t coeffSigChanged = 0;
@@ -24,10 +28,17 @@ void solveTemperaturesLinearDirect(
     const SimulationConstants& constants,
     std::ostream& logFile);
 
+// 明示コンテキスト版（並列化・テスト用）。ctx に LU/トポロジ/統計を保持する。
+void solveTemperaturesLinearDirect(
+    ThermalNetwork& network,
+    const SimulationConstants& constants,
+    std::ostream& logFile,
+    detail::DirectTSolverContext& ctx);
+
 // テスト/診断用（キャッシュ挙動の検証に使用）
 DirectTCacheStats getDirectTCacheStats();
 void resetDirectTCacheStats();
+// 既定コンテキストを明示的に初期化（キャッシュ破棄）する
+void resetDirectTSolverContext();
 
 } // namespace ThermalSolverLinearDirect
-
-

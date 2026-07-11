@@ -158,11 +158,74 @@ struct CoeffSignatureBreakdown {
     }
 };
 
-extern TopologyCache g_topologyCache;
-extern SparseLUCache g_sparseLuCache;
-extern SparseCholeskyCache g_cholCache;
-extern DirectTStats g_directTStats;
-extern std::uint64_t s_lastCoeffSig;
+struct CachedSolutionReuse {
+    bool valid = false;
+    const Graph* graphPtr = nullptr;
+    size_t n = 0;
+    std::uint64_t coeffSig = 0;
+    std::uint64_t rhsHash = 0;
+    std::vector<double> temperatures;
+    std::string method;
+};
+
+struct CachedPostprocessReuse {
+    bool valid = false;
+    const Graph* graphPtr = nullptr;
+    size_t n = 0;
+    std::uint64_t coeffSig = 0;
+    std::uint64_t rhsHash = 0;
+    bool converged = false;
+    double rmse = 0.0;
+    double maxBalance = 0.0;
+    std::string method;
+};
+
+#if defined(VTSIMNX_USE_KLU) && (VTSIMNX_USE_KLU)
+#include <klu.h>
+struct KluCache {
+    bool analyzed = false;
+    bool factorized = false;
+    int n = 0;
+    size_t nnz = 0;
+    std::uint64_t patternHash = 0;
+    std::uint64_t valueHash = 0;
+    klu_symbolic* symbolic = nullptr;
+    klu_numeric* numeric = nullptr;
+    klu_common common{};
+};
+#endif
+
+// DirectT の LU/トポロジ/統計/再利用キャッシュをまとめた実行コンテキスト。
+// プロセス既定インスタンスは defaultDirectTContext()。並列化時は呼び出し側で個別に保持する。
+struct DirectTSolverContext {
+    TopologyCache topology;
+    SparseLUCache sparseLu;
+    SparseCholeskyCache chol;
+#if defined(VTSIMNX_USE_KLU) && (VTSIMNX_USE_KLU)
+    KluCache klu;
+#endif
+    DirectTStats stats;
+    std::uint64_t lastCoeffSig = 0;
+    CoeffSignatureBreakdown lastCoeffSigBreakdown;
+    CachedSolutionReuse solutionReuse;
+    CachedPostprocessReuse postprocessReuse;
+    LinearSystem system;
+    size_t systemN = 0;
+    const Graph* systemGraphPtr = nullptr;
+    std::vector<double> temperaturesBuffer;
+    Eigen::VectorXd rhsBuffer;
+    std::uint64_t cachedResidualCheckCounter = 0;
+    int luBackendState = -1; // -1: unresolved, 0: Eigen, 1: KLU
+
+    DirectTSolverContext() = default;
+    ~DirectTSolverContext();
+    DirectTSolverContext(const DirectTSolverContext&) = delete;
+    DirectTSolverContext& operator=(const DirectTSolverContext&) = delete;
+
+    void reset();
+};
+
+DirectTSolverContext& defaultDirectTContext();
 
 // --- split implementation functions ---
 void rebuildTopologyCache(ThermalNetwork& network, const Graph& graph, size_t curV, size_t curE, TopologyCache& topo);
@@ -174,18 +237,20 @@ void buildRhsOnlyAbsoluteFast(const Graph& graph, const TopologyCache& topo, std
 
 void buildLinearSystemAbsoluteFast(const Graph& graph, const TopologyCache& topo, LinearSystem& system);
 
-bool solveSparseDirect(const LinearSystem& system,
+bool solveSparseDirect(DirectTSolverContext& ctx,
+                      const LinearSystem& system,
                       std::vector<double>& x,
                       double tolerance,
                       std::ostream& logFile,
                       std::string& methodLabel);
 
-bool solveWithCachedFactorization(const Eigen::VectorXd& b,
+bool solveWithCachedFactorization(DirectTSolverContext& ctx,
+                                 const Eigen::VectorXd& b,
                                  std::vector<double>& x,
                                  double tolerance,
                                  std::ostream& logFile,
                                  std::string& methodLabel);
-void resetOptionalDirectSolverCaches();
+void resetOptionalDirectSolverCaches(DirectTSolverContext& ctx);
 
 void postprocessAndReport(ThermalNetwork& network,
                           Graph& graph,

@@ -78,6 +78,8 @@ set(MAIN_SOURCES
     vtsimnx_solver.cpp
     simulation_runner.cpp
     simulation_runner_helpers.cpp
+    simulation_coupled_step.cpp
+    simulation_coupling_control.cpp
     transport/concentration_solver.cpp
     app/vtsimnx_app.cpp
     output/artifact_io.cpp
@@ -529,6 +531,8 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         app/vtsimnx_app.cpp
         simulation_runner.cpp
         simulation_runner_helpers.cpp
+        simulation_coupled_step.cpp
+        simulation_coupling_control.cpp
         output/artifact_io.cpp
         transport/concentration_solver.cpp
         ${PARSER_SOURCES}
