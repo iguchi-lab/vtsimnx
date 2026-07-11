@@ -5,8 +5,8 @@
 #include "simulation_timestep_state.h"
 #include "vtsimnx_solver_timing.h"
 
+#include <cstddef>
 #include <stdexcept>
-#include <string>
 
 namespace simulation {
 
@@ -29,7 +29,7 @@ inline double resolveLatentAppliedThisIter(LatentCouplingMode mode) {
 
 void runInnerCoupling(InnerCouplingContext& ctx,
                       bool logEnabled,
-                      int outerIteration,
+                      std::size_t outerIteration,
                       const detail::TimestepInitialState& initial,
                       CoupledStepData& step,
                       int& totalIterations);
@@ -38,11 +38,6 @@ void runInnerCoupling(InnerCouplingContext& ctx,
 void runDecoupledHumidityStep(InnerCouplingContext& ctx,
                               const detail::TimestepInitialState& initial,
                               CoupledStepData& step,
-                              int outerIteration);
+                              std::size_t outerIteration);
 
 } // namespace simulation
-
-using LatentCouplingMode = simulation::LatentCouplingMode;
-using simulation::resolveLatentAppliedThisIter;
-using simulation::runInnerCoupling;
-using simulation::runDecoupledHumidityStep;

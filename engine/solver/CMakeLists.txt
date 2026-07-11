@@ -575,5 +575,33 @@ if(VTSIMNX_BUILD_CPP_TESTS)
     add_test(NAME vtsimnx_solver_cpp_test_simulation_control_flow
              COMMAND vtsimnx_solver_cpp_test_simulation_control_flow)
 
+    # 12) simulation runner integration: outer max iterations via runSimulation()
+    add_executable(vtsimnx_solver_cpp_test_simulation_runner_integration
+        tests_cpp/test_simulation_runner_integration.cpp
+        simulation_runner.cpp
+        simulation_runner_helpers.cpp
+        simulation_coupled_step.cpp
+        simulation_coupling_control.cpp
+        simulation_timestep_result.cpp
+        simulation_aircon_iteration.cpp
+        simulation_inner_coupling.cpp
+        transport/concentration_solver.cpp
+        ${NETWORK_SOURCES}
+        ${CORE_SOURCES}
+        ${AIRCON_SOURCES}
+        ${ACMODEL_SOURCES}
+        ${ARCHENV_SOURCES}
+    )
+    target_link_libraries(vtsimnx_solver_cpp_test_simulation_runner_integration
+        Boost::boost
+        ceres
+    )
+    target_compile_options(vtsimnx_solver_cpp_test_simulation_runner_integration PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_test_simulation_runner_integration
+             COMMAND vtsimnx_solver_cpp_test_simulation_runner_integration)
+
 endif()
 

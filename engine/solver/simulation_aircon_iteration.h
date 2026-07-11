@@ -4,8 +4,7 @@
 #include "vtsim_solver.h"
 #include "vtsimnx_solver_timing.h"
 
-#include <ostream>
-#include <string>
+#include <optional>
 
 namespace simulation {
 
@@ -14,10 +13,6 @@ enum class AirconIterationAction {
     RecomputeForFlow,
     RecomputeForControl,
     RecomputeForCapacity,
-};
-
-struct AirconIterationResult {
-    AirconIterationAction action = AirconIterationAction::Accept;
 };
 
 // 空調反復の分岐判定（ユニットテスト用に純粋関数として公開）
@@ -36,14 +31,31 @@ inline AirconIterationAction decideAirconIterationAction(bool ductFlowAdjusted,
     return AirconIterationAction::Accept;
 }
 
-AirconIterationResult runAirconIteration(AirconIterationContext& ctx,
+namespace test_hooks {
+
+// 統合テスト用。設定時は本番の空調分岐をバイパスする。
+using AirconIterationOverride = std::optional<AirconIterationAction> (*)();
+inline AirconIterationOverride& airconIterationOverride() {
+    static AirconIterationOverride fn = nullptr;
+    return fn;
+}
+
+struct ScopedAirconIterationOverride {
+    AirconIterationOverride previous;
+    explicit ScopedAirconIterationOverride(AirconIterationOverride fn)
+        : previous(airconIterationOverride()) {
+        airconIterationOverride() = fn;
+    }
+    ~ScopedAirconIterationOverride() { airconIterationOverride() = previous; }
+    ScopedAirconIterationOverride(const ScopedAirconIterationOverride&) = delete;
+    ScopedAirconIterationOverride& operator=(const ScopedAirconIterationOverride&) = delete;
+};
+
+} // namespace test_hooks
+
+// totalIterations: 内側連成の累積回数（空調容量調整 API 互換のため参照渡し）。
+AirconIterationAction runAirconIteration(AirconIterationContext& ctx,
                                          const FlowRateMap& flowRates,
                                          int& totalIterations);
 
 } // namespace simulation
-
-// 移行期の別名
-using AirconIterationAction = simulation::AirconIterationAction;
-using AirconIterationResult = simulation::AirconIterationResult;
-using simulation::decideAirconIterationAction;
-using simulation::runAirconIteration;

@@ -3,6 +3,7 @@
 #include "simulation_runner_helpers.h"
 #include "core/humidity/humidity_solver.h"
 
+#include <cstddef>
 #include <ostream>
 #include <string>
 
@@ -29,7 +30,7 @@ struct InnerCouplingEval {
 // 内側連成の収束・打ち切り判定（ログは書かない）
 InnerCouplingEval evaluateInnerCoupling(const SimulationConstants& constants,
                                         bool humidityActive,
-                                        int coupledIter,
+                                        std::size_t coupledIter,
                                         const CoupledDelta& delta,
                                         bool pressureConvergedAfterFirstSolve);
 
@@ -48,11 +49,11 @@ void logInnerCouplingDelta(std::ostream& logs,
                            double latentAppliedW,
                            const core::humidity::HumiditySolveStats& humidityStats);
 
-void logInnerCouplingConverged(std::ostream& logs, bool logEnabled, int coupledIter);
+void logInnerCouplingConverged(std::ostream& logs, bool logEnabled, std::size_t coupledIter);
 
 void logInnerCouplingMaxIteration(std::ostream& logs,
                                   bool logEnabled,
-                                  int coupledIter,
+                                  std::size_t coupledIter,
                                   const InnerCouplingEval& eval,
                                   double latentAppliedW,
                                   const core::humidity::HumiditySolveStats& humidityStats);

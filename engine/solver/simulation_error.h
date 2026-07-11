@@ -40,7 +40,3 @@ private:
 };
 
 } // namespace simulation
-
-// 移行期の別名（既存呼称との互換）
-using SimulationErrorCode = simulation::ErrorCode;
-using SimulationError = simulation::Error;

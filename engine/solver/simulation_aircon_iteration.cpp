@@ -10,13 +10,17 @@
 
 namespace simulation {
 
-AirconIterationResult runAirconIteration(AirconIterationContext& ctx,
+AirconIterationAction runAirconIteration(AirconIterationContext& ctx,
                                          const FlowRateMap& flowRates,
                                          int& totalIterations) {
-    AirconIterationResult r;
+    if (auto* overrideFn = test_hooks::airconIterationOverride()) {
+        if (auto forced = overrideFn()) {
+            return *forced;
+        }
+    }
+
     const std::string meta(ctx.meta);
 
-    // 0. DUCT_CENTRAL の処理熱量連動風量を補正（変更が入ったら外側ループをやり直し）
     bool ductFlowAdjusted = false;
     {
         ScopedTimer timer(ctx.timings, "aircon_duct_flow_adjust", meta);
@@ -24,12 +28,10 @@ AirconIterationResult runAirconIteration(AirconIterationContext& ctx,
             ctx.thermal, ctx.ventilation, flowRates, ctx.logs);
     }
     if (ductFlowAdjusted) {
-        r.action = decideAirconIterationAction(true, false, false);
-        return r;
+        return decideAirconIterationAction(true, false, false);
     }
 
-    // 1. 現在の温度でエアコン出力を決定する。
-    //    制御前に heat_source をゼロ化してから再設定する（外側ループ開始時の初期化とは別意図）。
+    // 制御前に heat_source をゼロ化してから再設定する（外側ループ開始時の初期化とは別意図）。
     bool allAirconControlled = false;
     {
         detail::resetNodeHeatSources(ctx.thermal.getGraph());
@@ -40,8 +42,7 @@ AirconIterationResult runAirconIteration(AirconIterationContext& ctx,
     }
 
     if (!allAirconControlled) {
-        r.action = decideAirconIterationAction(false, false, false);
-        return r;
+        return decideAirconIterationAction(false, false, false);
     }
 
     bool adjustmentMade = false;
@@ -51,8 +52,7 @@ AirconIterationResult runAirconIteration(AirconIterationContext& ctx,
             ctx.thermal, ctx.ventilation, ctx.constants, flowRates, ctx.logs, totalIterations);
     }
 
-    r.action = decideAirconIterationAction(false, true, adjustmentMade);
-    return r;
+    return decideAirconIterationAction(false, true, adjustmentMade);
 }
 
 } // namespace simulation

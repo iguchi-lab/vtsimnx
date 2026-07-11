@@ -39,7 +39,6 @@ using detail::restoreWPrevToGraph;
 using detail::restoreXPrevToGraph;
 using detail::CoupledDelta;
 
-// 現状は Disabled 固定（方針B）。FeedbackToThermal は未実装。
 constexpr LatentCouplingMode kLatentCouplingMode = LatentCouplingMode::Disabled;
 
 } // namespace
@@ -47,7 +46,7 @@ constexpr LatentCouplingMode kLatentCouplingMode = LatentCouplingMode::Disabled;
 void runDecoupledHumidityStep(InnerCouplingContext& ctx,
                               const detail::TimestepInitialState& initial,
                               CoupledStepData& step,
-                              int outerIteration) {
+                              std::size_t outerIteration) {
     if (!(ctx.constants.humidityCalc && !ctx.constants.moistureCouplingEnabled)) {
         return;
     }
@@ -63,20 +62,21 @@ void runDecoupledHumidityStep(InnerCouplingContext& ctx,
         step.flowRates,
         ctx.logs,
         ctx.timings,
-        std::string(ctx.meta) + ",iteration=" + std::to_string(outerIteration + 1));
+        std::string(ctx.meta) + ",iteration=" + std::to_string(toLogIndex1Based(outerIteration)));
 }
 
 void runInnerCoupling(InnerCouplingContext& ctx,
                       bool logEnabled,
-                      int outerIteration,
+                      std::size_t outerIteration,
                       const detail::TimestepInitialState& initial,
                       CoupledStepData& step,
                       int& totalIterations) {
     CouplingSnapshot snap;
     double lastLatentAppliedW = 0.0;
     core::humidity::HumiditySolveStats lastHumiditySolveStats{};
-    int coupledIter = 0;
+    std::size_t coupledIter = 0;
     const std::string meta(ctx.meta);
+    const int outerLogIndex = toLogIndex1Based(outerIteration);
 
     while (true) {
         ++coupledIter;
@@ -97,10 +97,10 @@ void runInnerCoupling(InnerCouplingContext& ctx,
 
         {
             ScopedTimer timer(ctx.timings, "performCoupledCalculation",
-                              meta + ",iteration=" + std::to_string(outerIteration + 1));
+                              meta + ",iteration=" + std::to_string(outerLogIndex));
             step = performCoupledStepCalculation(ctx.ventilation, ctx.thermal, ctx.constants,
                                                  ctx.logs, ctx.timings,
-                                                 meta + ",iteration=" + std::to_string(outerIteration + 1));
+                                                 meta + ",iteration=" + std::to_string(outerLogIndex));
         }
         if (!ctx.constants.pressureCalc) {
             step.flowRates = ctx.ventilation.collectFlowRateMap();
@@ -117,7 +117,7 @@ void runInnerCoupling(InnerCouplingContext& ctx,
                 sharedNodeState.nodeState,
                 ctx.humidity,
                 step.flowRates, ctx.logs, ctx.timings,
-                meta + ",iteration=" + std::to_string(outerIteration + 1) +
+                meta + ",iteration=" + std::to_string(outerLogIndex) +
                     ",coupledIter=" + std::to_string(coupledIter));
             logHumiditySolverNotConverged(ctx.logs, logEnabled, lastHumiditySolveStats);
             relaxHumidityByVertex(ctx.thermal.getGraph(), ctx.ventilation, snap.humidity,

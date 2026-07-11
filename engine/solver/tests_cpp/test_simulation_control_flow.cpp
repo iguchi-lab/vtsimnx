@@ -1,4 +1,5 @@
 #include <iostream>
+#include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -15,6 +16,10 @@
 
 namespace {
 
+using simulation::AirconIterationAction;
+using simulation::decideAirconIterationAction;
+using simulation::resolveLatentAppliedThisIter;
+using simulation::LatentCouplingMode;
 using simulation::detail::CoupledDelta;
 using simulation::detail::InnerCouplingAction;
 using simulation::detail::InnerCouplingEval;
@@ -134,10 +139,9 @@ void testAirconDecideActions() {
 }
 
 void testOuterMaxIterationsThrow() {
-    // 空調が毎回 RecomputeForCapacity の場合、外側上限到達後に throw する。
-    const int maxOuter = static_cast<int>(effectiveMaxAirconControlIterations(baseConstants()));
+    const std::size_t maxOuter = effectiveMaxAirconControlIterations(baseConstants());
     bool outerLoopConverged = false;
-    for (int iteration = 0; iteration < maxOuter; ++iteration) {
+    for (std::size_t iteration = 0; iteration < maxOuter; ++iteration) {
         const auto action = AirconIterationAction::RecomputeForCapacity;
         if (action != AirconIterationAction::Accept) {
             continue;

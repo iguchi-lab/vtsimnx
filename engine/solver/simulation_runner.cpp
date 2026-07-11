@@ -17,6 +17,7 @@
 #include "transport/concentration_solver.h"
 #include "utils/utils.h"
 
+#include <cstddef>
 #include <string>
 
 namespace {
@@ -46,6 +47,7 @@ void runSimulation(VentilationNetwork& ventNetwork,
     };
 
     const bool logEnabled = (ctx.constants.logVerbosity > 0);
+    // 内側連成の累積回数（空調容量調整 API 互換のため int のまま保持）
     int totalIterations = 0;
     CoupledStepData step;
 
@@ -53,19 +55,19 @@ void runSimulation(VentilationNetwork& ventNetwork,
         captureTimestepInitialState(ctx.thermal, ctx.constants.humidityCalc);
 
     auto innerCtx = simulation::makeInnerCouplingContext(ctx);
-    auto airconCtx = simulation::makeAirconIterationContext(ctx);
 
-    const int maxOuter = static_cast<int>(effectiveMaxAirconControlIterations(ctx.constants));
+    const std::size_t maxOuter = effectiveMaxAirconControlIterations(ctx.constants);
     bool outerLoopConverged = false;
-    for (int iteration = 0; iteration < maxOuter; ++iteration) {
+    for (std::size_t iteration = 0; iteration < maxOuter; ++iteration) {
         if (iteration == 0) {
             ctx.aircon.clearCapacityLimitBracket();
         }
         // 外側反復開始時: 前反復の空調 heat_source をクリアしてから連成を始める。
         resetNodeHeatSources(ctx.thermal.getGraph());
 
+        const int loopIndex1Based = simulation::toLogIndex1Based(iteration);
         const std::string loopLabel =
-            "圧力-温度連成計算-エアコン制御ループ " + std::to_string(iteration + 1) + ":";
+            "圧力-温度連成計算-エアコン制御ループ " + std::to_string(loopIndex1Based) + ":";
         {
             ScopedLogSection coupledScope(ctx.logs, loopLabel);
 
@@ -79,11 +81,12 @@ void runSimulation(VentilationNetwork& ventNetwork,
             runDecoupledHumidityStep(innerCtx, initial, step, iteration);
 
             const std::string airconMeta =
-                std::string(ctx.meta) + ",iteration=" + std::to_string(iteration + 1);
-            airconCtx.meta = airconMeta;
-            const auto airconRes = runAirconIteration(airconCtx, step.flowRates, totalIterations);
+                std::string(ctx.meta) + ",iteration=" + std::to_string(loopIndex1Based);
+            auto airconCtx = simulation::makeAirconIterationContext(ctx, airconMeta);
+            const auto airconAction =
+                runAirconIteration(airconCtx, step.flowRates, totalIterations);
 
-            if (airconRes.action != simulation::AirconIterationAction::Accept) {
+            if (airconAction != simulation::AirconIterationAction::Accept) {
                 logAirconRecompute(ctx.logs, logEnabled);
                 continue;
             }
@@ -94,14 +97,14 @@ void runSimulation(VentilationNetwork& ventNetwork,
                                        ctx.thermal.getLastThermalMethod(),
                                        ctx.thermal.getLastThermalRmseBalance(),
                                        ctx.thermal.getLastThermalMaxBalance(),
-                                       iteration + 1);
+                                       loopIndex1Based);
                 throw simulation::Error(
                     simulation::ErrorCode::ThermalNotConverged,
                     "Thermal solver did not converge: stopping to avoid infinite loop");
             }
 
             outerLoopConverged = true;
-            logOuterLoopConverged(ctx.logs, logEnabled, iteration + 1);
+            logOuterLoopConverged(ctx.logs, logEnabled, loopIndex1Based);
             break;
         }
     }

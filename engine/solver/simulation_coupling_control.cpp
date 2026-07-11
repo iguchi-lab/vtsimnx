@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <iomanip>
 #include <sstream>
 
@@ -13,7 +14,7 @@ namespace detail {
 
 InnerCouplingEval evaluateInnerCoupling(const SimulationConstants& constants,
                                         bool humidityActive,
-                                        int coupledIter,
+                                        std::size_t coupledIter,
                                         const CoupledDelta& delta,
                                         bool pressureConvergedAfterFirstSolve) {
     InnerCouplingEval eval;
@@ -45,7 +46,7 @@ InnerCouplingEval evaluateInnerCoupling(const SimulationConstants& constants,
         }
     }
 
-    const int maxCoupling = static_cast<int>(effectiveMaxCouplingIterations(constants));
+    const std::size_t maxCoupling = effectiveMaxCouplingIterations(constants);
     if (coupledIter >= maxCoupling) {
         const double pRatio =
             constants.pressureCalc ? (delta.pressureChange / std::max(1e-30, eval.pressureTol)) : 0.0;
@@ -112,14 +113,14 @@ void logInnerCouplingDelta(std::ostream& logs,
             ", 湿気残差: " + std::to_string(humidityStats.finalMaxDiff));
 }
 
-void logInnerCouplingConverged(std::ostream& logs, bool logEnabled, int coupledIter) {
+void logInnerCouplingConverged(std::ostream& logs, bool logEnabled, std::size_t coupledIter) {
     if (!logEnabled) return;
     writeLog(logs, "空気-熱-湿気 連成計算が収束しました (" + std::to_string(coupledIter) + "回)");
 }
 
 void logInnerCouplingMaxIteration(std::ostream& logs,
                                   bool logEnabled,
-                                  int coupledIter,
+                                  std::size_t coupledIter,
                                   const InnerCouplingEval& eval,
                                   double latentAppliedW,
                                   const core::humidity::HumiditySolveStats& humidityStats) {

@@ -3,6 +3,7 @@
 #include "vtsim_solver.h"
 #include "vtsimnx_solver_timing.h"
 
+#include <limits>
 #include <ostream>
 #include <string_view>
 
@@ -47,6 +48,13 @@ struct AirconIterationContext {
     std::string_view meta;
 };
 
+inline int toLogIndex1Based(std::size_t zeroBased) noexcept {
+    if (zeroBased >= static_cast<std::size_t>(std::numeric_limits<int>::max())) {
+        return std::numeric_limits<int>::max();
+    }
+    return static_cast<int>(zeroBased + 1);
+}
+
 inline InnerCouplingContext makeInnerCouplingContext(Context& ctx) {
     return InnerCouplingContext{
         ctx.ventilation,
@@ -59,7 +67,7 @@ inline InnerCouplingContext makeInnerCouplingContext(Context& ctx) {
     };
 }
 
-inline AirconIterationContext makeAirconIterationContext(Context& ctx) {
+inline AirconIterationContext makeAirconIterationContext(Context& ctx, std::string_view meta) {
     return AirconIterationContext{
         ctx.aircon,
         ctx.thermal,
@@ -67,10 +75,8 @@ inline AirconIterationContext makeAirconIterationContext(Context& ctx) {
         ctx.constants,
         ctx.logs,
         ctx.timings,
-        ctx.meta,
+        meta,
     };
 }
 
 } // namespace simulation
-
-using SimulationContext = simulation::Context;
