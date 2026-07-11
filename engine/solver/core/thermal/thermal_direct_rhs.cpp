@@ -26,6 +26,8 @@ CoeffSignatureBreakdown computeCoeffSignatureBreakdown(const Graph& graph, const
         if (std::abs(flowRate) < archenv::FLOW_RATE_MIN) flowRate = 0.0;
         s.flowSig = hashDoubleBits(s.flowSig, flowRate);
         s.flowSig = fnv1a64_update(s.flowSig, ep.is_aircon_inflow ? 1u : 0u);
+        // 風量不変でも enable 切替で係数が消えるため、署名に含める。
+        s.flowSig = fnv1a64_update(s.flowSig, ep.current_enabled ? 1u : 0u);
     }
     for (auto v : topo.coeffRelevantAirconVertices) {
         const auto& nd = graph[v];

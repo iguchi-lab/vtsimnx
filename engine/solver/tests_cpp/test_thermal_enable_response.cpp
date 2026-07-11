@@ -237,18 +237,20 @@ int main() {
                 expectNear(g[respEdge].hist_q_tgt[0], qTgt1, 1e-12, "commit q_tgt");
             }
 
-            // OUT を変えて2ステップ目。履歴が効いていれば t1 と同じ解にはならない
+            // OUT を変えて2ステップ目。
+            // Troom = (Tout - 0.5 * hist_Troom) / 2
+            // hist=0, Tout=10 -> t2 = 5
             g[kv.at("OUT")].current_t = 10.0;
             solver.solveTemperatures(constants);
             const double t2 = g[kv.at("ROOM")].current_t;
+            expectNear(t2, 5.0, 1e-10, "response step2: t2 == 5");
             thermal.commitResponseConductionHistory();
 
+            // hist_Troom=5, Tout=10 -> t3 = (10 - 2.5)/2 = 3.75
             g[kv.at("OUT")].current_t = 10.0;
             solver.solveTemperatures(constants);
             const double t3 = g[kv.at("ROOM")].current_t;
-            expectTrue(std::isfinite(t2) && std::isfinite(t3), "response steps finite");
-            // 履歴が進むと RHS の履歴項が変わるため、commit 後の再計算は一般に変化しうる
-            // （OUT 固定でも hist が更新される）
+            expectNear(t3, 3.75, 1e-10, "response step3: t3 == 3.75");
             expectNear(g[respEdge].hist_t_src[0], 10.0, 1e-12, "step2 hist_t_src");
         }
 
@@ -294,32 +296,77 @@ int main() {
         }
 
         // ------------------------------------------------------------------
-        // 失敗時診断は 0 ではなく NaN
+        // 失敗時診断は 0 ではなく NaN（A=0 かつ b≠0 の特異系で DirectT を失敗させる）
         // ------------------------------------------------------------------
         {
+            ThermalSolverLinearDirect::resetDirectTSolverContext();
             ThermalNetwork thermal;
-            // calc_t ノードのみ・枝なし → 空に近いが n=0 で early return する可能性
-            // 特異系: 2 calc_t ノードを接続せずに解かせるのはパターン依存。
-            // solveTemperatures の catch 経路を直接は叩きにくいので、
-            // setLastThermalConvergence 相当の契約だけ NaN 許容を確認する代わりに
-            // 孤立ノード1つ（係数ゼロ）で失敗を誘発する。
-            auto a = makeNode("A", true, 1.0);
-            auto b = makeNode("B", true, 2.0);
+            auto a = makeNode("A", true, 0.0);
+            a.heat_source = 10.0; // 0*T = -10 は解けない
             thermal.addNode(a);
-            thermal.addNode(b);
-            // 枝なし: 2未知で A=0 の特異な系 → DirectT が失敗する想定
             ThermalSolver solver(thermal, logs);
             solver.solveTemperatures(constants);
-            expectTrue(!thermal.getLastThermalConverged() ||
-                       thermal.getLastThermalMethod().find("failed") != std::string::npos ||
-                       thermal.getLastThermalConverged(),
-                       "solver returns without crash");
-            if (!thermal.getLastThermalConverged() &&
-                thermal.getLastThermalMethod().find("failed") != std::string::npos) {
-                expectTrue(std::isnan(thermal.getLastThermalRmseBalance()),
-                           "failed solve: rmse is NaN");
-                expectTrue(std::isnan(thermal.getLastThermalMaxBalance()),
-                           "failed solve: max is NaN");
+            expectTrue(!thermal.getLastThermalConverged(), "failed solve: not converged");
+            expectTrue(thermal.getLastThermalMethod().find("failed") != std::string::npos,
+                       "failed solve: method marks DirectT(failed)");
+            expectTrue(std::isnan(thermal.getLastThermalRmseBalance()),
+                       "failed solve: rmse is NaN");
+            expectTrue(std::isnan(thermal.getLastThermalMaxBalance()),
+                       "failed solve: max is NaN");
+        }
+
+        // ------------------------------------------------------------------
+        // advection enable 切替は flowSig に入り、キャッシュ経路でも無効化される
+        // ------------------------------------------------------------------
+        {
+            ThermalSolverLinearDirect::resetDirectTSolverContext();
+            ThermalNetwork thermal;
+            auto src = makeNode("SRC", false, 30.0);
+            auto wall = makeNode("WALL", false, 0.0);
+            auto room = makeNode("ROOM", true, 15.0);
+            thermal.addNode(src);
+            thermal.addNode(wall);
+            thermal.addNode(room);
+
+            EdgeProperties adv{};
+            adv.key = "adv";
+            adv.unique_id = "adv";
+            adv.type = "advection";
+            adv.source = "SRC";
+            adv.target = "ROOM";
+            adv.flow_rate = 0.2; // mDotCp が大きい
+            adv.current_enabled = true;
+            thermal.addEdge(adv);
+            thermal.addEdge(makeConductance("WALL->ROOM", "WALL", "ROOM", 1.0));
+
+            ThermalSolver solver(thermal, logs);
+            solver.solveTemperatures(constants);
+            const auto& kv = thermal.getKeyToVertex();
+            const double tOn = thermal.getGraph()[kv.at("ROOM")].current_t;
+            // 強い移流 + 弱い壁: ROOM は SRC に近い
+            expectTrue(tOn > 25.0, "advection enabled: room pulled toward SRC");
+
+            auto& gAdv = thermal.getGraph();
+            for (auto e : boost::make_iterator_range(boost::edges(gAdv))) {
+                if (gAdv[e].getTypeCode() == EdgeProperties::TypeCode::Advection) {
+                    gAdv[e].current_enabled = false;
+                }
+            }
+            const auto before = ThermalSolverLinearDirect::getDirectTCacheStats();
+            solver.solveTemperatures(constants);
+            const auto after = ThermalSolverLinearDirect::getDirectTCacheStats();
+            expectTrue(after.coeffSigChanged > before.coeffSigChanged,
+                       "advection enable off: coeffSigChanged");
+            expectTrue(after.fullBuild > before.fullBuild,
+                       "advection enable off: fullBuild (not stale factorization)");
+            // 移流無効後は壁伝導のみ: Troom = Twall = 0
+            expectNear(gAdv[kv.at("ROOM")].current_t, 0.0, 1e-8,
+                       "advection disabled: room follows WALL only");
+            for (auto e : boost::make_iterator_range(boost::edges(gAdv))) {
+                if (gAdv[e].getTypeCode() == EdgeProperties::TypeCode::Advection) {
+                    expectTrue(!gAdv[e].current_enabled, "advection remains disabled");
+                    expectNear(gAdv[e].heat_rate, 0.0, 0.0, "advection disabled: heat_rate==0");
+                }
             }
         }
 

@@ -2,6 +2,7 @@
 
 #include "network/thermal_network.h"
 #include "network/ventilation_network.h"
+#include "simulation_error.h"
 #include "utils/utils.h"
 
 #include <memory>
@@ -40,6 +41,13 @@ CoupledStepData performCoupledStepCalculation(VentilationNetwork& ventNetwork,
         {
             ScopedTimer timer(timings, "thermal_solve_iteration", meta);
             thermalNetwork.solveTemperature(constants, logs);
+        }
+        // 内側連成を古い温度で続けないよう、熱ソルバ失敗/未収束はここで打ち切る。
+        if (!thermalNetwork.getLastThermalConverged()) {
+            throw simulation::Error(
+                simulation::ErrorCode::ThermalNotConverged,
+                std::string("Thermal solver did not converge during coupled step (method=") +
+                    thermalNetwork.getLastThermalMethod() + ")");
         }
 
         // pressureCalc=false の場合、換気側で温度（密度）を参照する計算が走らないため更新不要
