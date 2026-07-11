@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -97,7 +98,13 @@ const std::vector<std::string>& VentilationNetwork::getFlowRateKeys() const {
         flowRateKeysOrdered.clear();
         flowRateEdgesOrdered.reserve(items.size());
         flowRateKeysOrdered.reserve(items.size());
+        std::string prevKey;
         for (const auto& kv : items) {
+            if (!prevKey.empty() && kv.first == prevKey) {
+                throw std::runtime_error(
+                    "flow_rate output key collision after normalization: \"" + kv.first + "\"");
+            }
+            prevKey = kv.first;
             flowRateKeysOrdered.push_back(kv.first);
             flowRateEdgesOrdered.push_back(kv.second);
         }

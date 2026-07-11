@@ -91,31 +91,44 @@ static void initializeSchemaIfNeeded(ArtifactIO::OutputSchema& schema,
                                      ThermalNetwork& thermalNetwork,
                                      HumidityNetwork& humidityNetwork,
                                      ContaminantNetwork& contaminantNetwork,
-                                     AirconController& airconController) {
+                                     AirconController& airconController,
+                                     const SimulationConstants& simConstants) {
     if (schema.initialized) return;
-    schema.pressureKeys = ventNetwork.getPressureKeys();
-    schema.flowRateKeys = ventNetwork.getFlowRateKeys();
-    schema.temperatureKeys = thermalNetwork.getTemperatureKeys();
-    schema.temperatureKeysCapacity = thermalNetwork.getTemperatureKeysCapacity();
-    schema.temperatureKeysLayer = thermalNetwork.getTemperatureKeysLayer();
-    schema.humidityKeys = humidityNetwork.getOutputKeys(static_cast<const ThermalNetwork&>(thermalNetwork).nodeStateView());
-    schema.humidityFluxKeys = schema.flowRateKeys;
-    schema.concentrationKeys = contaminantNetwork.getOutputKeys(static_cast<const ThermalNetwork&>(thermalNetwork).nodeStateView());
-    schema.concentrationFluxKeys = schema.flowRateKeys;
-    schema.heatRateKeysAdvection = thermalNetwork.getHeatRateKeysAdvection();
-    schema.heatRateKeysHeatGeneration = thermalNetwork.getHeatRateKeysHeatGeneration();
-    schema.heatRateKeysSolarGain = thermalNetwork.getHeatRateKeysSolarGain();
-    schema.heatRateKeysNocturnalLoss = thermalNetwork.getHeatRateKeysNocturnalLoss();
-    schema.heatRateKeysConvection = thermalNetwork.getHeatRateKeysConvection();
-    schema.heatRateKeysConduction = thermalNetwork.getHeatRateKeysConduction();
-    schema.heatRateKeysRadiation = thermalNetwork.getHeatRateKeysRadiation();
-    schema.heatRateKeysCapacity = thermalNetwork.getHeatRateKeysCapacity();
-
-    const auto& airconKeys = airconController.getAirconKeys();
-    schema.airconSensibleHeatKeys = airconKeys;
-    schema.airconLatentHeatKeys = airconKeys;
-    schema.airconPowerKeys = airconKeys;
-    schema.airconCOPKeys = airconKeys;
+    if (simConstants.pressureCalc) {
+        schema.pressureKeys = ventNetwork.getPressureKeys();
+    }
+    if (simConstants.pressureCalc || simConstants.temperatureCalc ||
+        simConstants.humidityCalc || simConstants.concentrationCalc) {
+        schema.flowRateKeys = ventNetwork.getFlowRateKeys();
+    }
+    if (simConstants.temperatureCalc) {
+        schema.temperatureKeys = thermalNetwork.getTemperatureKeys();
+        schema.temperatureKeysCapacity = thermalNetwork.getTemperatureKeysCapacity();
+        schema.temperatureKeysLayer = thermalNetwork.getTemperatureKeysLayer();
+        schema.heatRateKeysAdvection = thermalNetwork.getHeatRateKeysAdvection();
+        schema.heatRateKeysHeatGeneration = thermalNetwork.getHeatRateKeysHeatGeneration();
+        schema.heatRateKeysSolarGain = thermalNetwork.getHeatRateKeysSolarGain();
+        schema.heatRateKeysNocturnalLoss = thermalNetwork.getHeatRateKeysNocturnalLoss();
+        schema.heatRateKeysConvection = thermalNetwork.getHeatRateKeysConvection();
+        schema.heatRateKeysConduction = thermalNetwork.getHeatRateKeysConduction();
+        schema.heatRateKeysRadiation = thermalNetwork.getHeatRateKeysRadiation();
+        schema.heatRateKeysCapacity = thermalNetwork.getHeatRateKeysCapacity();
+        const auto& airconKeys = airconController.getAirconKeys();
+        schema.airconSensibleHeatKeys = airconKeys;
+        schema.airconLatentHeatKeys = airconKeys;
+        schema.airconPowerKeys = airconKeys;
+        schema.airconCOPKeys = airconKeys;
+    }
+    if (simConstants.humidityCalc) {
+        schema.humidityKeys = humidityNetwork.getOutputKeys(
+            static_cast<const ThermalNetwork&>(thermalNetwork).nodeStateView());
+        schema.humidityFluxKeys = schema.flowRateKeys;
+    }
+    if (simConstants.concentrationCalc) {
+        schema.concentrationKeys = contaminantNetwork.getOutputKeys(
+            static_cast<const ThermalNetwork&>(thermalNetwork).nodeStateView());
+        schema.concentrationFluxKeys = schema.flowRateKeys;
+    }
     schema.initialized = true;
 }
 
@@ -356,7 +369,8 @@ static bool runSimulationLoop(const InputData& inputData,
 
             {
                 ScopedTimer timer(timings, "write_timestep_results", stepMeta);
-                initializeSchemaIfNeeded(schema, ventNetwork, thermalNetwork, humidityNetwork, contaminantNetwork, airconController);
+                initializeSchemaIfNeeded(schema, ventNetwork, thermalNetwork, humidityNetwork,
+                                         contaminantNetwork, airconController, simConstants);
 
                 if (!schemasWritten) {
                     std::string schemaErr;
@@ -371,28 +385,39 @@ static bool runSimulationLoop(const InputData& inputData,
                     schemasWritten = true;
                 }
 
-                ArtifactIO::writeFloat32ArrayBinary(outFiles.ventPressureFile, timestepResult.pressure, schema.pressureKeys.size());
-                ArtifactIO::writeFloat32ArrayBinary(outFiles.ventFlowRateFile, timestepResult.flowRate, schema.flowRateKeys.size());
-                ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalTemperatureFile, timestepResult.temperature, schema.temperatureKeys.size());
-                ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalTemperatureCapacityFile, timestepResult.temperatureCapacity, schema.temperatureKeysCapacity.size());
-                ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalTemperatureLayerFile, timestepResult.temperatureLayer, schema.temperatureKeysLayer.size());
-                ArtifactIO::writeFloat32ArrayBinary(outFiles.humidityXFile, timestepResult.humidityX, schema.humidityKeys.size());
-                ArtifactIO::writeFloat32ArrayBinary(outFiles.humidityFluxFile, timestepResult.humidityFlux, schema.humidityFluxKeys.size());
-                ArtifactIO::writeFloat32ArrayBinary(outFiles.concentrationCFile, timestepResult.concentrationC, schema.concentrationKeys.size());
-                ArtifactIO::writeFloat32ArrayBinary(outFiles.concentrationFluxFile, timestepResult.concentrationFlux, schema.concentrationFluxKeys.size());
-                ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalHeatRateAdvectionFile, timestepResult.heatRateAdvection, schema.heatRateKeysAdvection.size());
-                ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalHeatRateHeatGenerationFile, timestepResult.heatRateHeatGeneration, schema.heatRateKeysHeatGeneration.size());
-                ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalHeatRateSolarGainFile, timestepResult.heatRateSolarGain, schema.heatRateKeysSolarGain.size());
-                ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalHeatRateNocturnalLossFile, timestepResult.heatRateNocturnalLoss, schema.heatRateKeysNocturnalLoss.size());
-                ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalHeatRateConvectionFile, timestepResult.heatRateConvection, schema.heatRateKeysConvection.size());
-                ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalHeatRateConductionFile, timestepResult.heatRateConduction, schema.heatRateKeysConduction.size());
-                ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalHeatRateRadiationFile, timestepResult.heatRateRadiation, schema.heatRateKeysRadiation.size());
-                ArtifactIO::writeFloat32ArrayBinary(outFiles.thermalHeatRateCapacityFile, timestepResult.heatRateCapacity, schema.heatRateKeysCapacity.size());
-                ArtifactIO::writeFloat32ArrayBinary(outFiles.airconSensibleHeatFile, timestepResult.airconSensibleHeat, schema.airconSensibleHeatKeys.size());
-                ArtifactIO::writeFloat32ArrayBinary(outFiles.airconLatentHeatFile, timestepResult.airconLatentHeat, schema.airconLatentHeatKeys.size());
-                ArtifactIO::writeFloat32ArrayBinary(outFiles.airconPowerFile, timestepResult.airconPower, schema.airconPowerKeys.size());
-                ArtifactIO::writeFloat32ArrayBinary(outFiles.airconCOPFile, timestepResult.airconCOP, schema.airconCOPKeys.size());
-
+                auto writeSeries = [&](std::ofstream& ofs,
+                                       const std::vector<float>& values,
+                                       size_t expected) -> bool {
+                    std::string writeErr;
+                    if (!ArtifactIO::writeFloat32ArrayBinary(ofs, values, expected, writeErr)) {
+                        err = writeErr;
+                        return false;
+                    }
+                    return true;
+                };
+                if (!writeSeries(outFiles.ventPressureFile, timestepResult.pressure, schema.pressureKeys.size()) ||
+                    !writeSeries(outFiles.ventFlowRateFile, timestepResult.flowRate, schema.flowRateKeys.size()) ||
+                    !writeSeries(outFiles.thermalTemperatureFile, timestepResult.temperature, schema.temperatureKeys.size()) ||
+                    !writeSeries(outFiles.thermalTemperatureCapacityFile, timestepResult.temperatureCapacity, schema.temperatureKeysCapacity.size()) ||
+                    !writeSeries(outFiles.thermalTemperatureLayerFile, timestepResult.temperatureLayer, schema.temperatureKeysLayer.size()) ||
+                    !writeSeries(outFiles.humidityXFile, timestepResult.humidityX, schema.humidityKeys.size()) ||
+                    !writeSeries(outFiles.humidityFluxFile, timestepResult.humidityFlux, schema.humidityFluxKeys.size()) ||
+                    !writeSeries(outFiles.concentrationCFile, timestepResult.concentrationC, schema.concentrationKeys.size()) ||
+                    !writeSeries(outFiles.concentrationFluxFile, timestepResult.concentrationFlux, schema.concentrationFluxKeys.size()) ||
+                    !writeSeries(outFiles.thermalHeatRateAdvectionFile, timestepResult.heatRateAdvection, schema.heatRateKeysAdvection.size()) ||
+                    !writeSeries(outFiles.thermalHeatRateHeatGenerationFile, timestepResult.heatRateHeatGeneration, schema.heatRateKeysHeatGeneration.size()) ||
+                    !writeSeries(outFiles.thermalHeatRateSolarGainFile, timestepResult.heatRateSolarGain, schema.heatRateKeysSolarGain.size()) ||
+                    !writeSeries(outFiles.thermalHeatRateNocturnalLossFile, timestepResult.heatRateNocturnalLoss, schema.heatRateKeysNocturnalLoss.size()) ||
+                    !writeSeries(outFiles.thermalHeatRateConvectionFile, timestepResult.heatRateConvection, schema.heatRateKeysConvection.size()) ||
+                    !writeSeries(outFiles.thermalHeatRateConductionFile, timestepResult.heatRateConduction, schema.heatRateKeysConduction.size()) ||
+                    !writeSeries(outFiles.thermalHeatRateRadiationFile, timestepResult.heatRateRadiation, schema.heatRateKeysRadiation.size()) ||
+                    !writeSeries(outFiles.thermalHeatRateCapacityFile, timestepResult.heatRateCapacity, schema.heatRateKeysCapacity.size()) ||
+                    !writeSeries(outFiles.airconSensibleHeatFile, timestepResult.airconSensibleHeat, schema.airconSensibleHeatKeys.size()) ||
+                    !writeSeries(outFiles.airconLatentHeatFile, timestepResult.airconLatentHeat, schema.airconLatentHeatKeys.size()) ||
+                    !writeSeries(outFiles.airconPowerFile, timestepResult.airconPower, schema.airconPowerKeys.size()) ||
+                    !writeSeries(outFiles.airconCOPFile, timestepResult.airconCOP, schema.airconCOPKeys.size())) {
+                    return false;
+                }
                 resultsLinesWritten += 8;
                 if (resultsLinesWritten % kResultsFlushIntervalLines == 0) {
                     outFiles.ventPressureFile.flush();

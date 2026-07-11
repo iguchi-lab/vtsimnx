@@ -3,6 +3,8 @@
 #include "network/node_state_view.h"
 #include "types/graph_types.h"
 
+#include <cstddef>
+#include <cstdint>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -37,9 +39,12 @@ private:
     void ensureNodeIndex(ConstNodeStateView nodeState) const;
 
     mutable bool nodeIndexInitialized = false;
+    mutable const Graph* cachedGraphPtr_ = nullptr;
+    mutable size_t cachedNumVertices_ = 0;
+    mutable size_t cachedNumEdges_ = 0;
+    mutable std::uint64_t cachedTopologyRevision_ = 0;
     mutable std::unordered_map<std::string, Vertex> nodeKeyToVertex;
     mutable bool outputCacheInitialized = false;
     mutable std::vector<Vertex> outputVerticesOrdered;
     mutable std::vector<std::string> outputKeysOrdered;
 };
-

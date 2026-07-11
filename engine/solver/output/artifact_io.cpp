@@ -1,6 +1,5 @@
 #include "output/artifact_io.h"
 
-#include <algorithm>
 #include <chrono>
 
 namespace ArtifactIO {
@@ -17,7 +16,16 @@ bool writeJsonToFile(const char* path, const nlohmann::json& j, std::string& err
         return false;
     }
     ofs << j.dump(2) << "\n";
+    ofs.flush();
+    if (!ofs) {
+        err = std::string("エラー: JSON 書き込みに失敗しました: ") + path;
+        return false;
+    }
     ofs.close();
+    if (ofs.fail()) {
+        err = std::string("エラー: JSON クローズに失敗しました: ") + path;
+        return false;
+    }
     return true;
 }
 
@@ -53,23 +61,30 @@ nlohmann::json schemaToJson(long length, long timestepSec, const OutputSchema& s
     return j;
 }
 
-void writeFloat32ArrayBinary(std::ofstream& ofs, const std::vector<float>& v, size_t expectedSize) {
-    if (expectedSize == 0) return;
-    const size_t n = std::min(expectedSize, v.size());
-    if (n > 0) {
-        ofs.write(reinterpret_cast<const char*>(v.data()),
-                  static_cast<std::streamsize>(n * sizeof(float)));
+bool writeFloat32ArrayBinary(std::ofstream& ofs,
+                             const std::vector<float>& v,
+                             size_t expectedSize,
+                             std::string& err) {
+    if (expectedSize == 0) {
+        if (!v.empty()) {
+            err = "エラー: schema keys が空なのに結果配列が非空です (size=" +
+                  std::to_string(v.size()) + ")";
+            return false;
+        }
+        return true;
     }
-    if (n < expectedSize) {
-        // ゼロ埋め（不足分）
-        thread_local std::vector<float> zeros;
-        const size_t need = expectedSize - n;
-        if (zeros.size() < need) zeros.assign(need, 0.0f);
-        ofs.write(reinterpret_cast<const char*>(zeros.data()),
-                  static_cast<std::streamsize>(need * sizeof(float)));
+    if (v.size() != expectedSize) {
+        err = "エラー: schema/result サイズ不一致: expected=" + std::to_string(expectedSize) +
+              ", actual=" + std::to_string(v.size());
+        return false;
     }
+    ofs.write(reinterpret_cast<const char*>(v.data()),
+              static_cast<std::streamsize>(expectedSize * sizeof(float)));
+    if (!ofs) {
+        err = "エラー: float32 バイナリ書き込みに失敗しました";
+        return false;
+    }
+    return true;
 }
 
 } // namespace ArtifactIO
-
-

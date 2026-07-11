@@ -5,6 +5,8 @@
 #include <string>
 #include <vector>
 
+#include <boost/range/iterator_range.hpp>
+
 #include "network/thermal_network.h"
 #include "network/ventilation_network.h"
 #include "network/humidity_network.h"
@@ -651,6 +653,57 @@ int main() {
         if (itR == tMap.end()) throw std::runtime_error("missing ROOM");
         const double actual = tG[itR->second].current_c;
         expectNear(actual, expected, 1e-10, "concentration reverse signed flow");
+    }
+
+    // ------------------------------------------------------------------
+    // 10) concentration: disabled dust_generation edge must not emit
+    // ------------------------------------------------------------------
+    {
+        auto VOID = makeNode("void");
+        VOID.v = 0.0;
+        auto ROOM = makeNode("ROOM");
+        ROOM.calc_c = true;
+        ROOM.current_c = 10.0;
+        ROOM.current_beta = 0.0;
+        ROOM.v = 100.0;
+
+        EdgeProperties gen = makeFixedFlowEdge("GEN", "void", "ROOM", 0.0);
+        gen.current_dust_generation = 1000.0; // 個/s
+        gen.current_enabled = false;
+
+        std::vector<VertexProperties> nodes = {VOID, ROOM};
+        std::vector<EdgeProperties> ventEdges = {gen};
+        std::vector<EdgeProperties> thEdges = {};
+
+        VentilationNetwork vent;
+        ThermalNetwork thermal;
+        ContaminantNetwork contaminant;
+        vent.buildFromData(nodes, ventEdges, constants, logs);
+        thermal.buildFromData(nodes, thEdges, ventEdges, constants, logs);
+        // 無効化後も flow_rate / dust が残っていても加算されないこと
+        for (auto e : boost::make_iterator_range(boost::edges(vent.getGraph()))) {
+            vent.getGraph()[e].current_enabled = false;
+            vent.getGraph()[e].current_dust_generation = 1000.0;
+            vent.getGraph()[e].flow_rate = 0.5;
+        }
+
+        const auto stats = transport::updateConcentrationIfEnabled(
+            constants,
+            vent,
+            thermal.getGraph(),
+            static_cast<const ThermalNetwork&>(thermal).nodeStateView(),
+            contaminant,
+            logs,
+            timings,
+            "test");
+        if (!stats.converged) {
+            throw std::runtime_error("disabled dust: expected converged");
+        }
+
+        const auto& tG = thermal.getGraph();
+        const auto& tMap = thermal.getKeyToVertex();
+        const double actual = tG[tMap.at("ROOM")].current_c;
+        expectNear(actual, 10.0, 1e-12, "disabled dust_generation must not change concentration");
     }
 
     std::cout << "[OK] all tests passed\n";

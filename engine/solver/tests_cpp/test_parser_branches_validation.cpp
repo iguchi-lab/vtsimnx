@@ -255,6 +255,61 @@ int main() {
         }
     }
 
+    // -----------------------------
+    // eta / dust_generation 範囲
+    // -----------------------------
+    {
+        json cfg = {
+            {"simulation", {{"log", {{"verbosity", 0}}}}},
+            {"ventilation_branches",
+             json::array({{
+                 {"key", "E1"},
+                 {"type", "fixed_flow"},
+                 {"source", "A"},
+                 {"target", "B"},
+                 {"vol", 0.1},
+                 {"eta", 1.5},
+             }})},
+        };
+        std::ostringstream logs;
+        expectThrows([&]() { (void)parseVentilationBranches(cfg, logs, 0); },
+                     "eta > 1 should throw");
+    }
+    {
+        json cfg = {
+            {"simulation", {{"log", {{"verbosity", 0}}}}},
+            {"ventilation_branches",
+             json::array({{
+                 {"key", "E2"},
+                 {"type", "fixed_flow"},
+                 {"source", "A"},
+                 {"target", "B"},
+                 {"vol", 0.1},
+                 {"eta", -0.1},
+             }})},
+        };
+        std::ostringstream logs;
+        expectThrows([&]() { (void)parseVentilationBranches(cfg, logs, 0); },
+                     "eta < 0 should throw");
+    }
+    {
+        json cfg = {
+            {"simulation", {{"log", {{"verbosity", 0}}}}},
+            {"ventilation_branches",
+             json::array({{
+                 {"key", "D1"},
+                 {"type", "fixed_flow"},
+                 {"source", "A"},
+                 {"target", "B"},
+                 {"vol", 0.0},
+                 {"dust_generation", -1.0},
+             }})},
+        };
+        std::ostringstream logs;
+        expectThrows([&]() { (void)parseVentilationBranches(cfg, logs, 0); },
+                     "negative dust_generation should throw");
+    }
+
     if (g_failures == 0) {
         std::cout << "[OK] all tests passed\n";
         return 0;

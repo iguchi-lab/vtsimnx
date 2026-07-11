@@ -1,9 +1,11 @@
 #include "nodes_parser.h"
 #include "parser_utils.h"
 #include "utils/utils.h"
+#include <cmath>
+#include <set>
+#include <sstream>
 #include <stdexcept>
 #include <string>
-#include <sstream>
 
 using nlohmann::json;
 
@@ -29,6 +31,64 @@ static inline std::string parseModeValueToString(const json& v, const std::strin
     throw std::runtime_error(nodePrefix + ".mode must be string/number or array<string|number>");
 }
 
+static inline void ensureUniqueNodeKeyOrThrow(const std::string& where,
+                                             const std::string& key,
+                                             std::set<std::string>& seen) {
+    if (key.empty()) {
+        throw std::runtime_error(where + ".key is required");
+    }
+    if (seen.find(key) != seen.end()) {
+        throw std::runtime_error(where + ": 重複するノード名が検出されました: \"" + key + "\"");
+    }
+    seen.insert(key);
+}
+
+static inline void requireNonNegativeSeriesOrScalar(const json& nodeJson,
+                                                    const char* field,
+                                                    const std::string& nodePrefix) {
+    if (!nodeJson.contains(field)) return;
+    const auto& v = nodeJson[field];
+    auto checkOne = [&](double x) {
+        if (!std::isfinite(x) || x < 0.0) {
+            throw std::runtime_error(nodePrefix + "." + field +
+                                     " must be finite and >= 0");
+        }
+    };
+    if (v.is_array()) {
+        for (const auto& e : v) {
+            if (!e.is_number()) {
+                throw std::runtime_error(nodePrefix + "." + field + " must be number or array<number>");
+            }
+            checkOne(e.get<double>());
+        }
+    } else if (v.is_number()) {
+        checkOne(v.get<double>());
+    }
+}
+
+static inline void validateNodeReferences(const std::vector<VertexProperties>& nodes) {
+    std::set<std::string> keys;
+    for (const auto& n : nodes) keys.insert(n.key);
+
+    auto requireExists = [&](const std::string& ownerKey,
+                             const char* field,
+                             const std::string& ref) {
+        if (ref.empty()) return;
+        if (keys.find(ref) == keys.end()) {
+            throw std::runtime_error(
+                std::string("nodes key=\"") + ownerKey + "\"." + field +
+                " references missing node \"" + ref + "\"");
+        }
+    };
+
+    for (const auto& n : nodes) {
+        requireExists(n.key, "ref_node", n.ref_node);
+        requireExists(n.key, "set_node", n.set_node);
+        requireExists(n.key, "in_node", n.in_node);
+        requireExists(n.key, "outside_node", n.outside_node);
+    }
+}
+
 } // namespace
 
 std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs, long timestep) {
@@ -42,6 +102,7 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
     const int verbosity = parser_utils::readVerbosity(config);
     const size_t total = config["nodes"].size();
     size_t index = 0;
+    std::set<std::string> seenKeys;
     for (const auto& nodeJson : config["nodes"]) {
         ++index;
         VertexProperties node{};
@@ -60,6 +121,7 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
         parser_utils::checkStringIfPresent(nodeJson, "model", nodePrefix);
         parser_utils::checkNumberIfPresent(nodeJson, "moisture_capacity", nodePrefix);
         node.key = nodeJson["key"].get<std::string>();
+        ensureUniqueNodeKeyOrThrow(nodePrefix, node.key, seenKeys);
         if (nodeJson.contains("name"))   node.name = nodeJson["name"].get<std::string>();
         node.type = nodeJson["type"].get<std::string>();
         if (nodeJson.contains("subtype")) node.subtype = nodeJson["subtype"].get<std::string>();
@@ -79,6 +141,10 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
         if (hasCalcT) node.calc_t = parser_utils::getBooleanIfPresent(nodeJson, "calc_t", nodePrefix, false);
         if (hasCalcX) node.calc_x = parser_utils::getBooleanIfPresent(nodeJson, "calc_x", nodePrefix, false);
         if (hasCalcC) node.calc_c = parser_utils::getBooleanIfPresent(nodeJson, "calc_c", nodePrefix, false);
+
+        // 濃度関連: c>=0, beta>=0
+        requireNonNegativeSeriesOrScalar(nodeJson, "c", nodePrefix);
+        requireNonNegativeSeriesOrScalar(nodeJson, "beta", nodePrefix);
 
         // 時系列ベクトル（配列/単一値の両対応）
         auto readSeries = [&](const char* field, std::vector<double>& storage, double fallback) -> double {
@@ -180,6 +246,8 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
             writeLog(logs, oss.str());
         }
     }
+
+    validateNodeReferences(nodes);
 
     {
         std::ostringstream oss;

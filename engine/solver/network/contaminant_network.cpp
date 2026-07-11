@@ -22,6 +22,7 @@ void ContaminantNetwork::buildTerms(ConstNodeStateView nodeState,
     terms.genByVertex.reserve(boost::num_vertices(tGraph) / 4 + 1);
     for (auto e : boost::make_iterator_range(boost::edges(vGraph))) {
         const auto& ep = vGraph[e];
+        if (!ep.current_enabled) continue;
         const double g = ep.current_dust_generation;
         if (g == 0.0) continue;
         auto itT = tKeyToV.find(ep.target);
@@ -35,9 +36,11 @@ void ContaminantNetwork::buildTerms(ConstNodeStateView nodeState,
     terms.inflow.reserve(nV);
 
     for (auto e : boost::make_iterator_range(boost::edges(vGraph))) {
+        const auto& ep = vGraph[e];
+        if (!ep.current_enabled) continue;
+
         const Vertex vSv = boost::source(e, vGraph);
         const Vertex vTv = boost::target(e, vGraph);
-        const auto& ep = vGraph[e];
 
         const double qSigned = ep.flow_rate; // edge direction に沿って正
         if (qSigned == 0.0) continue;
@@ -77,13 +80,29 @@ void ContaminantNetwork::buildTerms(ConstNodeStateView nodeState,
 }
 
 void ContaminantNetwork::ensureNodeIndex(ConstNodeStateView nodeState) const {
-    if (nodeIndexInitialized) return;
+    const Graph* ptr = &nodeState.graph;
+    const size_t nV = static_cast<size_t>(boost::num_vertices(nodeState.graph));
+    const size_t nE = static_cast<size_t>(boost::num_edges(nodeState.graph));
+    if (nodeIndexInitialized &&
+        cachedGraphPtr_ == ptr &&
+        cachedNumVertices_ == nV &&
+        cachedNumEdges_ == nE &&
+        cachedTopologyRevision_ == nodeState.topologyRevision) {
+        return;
+    }
+
     nodeKeyToVertex.clear();
     const auto& graph = nodeState.graph;
-    nodeKeyToVertex.reserve(boost::num_vertices(graph));
+    nodeKeyToVertex.reserve(nV);
     for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
         nodeKeyToVertex.emplace(graph[v].key, v);
     }
+    cachedGraphPtr_ = ptr;
+    cachedNumVertices_ = nV;
+    cachedNumEdges_ = nE;
+    cachedTopologyRevision_ = nodeState.topologyRevision;
     nodeIndexInitialized = true;
+    outputCacheInitialized = false;
+    outputVerticesOrdered.clear();
+    outputKeysOrdered.clear();
 }
-

@@ -20,6 +20,7 @@
 #include <limits>
 #include <optional>
 #include <sstream>
+#include <stdexcept>
 #include <utility>
 
 namespace {
@@ -62,8 +63,13 @@ void AirconController::initializeModels(ThermalNetwork& thermalNetwork,
             continue;
         }
         if (node.ac_spec.empty()) {
-            writeLog(logs, "　エアコンモデル初期化スキップ: " + node.key + " (ac_spec 未設定)");
-            continue;
+            if (node.model == "IDEAL") {
+                writeLog(logs, "　エアコン IDEAL モード（モデルなし）: " + node.key);
+                continue;
+            }
+            throw std::runtime_error(
+                "aircon model init failed: ac_spec missing for key=" + node.key +
+                " (use model=IDEAL for intentional model-less aircon)");
         }
         try {
             auto model = acmodel::AirconModelFactory::createModel(node.model, node.ac_spec);
@@ -82,8 +88,8 @@ void AirconController::initializeModels(ThermalNetwork& thermalNetwork,
                 }
             }
         } catch (const std::exception& e) {
-            writeLog(logs,
-                     "　エラー: エアコンモデル初期化に失敗" + node.key + " - " + e.what());
+            throw std::runtime_error(
+                "aircon model init failed: key=" + node.key + " - " + e.what());
         }
     }
     writeLog(logs, "  エアコンモデル初期化総数: " + std::to_string(initialized) + "台");
@@ -208,7 +214,12 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
         auto& nodeProps = thermalNetwork.getNode(airconKey);
         double currentTemp = 0.0;
         if (!nodeProps.set_node.empty()) {
-            (void)aircon::network_utils::tryGetTempFromThermalNetwork(thermalNetwork, nodeProps.set_node, currentTemp);
+            if (!aircon::network_utils::tryGetTempFromThermalNetwork(
+                    thermalNetwork, nodeProps.set_node, currentTemp)) {
+                throw std::runtime_error(
+                    "aircon set_node temperature lookup failed: aircon=" + airconKey +
+                    ", set_node=" + nodeProps.set_node);
+            }
         } else {
             if (!aircon::network_utils::tryGetTempFromThermalNetwork(thermalNetwork, nodeProps.key, currentTemp)) {
                 currentTemp = nodeProps.current_t;

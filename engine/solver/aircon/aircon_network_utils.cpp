@@ -5,15 +5,15 @@ namespace aircon::network_utils {
 double getFlowRate(const FlowRateMap& flowRates,
                    const std::string& source,
                    const std::string& target) {
-    auto direct = flowRates.find({source, target});
-    if (direct != flowRates.end()) {
-        return direct->second;
-    }
-    auto reverse = flowRates.find({target, source});
-    if (reverse != flowRates.end()) {
-        return -reverse->second;
-    }
-    return 0.0;
+    const auto direct = flowRates.find({source, target});
+    const auto reverse = flowRates.find({target, source});
+    const bool hasDirect = (direct != flowRates.end());
+    const bool hasReverse = (reverse != flowRates.end());
+    if (!hasDirect && !hasReverse) return 0.0;
+    double q = 0.0;
+    if (hasDirect) q += direct->second;
+    if (hasReverse) q -= reverse->second;
+    return q;
 }
 
 bool tryGetTempFromThermalNetwork(const ThermalNetwork& thermalNetwork,

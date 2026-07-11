@@ -230,7 +230,12 @@ std::vector<EdgeProperties> parseVentilationBranches(const json& config, std::os
         if (branchJson.contains("area"))    branch.area    = branchJson["area"].get<double>();
         if (branchJson.contains("a"))       branch.a       = branchJson["a"].get<double>();
         if (branchJson.contains("n"))       branch.n       = branchJson["n"].get<double>();
-        if (branchJson.contains("eta"))     branch.eta     = branchJson["eta"].get<double>();
+        if (branchJson.contains("eta")) {
+            branch.eta = branchJson["eta"].get<double>();
+            if (!std::isfinite(branch.eta) || branch.eta < 0.0 || branch.eta > 1.0) {
+                throw std::runtime_error(branchPrefix + ".eta must be finite and in [0, 1]");
+            }
+        }
         if (branchJson.contains("p_max"))   branch.p_max   = branchJson["p_max"].get<double>();
         if (branchJson.contains("p1"))      branch.p1      = branchJson["p1"].get<double>();
         if (branchJson.contains("q_max"))   branch.q_max   = branchJson["q_max"].get<double>();
@@ -275,6 +280,14 @@ std::vector<EdgeProperties> parseVentilationBranches(const json& config, std::os
                 static_cast<size_t>(timestep),
                 0.0,
                 branchPrefix + ".dust_generation");
+            auto checkDust = [&](double g) {
+                if (!std::isfinite(g) || g < 0.0) {
+                    throw std::runtime_error(branchPrefix +
+                                             ".dust_generation must be finite and >= 0");
+                }
+            };
+            checkDust(branch.current_dust_generation);
+            for (double g : branch.dust_generation) checkDust(g);
         }
         parseEnableField(branchJson, branch.enabled, branch.current_enabled, timestep, branchPrefix);
 

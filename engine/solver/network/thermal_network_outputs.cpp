@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>
@@ -230,25 +231,33 @@ static void buildHeatRateCachesIfNeeded(const Graph& graph,
     sortItems(itemsRad);
     sortItems(itemsCap);
 
-    auto fillOut = [](const auto& items, std::vector<Edge>& edgesOut, std::vector<std::string>& keysOut) {
+    auto fillOut = [](const auto& items, std::vector<Edge>& edgesOut, std::vector<std::string>& keysOut,
+                      const char* seriesName) {
         edgesOut.clear();
         keysOut.clear();
         edgesOut.reserve(items.size());
         keysOut.reserve(items.size());
+        std::string prevKey;
         for (const auto& kv : items) {
+            if (!prevKey.empty() && kv.first == prevKey) {
+                throw std::runtime_error(
+                    std::string("heat_rate output key collision after normalization in ") +
+                    seriesName + ": \"" + kv.first + "\"");
+            }
+            prevKey = kv.first;
             keysOut.push_back(kv.first);
             edgesOut.push_back(kv.second);
         }
     };
 
-    fillOut(itemsAdvection, edgesAdvection, keysAdvection);
-    fillOut(itemsHeatGen, edgesHeatGen, keysHeatGen);
-    fillOut(itemsSolar, edgesSolar, keysSolar);
-    fillOut(itemsNoct, edgesNoct, keysNoct);
-    fillOut(itemsConv, edgesConv, keysConv);
-    fillOut(itemsCond, edgesCond, keysCond);
-    fillOut(itemsRad, edgesRad, keysRad);
-    fillOut(itemsCap, edgesCap, keysCap);
+    fillOut(itemsAdvection, edgesAdvection, keysAdvection, "advection");
+    fillOut(itemsHeatGen, edgesHeatGen, keysHeatGen, "heat_generation");
+    fillOut(itemsSolar, edgesSolar, keysSolar, "solar_gain");
+    fillOut(itemsNoct, edgesNoct, keysNoct, "nocturnal_loss");
+    fillOut(itemsConv, edgesConv, keysConv, "convection");
+    fillOut(itemsCond, edgesCond, keysCond, "conduction");
+    fillOut(itemsRad, edgesRad, keysRad, "radiation");
+    fillOut(itemsCap, edgesCap, keysCap, "capacity");
 
     cacheInitialized = true;
 }

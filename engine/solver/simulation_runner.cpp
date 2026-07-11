@@ -118,7 +118,7 @@ void runSimulation(VentilationNetwork& ventNetwork,
 
     // 濃度（c）更新：外側空調ループ収束後のみ（エアコン制御には影響しない想定）
     const auto sharedNodeState = makeSharedNodeStateArgs(ctx.thermal);
-    transport::updateConcentrationIfEnabled(ctx.constants,
+    const auto concStats = transport::updateConcentrationIfEnabled(ctx.constants,
                                             ctx.ventilation,
                                             sharedNodeState.nodeGraph,
                                             sharedNodeState.nodeState,
@@ -126,6 +126,11 @@ void runSimulation(VentilationNetwork& ventNetwork,
                                             ctx.logs,
                                             ctx.timings,
                                             std::string(ctx.meta));
+    if (!concStats.converged) {
+        throw simulation::Error(
+            simulation::ErrorCode::ConcentrationNotConverged,
+            "Concentration solver produced non-finite or negative values");
+    }
 
     buildTimestepResult(ctx.constants,
                         ctx.ventilation,

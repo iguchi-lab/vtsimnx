@@ -55,10 +55,11 @@ bool writeJsonToFile(const char* path, const nlohmann::json& j, std::string& err
 // schema.json（バイナリ出力のメタ情報）
 nlohmann::json schemaToJson(long length, long timestepSec, const OutputSchema& s);
 
-// float32 little-endian の配列をバイナリで書き出す
-// 1 timestep = expectedSize 個を固定長で出力（不足分は 0.0f で埋める）
-void writeFloat32ArrayBinary(std::ofstream& ofs, const std::vector<float>& v, size_t expectedSize);
+// float32 little-endian の配列をバイナリで書き出す。
+// v.size() は expectedSize と一致必須（不一致・書き込み失敗は false）。
+bool writeFloat32ArrayBinary(std::ofstream& ofs,
+                             const std::vector<float>& v,
+                             size_t expectedSize,
+                             std::string& err);
 
 } // namespace ArtifactIO
-
-

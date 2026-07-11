@@ -6,6 +6,7 @@
 #include <algorithm>
 
 #include "aircon/aircon_controller.h"
+#include "aircon/aircon_network_utils.h"
 #include "network/thermal_network.h"
 #include "network/ventilation_network.h"
 
@@ -85,6 +86,17 @@ static nlohmann::json makeAcSpecWithMax(double coolingMaxKw, double heatingMaxKw
 } // namespace
 
 int main() {
+    // 正味流量: 正方向と逆方向の両方があれば direct - reverse
+    {
+        FlowRateMap flows;
+        flows[{"IN", "AC"}] = 0.0;   // スケジュール0の正方向キー
+        flows[{"AC", "IN"}] = 0.25;  // 逆向き表現の実流量
+        expectNear(aircon::network_utils::getFlowRate(flows, "IN", "AC"), -0.25, 1e-12,
+                   "net flow should be direct - reverse");
+        expectNear(aircon::network_utils::getFlowRate(flows, "AC", "IN"), 0.25, 1e-12,
+                   "opposite query should flip sign of net flow");
+    }
+
     ThermalNetwork thermal;
 
     // 必要なノード（outside/in/aircon）
@@ -484,6 +496,23 @@ int main() {
                    "latent feedback should be skipped when in_node is active setpoint node");
         expectNear(stats.maxAppliedHeatW, 0.0, 1e-12,
                    "latent feedback stats should remain zero when skipped");
+    }
+
+    // 異常系: set_node が存在しない場合は黙って 0℃ にせず例外
+    {
+        auto& b = thermal.getNode("B");
+        b.on = true;
+        b.current_mode = "COOLING";
+        b.in_node = "IN";
+        b.set_node = "NO_SUCH_SET";
+        bool threw = false;
+        try {
+            (void)controller.controlAllAircons(thermal, 0.5, std::cout);
+        } catch (const std::exception&) {
+            threw = true;
+        }
+        expectTrue(threw, "missing set_node should throw");
+        b.set_node.clear();
     }
 
     // 異常系: in_node が不正なら例外を握りつぶして電力0で継続すること

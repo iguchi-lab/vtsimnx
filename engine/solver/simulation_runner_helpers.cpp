@@ -7,6 +7,8 @@
 #include <cstdint>
 #include <cstring>
 #include <limits>
+#include <stdexcept>
+#include <string>
 
 #include <boost/range/iterator_range.hpp>
 #if defined(__AVX2__)
@@ -63,9 +65,13 @@ inline int activeCouplingStateCount(const SimulationConstants& constants) {
 void convertDoublesToF32(std::vector<float>& dst, const std::vector<double>& src) {
     dst.resize(src.size());
     for (size_t i = 0; i < src.size(); ++i) {
-        dst[i] = static_cast<float>(src[i]);
+        const double x = src[i];
+        if (!std::isfinite(x)) {
+            throw std::runtime_error(
+                "non-finite value in timestep result (index=" + std::to_string(i) + ")");
+        }
+        dst[i] = static_cast<float>(x);
     }
-    sanitizeFiniteInplace(dst);
 }
 
 double calculateMaxAbsDiff(const std::vector<double>& oldValues, const std::vector<double>& newValues) {

@@ -437,6 +437,24 @@ if(VTSIMNX_BUILD_CPP_TESTS)
     add_test(NAME vtsimnx_solver_cpp_test_vent_parallel_branch_flow_rates
              COMMAND vtsimnx_solver_cpp_test_vent_parallel_branch_flow_rates)
 
+    # 6c) flow_rate output key collision after _000 normalization
+    add_executable(vtsimnx_solver_cpp_test_flow_rate_key_collision
+        tests_cpp/test_flow_rate_key_collision.cpp
+        network/ventilation_network.cpp
+        network/ventilation_network_outputs.cpp
+        ${VENTILATION_PRESSURE_SOURCES}
+    )
+    target_link_libraries(vtsimnx_solver_cpp_test_flow_rate_key_collision
+        Boost::boost
+        ceres
+    )
+    target_compile_options(vtsimnx_solver_cpp_test_flow_rate_key_collision PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_test_flow_rate_key_collision
+             COMMAND vtsimnx_solver_cpp_test_flow_rate_key_collision)
+
     # 7) network: buildFromData idempotency (no accumulation on rebuild)
     add_executable(vtsimnx_solver_cpp_test_network_rebuild
         tests_cpp/test_network_rebuild.cpp
@@ -658,6 +676,17 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         -Wextra
     )
     add_test(NAME vtsimnx_solver_cpp_test_app_smoke COMMAND vtsimnx_solver_cpp_test_app_smoke)
+
+    # 10b) artifact IO: schema/result size must match (no pad/truncate)
+    add_executable(vtsimnx_solver_cpp_test_artifact_io_strict
+        tests_cpp/test_artifact_io_strict.cpp
+        output/artifact_io.cpp
+    )
+    target_compile_options(vtsimnx_solver_cpp_test_artifact_io_strict PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_test_artifact_io_strict COMMAND vtsimnx_solver_cpp_test_artifact_io_strict)
 
     # 11) simulation control-flow (inner/outer coupling decisions, parser ints)
     add_executable(vtsimnx_solver_cpp_test_simulation_control_flow

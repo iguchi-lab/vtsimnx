@@ -5,22 +5,27 @@
 #include "utils/utils.h"
 
 #include <cmath>
+#include <limits>
 #include <vector>
 
 #include <boost/range/iterator_range.hpp>
 
 namespace transport {
+namespace {
+constexpr double kConcentrationNegEpsilon = 1e-12;
+} // namespace
 
-void updateConcentrationIfEnabled(const SimulationConstants& constants,
-                                  VentilationNetwork& ventNetwork,
-                                  Graph& nodeGraph,
-                                  ConstNodeStateView nodeState,
-                                  ContaminantNetwork& contaminantNetwork,
-                                  std::ostream& logs,
-                                  TimingList& timings,
-                                  const std::string& meta) {
+ConcentrationSolveStats updateConcentrationIfEnabled(const SimulationConstants& constants,
+                                                     VentilationNetwork& ventNetwork,
+                                                     Graph& nodeGraph,
+                                                     ConstNodeStateView nodeState,
+                                                     ContaminantNetwork& contaminantNetwork,
+                                                     std::ostream& logs,
+                                                     TimingList& timings,
+                                                     const std::string& meta) {
     (void)logs;
-    if (!constants.concentrationCalc) return;
+    ConcentrationSolveStats stats{};
+    if (!constants.concentrationCalc) return stats;
 
     ScopedTimer timer(timings, "concentration_update", meta);
 
@@ -29,7 +34,7 @@ void updateConcentrationIfEnabled(const SimulationConstants& constants,
     const auto& vKeyToV = ventNetwork.getKeyToVertex();
 
     const double dt = static_cast<double>(constants.timestep);
-    if (!(dt > 0.0)) return;
+    if (!(dt > 0.0)) return stats;
 
     auto idxOf = [](Vertex v) -> size_t { return static_cast<size_t>(v); };
     const size_t nV = static_cast<size_t>(boost::num_vertices(tGraph));
@@ -42,6 +47,11 @@ void updateConcentrationIfEnabled(const SimulationConstants& constants,
 
     ContaminantNetworkTerms terms;
     contaminantNetwork.buildTerms(nodeState, ventNetwork, terms);
+    stats.activeVertices = static_cast<int>(terms.updateVertices.size());
+    if (terms.updateVertices.empty()) {
+        stats.converged = true;
+        return stats;
+    }
 
     std::vector<double> cNew = cOld;
     for (Vertex v : terms.updateVertices) {
@@ -86,17 +96,28 @@ void updateConcentrationIfEnabled(const SimulationConstants& constants,
         }
     }
 
-    // graph へ反映（thermal/vent 両方に入れておく）
+    // 検証してから一括反映（失敗時は旧状態を維持）
     for (Vertex v : terms.updateVertices) {
-        const size_t i = idxOf(v);
-        tGraph[v].current_c = cNew[i];
-        auto itV = vKeyToV.find(tGraph[v].key);
-        if (itV != vKeyToV.end()) {
-            vGraph[itV->second].current_c = cNew[i];
+        const double ci = cNew[idxOf(v)];
+        if (!std::isfinite(ci) || ci < -kConcentrationNegEpsilon) {
+            stats.converged = false;
+            stats.updated = false;
+            return stats;
         }
     }
+
+    for (Vertex v : terms.updateVertices) {
+        const size_t i = idxOf(v);
+        const double ci = (cNew[i] < 0.0) ? 0.0 : cNew[i];
+        tGraph[v].current_c = ci;
+        auto itV = vKeyToV.find(tGraph[v].key);
+        if (itV != vKeyToV.end()) {
+            vGraph[itV->second].current_c = ci;
+        }
+    }
+    stats.converged = true;
+    stats.updated = true;
+    return stats;
 }
 
 } // namespace transport
-
-
