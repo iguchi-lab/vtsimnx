@@ -15,8 +15,10 @@ public:
 
     EdgeMutationGuard(const EdgeMutationGuard&) = delete;
     EdgeMutationGuard& operator=(const EdgeMutationGuard&) = delete;
+    EdgeMutationGuard(EdgeMutationGuard&&) = delete;
+    EdgeMutationGuard& operator=(EdgeMutationGuard&&) = delete;
 
-    ~EdgeMutationGuard() { restore(); }
+    ~EdgeMutationGuard() noexcept { restore(); }
 
     void convertToFixedFlow(Edge edge, double flow) {
         auto& ep = graph_[edge];

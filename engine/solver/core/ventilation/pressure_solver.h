@@ -2,6 +2,7 @@
 
 #include "../../vtsim_solver.h"
 #include "core/ventilation/edge_mutation_guard.h"
+#include "core/ventilation/pressure_balance.h"
 #include <ceres/ceres.h>
 #include <functional>
 #include <fstream>
@@ -171,6 +172,11 @@ private:
     // 流量計算（欠落圧力・非有限値は ok=false）
     FlowComputationResult calculateFlowRates(const PressureMap& pressureMap);
     std::optional<std::map<std::string, double>> calculateIndividualFlowRates(const PressureMap& pressureMap);
+
+    // primary / fallback 共通: 流量→全ノード収支→calc_p ノードのみで合否
+    ventilation::PressureSolutionEvaluation evaluatePressureSolution(
+        const PressureMap& pressureMap,
+        double massBalanceMaxAbs);
     
     FlowBalanceMap verifyBalance(const FlowRateMap& flowRates);
     

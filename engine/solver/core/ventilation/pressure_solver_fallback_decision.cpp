@@ -74,12 +74,11 @@ PressureSolver::FallbackOuterAction PressureSolver::evaluateFallbackOuter(
         fallbackLog(0, "[Fallback] Ceres trial 完了 | cost=" + osfb2.str() + " | 外部反復 " +
                            std::to_string(outer) + "/" + std::to_string(maxOuter));
 
-        auto flowCompTmp = calculateFlowRates(pressureMapFB_B);
-        if (!flowCompTmp.ok) {
-            fallbackLog(1, "[Network] 風量評価失敗: " + flowCompTmp.detail);
+        auto evalTmp = evaluatePressureSolution(pressureMapFB_B, massBalanceMaxAbs);
+        if (!evalTmp.flowOk) {
+            fallbackLog(1, "[Network] 風量評価失敗: " + evalTmp.detail);
         } else {
-            FlowBalanceMap balanceFB_tmp = verifyBalance(flowCompTmp.flows);
-            const auto metricsTmp = ventilation::computeBalanceMetrics(balanceFB_tmp);
+            const auto& metricsTmp = evalTmp.solvedNodeMetrics;
             double l1 = metricsTmp.l1;
             double l2 = metricsTmp.l2;
             double costNet = 0.5 * (metricsTmp.l2 * metricsTmp.l2);
@@ -152,21 +151,21 @@ PressureSolver::FallbackOuterAction PressureSolver::evaluateFallbackOuter(
                 }
             }
 
-            auto flowCompFinal = calculateFlowRates(pressureMapFB);
-            if (!flowCompFinal.ok) {
-                fallbackLog(1, "[Fallback] 質量収支評価スキップ: " + flowCompFinal.detail);
+            auto evalFinal = evaluatePressureSolution(pressureMapFB, massBalanceMaxAbs);
+            if (!evalFinal.flowOk) {
+                fallbackLog(1, "[Fallback] 質量収支評価スキップ: " + evalFinal.detail);
             } else {
                 state.finalPressureMapFB = pressureMapFB;
-                state.finalFlowRatesFB = std::move(flowCompFinal.flows);
-                state.finalBalanceFB = verifyBalance(state.finalFlowRatesFB);
-                const auto metricsFinal = ventilation::computeBalanceMetrics(state.finalBalanceFB);
+                state.finalFlowRatesFB = std::move(evalFinal.flows);
+                state.finalBalanceFB = std::move(evalFinal.allNodeBalances);
+                const auto& metricsFinal = evalFinal.solvedNodeMetrics;
                 {
                     std::ostringstream osmax;
                     osmax << std::scientific << std::setprecision(6) << metricsFinal.maxAbs;
                     fallbackLog(1, "[Fallback] mass_maxAbs=" + osmax.str() +
                                        " | mass_tol=" + std::to_string(massBalanceMaxAbs));
                 }
-                if (ventilation::acceptMassBalance(metricsFinal, massBalanceMaxAbs)) {
+                if (evalFinal.accepted) {
                     state.finalHaveSolution = true;
                     fallbackLog(0, "[Fallback] 収束 | mass_maxAbs 合格 | 外部反復 " +
                                        std::to_string(outer) + "/" + std::to_string(maxOuter));
@@ -196,12 +195,11 @@ PressureSolver::FallbackOuterAction PressureSolver::evaluateFallbackOuter(
     }
 
     double currNetworkCostOuter = [&]() {
-        auto flowRatesFB_tmp = calculateFlowRates(pressureMapFB_B);
-        if (!flowRatesFB_tmp.ok) {
+        auto evalNet = evaluatePressureSolution(pressureMapFB_B, massBalanceMaxAbs);
+        if (!evalNet.flowOk) {
             return std::numeric_limits<double>::infinity();
         }
-        FlowBalanceMap balanceFB_tmp = verifyBalance(flowRatesFB_tmp.flows);
-        const auto m = ventilation::computeBalanceMetrics(balanceFB_tmp);
+        const auto& m = evalNet.solvedNodeMetrics;
         return 0.5 * (m.l2 * m.l2);
     }();
 

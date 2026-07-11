@@ -83,8 +83,12 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
                            std::string(outer >= 2 ? " | source=B(prev)" : " | source=A(current)"));
         StageASolveResult stageA = solveStageAReduced(
             constants, g, partition, state.prevPressureMapFB, fallbackLog);
+        if (!stageA.ok) {
+            fallbackLog(0, "[Fallback] Stage A 未収束のため外部反復を打ち切り");
+            break;
+        }
 
-        freezeInterfaceFlows(
+        const auto freeze = freezeInterfaceFlows(
             g,
             edgeGuard,
             partition,
@@ -93,6 +97,10 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
             state.prevPressureMapFB,
             outer,
             fallbackLog);
+        if (freeze.skipped) {
+            fallbackLog(0, "[Fallback] interface flow evaluation failed");
+            break;
+        }
 
         fallbackLog(1, "[B] 固定流量下でフルノード再解フェーズ開始");
         StageBSolveResult stageB = solveStageBFull(

@@ -86,6 +86,37 @@ void testEdgeMutationGuardRestoreNormalAndException() {
     expectNear(g[e].current_vol, 1.25, 1e-15, "restored vol after exception");
 }
 
+void testFixedPressureBoundaryExcludedFromAcceptance() {
+    // outside(fixed) --q--> room(calc_p) --q--> outside2(fixed)
+    // room balance = 0, outside balances = ±q. 全ノード maxAbs は |q| だが
+    // 計算ノードのみなら合格する。
+    Graph g;
+    Vertex out1 = boost::add_vertex(g);
+    Vertex room = boost::add_vertex(g);
+    Vertex out2 = boost::add_vertex(g);
+    g[out1].key = "outside";
+    g[out1].calc_p = false;
+    g[room].key = "room";
+    g[room].calc_p = true;
+    g[out2].key = "outside2";
+    g[out2].calc_p = false;
+
+    const double q = 0.05;
+    FlowBalanceMap bal{
+        {"outside", -q},
+        {"room", 0.0},
+        {"outside2", +q},
+    };
+
+    const auto allMetrics = ventilation::computeBalanceMetrics(bal);
+    const auto solvedMetrics = ventilation::computePressureUnknownBalanceMetrics(bal, g);
+    expectNear(allMetrics.maxAbs, q, 1e-15, "all-node maxAbs includes boundary");
+    expectNear(solvedMetrics.maxAbs, 0.0, 1e-15, "solved-node maxAbs ignores boundary");
+    expectTrue(solvedMetrics.nodeCount == 1, "only room counted");
+    expectTrue(!ventilation::acceptMassBalance(allMetrics, 1e-6), "all-node would reject");
+    expectTrue(ventilation::acceptMassBalance(solvedMetrics, 1e-6), "solved-node accepts");
+}
+
 void testMakeTolerancesUsesVentilationTolerance() {
     SimulationConstants c{};
     c.ventilationTolerance = 3.5e-4;
@@ -100,6 +131,7 @@ int main() {
     testBalanceMetricsIndependentOfNodeCount();
     testAcceptMassBalanceBoundary();
     testEdgeMutationGuardRestoreNormalAndException();
+    testFixedPressureBoundaryExcludedFromAcceptance();
     testMakeTolerancesUsesVentilationTolerance();
 
     if (g_failures == 0) {

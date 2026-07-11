@@ -215,6 +215,26 @@ PressureSolver::FlowComputationResult PressureSolver::calculateFlowRates(const P
     return result;
 }
 
+ventilation::PressureSolutionEvaluation PressureSolver::evaluatePressureSolution(
+        const PressureMap& pressureMap,
+        double massBalanceMaxAbs) {
+    ventilation::PressureSolutionEvaluation eval;
+    FlowComputationResult flowComp = calculateFlowRates(pressureMap);
+    if (!flowComp.ok) {
+        eval.flowOk = false;
+        eval.accepted = false;
+        eval.detail = flowComp.detail;
+        return eval;
+    }
+    eval.flowOk = true;
+    eval.flows = std::move(flowComp.flows);
+    eval.allNodeBalances = verifyBalance(eval.flows);
+    eval.solvedNodeMetrics = ventilation::computePressureUnknownBalanceMetrics(
+        eval.allNodeBalances, network_.getGraph());
+    eval.accepted = ventilation::acceptMassBalance(eval.solvedNodeMetrics, massBalanceMaxAbs);
+    return eval;
+}
+
 std::optional<std::map<std::string, double>> PressureSolver::calculateIndividualFlowRates(
     const PressureMap& pressureMap) {
     std::map<std::string, double> individualFlowRates;
@@ -257,8 +277,8 @@ PressureSolver::SolverResult PressureSolver::solvePressures(
     runPrimarySolvers(constants, problem, summary);
 
     PressureMap pressureMap = extractPressures(pressures, nodeNames);
-    FlowComputationResult flowComp = calculateFlowRates(pressureMap);
-    if (!flowComp.ok) {
+    auto eval = evaluatePressureSolution(pressureMap, tols.massBalanceMaxAbs);
+    if (!eval.flowOk) {
         writeLog(logFile_, "--警告: primary 解の風量評価に失敗。fallback を試行します。");
         network_.setLastPressureConverged(false);
         auto fallbackResult = runFallbackLoop(constants, setup, summary);
@@ -268,9 +288,8 @@ PressureSolver::SolverResult PressureSolver::solvePressures(
         return SolverResult{pressureMap, FlowRateMap{}, FlowBalanceMap{}};
     }
 
-    FlowBalanceMap balance = verifyBalance(flowComp.flows);
-    const auto metrics = ventilation::computeBalanceMetrics(balance);
-    const bool massAccepted = ventilation::acceptMassBalance(metrics, tols.massBalanceMaxAbs);
+    const auto& metrics = eval.solvedNodeMetrics;
+    const bool massAccepted = eval.accepted;
     const bool ceresSaidConverged = (summary.termination_type == ceres::CONVERGENCE);
 
     {
@@ -281,6 +300,7 @@ PressureSolver::SolverResult PressureSolver::solvePressures(
             << " | ceres_cost=" << summary.final_cost
             << " | mass_maxAbs=" << metrics.maxAbs
             << " | mass_tol=" << tols.massBalanceMaxAbs
+            << " | solved_nodes=" << metrics.nodeCount
             << " | iter=" << summary.iterations.size();
         writeLog(logFile_, oss.str());
     }
@@ -292,7 +312,7 @@ PressureSolver::SolverResult PressureSolver::solvePressures(
         writeLog(logFile_,
                  "---圧力計算収束 | mass_maxAbs=" + oss.str() +
                      " | tol=" + std::to_string(tols.massBalanceMaxAbs));
-        return SolverResult{pressureMap, flowComp.flows, balance};
+        return SolverResult{pressureMap, eval.flows, eval.allNodeBalances};
     }
 
     auto fallbackResult = runFallbackLoop(constants, setup, summary);
@@ -301,5 +321,5 @@ PressureSolver::SolverResult PressureSolver::solvePressures(
     }
 
     network_.setLastPressureConverged(false);
-    return SolverResult{pressureMap, flowComp.flows, balance};
+    return SolverResult{pressureMap, eval.flows, eval.allNodeBalances};
 }
