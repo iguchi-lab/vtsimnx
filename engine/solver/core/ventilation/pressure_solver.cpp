@@ -1,5 +1,6 @@
 #include "core/ventilation/pressure_solver.h"
 #include "core/ventilation/flow_calculation.h"
+#include "core/ventilation/pressure_balance.h"
 #include "core/ventilation/pressure_constraints.h"
 #include "core/ventilation/pressure_solver_internal.h"
 #include "network/ventilation_network.h"
@@ -19,23 +20,15 @@ double calculateDensity(double temperature) {
            (archenv::GAS_CONSTANT_DRY_AIR * (temperature + 273.15));
 }
 
-// =============================================================================
-// PressureSolverクラス - 圧力・風量計算のメインソルバー
-// =============================================================================
-
 PressureSolver::PressureSolver(VentilationNetwork& network, std::ostream& logFile)
     : network_(network), logFile_(logFile) {}
-
-// =============================================================================
-// ヘルパー関数
-// =============================================================================
 
 double PressureSolver::calculateTotalPressure(double pressure, double temperature, double height) const {
     double rho = calculateDensity(temperature);
     return pressure - rho * archenv::GRAVITY * height;
 }
 
-double PressureSolver::calculatePressureDifference(
+std::optional<double> PressureSolver::calculatePressureDifference(
     const VertexProperties& sourceNode,
     const VertexProperties& targetNode,
     const EdgeProperties& edgeData,
@@ -45,7 +38,7 @@ double PressureSolver::calculatePressureDifference(
     auto targetPressureIt = pressureMap.find(targetNode.key);
     
     if (sourcePressureIt == pressureMap.end() || targetPressureIt == pressureMap.end()) {
-        return 0.0;
+        return std::nullopt;
     }
     
     double source_total = calculateTotalPressure(
@@ -56,21 +49,14 @@ double PressureSolver::calculatePressureDifference(
     return source_total - target_total;
 }
 
-// =============================================================================
-// 初期化関数
-// =============================================================================
-
 void PressureSolver::setInitialPressures(std::vector<double>& pressures, 
                                         const std::vector<std::string>& nodeNames) {
-    // サイズチェック（初期化前に実行）
     if (pressures.size() != nodeNames.size()) {
         writeLog(logFile_, "--警告: 圧力配列とノード名配列のサイズが一致しません (" + 
                  std::to_string(pressures.size()) + " vs " + std::to_string(nodeNames.size()) + ")");
         return;
     }
     
-    // 初期圧力を設定（トポロジ上の current_p をそのまま使用）
-    // ※人工的な初期勾配（i*10Pa等）は入れない
     const auto& graph = network_.getGraph();
     const auto& keyToVertex = network_.getKeyToVertex();
     for (size_t i = 0; i < pressures.size(); ++i) {
@@ -95,7 +81,6 @@ bool PressureSolver::initializeSolverSetup(SolverSetup& setup) {
         if (nodeData.calc_p) {
             setup.nodeNames.push_back(nodeData.key);
             setup.vertexToParameterIndex[vertex] = parameterIndex++;
-            // Graph は vecS のため vertex は 0..V-1 を想定
             setup.vertexToParameterIndexVec[static_cast<size_t>(vertex)] =
                 static_cast<int>(parameterIndex - 1);
         }
@@ -109,7 +94,6 @@ bool PressureSolver::initializeSolverSetup(SolverSetup& setup) {
     setup.pressures.resize(setup.nodeNames.size());
     setInitialPressures(setup.pressures, setup.nodeNames);
 
-    // incident edges を構築（全エッジ走査を残差ごとに行わない）
     setup.incidentEdgesByVertex.assign(vCount, {});
     for (auto e : boost::make_iterator_range(boost::edges(graph))) {
         Vertex sv = boost::source(e, graph);
@@ -119,10 +103,6 @@ bool PressureSolver::initializeSolverSetup(SolverSetup& setup) {
     }
     return true;
 }
-
-// =============================================================================
-// Ceres問題の構築
-// =============================================================================
 
 void PressureSolver::addFlowBalanceConstraints(const SolverSetup& setup, ceres::Problem& problem) {
     for (const std::string& nodeName : setup.nodeNames) {
@@ -139,19 +119,13 @@ void PressureSolver::addFlowBalanceConstraints(const SolverSetup& setup, ceres::
     }
 }
 
-// =============================================================================
-// 圧力・風量の抽出と検証
-// =============================================================================
-
 PressureMap PressureSolver::extractPressures(const std::vector<double>& pressures,
                                             const std::vector<std::string>& nodeNames) {
     PressureMap pressureMap;
-    // 計算対象ノードの圧力をマップに追加
     for (size_t i = 0; i < nodeNames.size(); ++i) {
         pressureMap[nodeNames[i]] = pressures[i];
     }
     
-    // 固定圧力ノードの圧力をマップに追加
     const auto& graph = network_.getGraph();
     auto vertex_range = boost::vertices(graph);
     for (auto vertex : boost::make_iterator_range(vertex_range)) {
@@ -168,34 +142,27 @@ FlowBalanceMap PressureSolver::verifyBalance(const FlowRateMap& flowRates) {
 
     const auto& graph = network_.getGraph();
 
-    // ノードごとの初期化
     auto vertex_range = boost::vertices(graph);
     for (auto vertex : boost::make_iterator_range(vertex_range)) {
         balance[graph[vertex].key] = 0.0;
     }
 
-    // 計算済みの flowRates から入出流を構築
     for (const auto& kv : flowRates) {
-        const auto& edgeKey = kv.first; // {source, target}
+        const auto& edgeKey = kv.first;
         const std::string& srcName = edgeKey.first;
         const std::string& dstName = edgeKey.second;
-        double q = kv.second; // src -> dst を正
+        double q = kv.second;
 
         if (q == 0.0) continue;
 
-        // 符号に関係なく一貫した更新
-        balance[srcName] -= q; // 出た分だけ減算
-        balance[dstName] += q; // 入った分だけ加算
+        balance[srcName] -= q;
+        balance[dstName] += q;
     }
 
     return balance;
 }
 
-// =============================================================================
-// 風量計算
-// =============================================================================
-
-double PressureSolver::calculateFlowForEdge(const PressureMap& pressureMap, Edge edge) {
+std::optional<double> PressureSolver::calculateFlowForEdge(const PressureMap& pressureMap, Edge edge) const {
     const auto& graph = network_.getGraph();
     auto sv = boost::source(edge, graph);
     auto tv = boost::target(edge, graph);
@@ -203,19 +170,23 @@ double PressureSolver::calculateFlowForEdge(const PressureMap& pressureMap, Edge
     const auto& targetNode = graph[tv];
     const auto& edgeData = graph[edge];
 
-    double dp = calculatePressureDifference(sourceNode, targetNode, edgeData, pressureMap);
+    auto dpOpt = calculatePressureDifference(sourceNode, targetNode, edgeData, pressureMap);
+    if (!dpOpt) {
+        return std::nullopt;
+    }
+    const double dp = *dpOpt;
     if (!std::isfinite(dp)) {
-        return 0.0;
+        return std::nullopt;
     }
     double flow = FlowCalculation::calculateUnifiedFlow(dp, edgeData);
     if (!std::isfinite(flow)) {
-        return 0.0;
+        return std::nullopt;
     }
     return flow;
 }
 
-FlowRateMap PressureSolver::calculateFlowRates(const PressureMap& pressureMap) {
-    FlowRateMap flowRates;
+PressureSolver::FlowComputationResult PressureSolver::calculateFlowRates(const PressureMap& pressureMap) {
+    FlowComputationResult result;
     
     const auto& graph = network_.getGraph();
     auto edge_range = boost::edges(graph);
@@ -226,79 +197,54 @@ FlowRateMap PressureSolver::calculateFlowRates(const PressureMap& pressureMap) {
         
         const auto& sourceNode = graph[sourceVertex];
         const auto& targetNode = graph[targetVertex];
-        const auto& edgeData = graph[edge];
         
-        // 圧力差を計算
-        double dp = calculatePressureDifference(sourceNode, targetNode, edgeData, pressureMap);
-        if (dp == 0.0 && (pressureMap.find(sourceNode.key) == pressureMap.end() || 
-                          pressureMap.find(targetNode.key) == pressureMap.end())) {
-            writeLog(logFile_, "--警告: ノード圧力が見つかりません - " + 
+        auto flowOpt = calculateFlowForEdge(pressureMap, edge);
+        if (!flowOpt) {
+            result.ok = false;
+            result.detail = "missing_or_nonfinite_flow:" + sourceNode.key + "->" + targetNode.key;
+            writeLog(logFile_, "--エラー: 風量評価失敗（圧力欠落または非有限） - " +
                      sourceNode.key + " → " + targetNode.key);
-            continue;
-        }
-        
-        double flow = calculateFlowForEdge(pressureMap, edge);
-        
-        // 異常値チェック
-        if (!std::isfinite(flow)) {
-            writeLog(logFile_, "--警告: 無限大または非数の風量値が検出されました - " + 
-                     sourceNode.key + " → " + targetNode.key);
-            flow = 0.0;
+            result.flows.clear();
+            return result;
         }
         
         std::pair<std::string, std::string> edgeKey = {sourceNode.key, targetNode.key};
-        flowRates[edgeKey] += flow;  // 同一ノードペア間の流量を合計
+        result.flows[edgeKey] += *flowOpt;
     }
     
-    return flowRates;
+    return result;
 }
 
-std::map<std::string, double> PressureSolver::calculateIndividualFlowRates(const PressureMap& pressureMap) {
+std::optional<std::map<std::string, double>> PressureSolver::calculateIndividualFlowRates(
+    const PressureMap& pressureMap) {
     std::map<std::string, double> individualFlowRates;
     
     const auto& graph = network_.getGraph();
     auto edge_range = boost::edges(graph);
     
     for (auto edge : boost::make_iterator_range(edge_range)) {
-        auto sourceVertex = boost::source(edge, graph);
-        auto targetVertex = boost::target(edge, graph);
-        
-        const auto& sourceNode = graph[sourceVertex];
-        const auto& targetNode = graph[targetVertex];
         const auto& edgeData = graph[edge];
-        
-        // 圧力差を計算
-        double dp = calculatePressureDifference(sourceNode, targetNode, edgeData, pressureMap);
-        if (dp == 0.0 && (pressureMap.find(sourceNode.key) == pressureMap.end() || 
-                          pressureMap.find(targetNode.key) == pressureMap.end())) {
-            writeLog(logFile_, "--警告: ノード圧力が見つかりません - " + 
-                     sourceNode.key + " → " + targetNode.key);
-            continue;
+        auto flowOpt = calculateFlowForEdge(pressureMap, edge);
+        if (!flowOpt) {
+            auto sourceVertex = boost::source(edge, graph);
+            auto targetVertex = boost::target(edge, graph);
+            writeLog(logFile_, "--エラー: 個別風量評価失敗 - " + edgeData.unique_id +
+                     " (" + graph[sourceVertex].key + " → " + graph[targetVertex].key + ")");
+            return std::nullopt;
         }
-        
-        double flow = calculateFlowForEdge(pressureMap, edge);
-        
-        // 異常値チェック
-        if (!std::isfinite(flow)) {
-            writeLog(logFile_, "--警告: 無限大または非数の風量値が検出されました - " + edgeData.unique_id);
-            flow = 0.0;
-        }
-        
-        // ユニークIDをキーとして個別ブランチの流量を保存
-        individualFlowRates[edgeData.unique_id] = flow;
+        individualFlowRates[edgeData.unique_id] = *flowOpt;
     }
     
     return individualFlowRates;
 }
 
-// =============================================================================
-// メイン圧力計算
-// =============================================================================
-
 PressureSolver::SolverResult PressureSolver::solvePressures(
     const SimulationConstants& constants) {
+    const auto tols = ventilation::makePressureSolverTolerances(constants);
+
     SolverSetup setup;
     if (!initializeSolverSetup(setup)) {
+        network_.setLastPressureConverged(false);
         return SolverResult{PressureMap{}, FlowRateMap{}, FlowBalanceMap{}};
     }
     auto& nodeNames = setup.nodeNames;
@@ -310,36 +256,50 @@ PressureSolver::SolverResult PressureSolver::solvePressures(
     ceres::Solver::Summary summary;
     runPrimarySolvers(constants, problem, summary);
 
-    // 結果のログ出力
-    // 実際の残差をチェックして真の収束判定を行う
-    bool reallyConverged = (summary.termination_type == ceres::CONVERGENCE) && 
-                   (summary.final_cost <= constants.ventilationTolerance);
-        
-    if (reallyConverged) {
-        network_.setLastPressureConverged(true);
-        std::ostringstream oss;
-        oss << std::scientific << std::setprecision(6) << summary.final_cost;
-        std::string line = "---圧力計算収束 | iter=" + std::to_string(summary.iterations.size()) +
-                          " | residual=" + oss.str() +
-                          " | tol=" + std::to_string(constants.ventilationTolerance);
-        writeLog(logFile_, line);
-    } else {
+    PressureMap pressureMap = extractPressures(pressures, nodeNames);
+    FlowComputationResult flowComp = calculateFlowRates(pressureMap);
+    if (!flowComp.ok) {
+        writeLog(logFile_, "--警告: primary 解の風量評価に失敗。fallback を試行します。");
+        network_.setLastPressureConverged(false);
         auto fallbackResult = runFallbackLoop(constants, setup, summary);
         if (fallbackResult) {
             return *fallbackResult;
         }
+        return SolverResult{pressureMap, FlowRateMap{}, FlowBalanceMap{}};
     }
-    
-    // 計算結果の出力
-    //writeLog(logFile_, "--圧力値: " + pure_to_string(pressures));
-    PressureMap pressureMap = extractPressures(pressures, nodeNames);
-    //writeLog(logFile_, "--圧力マップ: " + map_to_string(pressureMap));
-    FlowRateMap flowRates = calculateFlowRates(pressureMap);
-    //writeLog(logFile_, "--風量マップ: " + map_to_string(flowRates));
-    FlowBalanceMap balance = verifyBalance(flowRates);
-    //writeLog(logFile_, "--バランス検証: " + map_to_string(balance));
-    
-    return SolverResult{pressureMap, flowRates, balance};
+
+    FlowBalanceMap balance = verifyBalance(flowComp.flows);
+    const auto metrics = ventilation::computeBalanceMetrics(balance);
+    const bool massAccepted = ventilation::acceptMassBalance(metrics, tols.massBalanceMaxAbs);
+    const bool ceresSaidConverged = (summary.termination_type == ceres::CONVERGENCE);
+
+    {
+        std::ostringstream oss;
+        oss << std::scientific << std::setprecision(6);
+        oss << "---圧力計算評価 | ceres_term="
+            << (ceresSaidConverged ? "CONVERGENCE" : "OTHER")
+            << " | ceres_cost=" << summary.final_cost
+            << " | mass_maxAbs=" << metrics.maxAbs
+            << " | mass_tol=" << tols.massBalanceMaxAbs
+            << " | iter=" << summary.iterations.size();
+        writeLog(logFile_, oss.str());
+    }
+
+    if (massAccepted) {
+        network_.setLastPressureConverged(true);
+        std::ostringstream oss;
+        oss << std::scientific << std::setprecision(6) << metrics.maxAbs;
+        writeLog(logFile_,
+                 "---圧力計算収束 | mass_maxAbs=" + oss.str() +
+                     " | tol=" + std::to_string(tols.massBalanceMaxAbs));
+        return SolverResult{pressureMap, flowComp.flows, balance};
+    }
+
+    auto fallbackResult = runFallbackLoop(constants, setup, summary);
+    if (fallbackResult) {
+        return *fallbackResult;
+    }
+
+    network_.setLastPressureConverged(false);
+    return SolverResult{pressureMap, flowComp.flows, balance};
 }
-
-

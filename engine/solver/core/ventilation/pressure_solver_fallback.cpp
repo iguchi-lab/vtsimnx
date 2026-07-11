@@ -1,4 +1,6 @@
 #include "core/ventilation/pressure_solver.h"
+#include "core/ventilation/edge_mutation_guard.h"
+#include "core/ventilation/pressure_balance.h"
 #include "core/ventilation/pressure_constraints.h"
 #include "core/ventilation/pressure_solver_internal.h"
 #include "network/ventilation_network.h"
@@ -13,60 +15,7 @@
 #include <vector>
 
 // =============================================================================
-// Fallbackループ用ユーティリティ関数
-// =============================================================================
-
-void PressureSolver::restoreFixedFlowEdges(
-    Graph& graph,
-    std::vector<std::string>& changedEdgeIds,
-    const std::map<std::string, std::string>& interfaceOriginalTypeById) {
-    if (changedEdgeIds.empty()) {
-        return;
-    }
-
-    std::unordered_set<std::string> changedIdSet(changedEdgeIds.begin(), changedEdgeIds.end());
-    auto edgeRange = boost::edges(graph);
-    for (auto edge : boost::make_iterator_range(edgeRange)) {
-        auto& edgeProps = graph[edge];
-        if (!changedIdSet.count(edgeProps.unique_id)) {
-            continue;
-        }
-        auto itType = interfaceOriginalTypeById.find(edgeProps.unique_id);
-        if (itType != interfaceOriginalTypeById.end()) {
-            edgeProps.type = itType->second;
-            edgeProps.current_vol = 0.0;
-        }
-    }
-    changedEdgeIds.clear();
-}
-
-std::map<std::string, std::string> PressureSolver::captureInterfaceOriginalTypes(
-    Graph& graph,
-    const std::map<Vertex, int>& vertexToIndex,
-    const std::vector<int>& groupOfVertex) {
-    std::map<std::string, std::string> result;
-    auto edgeRange = boost::edges(graph);
-    for (auto edge : boost::make_iterator_range(edgeRange)) {
-        auto sv = boost::source(edge, graph);
-        auto tv = boost::target(edge, graph);
-        auto itS = vertexToIndex.find(sv);
-        auto itT = vertexToIndex.find(tv);
-        if (itS == vertexToIndex.end() || itT == vertexToIndex.end()) {
-            continue;
-        }
-        int gidS = groupOfVertex[itS->second];
-        int gidT = groupOfVertex[itT->second];
-        bool crossCluster = (gidS != gidT) && (gidS >= 0 || gidT >= 0);
-        if (!crossCluster) {
-            continue;
-        }
-        result[graph[edge].unique_id] = graph[edge].type;
-    }
-    return result;
-}
-
-// =============================================================================
-// Fallbackメインループ
+// Fallbackループ
 // =============================================================================
 
 std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
@@ -119,10 +68,8 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
         fallbackLog(0, "[Fallback] スーパーノード化 + 外気ギャップ固定流量化を適用します");
     }
 
-    // 個別ブランチ流量（固定流量化の初期値推定に使用）
-    std::map<std::string, double> currentIndividualFlows = calculateIndividualFlowRates(currentPressures);
-
     Graph& g = network_.getGraph();
+    ventilation::EdgeMutationGuard edgeGuard(g);
 
     // トポロジはフォールバック中は不変なので、incident edges を一度だけ構築して使い回す
     const size_t vCount = static_cast<size_t>(boost::num_vertices(g));
@@ -328,19 +275,17 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
         writeLog(logFile_, "\t\tスーパーノード候補エッジがありません");
     }
 
-    std::map<std::string, std::string> interfaceOriginalTypeById =
-        captureInterfaceOriginalTypes(g, v2i, groupOfVertex);
+    const auto tols = ventilation::makePressureSolverTolerances(constants);
 
     const int maxOuter = 5;
     const int minOuter = 2;
-    std::vector<std::string> changedEdgeIds;
     PressureMap finalPressureMapFB;
     FlowRateMap finalFlowRatesFB;
     FlowBalanceMap finalBalanceFB;
     bool finalHaveSolution = false;
 
     for (int outer = 1; outer <= maxOuter; ++outer) {
-        restoreFixedFlowEdges(g, changedEdgeIds, interfaceOriginalTypeById);
+        edgeGuard.restore();
 
         const std::string outerTag = "[外部反復 " + std::to_string(outer) + "/" + std::to_string(maxOuter) + "]";
         std::string prevCostText = "prev=-";
@@ -551,7 +496,12 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
             size_t alreadyFixed = 0;
             fixedFlowCount = 0;
             PressureMap pressureMapForFixed = (outer >= 2) ? prevPressureMapFB : pressureMapFB_A;
-            std::map<std::string, double> indivA = calculateIndividualFlowRates(pressureMapForFixed);
+            auto indivOpt = calculateIndividualFlowRates(pressureMapForFixed);
+            if (!indivOpt) {
+                fallbackLog(2, "[A] 固定流量化スキップ: 風量評価失敗");
+                return;
+            }
+            std::map<std::string, double> indivA = std::move(*indivOpt);
 
             auto erInt = boost::edges(g);
             for (auto e : boost::make_iterator_range(erInt)) {
@@ -584,10 +534,8 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
 
                 auto itf = indivA.find(ep.unique_id);
                 if (itf != indivA.end()) {
-                    ep.current_vol = itf->second;
-                    ep.type = "fixed_flow";
+                    edgeGuard.convertToFixedFlow(e, itf->second);
                     fixedFlowCount++;
-                    changedEdgeIds.push_back(ep.unique_id);
                 }
             }
             const std::string flowSource = (outer >= 2) ? "source=B(prev)" : "source=A(current)";
@@ -682,29 +630,32 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
         if (fbOK2) {
             std::ostringstream osfb2;
             osfb2 << std::scientific << std::setprecision(6) << fbSummary2.final_cost;
-            fallbackLog(0, "[Fallback] 収束 | residual=" + osfb2.str() + " | 外部反復 " +
+            fallbackLog(0, "[Fallback] Ceres trial 完了 | cost=" + osfb2.str() + " | 外部反復 " +
                                std::to_string(outer) + "/" + std::to_string(maxOuter));
 
-            FlowRateMap flowRatesFB_tmp = calculateFlowRates(pressureMapFB_B);
-            FlowBalanceMap balanceFB_tmp = verifyBalance(flowRatesFB_tmp);
-            double l1 = 0.0, sumsq = 0.0;
-            for (const auto& kvb : balanceFB_tmp) {
-                l1 += std::abs(kvb.second);
-                sumsq += kvb.second * kvb.second;
-            }
-            double l2 = std::sqrt(sumsq);
-            double costNet = 0.5 * sumsq;
+            auto flowCompTmp = calculateFlowRates(pressureMapFB_B);
+            if (!flowCompTmp.ok) {
+                fallbackLog(1, "[Network] 風量評価失敗: " + flowCompTmp.detail);
+            } else {
+            FlowBalanceMap balanceFB_tmp = verifyBalance(flowCompTmp.flows);
+            const auto metricsTmp = ventilation::computeBalanceMetrics(balanceFB_tmp);
+            double l1 = metricsTmp.l1;
+            double l2 = metricsTmp.l2;
+            double costNet = 0.5 * (metricsTmp.l2 * metricsTmp.l2);
             {
-                std::ostringstream osl1, osl2, osct, ospv;
+                std::ostringstream osl1, osl2, osct, osmax, ospv;
                 osl1.setf(std::ios::fixed);
                 osl1 << std::setprecision(6) << l1;
                 osl2.setf(std::ios::fixed);
                 osl2 << std::setprecision(6) << l2;
                 osct.setf(std::ios::fixed);
                 osct << std::setprecision(6) << costNet;
+                osmax.setf(std::ios::scientific);
+                osmax << std::setprecision(6) << metricsTmp.maxAbs;
                 std::string netLine = "[Network] L1=" + osl1.str() +
                                       " | L2=" + osl2.str() +
-                                      " | cost=" + osct.str();
+                                      " | cost=" + osct.str() +
+                                      " | mass_maxAbs=" + osmax.str();
                 if (lastNetworkCostOuter == std::numeric_limits<double>::infinity()) {
                     netLine += " | prev=- | 改善率=N/A";
                 } else {
@@ -759,17 +710,35 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
                 }
             }
 
-            finalPressureMapFB = pressureMapFB;
-            finalFlowRatesFB = calculateFlowRates(finalPressureMapFB);
-            finalBalanceFB = verifyBalance(finalFlowRatesFB);
-            finalHaveSolution = true;
-            lastNetworkCostOuter = costNet;
+            auto flowCompFinal = calculateFlowRates(pressureMapFB);
+            if (!flowCompFinal.ok) {
+                fallbackLog(1, "[Fallback] 質量収支評価スキップ: " + flowCompFinal.detail);
+            } else {
+                finalPressureMapFB = pressureMapFB;
+                finalFlowRatesFB = std::move(flowCompFinal.flows);
+                finalBalanceFB = verifyBalance(finalFlowRatesFB);
+                const auto metricsFinal = ventilation::computeBalanceMetrics(finalBalanceFB);
+                {
+                    std::ostringstream osmax;
+                    osmax << std::scientific << std::setprecision(6) << metricsFinal.maxAbs;
+                    fallbackLog(1, "[Fallback] mass_maxAbs=" + osmax.str() +
+                                       " | mass_tol=" + std::to_string(tols.massBalanceMaxAbs));
+                }
+                if (ventilation::acceptMassBalance(metricsFinal, tols.massBalanceMaxAbs)) {
+                    finalHaveSolution = true;
+                    fallbackLog(0, "[Fallback] 収束 | mass_maxAbs 合格 | 外部反復 " +
+                                       std::to_string(outer) + "/" + std::to_string(maxOuter));
+                } else {
+                    fallbackLog(0, "[Fallback] 質量収支不合格（継続）");
+                }
+                lastNetworkCostOuter = costNet;
+            }
+            } // flowCompTmp.ok
         } else {
             std::ostringstream osfb2;
             osfb2.setf(std::ios::scientific);
             osfb2 << std::setprecision(6) << fbSummary2.final_cost;
-            fallbackLog(0, "[Fallback] 未収束 | residual=" + osfb2.str() +
-                               " | tol=" + std::to_string(constants.ventilationTolerance));
+            fallbackLog(0, "[Fallback] 未収束 | Ceres cost=" + osfb2.str());
         }
 
         prevPressureMapFB.clear();
@@ -785,14 +754,18 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
         }
 
         double currNetworkCostOuter = [&]() {
-            FlowRateMap flowRatesFB_tmp = calculateFlowRates(pressureMapFB_B);
-            FlowBalanceMap balanceFB_tmp = verifyBalance(flowRatesFB_tmp);
-            double sumsqTmp = 0.0;
-            for (const auto& kvb : balanceFB_tmp) {
-                sumsqTmp += kvb.second * kvb.second;
+            auto flowRatesFB_tmp = calculateFlowRates(pressureMapFB_B);
+            if (!flowRatesFB_tmp.ok) {
+                return std::numeric_limits<double>::infinity();
             }
-            return 0.5 * sumsqTmp;
+            FlowBalanceMap balanceFB_tmp = verifyBalance(flowRatesFB_tmp.flows);
+            const auto m = ventilation::computeBalanceMetrics(balanceFB_tmp);
+            return 0.5 * (m.l2 * m.l2);
         }();
+
+        if (finalHaveSolution) {
+            break;
+        }
 
         bool ceresImproved = fbSummary2.final_cost < lastCostOuter * 0.995;
         bool netImproved   = currNetworkCostOuter < lastNetworkCostOuter * 0.995;
@@ -829,12 +802,12 @@ std::optional<PressureSolver::SolverResult> PressureSolver::runFallbackLoop(
     }
 
     if (finalHaveSolution) {
-        restoreFixedFlowEdges(g, changedEdgeIds, interfaceOriginalTypeById);
+        edgeGuard.restore();
         network_.setLastPressureConverged(true);
         return SolverResult{finalPressureMapFB, finalFlowRatesFB, finalBalanceFB};
     }
 
-    restoreFixedFlowEdges(g, changedEdgeIds, interfaceOriginalTypeById);
+    edgeGuard.restore();
     network_.setLastPressureConverged(false);
     fallbackLog(0, "[Fallback] 全ての外部反復で収束に至りませんでした");
     return std::nullopt;

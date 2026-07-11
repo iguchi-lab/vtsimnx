@@ -45,7 +45,7 @@ struct SimulationConstants {
     std::string endTime;
     int timestep;
     int length;
-    double ventilationTolerance;
+    double ventilationTolerance; // 圧力ソルバ: ノード流量収支の最大絶対値許容 [kg/s]
     double thermalTolerance;
     double convergenceTolerance;
     // 追加: 圧力-熱の連成反復の停止判定に使う許容誤差（0以下なら convergenceTolerance を使用）

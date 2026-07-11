@@ -5,6 +5,7 @@
 #include "utils/utils.h"
 
 #include <algorithm>
+#include <cmath>
 #include <cctype>
 #include <iomanip>
 #include <sstream>
@@ -76,13 +77,13 @@ PressureSolver::TrialResult PressureSolver::runSolverTrial(
     log(startLog);
     ceres::Solver::Options options;
     configureOptions(options);
-    // 設定された許容誤差を使用（デフォルト値の場合はsuccessToleranceを使用）
+    // function_tolerance は Ceres の相対停止条件。最終物理合否とは分離する。
     double usedTolerance = (options.function_tolerance > 0.0) ? options.function_tolerance : successTolerance;
     ceres::Solve(options, &problem, &summary);
     logCeresTiming(startLog.empty() ? successLog : startLog, summary, logger);
-    // 設定した許容誤差で判定（調整済み許容誤差での収束を許容）
+    // trial「成功」= Ceres が CONVERGENCE を返し cost が有限。final_cost と ventTol は比較しない。
     bool converged = (summary.termination_type == ceres::CONVERGENCE) &&
-                     (summary.final_cost <= usedTolerance);
+                     std::isfinite(summary.final_cost);
     if (converged) {
         log(successLog);
     } else if (!converged) {
@@ -107,8 +108,8 @@ PressureSolver::TrialResult PressureSolver::runSolverTrial(
         std::ostringstream oss;
         oss << std::scientific << std::setprecision(6);
         oss << "-----未収束: 終了理由=" << terminationType
-            << ", 最終残差=" << summary.final_cost
-            << ", 許容誤差=" << usedTolerance
+            << ", Ceres cost=" << summary.final_cost
+            << ", function_tol=" << usedTolerance
             << ", 反復回数=" << summary.num_successful_steps;
         log(oss.str());
     }
@@ -162,8 +163,9 @@ PressureSolver::TrialResult PressureSolver::runTwoStageRelaxation(
 
     TrialResult result;
     result.usedTolerance = options2.function_tolerance;
+    // 最終物理合否は solvePressures / fallback 側。ここは Ceres CONVERGENCE のみ。
     result.converged = (summary.termination_type == ceres::CONVERGENCE) &&
-                       (summary.final_cost <= result.usedTolerance);
+                       std::isfinite(summary.final_cost);
     return result;
 }
 
@@ -180,6 +182,7 @@ PressureSolver::TrialResult PressureSolver::runUltraPreciseTrial(
     options.linear_solver_type = ceres::DENSE_QR;
     options.max_num_iterations = 5000;
 
+    // tolFactor は Ceres 内部停止の緩和のみ。最終物理合否には使わない。
     const double tolFactor = std::max(1.0, referenceCost / constants.ventilationTolerance * 0.1);
     options.function_tolerance = constants.ventilationTolerance * tolFactor;
     options.parameter_tolerance = constants.ventilationTolerance * tolFactor;
@@ -202,7 +205,7 @@ PressureSolver::TrialResult PressureSolver::runUltraPreciseTrial(
     TrialResult result;
     result.usedTolerance = options.function_tolerance;
     result.converged = (summary.termination_type == ceres::CONVERGENCE) &&
-                       (summary.final_cost <= result.usedTolerance);
+                       std::isfinite(summary.final_cost);
     return result;
 }
 

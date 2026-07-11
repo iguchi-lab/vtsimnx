@@ -342,6 +342,20 @@ if(VTSIMNX_BUILD_CPP_TESTS)
     )
     add_test(NAME vtsimnx_solver_cpp_test_pressure_constraints COMMAND vtsimnx_solver_cpp_test_pressure_constraints)
 
+    # 6a) pressure solver safety (mass balance accept + EdgeMutationGuard)
+    add_executable(vtsimnx_solver_cpp_test_pressure_solver_safety
+        tests_cpp/test_pressure_solver_safety.cpp
+    )
+    target_link_libraries(vtsimnx_solver_cpp_test_pressure_solver_safety
+        Boost::boost
+    )
+    target_compile_options(vtsimnx_solver_cpp_test_pressure_solver_safety PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_test_pressure_solver_safety
+             COMMAND vtsimnx_solver_cpp_test_pressure_solver_safety)
+
     # 6b) ventilation network: parallel branches should keep per-branch flow_rate (no aggregation copy)
     add_executable(vtsimnx_solver_cpp_test_vent_parallel_branch_flow_rates
         tests_cpp/test_vent_parallel_branch_flow_rates.cpp

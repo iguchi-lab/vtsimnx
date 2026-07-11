@@ -41,7 +41,8 @@ private:
     
     // 圧力計算のヘルパー関数
     double calculateTotalPressure(double pressure, double temperature, double height) const;
-    double calculatePressureDifference(
+    // pressure map に欠落がある場合は nullopt（0 Pa と区別する）
+    std::optional<double> calculatePressureDifference(
         const VertexProperties& sourceNode,
         const VertexProperties& targetNode,
         const EdgeProperties& edgeData,
@@ -76,13 +77,6 @@ private:
     void logCeresTiming(const std::string& label,
                         const ceres::Solver::Summary& summary,
                         std::function<void(const std::string&)> logger = {});
-    void restoreFixedFlowEdges(Graph& graph,
-                               std::vector<std::string>& changedEdgeIds,
-                               const std::map<std::string, std::string>& interfaceOriginalTypeById);
-    std::map<std::string, std::string> captureInterfaceOriginalTypes(
-        Graph& graph,
-        const std::map<Vertex, int>& vertexToIndex,
-        const std::vector<int>& groupOfVertex);
     StageAMapping buildStageAMapping(
         const Graph& graph,
         const std::vector<Vertex>& vertices,
@@ -117,12 +111,18 @@ private:
     PressureMap extractPressures(const std::vector<double>& pressures,
                                 const std::vector<std::string>& nodeNames);
     
-    // 流量計算
-    FlowRateMap calculateFlowRates(const PressureMap& pressureMap);
-    std::map<std::string, double> calculateIndividualFlowRates(const PressureMap& pressureMap);
+    struct FlowComputationResult {
+        FlowRateMap flows;
+        bool ok = true;
+        std::string detail;
+    };
+
+    // 流量計算（欠落圧力・非有限値は ok=false）
+    FlowComputationResult calculateFlowRates(const PressureMap& pressureMap);
+    std::optional<std::map<std::string, double>> calculateIndividualFlowRates(const PressureMap& pressureMap);
     
     FlowBalanceMap verifyBalance(const FlowRateMap& flowRates);
     
-    // 共通の流量計算
-    double calculateFlowForEdge(const PressureMap& pressureMap, Edge edge);
+    // 共通の流量計算（失敗時は nullopt）
+    std::optional<double> calculateFlowForEdge(const PressureMap& pressureMap, Edge edge) const;
 };
