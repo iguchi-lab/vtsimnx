@@ -383,10 +383,27 @@ SimulationConstants parseSimulationConstants(const nlohmann::json& config,
                 "Invalid combination: simulation.coupling.moist_enthalpy_enabled requires "
                 "calc_flag.x=true");
         }
+        if (!outConstants.temperatureCalc) {
+            throw std::runtime_error(
+                "Invalid combination: simulation.coupling.moist_enthalpy_enabled requires "
+                "calc_flag.t=true");
+        }
+        if (!outConstants.moistureCouplingEnabled) {
+            throw std::runtime_error(
+                "Invalid combination: simulation.coupling.moist_enthalpy_enabled requires "
+                "moisture_enabled=true (decoupled humidity cannot feed updated x into the "
+                "same-timestep thermal solve)");
+        }
         if (outConstants.latentCouplingMode == 1) {
             throw std::runtime_error(
                 "Invalid combination: simulation.coupling.moist_enthalpy_enabled cannot be used "
                 "with latent_coupling_mode=from_humidity_change (double-counting risk)");
+        }
+        if (outConstants.latentCouplingMode == 2) {
+            throw std::runtime_error(
+                "Invalid combination: simulation.coupling.moist_enthalpy_enabled cannot be used "
+                "with latent_coupling_mode=from_phase_change until phase-change energy is "
+                "applied as equal-and-opposite terms on material and air nodes");
         }
     }
 

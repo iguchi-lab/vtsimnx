@@ -91,7 +91,10 @@ void testParserMoistEnthalpyFlag() {
     std::ostringstream logs;
     {
         auto j = minimalSimJson(true);
-        j["simulation"]["coupling"] = {{"moist_enthalpy_enabled", true}};
+        j["simulation"]["coupling"] = {
+            {"moist_enthalpy_enabled", true},
+            {"moisture_enabled", true},
+        };
         const auto c = parseSimulationConstants(j, logs);
         expectTrue(c.moistEnthalpyEnabled, "parser: moist_enthalpy_enabled true");
     }
@@ -107,6 +110,39 @@ void testParserMoistEnthalpyFlag() {
                        "parser: moist without x message");
         }
         expectTrue(threw, "parser: moist without x throws");
+    }
+    {
+        auto j = minimalSimJson(true);
+        j["simulation"]["calc_flag"]["t"] = false;
+        j["simulation"]["coupling"] = {
+            {"moist_enthalpy_enabled", true},
+            {"moisture_enabled", true},
+        };
+        bool threw = false;
+        try {
+            (void)parseSimulationConstants(j, logs);
+        } catch (const std::runtime_error& e) {
+            threw = true;
+            expectTrue(std::string(e.what()).find("calc_flag.t") != std::string::npos,
+                       "parser: moist without t message");
+        }
+        expectTrue(threw, "parser: moist without t throws");
+    }
+    {
+        auto j = minimalSimJson(true);
+        j["simulation"]["coupling"] = {
+            {"moist_enthalpy_enabled", true},
+            {"moisture_enabled", false},
+        };
+        bool threw = false;
+        try {
+            (void)parseSimulationConstants(j, logs);
+        } catch (const std::runtime_error& e) {
+            threw = true;
+            expectTrue(std::string(e.what()).find("moisture_enabled") != std::string::npos,
+                       "parser: moist without coupling message");
+        }
+        expectTrue(threw, "parser: moist without moisture coupling throws");
     }
     {
         auto j = minimalSimJson(true);
@@ -132,9 +168,15 @@ void testParserMoistEnthalpyFlag() {
             {"latent_coupling_mode", "from_phase_change"},
             {"moisture_enabled", true},
         };
-        const auto c = parseSimulationConstants(j, logs);
-        expectTrue(c.moistEnthalpyEnabled, "parser: moist+phase_change ok");
-        expectTrue(c.latentCouplingMode == 2, "parser: phase_change mode");
+        bool threw = false;
+        try {
+            (void)parseSimulationConstants(j, logs);
+        } catch (const std::runtime_error& e) {
+            threw = true;
+            expectTrue(std::string(e.what()).find("from_phase_change") != std::string::npos,
+                       "parser: moist+from_phase_change message");
+        }
+        expectTrue(threw, "parser: moist+from_phase_change throws");
     }
 }
 
@@ -430,6 +472,9 @@ void testAirconLatentProcessMoistTotal() {
                "moist ON total >= OFF");
     expectNear(on.sensibleHeatCapacity + on.latentHeatCapacity,
                aircon::latent::totalHeatCapacity(on), 1e-9, "Qs+Ql == total");
+    expectNear(on.condensationRateKgPerS,
+               archenv::DENSITY_DRY_AIR * flow * std::max(0.0, vd.indoorX - on.supplyX), 1e-12,
+               "condensation = mDot*(xIn-xSupply)");
 }
 
 } // namespace

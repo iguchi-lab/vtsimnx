@@ -33,7 +33,8 @@ struct MoistureBalanceTerms {
     std::vector<double> ventilationTransport;
     std::vector<double> vaporGeneration;
     std::vector<double> materialPhaseChange; // moisture_conductance による正味水蒸気流入
-    std::vector<double> airconCondensation;  // 現状常に 0
+    // 空調ノードの除湿 [kg/s]（負=空気から除去）。吹出 x=supplyX 境界と対応。
+    std::vector<double> airconCondensation;
     std::vector<double> storage;             // C*(x_new-x_n)/dt
     std::vector<double> residual;            // storage - (vent+gen+material+aircon)
     double maxAbsResidual = 0.0;

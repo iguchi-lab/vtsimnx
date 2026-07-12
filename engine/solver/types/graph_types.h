@@ -58,6 +58,8 @@ struct VertexProperties {
     double current_pre_temp = 20.0;
     double v = 0.0;
     bool on = false;
+    // 空調除湿診断 [kg/s]（正=凝縮除去）。空気ノード湿気収支の airconCondensation に反映。
+    double aircon_moisture_removal_kg_s = 0.0;
     std::optional<AirconSpec> aircon_spec;
 
     // type（文字列）の比較をホットパスから外すためのキャッシュ

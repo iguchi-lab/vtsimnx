@@ -446,6 +446,12 @@ void evaluateMoistureBalanceTerms(const Graph& tGraph,
         }
         out.materialPhaseChange[i] = mat;
 
+        // 空調除湿診断: 吹出境界 x=supplyX で移流に織り込み済み。残差には載せないよう
+        // active ノードでは通常 0。空調ノードへ除去量（空気系から見た負の生成）を記録。
+        if (tGraph[v].getTypeCode() == VertexProperties::TypeCode::Aircon) {
+            out.airconCondensation[i] = -std::max(0.0, tGraph[v].aircon_moisture_removal_kg_s);
+        }
+
         const double cap = (tGraph[v].moisture_capacity > 0.0)
                                ? tGraph[v].moisture_capacity
                                : (rho * tGraph[v].v);

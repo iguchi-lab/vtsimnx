@@ -166,7 +166,9 @@ Q = \dot m\,|h_\mathrm{in}-h_\mathrm{out}|
   潜熱処理なし（`Q_L=0`、`supplyX = X_in`）。
 
 いずれの方式でも、計算された `supplyX` は aircon ノードの `current_x` に反映され、  
-次ステップおよび `humidity_x` 出力の初期値として利用されます。
+次ステップおよび `humidity_x` 出力の初期値として利用されます。  
+あわせて除湿量 \(\dot m(x_\mathrm{in}-x_\mathrm{supply})\) をノードの `aircon_moisture_removal_kg_s` に保持し、湿気収支診断の `airconCondensation` に載せます。  
+吹出側の湿気移流は空調ノードの `current_x`（= supplyX）を境界として使うため、能力計算・湿気状態・熱移流の湿度が一致します。
 
 ---
 

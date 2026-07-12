@@ -3,6 +3,7 @@
 #include "aircon/aircon_operation_mode.h"
 #include "archenv/include/archenv.h"
 #include "core/thermal/thermal_moist_air.h"
+#include "network/thermal_network.h"
 
 #include <algorithm>
 #include <cmath>
@@ -135,6 +136,7 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
     const double xIn = std::max(0.0, validData.indoorX);
     if (!(tIn > tOut)) {
         result.supplyX = xIn;
+        result.condensationRateKgPerS = 0.0;
         if (moistEnthalpyEnabled) {
             result.sensibleHeatCapacity = 0.0;
             result.latentHeatCapacity = 0.0;
@@ -145,6 +147,7 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
     const std::string latentMethod = readLatentMethod(nodeProps);
     if (latentMethod == "none") {
         result.supplyX = xIn;
+        result.condensationRateKgPerS = 0.0;
         if (moistEnthalpyEnabled) {
             const double qTotal = thermal_moist_air::processedEnthalpyHeatW(
                 tIn, xIn, tOut, result.supplyX, airFlowRate, /*heating=*/false);
@@ -264,6 +267,9 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
                          archenv::vapor_latent_heat(tOut) * deltaX);
     }
 
+    result.condensationRateKgPerS =
+        kAirDensity * std::abs(airFlowRate) * std::max(0.0, xIn - result.supplyX);
+
     if (moistEnthalpyEnabled) {
         // 正本は mDot*(h_in-h_out)。顕熱/潜熱は acmodel・出力互換のための分解。
         const double qTotal = thermal_moist_air::processedEnthalpyHeatW(
@@ -276,6 +282,14 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
         result.latentHeatCapacity = std::max(0.0, qTotal - qSens);
     }
     return result;
+}
+
+void applySupplyHumidityToAirconNode(ThermalNetwork& thermalNetwork,
+                                     const std::string& airconKey,
+                                     const LatentProcessResult& loads) {
+    auto& node = thermalNetwork.getNode(airconKey);
+    node.current_x = loads.supplyX;
+    node.aircon_moisture_removal_kg_s = std::max(0.0, loads.condensationRateKgPerS);
 }
 
 } // namespace aircon::latent
