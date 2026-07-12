@@ -213,6 +213,39 @@ void updateLatentFromHumidityChange(const Graph& graph,
     }
 }
 
+void updateLatentFromPhaseChange(const Graph& graph,
+                                 const MoistureBalanceTerms& bal,
+                                 double relaxation,
+                                 std::vector<double>& humidityLatentInOut) {
+    const size_t nV = static_cast<size_t>(boost::num_vertices(graph));
+    if (humidityLatentInOut.size() != nV) {
+        humidityLatentInOut.assign(nV, 0.0);
+    }
+    const std::vector<double> prev = humidityLatentInOut;
+    double alpha = std::min(1.0, std::max(0.0, relaxation));
+    const double L = PhysicalConstants::LATENT_HEAT_VAPORIZATION;
+
+    std::vector<double> qRaw(nV, 0.0);
+    bool oscillating = false;
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        const size_t i = static_cast<size_t>(v);
+        // 材料ノードのみ: m_phase = -materialPhaseChange（正=蒸発）, Q = -L * m_phase
+        if (graph[v].moisture_capacity > 0.0 && i < bal.materialPhaseChange.size()) {
+            const double mPhase = -bal.materialPhaseChange[i];
+            qRaw[i] = -L * mPhase;
+        }
+        if (prev[i] != 0.0 && qRaw[i] != 0.0 && qRaw[i] * prev[i] < 0.0) {
+            oscillating = true;
+        }
+    }
+    if (oscillating) {
+        alpha = std::min(alpha, 0.5);
+    }
+    for (size_t i = 0; i < nV; ++i) {
+        humidityLatentInOut[i] = (1.0 - alpha) * prev[i] + alpha * qRaw[i];
+    }
+}
+
 void capturePrevTempsByVertex(const Graph& graph, std::vector<double>& prevTempsByVertex) {
     const size_t vCount = static_cast<size_t>(boost::num_vertices(graph));
     prevTempsByVertex.resize(vCount);

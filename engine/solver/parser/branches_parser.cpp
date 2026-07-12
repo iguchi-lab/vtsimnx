@@ -273,6 +273,19 @@ std::vector<EdgeProperties> parseVentilationBranches(const json& config, std::os
                 0.0,
                 branchPrefix + ".humidity_generation");
         }
+        if (branchJson.contains("humidity_source_type")) {
+            if (!branchJson["humidity_source_type"].is_string()) {
+                throw std::runtime_error(branchPrefix +
+                                         ".humidity_source_type must be a string");
+            }
+            const std::string st = branchJson["humidity_source_type"].get<std::string>();
+            if (st != "vapor_injection" && st != "room_evaporation" && st != "external_source") {
+                throw std::runtime_error(
+                    branchPrefix +
+                    ".humidity_source_type must be vapor_injection|room_evaporation|external_source");
+            }
+            branch.humidity_source_type = st;
+        }
         if (branchJson.contains("dust_generation")) {
             branch.current_dust_generation = parser_utils::readScalarOrSeries<double>(
                 branchJson["dust_generation"],

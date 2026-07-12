@@ -13,6 +13,7 @@
 #include "network/contaminant_network.h"
 #include "core/humidity/humidity_solver.h"
 #include "core/humidity/humidity_coupling.h"
+#include "simulation_runner_helpers.h"
 #include "transport/concentration_solver.h"
 
 namespace {
@@ -438,6 +439,147 @@ int main() {
         const double m0 = cRoom * ROOM.current_x + cMat * MAT.current_x;
         const double m1 = cRoom * xRoom1 + cMat * xMat1;
         expectNear(m1, m0, 1e-7, "moisture network mass conservation");
+
+        // 水分収支診断: residual が方程式と一致
+        if (!(humidity.lastMoistureBalance().maxAbsResidual < 1e-8)) {
+            throw std::runtime_error("moisture balance residual too large after material exchange");
+        }
+        const auto& bal = humidity.lastMoistureBalance();
+        const size_t iRoom = static_cast<size_t>(itRoom->second);
+        const size_t iMat = static_cast<size_t>(itMat->second);
+        expectNear(bal.ventilationTransport[iRoom], 0.0, 1e-15, "no vent transport in closed RC");
+        expectNear(bal.vaporGeneration[iRoom], 0.0, 0.0, "no generation");
+        // ROOM(湿)→MAT(乾): 空気から材料へ水蒸気流入（材料側は凝縮相当）
+        if (!(bal.materialPhaseChange[iRoom] < 0.0)) {
+            throw std::runtime_error("ROOM should lose vapor via material link");
+        }
+        if (!(bal.materialPhaseChange[iMat] > 0.0)) {
+            throw std::runtime_error("MAT should gain vapor via material link");
+        }
+
+        // from_phase_change: 材料ノードのみ潜熱（凝縮で発熱）
+        std::vector<double> latent(static_cast<size_t>(boost::num_vertices(tG)), 0.0);
+        simulation::detail::updateLatentFromPhaseChange(tG, bal, 1.0, latent);
+        expectNear(latent[iRoom], 0.0, 0.0, "air node gets no phase-change latent");
+        const double mPhaseMat = -bal.materialPhaseChange[iMat];
+        const double qExpected =
+            -PhysicalConstants::LATENT_HEAT_VAPORIZATION * mPhaseMat;
+        expectNear(latent[iMat], qExpected, 1e-6, "MAT latent Q=-L*m_phase");
+        if (!(latent[iMat] > 0.0)) {
+            throw std::runtime_error("condensation at MAT must heat (Q>0)");
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 5b) material evaporation: MAT wetter than ROOM → cooling on MAT
+    // ------------------------------------------------------------------
+    {
+        auto ROOM = makeNode("ROOM");
+        ROOM.calc_x = true;
+        ROOM.current_x = 0.002;
+        ROOM.v = 100.0;
+        auto MAT = makeNode("MAT");
+        MAT.calc_x = true;
+        MAT.current_x = 0.010;
+        MAT.v = 0.0;
+        MAT.moisture_capacity = 50.0;
+        EdgeProperties m{};
+        m.key = "MAT->ROOM";
+        m.unique_id = "MAT->ROOM";
+        m.type = "conductance";
+        m.source = "MAT";
+        m.target = "ROOM";
+        m.moisture_conductance = 0.002;
+        std::vector<VertexProperties> nodes = {ROOM, MAT};
+        std::vector<EdgeProperties> thEdges = {m};
+
+        VentilationNetwork vent;
+        ThermalNetwork thermal;
+        HumidityNetwork humidity;
+        vent.buildFromData(nodes, {}, constants, logs);
+        thermal.buildFromData(nodes, thEdges, {}, constants, logs);
+        (void)core::humidity::updateHumidityIfEnabled(
+            constants, vent, thermal.getGraph(),
+            static_cast<const ThermalNetwork&>(thermal).nodeStateView(),
+            humidity, {}, logs, timings, "mat-evap");
+
+        const auto& tG = thermal.getGraph();
+        const auto& tMap = thermal.getKeyToVertex();
+        const size_t iMat = static_cast<size_t>(tMap.at("MAT"));
+        const size_t iRoom = static_cast<size_t>(tMap.at("ROOM"));
+        const auto& bal = humidity.lastMoistureBalance();
+        if (!(tG[tMap.at("ROOM")].current_x > ROOM.current_x)) {
+            throw std::runtime_error("ROOM humidity should rise from MAT evaporation");
+        }
+        if (!(bal.materialPhaseChange[iMat] < 0.0)) {
+            throw std::runtime_error("MAT should lose vapor (evaporation)");
+        }
+        std::vector<double> latent(static_cast<size_t>(boost::num_vertices(tG)), 0.0);
+        simulation::detail::updateLatentFromPhaseChange(tG, bal, 1.0, latent);
+        expectNear(latent[iRoom], 0.0, 0.0, "air node no phase latent");
+        const double mPhaseMat = -bal.materialPhaseChange[iMat];
+        expectNear(latent[iMat],
+                   -PhysicalConstants::LATENT_HEAT_VAPORIZATION * mPhaseMat,
+                   1e-6,
+                   "MAT evaporative cooling");
+        if (!(latent[iMat] < 0.0)) {
+            throw std::runtime_error("evaporation at MAT must cool (Q<0)");
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // 5b) wet outdoor inflow: humidity rises, material phase change ~ 0
+    // ------------------------------------------------------------------
+    {
+        auto OUT = makeNode("OUT");
+        OUT.calc_x = false;
+        OUT.current_x = 0.015;
+        OUT.v = 0.0;
+        auto ROOM = makeNode("ROOM");
+        ROOM.calc_x = true;
+        ROOM.current_x = 0.005;
+        ROOM.v = 50.0;
+        auto VOID = makeNode("void");
+        VOID.v = 0.0;
+
+        std::vector<VertexProperties> nodes = {OUT, ROOM, VOID};
+        std::vector<EdgeProperties> ventEdges = {
+            makeFixedFlowEdge("OUT->ROOM", "OUT", "ROOM", 0.05),
+            makeFixedFlowEdge("ROOM->void", "ROOM", "void", 0.05),
+        };
+        VentilationNetwork vent;
+        ThermalNetwork thermal;
+        HumidityNetwork humidity;
+        vent.buildFromData(nodes, ventEdges, constants, logs);
+        thermal.buildFromData(nodes, {}, ventEdges, constants, logs);
+        vent.updatePropertiesForTimestep(nodes, ventEdges, 0);
+
+        (void)core::humidity::updateHumidityIfEnabled(
+            constants, vent, thermal.getGraph(),
+            static_cast<const ThermalNetwork&>(thermal).nodeStateView(),
+            humidity, {}, logs, timings, "wet-inflow");
+
+        const auto& tG = thermal.getGraph();
+        const auto& tMap = thermal.getKeyToVertex();
+        const double xRoom = tG[tMap.at("ROOM")].current_x;
+        if (!(xRoom > 0.005)) {
+            throw std::runtime_error("wet inflow should raise ROOM humidity");
+        }
+        const auto& bal = humidity.lastMoistureBalance();
+        const size_t iRoom = static_cast<size_t>(tMap.at("ROOM"));
+        expectNear(bal.materialPhaseChange[iRoom], 0.0, 1e-15, "no material phase change");
+        if (!(std::abs(bal.ventilationTransport[iRoom]) > 0.0)) {
+            throw std::runtime_error("ventilation transport should explain humidity change");
+        }
+        if (!(bal.maxAbsResidual < 1e-8)) {
+            throw std::runtime_error("wet inflow moisture residual too large");
+        }
+
+        std::vector<double> latent(static_cast<size_t>(boost::num_vertices(tG)), 123.0);
+        simulation::detail::updateLatentFromPhaseChange(tG, bal, 1.0, latent);
+        for (double q : latent) {
+            expectNear(q, 0.0, 0.0, "phase-change latent must be zero without materials");
+        }
     }
 
     // ------------------------------------------------------------------

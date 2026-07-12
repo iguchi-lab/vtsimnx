@@ -165,6 +165,8 @@ struct EdgeProperties {
     // - vol=0 の "void->room" 枝などに与えることで「空気移動なしの生成項」として扱える
     std::vector<double> humidity_generation;
     double current_humidity_generation = 0.0;
+    // vapor_injection（既定）/ room_evaporation / external_source（診断分類用）
+    std::string humidity_source_type = "vapor_injection";
     std::vector<double> dust_generation;
     double current_dust_generation = 0.0;
     // 湿気回路網（Phase1）: source-target の湿気伝達コンダクタンス [kg/s]

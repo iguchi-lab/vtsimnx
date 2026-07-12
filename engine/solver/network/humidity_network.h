@@ -28,6 +28,17 @@ struct HumidityNetworkTerms {
     std::vector<Vertex> updateVertices;
 };
 
+// 湿気収支の内訳 [kg/s]（診断用。ソルバ数値には影響しない）
+struct MoistureBalanceTerms {
+    std::vector<double> ventilationTransport;
+    std::vector<double> vaporGeneration;
+    std::vector<double> materialPhaseChange; // moisture_conductance による正味水蒸気流入
+    std::vector<double> airconCondensation;  // 現状常に 0
+    std::vector<double> storage;             // C*(x_new-x_n)/dt
+    std::vector<double> residual;            // storage - (vent+gen+material+aircon)
+    double maxAbsResidual = 0.0;
+};
+
 // 湿気ネットワーク固有の組み立て責務を集約するヘルパー。
 // ノード状態は呼び出し元（現状: ThermalNetwork）が保持し、ここでは参照のみ行う。
 class HumidityNetwork {
@@ -53,6 +64,11 @@ public:
 
     core::humidity::HumiditySolverContext& humiditySolverContext();
 
+    const MoistureBalanceTerms& lastMoistureBalance() const { return lastMoistureBalance_; }
+    void setLastMoistureBalance(MoistureBalanceTerms bal) {
+        lastMoistureBalance_ = std::move(bal);
+    }
+
 private:
     void ensureNodeIndex(ConstNodeStateView nodeState) const;
 
@@ -67,4 +83,5 @@ private:
     mutable std::vector<std::string> outputKeysOrdered;
 
     std::unique_ptr<core::humidity::HumiditySolverContext> humiditySolverContext_;
+    MoistureBalanceTerms lastMoistureBalance_;
 };

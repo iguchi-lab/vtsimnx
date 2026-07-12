@@ -195,6 +195,8 @@ void testLatentModeResolve() {
                "latent: Disabled returns 0");
     expectNear(resolveLatentAppliedThisIter(LatentCouplingMode::FromHumidityChange, 12.5), 12.5, 0.0,
                "latent: FromHumidityChange returns applied W");
+    expectNear(resolveLatentAppliedThisIter(LatentCouplingMode::FromPhaseChange, 3.0), 3.0, 0.0,
+               "latent: FromPhaseChange returns applied W");
 }
 
 void testLatentFromHumidityChangeKnownDx() {
@@ -240,6 +242,8 @@ void testLatentCouplingActiveRequiresHumidity() {
     c.moistureCouplingEnabled = true;
     c.latentCouplingMode = 1;
     expectTrue(simulation::latentCouplingActive(c), "latent active when humidity+T+moisture on");
+    c.latentCouplingMode = 2;
+    expectTrue(simulation::latentCouplingActive(c), "latent active for from_phase_change");
     c.humidityCalc = false;
     expectTrue(!simulation::latentCouplingActive(c), "latent inactive when humidity off");
     c.humidityCalc = true;
@@ -345,6 +349,12 @@ void testParserPositiveIntegerIterations() {
         j["simulation"]["coupling"] = {{"latent_coupling_mode", "from_humidity_change"}};
         const auto c = parseSimulationConstants(j, logs);
         expectTrue(c.latentCouplingMode == 1, "parser: from_humidity_change");
+    }
+    {
+        auto j = minimalSimJson();
+        j["simulation"]["coupling"] = {{"latent_coupling_mode", "from_phase_change"}};
+        const auto c = parseSimulationConstants(j, logs);
+        expectTrue(c.latentCouplingMode == 2, "parser: from_phase_change");
     }
     {
         auto j = minimalSimJson();

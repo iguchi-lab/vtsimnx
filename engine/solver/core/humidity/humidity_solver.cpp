@@ -84,6 +84,12 @@ HumiditySolveStats updateHumidityIfEnabled(const SimulationConstants& constants,
         return stats;
     }
     applyHumidityStateToGraphs(tGraph, vGraph, vKeyToV, terms.updateVertices, ctx.xSolved);
+
+    MoistureBalanceTerms bal;
+    evaluateMoistureBalanceTerms(tGraph, terms, ctx.xN, dt, bal);
+    humidityNetwork.setLastMoistureBalance(std::move(bal));
+    stats.maxMoistureBalanceResidual = humidityNetwork.lastMoistureBalance().maxAbsResidual;
+
     stats.updated = true;
     return stats;
 }

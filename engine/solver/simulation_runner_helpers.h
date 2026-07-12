@@ -1,5 +1,6 @@
 #pragma once
 
+#include "network/humidity_network.h"
 #include "vtsim_solver.h"
 
 #include <vector>
@@ -38,13 +39,19 @@ void composeHeatSourcesIntoGraph(Graph& graph, const SeparatedHeatSources& src);
 double maxAbsLatentHeatChange(const std::vector<double>& prev,
                               const std::vector<double>& curr);
 
-// 同ノード: Q_latent = -rho * V * L * (x_new - x_n) / dt [W]
+// 同ノード: Q_latent = -rho * V * L * (x_new - x_n) / dt [W]（実験モード）
 // V<=0 は 0。raw を計算し、relaxation で prev と混合して humidityLatentOut に書く。
 void updateLatentFromHumidityChange(const Graph& graph,
                                     const std::vector<double>& xN,
                                     double dt,
                                     double relaxation,
                                     std::vector<double>& humidityLatentInOut);
+
+// 材料ノードのみ: Q = -L * m_phase, m_phase = -materialPhaseChange（正=蒸発）
+void updateLatentFromPhaseChange(const Graph& graph,
+                                 const MoistureBalanceTerms& bal,
+                                 double relaxation,
+                                 std::vector<double>& humidityLatentInOut);
 
 void capturePrevTempsByVertex(const Graph& graph, std::vector<double>& prevTempsByVertex);
 void captureXPrevByVertex(const Graph& graph, std::vector<double>& xPrev);

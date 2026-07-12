@@ -68,4 +68,11 @@ void applyHumidityStateToGraphs(Graph& tGraph,
                                 const std::vector<Vertex>& updateVertices,
                                 const std::vector<double>& xNew);
 
+// 求解後の x と terms / xN から水分収支内訳を評価（数値ソルバには影響しない）
+void evaluateMoistureBalanceTerms(const Graph& tGraph,
+                                  const HumidityNetworkTerms& terms,
+                                  const std::vector<double>& xN,
+                                  double dt,
+                                  MoistureBalanceTerms& out);
+
 } // namespace core::humidity

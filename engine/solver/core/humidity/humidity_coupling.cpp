@@ -6,6 +6,7 @@
 #include <limits>
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include <boost/range/iterator_range.hpp>
@@ -387,6 +388,79 @@ void applyHumidityStateToGraphs(Graph& tGraph,
         auto itV = vKeyToV.find(tGraph[v].key);
         if (itV != vKeyToV.end()) {
             vGraph[itV->second].current_x = xNew[i];
+        }
+    }
+}
+
+void evaluateMoistureBalanceTerms(const Graph& tGraph,
+                                  const HumidityNetworkTerms& terms,
+                                  const std::vector<double>& xN,
+                                  double dt,
+                                  MoistureBalanceTerms& out) {
+    constexpr double rho = PhysicalConstants::DENSITY_DRY_AIR;
+    const size_t nV = static_cast<size_t>(boost::num_vertices(tGraph));
+    out.ventilationTransport.assign(nV, 0.0);
+    out.vaporGeneration.assign(nV, 0.0);
+    out.materialPhaseChange.assign(nV, 0.0);
+    out.airconCondensation.assign(nV, 0.0);
+    out.storage.assign(nV, 0.0);
+    out.residual.assign(nV, 0.0);
+    out.maxAbsResidual = 0.0;
+    if (!(dt > 0.0) || nV == 0) {
+        return;
+    }
+
+    auto xOf = [&](Vertex v) -> double {
+        return tGraph[v].current_x;
+    };
+
+    std::unordered_set<Vertex> active;
+    active.reserve(terms.updateVertices.size() * 2 + 1);
+    for (Vertex v : terms.updateVertices) {
+        active.insert(v);
+    }
+
+    for (auto v : boost::make_iterator_range(boost::vertices(tGraph))) {
+        const size_t i = idxOf(v);
+        const double xi = xOf(v);
+
+        double vent = 0.0;
+        if (i < terms.outSum.size()) {
+            vent -= terms.outSum[i] * xi;
+        }
+        if (i < terms.inflow.size()) {
+            for (const auto& in : terms.inflow[i]) {
+                vent += in.second * xOf(in.first);
+            }
+        }
+        out.ventilationTransport[i] = vent;
+
+        const auto itG = terms.genByVertex.find(v);
+        out.vaporGeneration[i] = (itG == terms.genByVertex.end()) ? 0.0 : itG->second;
+
+        double mat = 0.0;
+        if (i < terms.moistureLinks.size()) {
+            for (const auto& lk : terms.moistureLinks[i]) {
+                mat += lk.second * (xOf(lk.first) - xi);
+            }
+        }
+        out.materialPhaseChange[i] = mat;
+
+        const double cap = (tGraph[v].moisture_capacity > 0.0)
+                               ? tGraph[v].moisture_capacity
+                               : (rho * tGraph[v].v);
+        if (cap > 0.0 && i < xN.size()) {
+            out.storage[i] = cap * (xi - xN[i]) / dt;
+        } else {
+            out.storage[i] = 0.0;
+        }
+
+        out.residual[i] = out.storage[i]
+                          - (out.ventilationTransport[i] + out.vaporGeneration[i]
+                             + out.materialPhaseChange[i] + out.airconCondensation[i]);
+        // 方程式を解いた calc_x ノードのみ residual を検算する
+        if (active.count(v) != 0) {
+            out.maxAbsResidual = std::max(out.maxAbsResidual, std::abs(out.residual[i]));
         }
     }
 }

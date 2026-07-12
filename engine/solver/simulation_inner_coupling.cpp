@@ -1,5 +1,6 @@
 #include "simulation_inner_coupling.h"
 
+#include "core/humidity/humidity_coupling.h"
 #include "core/humidity/humidity_solver.h"
 #include "network/humidity_network.h"
 #include "network/thermal_network.h"
@@ -45,6 +46,7 @@ using detail::maxAbsLatentHeatChange;
 using detail::relaxHumidityByVertex;
 using detail::restoreWPrevToGraph;
 using detail::updateLatentFromHumidityChange;
+using detail::updateLatentFromPhaseChange;
 using detail::CoupledDelta;
 
 double maxAbsVector(const std::vector<double>& v) {
@@ -59,21 +61,32 @@ double sumAbs(const std::vector<double>& v) {
     return s;
 }
 
-// ノード湿度変化から同ノード潜熱を更新しグラフへ合成。適用量の L1 を返す。
-double applyLatentFromHumidityChangeIfEnabled(bool latentActive,
-                                              ThermalNetwork& thermal,
-                                              SeparatedHeatSources& heatSources,
-                                              const std::vector<double>& xN,
-                                              double dt,
-                                              double latentRelaxation) {
-    if (!latentActive) {
+double applyLatentHeatSources(LatentCouplingMode mode,
+                              InnerCouplingContext& ctx,
+                              SeparatedHeatSources& heatSources,
+                              const std::vector<double>& xN,
+                              double dt,
+                              double latentRelaxation) {
+    if (mode == LatentCouplingMode::Disabled) {
         std::fill(heatSources.humidityLatent.begin(), heatSources.humidityLatent.end(), 0.0);
-        composeHeatSourcesIntoGraph(thermal.getGraph(), heatSources);
+        composeHeatSourcesIntoGraph(ctx.thermal.getGraph(), heatSources);
         return 0.0;
     }
-    updateLatentFromHumidityChange(
-        thermal.getGraph(), xN, dt, latentRelaxation, heatSources.humidityLatent);
-    composeHeatSourcesIntoGraph(thermal.getGraph(), heatSources);
+    if (mode == LatentCouplingMode::FromPhaseChange) {
+        HumidityNetworkTerms terms;
+        MoistureBalanceTerms bal;
+        const auto shared = makeSharedNodeStateArgs(ctx.thermal);
+        ctx.humidity.buildTerms(shared.nodeState, ctx.ventilation, terms);
+        core::humidity::evaluateMoistureBalanceTerms(
+            ctx.thermal.getGraph(), terms, xN, dt, bal);
+        ctx.humidity.setLastMoistureBalance(bal);
+        updateLatentFromPhaseChange(
+            ctx.thermal.getGraph(), bal, latentRelaxation, heatSources.humidityLatent);
+    } else {
+        updateLatentFromHumidityChange(
+            ctx.thermal.getGraph(), xN, dt, latentRelaxation, heatSources.humidityLatent);
+    }
+    composeHeatSourcesIntoGraph(ctx.thermal.getGraph(), heatSources);
     return sumAbs(heatSources.humidityLatent);
 }
 
@@ -119,9 +132,9 @@ void runDecoupledHumidityStep(InnerCouplingContext& ctx,
     if (heatSources != nullptr && latentCouplingActive(ctx.constants)) {
         const size_t nV = static_cast<size_t>(boost::num_vertices(ctx.thermal.getGraph()));
         detail::ensureHeatSourceVectors(*heatSources, nV);
-        applyLatentFromHumidityChangeIfEnabled(
-            true,
-            ctx.thermal,
+        applyLatentHeatSources(
+            latentCouplingModeFromConstants(ctx.constants),
+            ctx,
             *heatSources,
             initial.humidityX,
             static_cast<double>(ctx.constants.timestep),
@@ -145,6 +158,7 @@ void runInnerCoupling(InnerCouplingContext& ctx,
     const int outerLogIndex = toLogIndex1Based(outerIteration);
     auto* metrics = ctx.metrics;
     const bool latentActive = latentCouplingActive(ctx.constants);
+    const LatentCouplingMode latentMode = latentCouplingModeFromConstants(ctx.constants);
     const std::size_t minCouplingIters = forceMinTwoCouplingIters ? 2 : 1;
     const double dt = static_cast<double>(ctx.constants.timestep);
 
@@ -228,9 +242,9 @@ void runInnerCoupling(InnerCouplingContext& ctx,
             composeHeatSourcesIntoGraph(ctx.thermal.getGraph(), heatSources);
             lastLatentAppliedW = 0.0;
         } else if (humidityActive) {
-            lastLatentAppliedW = applyLatentFromHumidityChangeIfEnabled(
-                true,
-                ctx.thermal,
+            lastLatentAppliedW = applyLatentHeatSources(
+                latentMode,
+                ctx,
                 heatSources,
                 initial.humidityX,
                 dt,

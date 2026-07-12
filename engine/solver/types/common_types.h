@@ -69,8 +69,8 @@ struct SimulationConstants {
     // 内側反復での緩和係数（0<alpha<=1）。1.0=緩和なし
     double humidityRelaxation = 1.0;
     double latentRelaxation = 1.0;
-    // 潜熱→熱: 0=Disabled（既定）, 1=FromHumidityChange（実験的 opt-in: ノード dx→同ノード潜熱。
-    // Δx 全量は換気を相変化と誤認し得るため、明示設定時のみ有効）
+    // 潜熱→熱: 0=Disabled（既定）, 1=FromHumidityChange（実験・非推奨: Δx全量）,
+    // 2=FromPhaseChange（材料 moisture_conductance 相変化のみ）
     int latentCouplingMode = 0;
     // 湿気内部ソルバ（直接法）の残差許容誤差
     double humiditySolverTolerance = 1e-9;

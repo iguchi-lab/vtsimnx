@@ -29,6 +29,8 @@ struct HumiditySolveStats {
     std::size_t factorizes = 0;
     std::size_t rhsOnlySolves = 0;
     std::size_t solutionReuse = 0;
+    // 水分収支診断: max|storage - (vent+gen+material+aircon)| [kg/s]
+    double maxMoistureBalanceResidual = 0.0;
 };
 
 // 湿度（絶対湿度 x）を 1 タイムステップ分だけ更新する。

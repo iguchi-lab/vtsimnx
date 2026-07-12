@@ -74,6 +74,52 @@ Phase1 では、既存の移流ベース湿度計算に加えて、線形RC型�
   - 液水移動、結露・再蒸発の詳細扱い
 - 多層壁の高忠実度湿気移動モデル
 
+## Phase1.5: 水分収支診断と材料相変化潜熱
+
+連成ループ構造はそのままに、湿気項の意味別整理と潜熱連成を追加します。
+
+### 水分収支内訳（診断）
+
+求解後にノードごとの `[kg/s]` 内訳を評価します（ソルバ数値には影響しません）。
+
+- `ventilationTransport`: 換気による正味水蒸気流入
+- `vaporGeneration`: `humidity_generation`
+- `materialPhaseChange`: `moisture_conductance` による正味水蒸気流入
+- `airconCondensation`: 現状 0（将来の空調除湿）
+- `storage`: \(C(x^{n+1}-x^n)/\Delta t\)
+- `residual`: `storage - (vent+gen+material+aircon)`（方程式適合の検算）
+
+符号規約（相変化）:
+
+- 正の \(\dot m_\mathrm{phase}\): 材料 → 空気（蒸発）
+- 負: 空気 → 材料（凝縮）
+- 材料ノードでは \(\dot m_\mathrm{phase} = -\texttt{materialPhaseChange}\)
+
+換気枝の任意フィールド `humidity_source_type`（既定 `vapor_injection`）:
+
+- `vapor_injection` / `room_evaporation` / `external_source`
+- Phase1.5 では診断分類のみ。`room_evaporation` の室内潜熱連成は将来課題
+
+### 潜熱連成モード
+
+`simulation.coupling.latent_coupling_mode`:
+
+| 値 | 意味 |
+|----|------|
+| `disabled` (0, 既定) | 潜熱フィードバックなし |
+| `from_humidity_change` (1) | 実験・非推奨。\(Q=-\rho V L \Delta x/\Delta t\)（換気を相変化と誤認し得る） |
+| `from_phase_change` (2) | 推奨。材料ノードのみ \(Q=-L_v \dot m_\mathrm{phase}\) |
+
+`from_phase_change` では空気ノード・換気・発湿・空調は熱源に載せません。熱の載せ先は `moisture_capacity > 0` の材料ノードです。
+
+有効条件: `calc_flag.x` かつ `calc_flag.t` かつ `moisture_enabled=true`。
+
+### 将来（Phase1.5 以降）
+
+- 空調除湿量と能力制限の統合（室内熱源への二重計上防止）
+- `room_evaporation` 発湿の室内潜熱
+- 換気の湿り空気エンタルピー移流
+
 ## 圧力・熱・湿気の連成
 
 Phase1 実装では、1タイムステップの内側反復で次のように連成します。
