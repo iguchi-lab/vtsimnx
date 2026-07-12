@@ -361,6 +361,7 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         network/thermal_network_outputs.cpp
         network/humidity_network.cpp
         network/humidity_network_outputs.cpp
+        aircon/aircon_latent.cpp
         parser/sim_constants_parser.cpp
         ../archenv/archenv_core.cpp
     )
@@ -685,6 +686,7 @@ if(VTSIMNX_BUILD_CPP_TESTS)
     target_link_libraries(vtsimnx_solver_cpp_test_aircon_controller
         Boost::boost
     )
+    target_include_directories(vtsimnx_solver_cpp_test_aircon_controller PRIVATE /usr/include/eigen3)
     target_compile_options(vtsimnx_solver_cpp_test_aircon_controller PRIVATE
         -Wall
         -Wextra

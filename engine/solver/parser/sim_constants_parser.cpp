@@ -242,8 +242,14 @@ SimulationConstants parseSimulationConstants(const nlohmann::json& config,
                     outConstants.latentCouplingMode = 0;
                 } else if (mode == "from_humidity_change" || mode == "FromHumidityChange" ||
                            mode == "feedback_to_thermal" || mode == "FeedbackToThermal") {
-                    // feedback_to_thermal / from_humidity_change は実験用（非推奨）
+                    // 実験用・非推奨（換気由来の Δx を相変化と誤認し得る）。将来削除予定。
                     outConstants.latentCouplingMode = 1;
+                    logLine([&](std::ostringstream& oss) {
+                        oss << "  [WARN] simulation.coupling.latent_coupling_mode="
+                               "from_humidity_change は非推奨です。"
+                               "材料相変化には from_phase_change、"
+                               "換気潜熱には moist_enthalpy_enabled を使ってください。";
+                    });
                 } else if (mode == "from_phase_change" || mode == "FromPhaseChange") {
                     outConstants.latentCouplingMode = 2;
                 } else {
@@ -256,6 +262,14 @@ SimulationConstants parseSimulationConstants(const nlohmann::json& config,
                 if (outConstants.latentCouplingMode < 0 || outConstants.latentCouplingMode > 2) {
                     throw std::runtime_error(
                         "Invalid 'simulation.coupling.latent_coupling_mode' (0|1|2)");
+                }
+                if (outConstants.latentCouplingMode == 1) {
+                    logLine([&](std::ostringstream& oss) {
+                        oss << "  [WARN] simulation.coupling.latent_coupling_mode=1 "
+                               "(from_humidity_change) は非推奨です。"
+                               "材料相変化には from_phase_change、"
+                               "換気潜熱には moist_enthalpy_enabled を使ってください。";
+                    });
                 }
             } else {
                 throw std::runtime_error(

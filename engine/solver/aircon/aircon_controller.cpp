@@ -260,10 +260,11 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
 
 bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                                               VentilationNetwork& /*ventNetwork*/,
-                                              const SimulationConstants& /*constants*/,
+                                              const SimulationConstants& constants,
                                               const FlowRateMap& flowRates,
                                               std::ostream& logs,
                                               int& /*totalIterations*/) const {
+    moistEnthalpyEnabled_ = constants.moistEnthalpyEnabled;
     // 分岐: (1) 超過 → 公式で補正可能なら limitedSetpoint 適用、でなければ bracket 二分探索
     //       (2) 不足かつ bracket あり → 二分探索継続（設定温度を上げて再計算）
     //       (3) それ以外 → OK
@@ -276,7 +277,8 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
         try {
             auto context = prepareRuntimeContext(airconKey, thermalNetwork, nodeProps, flowRates);
             const auto loads = aircon::latent::estimateLatentProcess(
-                context.validData, context.operationMode, context.heatCapacity, context.airFlowRate, nodeProps);
+                context.validData, context.operationMode, context.heatCapacity, context.airFlowRate,
+                nodeProps, moistEnthalpyEnabled_);
             std::string sourceLabel = "unknown";
             auto maxHeatCapacity = aircon::capacity::resolveMaxHeatCapacity(
                 nodeProps, context.operationMode, sourceLabel);
@@ -344,7 +346,8 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
         try {
             auto context = prepareRuntimeContext(airconKey, thermalNetwork, nodeProps, flowRates);
             const auto loads = aircon::latent::estimateLatentProcess(
-                context.validData, context.operationMode, context.heatCapacity, context.airFlowRate, nodeProps);
+                context.validData, context.operationMode, context.heatCapacity, context.airFlowRate,
+                nodeProps, moistEnthalpyEnabled_);
             const double processedHeatW = aircon::latent::totalHeatCapacity(loads);
 
             const auto targetFlowOpt = aircon::airflow::computeTargetFlowFromProcessedHeat(
@@ -425,7 +428,8 @@ std::vector<double> AirconController::collectAirconDataValues(ThermalNetwork& th
                 }
                 auto context = prepareRuntimeContext(airconKey, thermalNetwork, nodeProps, flowRates);
                 const auto loads = aircon::latent::estimateLatentProcess(
-                    context.validData, context.operationMode, context.heatCapacity, context.airFlowRate, nodeProps);
+                    context.validData, context.operationMode, context.heatCapacity, context.airFlowRate,
+                    nodeProps, moistEnthalpyEnabled_);
                 values[i] = (dataType == "sensibleHeatCapacity")
                                 ? loads.sensibleHeatCapacity
                                 : loads.latentHeatCapacity;
@@ -450,7 +454,8 @@ std::pair<double, double> AirconController::estimatePowerAndCOPForAircon(
         throw std::runtime_error("初期化済みモデルがありません");
     }
     const auto loads = aircon::latent::estimateLatentProcess(
-        context.validData, context.operationMode, context.heatCapacity, context.airFlowRate, nodeProps);
+        context.validData, context.operationMode, context.heatCapacity, context.airFlowRate,
+        nodeProps, moistEnthalpyEnabled_);
     // 吹出絶対湿度をエアコンノードへ反映する（humidity_x 出力および次ステップ初期値に利用）。
     // ここでは冷房時のみ有効値が入り、暖房/無効時は入力湿度（実質据え置き）となる。
     thermalNetwork.getNode(airconKey).current_x = loads.supplyX;
@@ -557,6 +562,8 @@ AirconController::applyLatentFeedbackToThermal(ThermalNetwork& thermalNetwork,
                                                std::ostream& logs) const {
     LatentFeedbackStats stats{};
     if (!(relaxation > 0.0)) return stats;
+    // moist enthalpy 経路と二重になるため無効
+    if (moistEnthalpyEnabled_) return stats;
     const double alpha = std::min(1.0, relaxation);
 
     for (const auto& airconKey : getAirconKeys()) {
@@ -566,7 +573,8 @@ AirconController::applyLatentFeedbackToThermal(ThermalNetwork& thermalNetwork,
             auto context = prepareRuntimeContext(airconKey, thermalNetwork, nodeProps, flowRates);
             if (context.operationMode != OperationMode::Cooling) continue;
             const auto loads = aircon::latent::estimateLatentProcess(
-                context.validData, context.operationMode, context.heatCapacity, context.airFlowRate, nodeProps);
+                context.validData, context.operationMode, context.heatCapacity, context.airFlowRate,
+                nodeProps, moistEnthalpyEnabled_);
             const double latentQ = std::max(0.0, loads.latentHeatCapacity);
             if (!(latentQ > 0.0)) continue;
             if (nodeProps.in_node.empty()) continue;

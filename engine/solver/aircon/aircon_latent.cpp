@@ -2,6 +2,7 @@
 
 #include "aircon/aircon_operation_mode.h"
 #include "archenv/include/archenv.h"
+#include "core/thermal/thermal_moist_air.h"
 
 #include <algorithm>
 #include <cmath>
@@ -107,12 +108,26 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
                                           OperationMode operationMode,
                                           double sensibleHeatCapacity,
                                           double airFlowRate,
-                                          const VertexProperties& nodeProps) {
+                                          const VertexProperties& nodeProps,
+                                          bool moistEnthalpyEnabled) {
     LatentProcessResult result;
     result.sensibleHeatCapacity = std::max(0.0, sensibleHeatCapacity);
     result.supplyX = std::max(0.0, validData.indoorX);
 
-    if (operationMode != OperationMode::Cooling) return result;
+    if (operationMode != OperationMode::Cooling) {
+        if (moistEnthalpyEnabled && airFlowRate > std::numeric_limits<double>::epsilon()) {
+            const double qTotal = thermal_moist_air::processedEnthalpyHeatW(
+                validData.indoorTemp,
+                std::max(0.0, validData.indoorX),
+                validData.airconTemp,
+                result.supplyX,
+                airFlowRate,
+                /*heating=*/true);
+            result.sensibleHeatCapacity = qTotal;
+            result.latentHeatCapacity = 0.0;
+        }
+        return result;
+    }
     if (!(airFlowRate > std::numeric_limits<double>::epsilon())) return result;
 
     const double tIn = validData.indoorTemp;
@@ -120,12 +135,22 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
     const double xIn = std::max(0.0, validData.indoorX);
     if (!(tIn > tOut)) {
         result.supplyX = xIn;
+        if (moistEnthalpyEnabled) {
+            result.sensibleHeatCapacity = 0.0;
+            result.latentHeatCapacity = 0.0;
+        }
         return result;
     }
 
     const std::string latentMethod = readLatentMethod(nodeProps);
     if (latentMethod == "none") {
         result.supplyX = xIn;
+        if (moistEnthalpyEnabled) {
+            const double qTotal = thermal_moist_air::processedEnthalpyHeatW(
+                tIn, xIn, tOut, result.supplyX, airFlowRate, /*heating=*/false);
+            result.sensibleHeatCapacity = qTotal;
+            result.latentHeatCapacity = 0.0;
+        }
         return result;
     }
 
@@ -237,6 +262,18 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
             std::max(0.0,
                      kAirDensity * std::abs(airFlowRate) *
                          archenv::vapor_latent_heat(tOut) * deltaX);
+    }
+
+    if (moistEnthalpyEnabled) {
+        // 正本は mDot*(h_in-h_out)。顕熱/潜熱は acmodel・出力互換のための分解。
+        const double qTotal = thermal_moist_air::processedEnthalpyHeatW(
+            tIn, xIn, tOut, result.supplyX, airFlowRate, /*heating=*/false);
+        const double cpEff =
+            0.5 * (thermal_moist_air::moistAirCp(xIn) + thermal_moist_air::moistAirCp(result.supplyX));
+        const double qSens =
+            std::min(qTotal, kAirDensity * std::abs(airFlowRate) * cpEff * std::max(0.0, tIn - tOut));
+        result.sensibleHeatCapacity = qSens;
+        result.latentHeatCapacity = std::max(0.0, qTotal - qSens);
     }
     return result;
 }

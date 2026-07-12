@@ -10,6 +10,8 @@
 #include "core/thermal/thermal_moist_air.h"
 #include "core/thermal/thermal_solver.h"
 #include "core/thermal/thermal_solver_linear_direct.h"
+#include "aircon/aircon_latent.h"
+#include "aircon/aircon_operation_mode.h"
 #include "network/thermal_network.h"
 #include "parser/sim_constants_parser.h"
 
@@ -374,6 +376,62 @@ void testFlagOffRegression() {
                "OFF: x change does not affect T B");
 }
 
+void testAirconProcessedEnthalpyHelper() {
+    const double Q = 0.1;
+    const double tIn = 27.0, tOut = 14.0;
+    const double xIn = 0.012, xOut = 0.008;
+    const double qCool = thermal_moist_air::processedEnthalpyHeatW(tIn, xIn, tOut, xOut, Q, false);
+    const double qHeatWrong =
+        thermal_moist_air::processedEnthalpyHeatW(tIn, xIn, tOut, xOut, Q, true);
+    expectTrue(qCool > 0.0, "cooling enthalpy heat > 0");
+    expectNear(qHeatWrong, 0.0, 1e-12, "heating with cooling delta => 0");
+
+    // x=0: equals dry sensible
+    const double qSens =
+        archenv::DENSITY_DRY_AIR * archenv::SPECIFIC_HEAT_AIR * Q * (tIn - tOut);
+    const double qX0 =
+        thermal_moist_air::processedEnthalpyHeatW(tIn, 0.0, tOut, 0.0, Q, false);
+    expectNear(qX0, qSens, 1e-6, "aircon x=0 enthalpy == dry sensible");
+
+    // same T, dehumidify: still positive cooling load
+    const double qLatOnly =
+        thermal_moist_air::processedEnthalpyHeatW(20.0, 0.012, 20.0, 0.008, Q, false);
+    expectTrue(qLatOnly > 100.0, "same-T dehumidify => positive enthalpy heat");
+}
+
+void testAirconLatentProcessMoistTotal() {
+    AirconValidationData vd{};
+    vd.indoorTemp = 27.0;
+    vd.airconTemp = 14.0;
+    vd.indoorX = 0.012;
+    vd.outdoorTemp = 35.0;
+    vd.outdoorX = 0.020;
+    vd.setTemp = 26.0;
+
+    VertexProperties node{};
+    node.key = "AC";
+    node.type = "aircon";
+    node.ac_spec = nlohmann::json::object();
+    node.ac_spec["latent_method"] = "rh95";
+
+    const double flow = 0.05;
+    const double qsDry =
+        archenv::DENSITY_DRY_AIR * archenv::SPECIFIC_HEAT_AIR * flow * (27.0 - 14.0);
+    const auto off = aircon::latent::estimateLatentProcess(
+        vd, OperationMode::Cooling, qsDry, flow, node, /*moistEnthalpyEnabled=*/false);
+    const auto on = aircon::latent::estimateLatentProcess(
+        vd, OperationMode::Cooling, qsDry, flow, node, /*moistEnthalpyEnabled=*/true);
+
+    const double qEnth = thermal_moist_air::processedEnthalpyHeatW(
+        vd.indoorTemp, vd.indoorX, vd.airconTemp, on.supplyX, flow, /*heating=*/false);
+    expectNear(aircon::latent::totalHeatCapacity(on), qEnth, 1e-3, "moist ON: total == mDot*|Δh|");
+    expectTrue(aircon::latent::totalHeatCapacity(on) + 1e-6 >=
+                   aircon::latent::totalHeatCapacity(off),
+               "moist ON total >= OFF");
+    expectNear(on.sensibleHeatCapacity + on.latentHeatCapacity,
+               aircon::latent::totalHeatCapacity(on), 1e-9, "Qs+Ql == total");
+}
+
 } // namespace
 
 int main() {
@@ -385,6 +443,8 @@ int main() {
         testSameXDifferentTNearSensible();
         testClosedSystemMixingEnthalpy();
         testFlagOffRegression();
+        testAirconProcessedEnthalpyHelper();
+        testAirconLatentProcessMoistTotal();
         std::cout << "OK moist enthalpy advection/storage\n";
         return 0;
     } catch (const std::exception& e) {

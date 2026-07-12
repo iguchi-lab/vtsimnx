@@ -47,6 +47,9 @@ private:
     // エアコンモデルを保存するマップ (エアコンキー -> acmodelインスタンス)
     std::unordered_map<std::string, std::unique_ptr<acmodel::AirconSpec>> airconModels;
     int logVerbosity_ = 1;
+    // moist_enthalpy_enabled: 処理熱量を mDot*Δh で評価する
+    // checkAndAdjustCapacity 等の const API から同期するため mutable
+    mutable bool moistEnthalpyEnabled_ = false;
 
     struct RuntimeContext {
         AirconValidationData validData;
@@ -100,6 +103,8 @@ public:
     };
     // === モデル管理 ===
     void initializeModels(ThermalNetwork& thermalNetwork, std::ostream& logs, int logVerbosity);
+    void setMoistEnthalpyEnabled(bool enabled) { moistEnthalpyEnabled_ = enabled; }
+    bool moistEnthalpyEnabled() const { return moistEnthalpyEnabled_; }
     acmodel::AirconSpec* getModel(const std::string& airconKey) const;
     ~AirconController();
 

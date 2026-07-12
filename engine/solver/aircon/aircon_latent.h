@@ -27,6 +27,7 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
                                           OperationMode operationMode,
                                           double sensibleHeatCapacity,
                                           double airFlowRate,
-                                          const VertexProperties& nodeProps);
+                                          const VertexProperties& nodeProps,
+                                          bool moistEnthalpyEnabled = false);
 
 } // namespace aircon::latent

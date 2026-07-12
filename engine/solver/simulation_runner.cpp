@@ -87,6 +87,7 @@ void runSimulation(VentilationNetwork& ventNetwork,
     } else {
         ctx.thermal.clearMoistEnthalpyHumidityXn();
     }
+    ctx.aircon.setMoistEnthalpyEnabled(ctx.constants.moistEnthalpyEnabled);
 
     SeparatedHeatSources heatSources;
     ensureHeatSourceVectors(heatSources,

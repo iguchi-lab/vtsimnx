@@ -49,6 +49,22 @@ inline double rhoVOverDtFromCapacityConductance(double conductance) {
     return conductance / archenv::SPECIFIC_HEAT_AIR;
 }
 
+// 空調処理熱 [W]（大きさ・正）: モード向きの mDot*|Δh|
+// heating: mDot*(h_out-h_in)、cooling: mDot*(h_in-h_out)。逆向きは 0。
+inline double processedEnthalpyHeatW(double tIn,
+                                    double xIn,
+                                    double tOut,
+                                    double xOut,
+                                    double flowRateM3s,
+                                    bool heating) {
+    if (std::abs(flowRateM3s) < archenv::FLOW_RATE_MIN) return 0.0;
+    const double mDot = massFlowKgPerS(std::abs(flowRateM3s));
+    const double hIn = moistAirEnthalpy(tIn, xIn);
+    const double hOut = moistAirEnthalpy(tOut, xOut);
+    const double dh = heating ? (hOut - hIn) : (hIn - hOut);
+    return (dh > 0.0) ? (mDot * dh) : 0.0;
+}
+
 // DirectT 組立へ渡すコンテキスト（TopologyCache が保持）
 struct MoistAssembleContext {
     bool enabled = false;

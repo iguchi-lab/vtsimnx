@@ -107,7 +107,7 @@ Phase1 では、既存の移流ベース湿度計算に加えて、線形RC型�
 | 値 | 意味 |
 |----|------|
 | `disabled` (0, 既定) | 潜熱フィードバックなし |
-| `from_humidity_change` (1) | 実験・非推奨。\(Q=-\rho V L \Delta x/\Delta t\)（換気を相変化と誤認し得る） |
+| `from_humidity_change` (1) | **非推奨・将来削除予定**。\(Q=-\rho V L \Delta x/\Delta t\)（換気を相変化と誤認し得る）。パーサは WARN を出す |
 | `from_phase_change` (2) | 推奨。材料ノードのみ \(Q=-L_v \dot m_\mathrm{phase}\) |
 
 `from_phase_change` では空気ノード・換気・発湿・空調は熱源に載せません。熱の載せ先は `moisture_capacity > 0` の材料ノードです。
@@ -119,15 +119,16 @@ Phase1 では、既存の移流ベース湿度計算に加えて、線形RC型�
 `simulation.coupling.moist_enthalpy_enabled`（既定 `false`）:
 
 - ON 時、換気移流と空気ノード capacity 蓄積を \(h(T,x)=(c_{pa}+x c_{pv})T+x L_v\) の収支で解く（未知数は温度 \(T\)、連成中の \(x\) は既知）
+- 空調処理熱（能力・COP・DUCT 風量連動の全熱）も \(\dot m |h_\mathrm{in}-h_\mathrm{out}|\) に統一（顕熱/潜熱は acmodel 互換のため分解）
 - `from_humidity_change` との併用は禁止（二重計上）
 - `from_phase_change` との併用は可（材料相変化潜熱は別経路）
 - 要 `calc_flag.x=true`
 
 ### 将来（Phase1.5 以降）
 
-- 空調除湿量と能力制限の統合（室内熱源への二重計上防止）
+- 空調除湿量を湿度 RHS（`airconCondensation`）へ接続
 - `room_evaporation` 発湿の室内潜熱
-- 空調処理熱の \(\dot m(h_\mathrm{in}-h_\mathrm{out})\) 化
+- `from_humidity_change` の削除
 ## 圧力・熱・湿気の連成
 
 Phase1 実装では、1タイムステップの内側反復で次のように連成します。

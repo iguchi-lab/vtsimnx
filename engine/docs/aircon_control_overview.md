@@ -129,6 +129,15 @@ flowchart TD
 顕熱・潜熱ともに「処理熱量の大きさ [W]」として正値で扱います。  
 acmodel 入力では `Q_S=顕熱`, `Q_L=潜熱`, `Q=Q_S+Q_L` を渡します。
 
+`simulation.coupling.moist_enthalpy_enabled=true` のとき、全熱の正本は
+
+\[
+Q = \dot m\,|h_\mathrm{in}-h_\mathrm{out}|
+\]
+
+（\(h=\) `archenv::total_enthalpy_from_x`、モード向きのみ正）です。  
+吹出湿度 `supplyX` は従来どおり `latent_method` で決め、その後に全熱をエンタルピーから再計算し、顕熱/潜熱へ分解して出力・acmodel へ渡します。
+
 ---
 
 ### 6. 潜熱計算（latent_method）
