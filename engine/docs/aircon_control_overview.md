@@ -167,6 +167,7 @@ flowchart TD
 - 実際の固定温度化は熱ソルバ側の fixed-row ロジックで行います（値は実効設定 `current_pre_temp`）
 - 同一 `set_node` を複数空調が制御する入力は `initializeModels()` で拒否します
 - 能力 bracket の最終検証でも上限を満たせず拡張できない場合は `CapacityConstraintUnresolved` で例外終了します（超過のまま Accept しない）
+- **能力制限中**（`CapacityLimited`、または実効設定が要求から離れている）は `required_heat_w` で OFF しません。実効設定を下げた拘束では Qreq が符号反転し、OFF↔ON 振動するためです。このときは要求設定との温度バンドで判定します。
 ---
 
 ### 4. 熱ソルバとの接続

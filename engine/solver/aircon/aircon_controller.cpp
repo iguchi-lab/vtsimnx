@@ -291,12 +291,23 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
         // Qreq は set_node が実効設定近傍にあるときだけ信頼する。
         // fixed-row が効いていない解（室温が大きく外れている）では、
         // 容量ノードからの見かけの加熱などで符号が反転し ON/OFF が振動しうる。
+        //
+        // 能力制限中（実効設定を要求からずらしている）も Qreq で OFF しない。
+        // 暖房で実効設定を下げた直後は、自然室温より低い温度を拘束するため
+        // Qreq が負になり、OFF→要求温度で再ONの振動になる。
         const double setpointBandK = std::max(tolerance, 0.5);
         const bool nearSetpoint =
             std::isfinite(nodeProps.current_pre_temp) &&
             std::abs(currentTemp - nodeProps.current_pre_temp) <= setpointBandK;
+        const bool capacityLimited =
+            nodeProps.aircon_control_state == AirconControlState::CapacityLimited;
+        const bool setpointDetuned =
+            std::isfinite(nodeProps.current_pre_temp) &&
+            std::isfinite(nodeProps.current_requested_pre_temp) &&
+            std::abs(nodeProps.current_pre_temp - nodeProps.current_requested_pre_temp) > setpointBandK;
         const bool useRequiredHeat =
-            nodeProps.on && std::isfinite(nodeProps.required_heat_w) && nearSetpoint;
+            nodeProps.on && std::isfinite(nodeProps.required_heat_w) && nearSetpoint &&
+            !capacityLimited && !setpointDetuned;
         auto result = controlAircon(nodeProps, currentTemp, targetTemp, tolerance, logFile,
                                     useRequiredHeat, nodeProps.required_heat_w,
                                     /*loadDeadbandW=*/1.0);

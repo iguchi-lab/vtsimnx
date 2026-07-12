@@ -755,6 +755,25 @@ int main() {
         expectNear(ac.current_pre_temp, 22.0, 1e-12, "effective setpoint kept while CapacityLimited");
     }
 
+    // 能力制限中に Qreq が負でも OFF しない（実効設定を下げた拘束の反転負荷）
+    {
+        thermal.addNode(makeNode("ROOM_CAP", "normal", 18.0));
+        auto& room = thermal.getNode("ROOM_CAP");
+        auto& ac = thermal.getNode("B");
+        ac.set_node = "ROOM_CAP";
+        ac.current_mode = "HEATING";
+        ac.on = true;
+        ac.current_requested_pre_temp = 23.0;
+        ac.current_pre_temp = 18.0;
+        ac.aircon_control_state = AirconControlState::CapacityLimited;
+        ac.required_heat_w = -3203.4;  // 実効18℃拘束では除熱側に見える
+        room.current_t = 18.0;
+        std::ostringstream logs;
+        (void)controller.controlAllAircons(thermal, 0.5, logs);
+        expectTrue(ac.on, "CapacityLimited heating must not OFF on negative Qreq");
+        expectNear(ac.current_pre_temp, 18.0, 1e-12, "effective setpoint kept after Qreq skip");
+    }
+
     // DUCT_CENTRAL: 処理熱量に応じて風量を補正すること
     {
         auto& in = thermal.getNode("IN");
