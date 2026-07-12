@@ -1,5 +1,6 @@
 #include "aircon/aircon_latent.h"
 
+#include "aircon/aircon_network_utils.h"
 #include "aircon/aircon_operation_mode.h"
 #include "archenv/include/archenv.h"
 #include "core/thermal/thermal_moist_air.h"
@@ -291,11 +292,23 @@ bool applySupplyHumidityToAirconNode(ThermalNetwork& thermalNetwork,
     auto& node = thermalNetwork.getNode(airconKey);
     const double newRemoval = std::max(0.0, loads.condensationRateKgPerS);
     const double tol = (humidityAbsTol > 0.0) ? humidityAbsTol : 1e-9;
-    const bool changed =
-        std::abs(node.current_x - loads.supplyX) > tol ||
-        std::abs(node.aircon_moisture_removal_kg_s - newRemoval) > tol;
+    // 再計算判定は方程式境界に効く supplyX のみ（除湿量は診断値）
+    const bool changed = std::abs(node.current_x - loads.supplyX) > tol;
     node.current_x = loads.supplyX;
     node.aircon_moisture_removal_kg_s = newRemoval;
+    return changed;
+}
+
+bool applyPassthroughHumidityToAirconNode(ThermalNetwork& thermalNetwork,
+                                          const std::string& airconKey,
+                                          double humidityAbsTol) {
+    auto& node = thermalNetwork.getNode(airconKey);
+    const double inletX =
+        aircon::network_utils::getAbsoluteHumidityFromNode(thermalNetwork, node.in_node);
+    const double tol = (humidityAbsTol > 0.0) ? humidityAbsTol : 1e-9;
+    const bool changed = std::abs(node.current_x - inletX) > tol;
+    node.current_x = inletX;
+    node.aircon_moisture_removal_kg_s = 0.0;
     return changed;
 }
 

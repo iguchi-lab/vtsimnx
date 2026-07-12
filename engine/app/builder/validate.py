@@ -20,6 +20,7 @@ from .config_types import (
     NodeTypeEnum,
     VentilationBranchTypeEnum,
     ThermalBranchTypeEnum,
+    MOISTURE_TRANSFER_TYPES,
 )
 
 logger = get_logger(__name__)
@@ -794,6 +795,13 @@ def validate_thermal_config(
         if not result.is_valid:
             errors.extend(result.errors)
             continue
+
+        xfer = branch.get("moisture_transfer_type")
+        if xfer is not None and str(xfer) not in MOISTURE_TRANSFER_TYPES:
+            errors.append(
+                f"熱ブランチ {branch['key']}: moisture_transfer_type は "
+                f"{'|'.join(MOISTURE_TRANSFER_TYPES)} のいずれかである必要があります"
+            )
 
         if branch["type"] == ThermalBranchTypeEnum.RESPONSE_CONDUCTION:
             errors.extend(_validate_response_conduction(branch))

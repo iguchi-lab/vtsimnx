@@ -245,6 +245,31 @@ int main() {
         expectNear(b.current_x, xBefore, 0.0, "collectAirconDataValues must not mutate current_x");
     }
 
+    // OFF（送風継続）: 乾燥 supplyX を入口湿度へ戻し、再計算要求
+    {
+        auto& b = thermal.getNode("B");
+        auto& in = thermal.getNode("IN");
+        b.on = false;
+        b.current_mode = "COOLING";
+        b.in_node = "IN";
+        b.current_x = 0.008;
+        b.aircon_moisture_removal_kg_s = 0.001;
+        in.current_x = 0.020;
+        bool supplyChanged = false;
+        const bool controlled =
+            controller.controlAllAircons(thermal, 0.5, std::cout, &supplyChanged, 1e-9);
+        expectTrue(controlled, "already OFF stays controlled");
+        expectTrue(supplyChanged, "OFF passthrough requests supply humidity recompute");
+        expectNear(b.current_x, 0.020, 1e-15, "OFF follows inlet humidity");
+        expectNear(b.aircon_moisture_removal_kg_s, 0.0, 0.0, "OFF clears condensation");
+        // 継続OFFで入口が変わると再追従
+        in.current_x = 0.018;
+        supplyChanged = false;
+        (void)controller.controlAllAircons(thermal, 0.5, std::cout, &supplyChanged, 1e-9);
+        expectTrue(supplyChanged, "OFF continues tracking inlet x");
+        expectNear(b.current_x, 0.018, 1e-15, "OFF tracks updated inlet");
+    }
+
     // 潜熱フィードバック: 冷房時に in_node へ負の heat_source が入ること
     {
         auto& in = thermal.getNode("IN");

@@ -193,14 +193,17 @@ public:
 
     bool controlAllAircons(ThermalNetwork& thermalNetwork,
                            double tolerance,
-                           std::ostream& logFile) const;
+                           std::ostream& logFile,
+                           bool* supplyHumidityChanged = nullptr,
+                           double humidityAbsTol = 1e-9) const;
 
     bool checkAndAdjustCapacity(ThermalNetwork& thermalNetwork, VentilationNetwork& ventNetwork,
                                 const SimulationConstants& constants,
                                 const FlowRateMap& flowRates,
                                 std::ostream& logFile,
                                 int& totalIterations,
-                                bool* supplyHumidityChanged = nullptr) const;
+                                bool* supplyHumidityChanged = nullptr,
+                                double humidityAbsTol = 1e-9) const;
 
     // DUCT_CENTRAL 用: 処理熱量に応じて送風量を補正する。
     // - 処理熱量=0 -> 風量=0
@@ -210,7 +213,8 @@ public:
                                           VentilationNetwork& ventNetwork,
                                           const FlowRateMap& flowRates,
                                           std::ostream& logs,
-                                          bool* supplyHumidityChanged = nullptr) const;
+                                          bool* supplyHumidityChanged = nullptr,
+                                          double humidityAbsTol = 1e-9) const;
 
     // 潜熱処理量を熱方程式の heat_source へ反映する（冷房時のみ有効）。
     // relaxation=1.0 で全量反映。<1.0 で緩和反映。

@@ -753,6 +753,47 @@ void testCoolingSupplyHumiditySameTimestepPropagation() {
     expectTrue(xAfterFresh > supplyX - 1e-6, "room x stays above supply boundary");
 }
 
+void testApplySupplyHumidityChangeDetectionIgnoresRemovalOnly() {
+    ThermalNetwork thermal;
+    auto ac = makeAir("AC", false, 14.0, 0.0, 0.008);
+    ac.type = "aircon";
+    ac.aircon_moisture_removal_kg_s = 0.0;
+    thermal.addNode(ac);
+
+    aircon::latent::LatentProcessResult loads{};
+    loads.supplyX = 0.008;
+    loads.condensationRateKgPerS = 0.002;
+    // supplyX 同一・除湿量のみ変化 → 再計算不要
+    expectTrue(!aircon::latent::applySupplyHumidityToAirconNode(thermal, "AC", loads, 1e-9),
+               "removal-only change must not request recompute");
+    expectNear(thermal.getNode("AC").aircon_moisture_removal_kg_s, 0.002, 1e-15,
+               "removal still updated");
+
+    loads.supplyX = 0.010;
+    expectTrue(aircon::latent::applySupplyHumidityToAirconNode(thermal, "AC", loads, 1e-9),
+               "supplyX change requests recompute");
+}
+
+void testPassthroughHumidityOnOffClearsDrySupply() {
+    ThermalNetwork thermal;
+    auto IN = makeAir("IN", false, 27.0, 50.0, 0.012);
+    auto AC = makeAir("AC", false, 14.0, 0.0, 0.008);
+    AC.type = "aircon";
+    AC.on = false;
+    AC.in_node = "IN";
+    AC.aircon_moisture_removal_kg_s = 0.001;
+    thermal.addNode(IN);
+    thermal.addNode(AC);
+
+    expectTrue(aircon::latent::applyPassthroughHumidityToAirconNode(thermal, "AC", 1e-9),
+               "OFF passthrough reports supplyX change");
+    expectNear(thermal.getNode("AC").current_x, 0.012, 1e-15, "OFF follows inlet x");
+    expectNear(thermal.getNode("AC").aircon_moisture_removal_kg_s, 0.0, 0.0, "OFF clears removal");
+    expectTrue(simulation::decideAirconIterationAction(false, true, false, true) ==
+                   simulation::AirconIterationAction::RecomputeForSupplyHumidity,
+               "OFF supply reset triggers outer recompute");
+}
+
 void testAirconProcessedEnthalpyHelper() {
     const double Q = 0.1;
     const double tIn = 27.0, tOut = 14.0;
@@ -827,6 +868,8 @@ int main() {
         testMoistureTransferTypePhaseChangeOnly();
         testCoupledOutdoorHumidInflow();
         testCoolingSupplyHumiditySameTimestepPropagation();
+        testApplySupplyHumidityChangeDetectionIgnoresRemovalOnly();
+        testPassthroughHumidityOnOffClearsDrySupply();
         testAirconProcessedEnthalpyHelper();
         testAirconLatentProcessMoistTotal();
         std::cout << "OK moist enthalpy advection/storage\n";

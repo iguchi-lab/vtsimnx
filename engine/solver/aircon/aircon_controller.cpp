@@ -210,7 +210,9 @@ AirconController::RuntimeContext AirconController::prepareRuntimeContext(
 
 bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
                                          double tolerance,
-                                         std::ostream& logFile) const {
+                                         std::ostream& logFile,
+                                         bool* supplyHumidityChanged,
+                                         double humidityAbsTol) const {
     bool allControlled = true;
 
     // 順序を決定的にしてログ/挙動の再現性を上げる
@@ -236,9 +238,6 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
         if (result.stateChanged) {
             allControlled = false;
             nodeProps.on = result.on;
-            if (!result.on) {
-                nodeProps.aircon_moisture_removal_kg_s = 0.0;
-            }
             // NOTE:
             // set_node の calc_t を ON/OFF で切り替えると、
             // 熱ソルバ側の「固定温度行（fixed row）」の適用条件（= set_node が未知数）を満たさず、
@@ -256,6 +255,14 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
             // - solver側で nodeProps.on と換気枝 current_enabled/flow_rate を連動させる
             // といった対応が必要になる。
         }
+
+        // OFF 中（遷移直後含む）は吹出湿度を入口へ追従。送風継続時の乾燥空気残留を防ぐ。
+        if (!nodeProps.on) {
+            if (aircon::latent::applyPassthroughHumidityToAirconNode(
+                    thermalNetwork, airconKey, humidityAbsTol)) {
+                if (supplyHumidityChanged) *supplyHumidityChanged = true;
+            }
+        }
     }
 
     return allControlled;
@@ -267,8 +274,10 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                                               const FlowRateMap& flowRates,
                                               std::ostream& logs,
                                               int& /*totalIterations*/,
-                                              bool* supplyHumidityChanged) const {
+                                              bool* supplyHumidityChanged,
+                                              double humidityAbsTol) const {
     moistEnthalpyEnabled_ = constants.moistEnthalpyEnabled;
+    const double xTol = (humidityAbsTol > 0.0) ? humidityAbsTol : 1e-9;
     // 分岐: (1) 超過 → 公式で補正可能なら limitedSetpoint 適用、でなければ bracket 二分探索
     //       (2) 不足かつ bracket あり → 二分探索継続（設定温度を上げて再計算）
     //       (3) それ以外 → OK
@@ -283,7 +292,8 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
             const auto loads = aircon::latent::estimateLatentProcess(
                 context.validData, context.operationMode, context.heatCapacity, context.airFlowRate,
                 nodeProps, moistEnthalpyEnabled_);
-            if (aircon::latent::applySupplyHumidityToAirconNode(thermalNetwork, airconKey, loads)) {
+            if (aircon::latent::applySupplyHumidityToAirconNode(
+                    thermalNetwork, airconKey, loads, xTol)) {
                 if (supplyHumidityChanged) *supplyHumidityChanged = true;
             }
             std::string sourceLabel = "unknown";
@@ -340,10 +350,12 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
                                                         VentilationNetwork& ventNetwork,
                                                         const FlowRateMap& flowRates,
                                                         std::ostream& logs,
-                                                        bool* supplyHumidityChanged) const {
+                                                        bool* supplyHumidityChanged,
+                                                        double humidityAbsTol) const {
     bool adjustmentMade = false;
     constexpr double kMinFlowTol = 1e-6;        // [m3/s]
     constexpr double kRelativeFlowTol = 1e-3;   // [-]
+    const double xTol = (humidityAbsTol > 0.0) ? humidityAbsTol : 1e-9;
 
     for (const auto& airconKey : getAirconKeys()) {
         auto& nodeProps = thermalNetwork.getNode(airconKey);
@@ -356,7 +368,8 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
             const auto loads = aircon::latent::estimateLatentProcess(
                 context.validData, context.operationMode, context.heatCapacity, context.airFlowRate,
                 nodeProps, moistEnthalpyEnabled_);
-            if (aircon::latent::applySupplyHumidityToAirconNode(thermalNetwork, airconKey, loads)) {
+            if (aircon::latent::applySupplyHumidityToAirconNode(
+                    thermalNetwork, airconKey, loads, xTol)) {
                 if (supplyHumidityChanged) *supplyHumidityChanged = true;
             }
             const double processedHeatW = aircon::latent::totalHeatCapacity(loads);

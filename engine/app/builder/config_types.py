@@ -1,4 +1,4 @@
-from typing import TypedDict, List, Optional
+from typing import TypedDict, List, Optional, Literal
 from typing_extensions import NotRequired
 from enum import Enum
 import numpy as np
@@ -26,6 +26,21 @@ class ThermalBranchTypeEnum(str, Enum):
     CONDUCTANCE = "conductance"
     HEAT_GENERATION = "heat_generation"
     RESPONSE_CONDUCTION = "response_conduction"
+
+
+# 湿気枝の移動種別。liquid_transport / sorption は将来用分類（現状は kΔx のみ）。
+MoistureTransferType = Literal[
+    "phase_change",
+    "vapor_diffusion",
+    "liquid_transport",
+    "sorption",
+]
+MOISTURE_TRANSFER_TYPES: tuple[str, ...] = (
+    "phase_change",
+    "vapor_diffusion",
+    "liquid_transport",
+    "sorption",
+)
 
 
 class IndexType(TypedDict):
@@ -148,5 +163,7 @@ class ThermalBranchType(TypedDict):
     # 湿気回路網（Phase1）
     # source/target 間の湿気伝達コンダクタンス [kg/s]
     moisture_conductance: Optional[float]
+    # phase_change | vapor_diffusion | liquid_transport | sorption（未指定は C++ 側で phase_change）
+    moisture_transfer_type: Optional[MoistureTransferType]
 
 

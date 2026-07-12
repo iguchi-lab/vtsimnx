@@ -23,13 +23,15 @@ AirconIterationAction runAirconIteration(AirconIterationContext& ctx,
     const std::string meta(ctx.meta);
     auto* metrics = ctx.metrics;
     bool supplyHumidityChanged = false;
+    const double humidityAbsTol = detail::couplingHumidityTol(ctx.constants);
 
     bool ductFlowAdjusted = false;
     {
         ScopedTimer timer(ctx.timings, "aircon_duct_flow_adjust", meta);
         const auto t0 = std::chrono::steady_clock::now();
         ductFlowAdjusted = ctx.aircon.checkAndAdjustDuctCentralAirflow(
-            ctx.thermal, ctx.ventilation, flowRates, ctx.logs, &supplyHumidityChanged);
+            ctx.thermal, ctx.ventilation, flowRates, ctx.logs, &supplyHumidityChanged,
+            humidityAbsTol);
         if (metrics) {
             metrics->airconMs +=
                 std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0)
@@ -50,7 +52,8 @@ AirconIterationAction runAirconIteration(AirconIterationContext& ctx,
         const auto t0 = std::chrono::steady_clock::now();
         allAirconControlled =
             ctx.aircon.controlAllAircons(
-                ctx.thermal, effectiveAirconTemperatureToleranceK(ctx.constants), ctx.logs);
+                ctx.thermal, effectiveAirconTemperatureToleranceK(ctx.constants), ctx.logs,
+                &supplyHumidityChanged, humidityAbsTol);
         if (metrics) {
             metrics->airconMs +=
                 std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0)
@@ -69,7 +72,7 @@ AirconIterationAction runAirconIteration(AirconIterationContext& ctx,
         const auto t0 = std::chrono::steady_clock::now();
         adjustmentMade = ctx.aircon.checkAndAdjustCapacity(
             ctx.thermal, ctx.ventilation, ctx.constants, flowRates, ctx.logs, totalIterations,
-            &supplyHumidityChanged);
+            &supplyHumidityChanged, humidityAbsTol);
         if (metrics) {
             metrics->airconMs +=
                 std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0)

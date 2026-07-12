@@ -244,6 +244,18 @@ class ThermalBranchModel(_StrictExtraBase):
     resp_b_tgt: Optional[List[float]] = None
     resp_c_tgt: Optional[List[float]] = None
     moisture_conductance: Optional[float] = None
+    moisture_transfer_type: Optional[Literal[
+        "phase_change",
+        "vapor_diffusion",
+        "liquid_transport",
+        "sorption",
+    ]] = Field(
+        default=None,
+        description=(
+            "湿気移動種別。phase_change のみ潜熱診断対象。"
+            "liquid_transport / sorption は将来用分類（現状は kΔx のみ）。"
+        ),
+    )
 
 
 class SurfaceLayerModel(_StrictExtraBase):

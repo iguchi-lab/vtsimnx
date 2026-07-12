@@ -365,6 +365,7 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         network/ventilation_network_outputs.cpp
         ${VENTILATION_PRESSURE_SOURCES}
         aircon/aircon_latent.cpp
+        aircon/aircon_network_utils.cpp
         parser/sim_constants_parser.cpp
         ../archenv/archenv_core.cpp
     )
