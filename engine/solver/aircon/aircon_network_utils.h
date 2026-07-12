@@ -11,6 +11,12 @@ double getFlowRate(const FlowRateMap& flowRates,
                    const std::string& source,
                    const std::string& target);
 
+// 空調処理風量: 還気枝 (in→aircon) を優先し、無ければ吹出枝の絶対値。
+// 還気+吹出の双方向固定流量を getFlowRate でネットすると 0 になるため分離する。
+double getAirconProcessFlowRate(const FlowRateMap& flowRates,
+                                const std::string& inNode,
+                                const std::string& airconNode);
+
 bool tryGetTempFromThermalNetwork(const ThermalNetwork& thermalNetwork,
                                   const std::string& nodeKey,
                                   double& outTemp);

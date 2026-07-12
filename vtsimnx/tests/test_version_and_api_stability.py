@@ -4,8 +4,6 @@ from __future__ import annotations
 import warnings
 from pathlib import Path
 
-import pytest
-
 
 def _pyproject_version() -> str:
     root = Path(__file__).resolve().parents[2]

@@ -97,6 +97,17 @@ int main() {
                    "opposite query should flip sign of net flow");
     }
 
+    // 還気+吹出の双方向固定流量でも処理風量は還気枝の絶対値
+    {
+        FlowRateMap loop;
+        loop[{"IN", "AC"}] = 0.2;
+        loop[{"AC", "IN"}] = 0.2;
+        expectNear(aircon::network_utils::getFlowRate(loop, "IN", "AC"), 0.0, 1e-12,
+                   "recirculation net flow should cancel");
+        expectNear(aircon::network_utils::getAirconProcessFlowRate(loop, "IN", "AC"), 0.2, 1e-12,
+                   "process flow should keep return-duct magnitude");
+    }
+
     ThermalNetwork thermal;
 
     // 必要なノード（outside/in/aircon）

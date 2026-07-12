@@ -194,9 +194,23 @@ class LocalArtifactStore:
     def resolve(self, artifact_dir: str) -> Optional[Path]:
         if "/" in artifact_dir or "\\" in artifact_dir or ".." in artifact_dir:
             return None
-        # solver_runner と同じ優先規則（完全な成果物ディレクトリを選ぶ）
-        from app.solver_runner import resolve_artifact_path
+        # この store の work_root を優先（テストの tmp_path やカスタム root 用）
+        from app.solver_runner import _artifact_dir_completeness_score, resolve_artifact_path
 
+        work_root = self.work_root.resolve()
+        candidates: list[Path] = []
+        direct = (work_root / artifact_dir).resolve()
+        if work_root in direct.parents and direct.is_dir():
+            candidates.append(direct)
+        runs_root = work_root / "runs"
+        if runs_root.is_dir():
+            for candidate in runs_root.glob(f"*/{artifact_dir}"):
+                resolved = candidate.resolve()
+                if work_root in resolved.parents and resolved.is_dir():
+                    candidates.append(resolved)
+        if candidates:
+            return max(candidates, key=_artifact_dir_completeness_score)
+        # 本番フォールバック: BASE_DIR/work の重複解決
         return resolve_artifact_path(artifact_dir)
 
     def iter_artifacts(self) -> Iterator[tuple[str, Path, float]]:

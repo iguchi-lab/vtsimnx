@@ -9,7 +9,7 @@ Python クライアントで入力を構築し、HTTP engine で計算を実行�
 `vtsimnx/`（Pythonライブラリ）と `engine/`（FastAPI+solver）を同じリポジトリで保守します。
 APIサーバー実装の正本は `engine/` です。
 
-最新リリース: [`v1.6.1`](https://github.com/iguchi-lab/vtsimnx/releases/tag/v1.6.1)
+最新リリース: [`v1.6.2`](https://github.com/iguchi-lab/vtsimnx/releases/tag/v1.6.2)
 
 バージョン正本は `pyproject.toml`（API / `get_version()` / tag が参照）。運用: `docs/release_policy.md`  
 公開 API の安定性: `docs/public_api.md`　単位系: `docs/units.md`

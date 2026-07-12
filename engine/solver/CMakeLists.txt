@@ -455,6 +455,7 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         core/thermal/thermal_direct_build.cpp
         core/thermal/thermal_direct_solve.cpp
         core/thermal/thermal_direct_postprocess.cpp
+        ${ARCHENV_SOURCES}
     )
     target_link_libraries(vtsimnx_solver_cpp_test_pressure_acceptance_coupling
         Boost::boost
@@ -522,6 +523,7 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         core/thermal/thermal_direct_build.cpp
         core/thermal/thermal_direct_solve.cpp
         core/thermal/thermal_direct_postprocess.cpp
+        ${ARCHENV_SOURCES}
     )
     target_link_libraries(vtsimnx_solver_cpp_test_network_rebuild
         Boost::boost
@@ -556,6 +558,7 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         core/thermal/thermal_direct_build.cpp
         core/thermal/thermal_direct_solve.cpp
         core/thermal/thermal_direct_postprocess.cpp
+        ${ARCHENV_SOURCES}
     )
     target_link_libraries(vtsimnx_solver_cpp_test_transport_humidity_concentration
         Boost::boost
@@ -592,6 +595,7 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         core/thermal/thermal_direct_build.cpp
         core/thermal/thermal_direct_solve.cpp
         core/thermal/thermal_direct_postprocess.cpp
+        ${ARCHENV_SOURCES}
     )
     target_link_libraries(vtsimnx_solver_cpp_test_humidity_enable_zero_cap
         Boost::boost
@@ -625,6 +629,7 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         network/humidity_network.cpp
         network/humidity_network_outputs.cpp
         network/contaminant_network.cpp
+        ${ARCHENV_SOURCES}
     )
     target_link_libraries(vtsimnx_solver_cpp_test_core_physics_known_solutions
         Boost::boost

@@ -1,5 +1,7 @@
 #include "aircon/aircon_network_utils.h"
 
+#include <cmath>
+
 namespace aircon::network_utils {
 
 double getFlowRate(const FlowRateMap& flowRates,
@@ -14,6 +16,17 @@ double getFlowRate(const FlowRateMap& flowRates,
     if (hasDirect) q += direct->second;
     if (hasReverse) q -= reverse->second;
     return q;
+}
+
+double getAirconProcessFlowRate(const FlowRateMap& flowRates,
+                                const std::string& inNode,
+                                const std::string& airconNode) {
+    if (inNode.empty() || airconNode.empty()) return 0.0;
+    const auto ret = flowRates.find({inNode, airconNode});
+    if (ret != flowRates.end()) return std::abs(ret->second);
+    const auto supply = flowRates.find({airconNode, inNode});
+    if (supply != flowRates.end()) return std::abs(supply->second);
+    return 0.0;
 }
 
 bool tryGetTempFromThermalNetwork(const ThermalNetwork& thermalNetwork,

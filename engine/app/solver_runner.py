@@ -114,6 +114,25 @@ def resolve_artifact_path(artifact_dir: str) -> Optional[Path]:
     return max(candidates, key=_artifact_dir_completeness_score)
 
 
+def _artifact_dir_for_manifest_write(artifact_dir: str) -> Optional[Path]:
+    """
+    manifest 書き込み用: 既存ディレクトリを優先し、無ければ work/ 直下に新規作成可能なパスを返す。
+    attach_log 等は resolve_artifact_path（既存のみ）を使い、空シェル作成を避ける。
+    """
+    existing = resolve_artifact_path(artifact_dir)
+    if existing is not None:
+        return existing
+    if not isinstance(artifact_dir, str) or not artifact_dir:
+        return None
+    if "/" in artifact_dir or "\\" in artifact_dir or ".." in artifact_dir:
+        return None
+    work_root = (BASE_DIR / "work").resolve()
+    candidate = (work_root / artifact_dir).resolve()
+    if work_root not in candidate.parents:
+        return None
+    return candidate
+
+
 def cleanup_run_workdir(run_id: str, *, keep_artifacts: bool = True) -> None:
     """
     当該 run の一時ファイルだけを削除する（他 run には触れない）。
@@ -220,7 +239,7 @@ def write_artifact_manifest(output_data: Dict[str, Any]) -> Optional[Path]:
     """
     artifact_dir_name = output_data.get("artifact_dir")
     if isinstance(artifact_dir_name, str) and artifact_dir_name:
-        artifact_dir_path = resolve_artifact_path(artifact_dir_name)
+        artifact_dir_path = _artifact_dir_for_manifest_write(artifact_dir_name)
     else:
         artifact_dir_path = None
     if artifact_dir_path is None:

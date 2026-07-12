@@ -136,7 +136,7 @@ double AirconController::calculateHeatCapacity(ThermalNetwork& thermalNetwork,
         return 0.0;
     }
 
-    double flowRate = aircon::network_utils::getFlowRate(flowRates, inNode, airconNode);
+    double flowRate = aircon::network_utils::getAirconProcessFlowRate(flowRates, inNode, airconNode);
     if (std::abs(flowRate) <= std::numeric_limits<double>::epsilon()) {
         return 0.0;
     }
@@ -199,7 +199,8 @@ AirconController::RuntimeContext AirconController::prepareRuntimeContext(
     const FlowRateMap& flowRates) const {
     RuntimeContext context{};
     context.validData = validateAirconData(airconKey, thermalNetwork, nodeProps);
-    context.airFlowRate = std::abs(aircon::network_utils::getFlowRate(flowRates, nodeProps.in_node, nodeProps.key));
+    context.airFlowRate = aircon::network_utils::getAirconProcessFlowRate(
+        flowRates, nodeProps.in_node, nodeProps.key);
 
     context.operationMode = resolveOperationModeForRuntime(
         nodeProps.current_mode, context.validData.indoorTemp, context.validData.airconTemp);
@@ -443,7 +444,8 @@ std::vector<double> AirconController::collectAirconDataValues(ThermalNetwork& th
                     if (aircon::network_utils::tryGetTempFromThermalNetwork(thermalNetwork, nodeProps.in_node, t)) values[i] = t;
                 }
             } else if (dataType == "flow") {
-                values[i] = std::abs(aircon::network_utils::getFlowRate(flowRates, nodeProps.in_node, nodeProps.key));
+                values[i] = aircon::network_utils::getAirconProcessFlowRate(
+                    flowRates, nodeProps.in_node, nodeProps.key);
             } else if (dataType == "sensibleHeatCapacity" || dataType == "latentHeatCapacity") {
                 // 処理熱量は「実機出力」として扱うため、OFF時は 0 を返す。
                 // 出力収集は副作用なし（supplyX のグラフ適用は外側ループ側の正本）。
