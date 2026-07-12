@@ -236,11 +236,19 @@ void testLatentFromHumidityChangeKnownDx() {
 void testLatentCouplingActiveRequiresHumidity() {
     SimulationConstants c{};
     c.humidityCalc = true;
+    c.temperatureCalc = true;
+    c.moistureCouplingEnabled = true;
     c.latentCouplingMode = 1;
-    expectTrue(simulation::latentCouplingActive(c), "latent active when humidity on");
+    expectTrue(simulation::latentCouplingActive(c), "latent active when humidity+T+moisture on");
     c.humidityCalc = false;
     expectTrue(!simulation::latentCouplingActive(c), "latent inactive when humidity off");
     c.humidityCalc = true;
+    c.temperatureCalc = false;
+    expectTrue(!simulation::latentCouplingActive(c), "latent inactive when temperature off");
+    c.temperatureCalc = true;
+    c.moistureCouplingEnabled = false;
+    expectTrue(!simulation::latentCouplingActive(c), "latent inactive when moisture decoupled");
+    c.moistureCouplingEnabled = true;
     c.latentCouplingMode = 0;
     expectTrue(!simulation::latentCouplingActive(c), "latent inactive when disabled");
 }
@@ -324,7 +332,7 @@ void testParserPositiveIntegerIterations() {
     {
         auto j = minimalSimJson();
         const auto c = parseSimulationConstants(j, logs);
-        expectTrue(c.latentCouplingMode == 1, "parser: latent default FromHumidityChange");
+        expectTrue(c.latentCouplingMode == 0, "parser: latent default Disabled");
     }
     {
         auto j = minimalSimJson();
@@ -343,6 +351,36 @@ void testParserPositiveIntegerIterations() {
         j["simulation"]["coupling"] = {{"latent_coupling_mode", "feedback_to_thermal"}};
         const auto c = parseSimulationConstants(j, logs);
         expectTrue(c.latentCouplingMode == 1, "parser: feedback_to_thermal alias");
+    }
+    {
+        auto j = minimalSimJson();
+        j["simulation"]["coupling"] = {
+            {"moisture_enabled", false},
+            {"latent_coupling_mode", "from_humidity_change"},
+        };
+        bool threw = false;
+        try {
+            (void)parseSimulationConstants(j, logs);
+        } catch (const std::runtime_error& e) {
+            threw = true;
+            expectTrue(std::string(e.what()).find("moisture_enabled") != std::string::npos,
+                       "parser: reject message mentions moisture_enabled");
+        }
+        expectTrue(threw, "parser: reject latent with moisture decoupled");
+    }
+    {
+        auto j = minimalSimJson();
+        j["simulation"]["calc_flag"] = {{"p", true}, {"t", false}, {"x", true}, {"c", false}};
+        j["simulation"]["coupling"] = {{"latent_coupling_mode", "from_humidity_change"}};
+        bool threw = false;
+        try {
+            (void)parseSimulationConstants(j, logs);
+        } catch (const std::runtime_error& e) {
+            threw = true;
+            expectTrue(std::string(e.what()).find("calc_flag.t") != std::string::npos,
+                       "parser: reject message mentions calc_flag.t");
+        }
+        expectTrue(threw, "parser: reject latent without temperatureCalc");
     }
 }
 

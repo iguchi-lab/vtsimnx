@@ -81,6 +81,9 @@ private:
     // DirectT キャッシュ・作業バッファ（ネットワーク単位で所有し並列実行時の競合を避ける）
     std::unique_ptr<ThermalSolverLinearDirect::detail::DirectTSolverContext> directTContext_;
 
+    // タイムステップ跨ぎの湿度潜熱 [W]（同一 ThermalNetwork のみ。buildFromData でクリア）
+    std::vector<double> carriedHumidityLatent_;
+
 public:
     ThermalNetwork();
     ~ThermalNetwork();
@@ -171,6 +174,13 @@ public:
     double getLastThermalMaxBalance() const { return lastThermalMaxBalance; }
     const std::string& getLastThermalMethod() const { return lastThermalMethod; }
     std::uint64_t getTopologyRevision() const { return topologyRevision_; }
+
+    // 潜熱持ち越し（シミュレーション間混入防止のためネットワーク所有）
+    void clearCarriedHumidityLatent() { carriedHumidityLatent_.clear(); }
+    const std::vector<double>& carriedHumidityLatent() const { return carriedHumidityLatent_; }
+    void setCarriedHumidityLatent(std::vector<double> values) {
+        carriedHumidityLatent_ = std::move(values);
+    }
 };
 
 

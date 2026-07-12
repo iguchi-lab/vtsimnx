@@ -145,6 +145,18 @@ int main() {
                    "thermal: second duplicate A->B advection edge should keep its own flow_rate");
     }
 
+    // 潜熱持ち越しは ThermalNetwork 所有: 別インスタンスへ混入しない / buildFromData でクリア
+    {
+        ThermalNetwork a;
+        ThermalNetwork b;
+        a.setCarriedHumidityLatent({100.0, 200.0});
+        expectTrue(a.carriedHumidityLatent().size() == 2, "latent: A has carried values");
+        expectTrue(b.carriedHumidityLatent().empty(), "latent: B starts empty (no cross-sim leak)");
+
+        a.buildFromData(nodes, thEdges, ventEdges, constants, logs);
+        expectTrue(a.carriedHumidityLatent().empty(), "latent: buildFromData clears carried latent");
+    }
+
     std::cout << "[OK] all tests passed\n";
     return 0;
 }

@@ -2,6 +2,7 @@
 
 #include "vtsim_solver.h"
 #include "aircon/aircon_operation_mode.h"
+#include <cstdint>
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -61,6 +62,10 @@ private:
     // 能力超過時 nullopt 用の二分探索 bracket（タイムステップごとにクリア）
     // first=T_low, second=T_high。暖房時は setpoint を下げるので T_high を更新、冷房時は T_low を更新。
     mutable std::unordered_map<std::string, std::pair<double, double>> capacityLimitBracket_;
+
+    // 外側連成の forceMinTwo 判定用（ON/OFF・mode 署名）。initializeModels でクリア。
+    std::uint64_t prevAirconStateSig_ = 0;
+    bool havePrevAirconStateSig_ = false;
 
     /**
      * @brief エアコンの基本データをバリデーションして取得する
@@ -228,6 +233,13 @@ public:
 
     /** 能力超過時の二分探索 bracket をクリア（タイムステップ先頭で呼ぶ） */
     void clearCapacityLimitBracket() const;
+
+    /** 空調署名ウォームスタート状態をクリア（モデル再初期化時） */
+    void clearCouplingWarmStart();
+    /** 現署名を記録（タイムステップ終了時） */
+    void observeAirconStateSignature(std::uint64_t sig);
+    /** 初回または署名変化時は true（内側連成の最低2回を要求） */
+    bool shouldForceMinTwoCouplingIters(std::uint64_t currentSig) const;
 };
 
 

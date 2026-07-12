@@ -339,6 +339,21 @@ SimulationConstants parseSimulationConstants(const nlohmann::json& config,
         oss << "  濃度計算フラグ: " << parser_utils::boolToString(outConstants.concentrationCalc);
     });
 
+    // 潜熱フィードバックは moisture 連成＋温度計算が必須（非連成だと熱へ未反映になる）
+    if (outConstants.latentCouplingMode != 0) {
+        if (!outConstants.moistureCouplingEnabled) {
+            throw std::runtime_error(
+                "Invalid combination: simulation.coupling.latent_coupling_mode requires "
+                "moisture_enabled=true (decoupled humidity cannot apply latent to the same "
+                "timestep thermal solve)");
+        }
+        if (outConstants.humidityCalc && !outConstants.temperatureCalc) {
+            throw std::runtime_error(
+                "Invalid combination: simulation.coupling.latent_coupling_mode requires "
+                "calc_flag.t=true when humidityCalc is enabled");
+        }
+    }
+
     if (logEnabled) {
         writeLog(logs, "  設定ファイルを解析しました。");
     }

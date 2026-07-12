@@ -23,7 +23,7 @@ inline LatentCouplingMode latentCouplingModeFromConstants(const SimulationConsta
 }
 
 inline bool latentCouplingActive(const SimulationConstants& c) {
-    return c.humidityCalc &&
+    return c.humidityCalc && c.temperatureCalc && c.moistureCouplingEnabled &&
            latentCouplingModeFromConstants(c) == LatentCouplingMode::FromHumidityChange;
 }
 

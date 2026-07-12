@@ -45,6 +45,8 @@ void AirconController::initializeModels(ThermalNetwork& thermalNetwork,
     airconModels.clear();
     airconKeysCacheInitialized_ = false;
     airconKeysOrdered_.clear();
+    clearCouplingWarmStart();
+    clearCapacityLimitBracket();
 
     // acmodel側のログ設定
     acmodel::setLogger([&logs](const std::string& message) {
@@ -106,6 +108,8 @@ void AirconController::clearModelsForTesting() {
     airconModels.clear();
     airconKeysCacheInitialized_ = false;
     airconKeysOrdered_.clear();
+    clearCouplingWarmStart();
+    clearCapacityLimitBracket();
 }
 
 acmodel::AirconSpec* AirconController::getModel(const std::string& airconKey) const {
@@ -613,6 +617,23 @@ AirconController::applyLatentFeedbackToThermal(ThermalNetwork& thermalNetwork,
 
 void AirconController::clearCapacityLimitBracket() const {
     capacityLimitBracket_.clear();
+}
+
+void AirconController::clearCouplingWarmStart() {
+    prevAirconStateSig_ = 0;
+    havePrevAirconStateSig_ = false;
+}
+
+void AirconController::observeAirconStateSignature(std::uint64_t sig) {
+    prevAirconStateSig_ = sig;
+    havePrevAirconStateSig_ = true;
+}
+
+bool AirconController::shouldForceMinTwoCouplingIters(std::uint64_t currentSig) const {
+    if (!havePrevAirconStateSig_) {
+        return true;
+    }
+    return currentSig != prevAirconStateSig_;
 }
 
 void AirconController::applyPreset(ThermalNetwork& thermalNetwork,

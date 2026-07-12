@@ -122,6 +122,7 @@ void ThermalNetwork::buildFromData(const std::vector<VertexProperties>& allNodes
     lastThermalRmseBalance = 0.0;
     lastThermalMaxBalance = 0.0;
     lastThermalMethod.clear();
+    clearCarriedHumidityLatent();
     invalidateCaches();
     ++topologyRevision_;
     // Graph オブジェクトのアドレスは変わらないため、このネットワークの DirectT コンテキストを破棄する。

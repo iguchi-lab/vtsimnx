@@ -89,12 +89,10 @@ void runSimulation(VentilationNetwork& ventNetwork,
     captureScheduledHeatSources(ctx.thermal.getGraph(), heatSources);
     std::fill(heatSources.airconSensible.begin(), heatSources.airconSensible.end(), 0.0);
 
-    // 前ステップの潜熱を latent(0) として引き継ぐ
-    static thread_local std::vector<double> s_carriedHumidityLatent;
-    static thread_local bool s_haveCarriedHumidityLatent = false;
-    if (simulation::latentCouplingActive(ctx.constants) && s_haveCarriedHumidityLatent &&
-        s_carriedHumidityLatent.size() == heatSources.humidityLatent.size()) {
-        heatSources.humidityLatent = s_carriedHumidityLatent;
+    // 同一 ThermalNetwork に保持した前ステップ潜熱を latent(0) として引き継ぐ
+    if (simulation::latentCouplingActive(ctx.constants) &&
+        ctx.thermal.carriedHumidityLatent().size() == heatSources.humidityLatent.size()) {
+        heatSources.humidityLatent = ctx.thermal.carriedHumidityLatent();
     } else {
         std::fill(heatSources.humidityLatent.begin(), heatSources.humidityLatent.end(), 0.0);
     }
@@ -102,21 +100,14 @@ void runSimulation(VentilationNetwork& ventNetwork,
     auto innerCtx = simulation::makeInnerCouplingContext(ctx);
 
     const std::uint64_t airconSigBefore = airconStateSignature(ctx.thermal);
-    static thread_local std::uint64_t s_prevAirconSig = 0;
-    static thread_local bool s_havePrevAirconSig = false;
-    const bool airconChanged =
-        s_havePrevAirconSig && (airconSigBefore != s_prevAirconSig);
-    const bool forceMinTwo = !s_havePrevAirconSig || airconChanged;
-    // ウォームスタート: 署名が同じなら bracket をクリアしない
-    const bool warmStartAircon = s_havePrevAirconSig && !airconChanged;
+    const bool forceMinTwo = ctx.aircon.shouldForceMinTwoCouplingIters(airconSigBefore);
+    // 能力ブラケットは室温・風量・潜熱などに依存するため毎タイムステップ初期化
+    ctx.aircon.clearCapacityLimitBracket();
 
     const std::size_t maxOuter = effectiveMaxAirconControlIterations(ctx.constants);
     bool outerLoopConverged = false;
     for (std::size_t iteration = 0; iteration < maxOuter; ++iteration) {
         if (metrics) metrics->outerIterations = iteration + 1;
-        if (iteration == 0 && !warmStartAircon) {
-            ctx.aircon.clearCapacityLimitBracket();
-        }
         // 外側反復開始時: 空調顕熱をクリア（scheduled / latent は維持）
         std::fill(heatSources.airconSensible.begin(), heatSources.airconSensible.end(), 0.0);
         composeHeatSourcesIntoGraph(ctx.thermal.getGraph(), heatSources);
@@ -168,15 +159,12 @@ void runSimulation(VentilationNetwork& ventNetwork,
     ensureOuterAirconLoopConverged(outerLoopConverged);
 
     if (simulation::latentCouplingActive(ctx.constants)) {
-        s_carriedHumidityLatent = heatSources.humidityLatent;
-        s_haveCarriedHumidityLatent = true;
+        ctx.thermal.setCarriedHumidityLatent(heatSources.humidityLatent);
     } else {
-        s_carriedHumidityLatent.clear();
-        s_haveCarriedHumidityLatent = false;
+        ctx.thermal.clearCarriedHumidityLatent();
     }
 
-    s_prevAirconSig = airconStateSignature(ctx.thermal);
-    s_havePrevAirconSig = true;
+    ctx.aircon.observeAirconStateSignature(airconStateSignature(ctx.thermal));
 
     if (ctx.constants.temperatureCalc) {
         ctx.thermal.commitResponseConductionHistory();
