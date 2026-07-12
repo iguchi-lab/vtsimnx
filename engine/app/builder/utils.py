@@ -137,8 +137,28 @@ def convert_to_json_compatible(obj: Any) -> Any:
 
 
 def ensure_timeseries(value, length: int):
-    if isinstance(value, (list, np.ndarray)):
-        return list(value)
+    """
+    時系列を sim length に正規化する。
+
+    - スカラー: length まで展開
+    - 長さ 1 の配列: length まで展開
+    - 長さ length: そのまま
+    - それ以外（空・不一致長）: ValueError
+    """
+    if length <= 0:
+        raise ValueError(f"ensure_timeseries: length must be positive, got {length}")
+
+    if isinstance(value, (list, tuple, np.ndarray)):
+        seq = list(value)
+        n = len(seq)
+        if n == length:
+            return seq
+        if n == 1:
+            return [seq[0]] * length
+        raise ValueError(
+            f"timeseries length mismatch: got {n}, expected {length} (or 1 to broadcast)"
+        )
+
     return [value] * length
 
 

@@ -117,9 +117,23 @@ def test_convert_to_json_compatible_nested_list_and_scalars():
 
 # ensure_timeseries ----------------------------------------------------------
 def test_ensure_timeseries_from_list_and_array_and_scalar():
-    assert utils.ensure_timeseries([1, 2, 3], length=5) == [1, 2, 3]
-    assert utils.ensure_timeseries(np.array([4, 5]), length=5) == [4, 5]
+    assert utils.ensure_timeseries([1, 2, 3], length=3) == [1, 2, 3]
+    assert utils.ensure_timeseries(np.array([4, 5]), length=2) == [4, 5]
     # スカラーは length 個に複製される
     assert utils.ensure_timeseries(7, length=3) == [7, 7, 7]
+
+
+def test_ensure_timeseries_broadcasts_length_one():
+    assert utils.ensure_timeseries([9], length=4) == [9, 9, 9, 9]
+    assert utils.ensure_timeseries(np.array([2.5]), length=3) == [2.5, 2.5, 2.5]
+
+
+def test_ensure_timeseries_rejects_mismatched_length():
+    with pytest.raises(ValueError, match="timeseries length mismatch"):
+        utils.ensure_timeseries([1, 2], length=5)
+    with pytest.raises(ValueError, match="timeseries length mismatch"):
+        utils.ensure_timeseries([], length=3)
+    with pytest.raises(ValueError, match="length must be positive"):
+        utils.ensure_timeseries(1.0, length=0)
 
 

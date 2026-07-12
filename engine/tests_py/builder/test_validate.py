@@ -180,3 +180,45 @@ def test_pressure_loss_computes_k_total_from_formula_and_lambda_alias(minimal_si
     assert b["k_total"] == pytest.approx(2.0)
 
 
+def test_node_timeseries_broadcasts_length_one(minimal_simulation):
+    length = int(minimal_simulation["index"]["length"])
+    cfg = {
+        "simulation": minimal_simulation,
+        "nodes": [{"key": "A", "t": [21.0]}, {"key": "B", "t": 0.0}],
+        "ventilation_branches": [],
+        "thermal_branches": [{"key": "A->B", "conductance": 1.0}],
+    }
+    out = validate.validate_dict(cfg)
+    a = next(n for n in out["nodes"] if n["key"] == "A")
+    assert a["t"] == [21.0] * length
+
+
+def test_node_timeseries_rejects_mismatched_length(minimal_simulation):
+    cfg = {
+        "simulation": minimal_simulation,
+        "nodes": [{"key": "A", "t": [20.0, 21.0, 22.0]}, {"key": "B", "t": 0.0}],
+        "ventilation_branches": [],
+        "thermal_branches": [{"key": "A->B", "conductance": 1.0}],
+    }
+    # minimal_simulation length は通常 1 か小さい値。不一致なら ValidationError。
+    length = int(minimal_simulation["index"]["length"])
+    if length == 3:
+        # たまたま一致する場合はスキップ相当の別ケースへ
+        cfg["nodes"][0]["t"] = [20.0, 21.0]
+    with pytest.raises(validate.ValidationError, match="timeseries length mismatch"):
+        validate.validate_dict(cfg)
+
+
+def test_vol_timeseries_rejects_mismatched_length(minimal_simulation):
+    length = int(minimal_simulation["index"]["length"])
+    bad = [0.01] * (length + 2 if length > 0 else 2)
+    cfg = {
+        "simulation": minimal_simulation,
+        "nodes": [{"key": "A"}, {"key": "B"}],
+        "ventilation_branches": [{"key": "A->B", "vol": bad}],
+        "thermal_branches": [],
+    }
+    with pytest.raises(validate.ValidationError, match="timeseries length mismatch"):
+        validate.validate_dict(cfg)
+
+

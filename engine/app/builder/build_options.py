@@ -19,10 +19,28 @@ _BOOL_FLAGS_DEFAULT_FALSE = (
     "add_surface_radiation_exclude_glass",
 )
 
+_DEFAULT_SURFACE_LAYER_METHOD = "rc"
+_DEFAULT_RESPONSE_METHOD = "arx_rc"
+
 
 def _pick_bool(obj: dict[str, Any], name: str) -> bool | None:
     v = obj.get(name)
     return v if isinstance(v, bool) else None
+
+
+def _pick_str(obj: dict[str, Any], name: str) -> str | None:
+    v = obj.get(name)
+    return v if isinstance(v, str) and v else None
+
+
+def _pick_optional_int(obj: dict[str, Any], name: str) -> int | None:
+    v = obj.get(name)
+    if v is None:
+        return None
+    try:
+        return int(v)
+    except Exception as e:
+        raise ValueError(f"{name} must be int, got {v!r}") from e
 
 
 @dataclass(frozen=True)
@@ -37,8 +55,8 @@ class BuildOptions:
     add_surface_nocturnal: bool = True
     add_surface_radiation: bool = True
     add_surface_radiation_exclude_glass: bool = False
-    surface_layer_method: str = "rc"
-    response_method: str = "arx_rc"
+    surface_layer_method: str = _DEFAULT_SURFACE_LAYER_METHOD
+    response_method: str = _DEFAULT_RESPONSE_METHOD
     response_terms: int | None = None
 
     @classmethod
@@ -54,8 +72,8 @@ class BuildOptions:
         add_surface_nocturnal: bool | None = None,
         add_surface_radiation: bool | None = None,
         add_surface_radiation_exclude_glass: bool | None = None,
-        surface_layer_method: str = "rc",
-        response_method: str = "arx_rc",
+        surface_layer_method: str | None = None,
+        response_method: str | None = None,
         response_terms: int | None = None,
     ) -> "BuildOptions":
         """
@@ -76,8 +94,9 @@ class BuildOptions:
             "add_surface_radiation_exclude_glass": add_surface_radiation_exclude_glass,
         }
 
-        builder_opt = raw.get("builder")
-        if isinstance(builder_opt, dict):
+        builder_opt = raw.get("builder") if isinstance(raw.get("builder"), dict) else None
+
+        if builder_opt is not None:
             for name in pending:
                 if pending[name] is None:
                     pending[name] = _pick_bool(builder_opt, name)
@@ -94,43 +113,37 @@ class BuildOptions:
             v = pending[name]
             resolved_bools[name] = False if v is None else bool(v)
 
-        # surface_layer_method / response_* は「関数引数 surface_layer_method が既定 'rc' のときだけ」JSON を反映
-        # （従来 _resolve_builder_options と同じ条件）
-        if surface_layer_method == "rc":
-            if isinstance(builder_opt, dict):
-                v = builder_opt.get("surface_layer_method")
-                if isinstance(v, str) and v:
-                    surface_layer_method = v
-                rm = builder_opt.get("response_method")
-                if response_method == "arx_rc" and isinstance(rm, str) and rm:
-                    response_method = rm
-                rt = builder_opt.get("response_terms")
-                if response_terms is None and rt is not None:
-                    try:
-                        response_terms = int(rt)
-                    except Exception as e:
-                        raise ValueError(f"builder.response_terms must be int, got {rt!r}") from e
+        resolved_layer = surface_layer_method
+        resolved_rm = response_method
+        resolved_rt = response_terms
 
-            v2 = raw.get("surface_layer_method")
-            if isinstance(v2, str) and v2:
-                surface_layer_method = v2
-            if response_method == "arx_rc":
-                rm2 = raw.get("response_method")
-                if isinstance(rm2, str) and rm2:
-                    response_method = rm2
-            if response_terms is None:
-                rt2 = raw.get("response_terms")
-                if rt2 is not None:
-                    try:
-                        response_terms = int(rt2)
-                    except Exception as e:
-                        raise ValueError(f"response_terms must be int, got {rt2!r}") from e
+        if resolved_layer is None and builder_opt is not None:
+            resolved_layer = _pick_str(builder_opt, "surface_layer_method")
+        if resolved_layer is None:
+            resolved_layer = _pick_str(raw, "surface_layer_method")
+        if resolved_layer is None:
+            resolved_layer = _DEFAULT_SURFACE_LAYER_METHOD
+
+        if resolved_rm is None and builder_opt is not None:
+            resolved_rm = _pick_str(builder_opt, "response_method")
+        if resolved_rm is None:
+            resolved_rm = _pick_str(raw, "response_method")
+        if resolved_rm is None:
+            resolved_rm = _DEFAULT_RESPONSE_METHOD
+
+        if resolved_rt is None and builder_opt is not None:
+            try:
+                resolved_rt = _pick_optional_int(builder_opt, "response_terms")
+            except ValueError as e:
+                raise ValueError(f"builder.response_terms must be int, got {builder_opt.get('response_terms')!r}") from e
+        if resolved_rt is None and "response_terms" in raw:
+            resolved_rt = _pick_optional_int(raw, "response_terms")
 
         return cls(
             **resolved_bools,
-            surface_layer_method=surface_layer_method,
-            response_method=response_method,
-            response_terms=response_terms,
+            surface_layer_method=resolved_layer,
+            response_method=resolved_rm,
+            response_terms=resolved_rt,
         )
 
 

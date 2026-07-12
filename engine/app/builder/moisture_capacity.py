@@ -83,6 +83,17 @@ def add_moisture_capacity(node: dict, time_step: float) -> tuple[list, list]:
     return nodes, thermal_branches
 
 
+def derive_calc_x_from_moisture_capacity(node_config: list) -> None:
+    """
+    湿気容量展開前に、moisture_capacity を持つノードへ calc_x=True を立てる。
+
+    空調ノードへの calc_x 伝播より先に呼ぶこと。
+    """
+    for node in node_config:
+        if isinstance(node, dict) and "moisture_capacity" in node:
+            node["calc_x"] = True
+
+
 def process_moisture_capacities(node_config: list, time_step: float) -> tuple[list, list]:
     """
     ノード配列を走査し、moisture_capacity を持つノードに

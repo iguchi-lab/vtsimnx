@@ -43,7 +43,7 @@ def test_build_options_reads_builder_then_toplevel():
     assert opt.add_surface_radiation_exclude_glass is True
 
 
-def test_build_options_reads_layer_method_from_builder_when_default():
+def test_build_options_reads_layer_method_from_builder_when_unspecified():
     opt = BuildOptions.resolve(
         {"builder": {"surface_layer_method": "response", "response_method": "ctf", "response_terms": 8}}
     )
@@ -52,15 +52,37 @@ def test_build_options_reads_layer_method_from_builder_when_default():
     assert opt.response_terms == 8
 
 
-def test_build_options_skips_json_layer_method_when_explicit():
+def test_build_options_explicit_rc_overrides_json_response():
+    # 明示的に "rc" を渡した場合は JSON の "response" に上書きされない
+    opt = BuildOptions.resolve(
+        {"builder": {"surface_layer_method": "response", "response_method": "ctf", "response_terms": 8}},
+        surface_layer_method="rc",
+    )
+    assert opt.surface_layer_method == "rc"
+    # response_* は独立解決: 未指定なら JSON を読む
+    assert opt.response_method == "ctf"
+    assert opt.response_terms == 8
+
+
+def test_build_options_explicit_response_method_overrides_json():
+    opt = BuildOptions.resolve(
+        {"builder": {"response_method": "ctf", "response_terms": 8}},
+        response_method="arx_rc",
+        response_terms=3,
+    )
+    assert opt.response_method == "arx_rc"
+    assert opt.response_terms == 3
+
+
+def test_build_options_independent_string_resolution():
+    # surface_layer_method だけ明示しても response_* の JSON 解決は阻害しない
     opt = BuildOptions.resolve(
         {"builder": {"surface_layer_method": "response", "response_method": "ctf", "response_terms": 8}},
         surface_layer_method="u_value",
     )
     assert opt.surface_layer_method == "u_value"
-    # 従来どおり surface_layer_method 引数が既定以外なら JSON の response_* も読まない
-    assert opt.response_method == "arx_rc"
-    assert opt.response_terms is None
+    assert opt.response_method == "ctf"
+    assert opt.response_terms == 8
 
 
 def test_build_options_invalid_response_terms():

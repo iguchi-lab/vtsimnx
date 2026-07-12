@@ -15,7 +15,7 @@ def test_build_config_minimal(tmp_path, minimal_input_config):
 
 
 def test_builder_surface_layer_method_argument_overrides_json_builder_option():
-    # JSON側で response を指定していても、引数で明示したら引数が優先される（関数引数がrc以外のときはJSONを読まない仕様）
+    # JSON側で response を指定していても、引数で明示した "rc" が優先される
     raw = {
         "builder": {"surface_layer_method": "response"},
         "simulation": {
@@ -41,6 +41,41 @@ def test_builder_surface_layer_method_argument_overrides_json_builder_option():
     # RCなら conductance ブランチができる。responseなら response_conduction ができる。
     assert any(b.get("subtype") == "conduction" and b.get("conductance") is not None for b in out.get("thermal_branches", []))
     assert not any(b.get("type") == "response_conduction" for b in out.get("thermal_branches", []))
+
+
+def test_moisture_capacity_propagates_calc_x_to_aircon_before_expansion():
+    """発湿源なし・湿気容量ありの部屋でも空調ノードへ calc_x が伝播する。"""
+    raw = {
+        "simulation": {
+            "index": {"start": "2025-01-01T00:00:00Z", "end": "2025-01-01T01:00:00Z", "timestep": 60, "length": 1},
+            "tolerance": {"ventilation": 1e-6, "thermal": 1e-6, "convergence": 1e-6},
+            "calc_flag": {"p": False, "t": False, "x": False, "c": False},
+        },
+        "nodes": [
+            {"key": "室1", "t": 22.0, "moisture_capacity": 1.0, "moisture_capacity_unit": "kg/(kg/kg)"},
+            {"key": "外気", "t": 5.0},
+        ],
+        "ventilation_branches": [],
+        "thermal_branches": [],
+        "aircon": [
+            {
+                "key": "AC1",
+                "set": "室1",
+                "outside": "外気",
+                "pre_temp": 24.0,
+                "mode": "heating",
+                "model": "dummy",
+            }
+        ],
+    }
+
+    out = build_config(raw, add_surface=False, add_capacity=False, add_moisture_capacity=True)
+    room = next(n for n in out["nodes"] if n["key"] == "室1")
+    ac = next(n for n in out["nodes"] if n["key"] == "AC1")
+    assert room.get("calc_x") is True
+    assert ac.get("calc_x") is True
+    assert any(n["key"] == "室1_mx" for n in out["nodes"])
+    assert out["simulation"]["calc_flag"]["x"] is True
 
 
 def test_builder_flags_can_be_set_in_json_builder_section_and_overridden_by_args():

@@ -103,3 +103,71 @@ def test_raw_sim_config_accepts_minimal():
     model = RawSimConfig.model_validate(MIN_CFG)
     assert model.simulation.index.length == 60
     assert model.nodes[0].key == "N1"
+
+
+def test_prepare_raw_config_keeps_surface_builder_fields():
+    """API strip 経路でも surface の builder 受理フィールドが落ちないこと。"""
+    cfg = {
+        **MIN_CFG,
+        "nodes": [{"key": "室内", "t": 20.0}, {"key": "外部", "t": 0.0}],
+        "surfaces": [
+            {
+                "key": "室内->外部",
+                "part": "wall",
+                "area": 10.0,
+                "u_value": 0.5,
+                "nocturnal": [1.0, 2.0],
+                "night_radiation": [3.0, 4.0],
+                "comment": "wall note",
+                "a_capacity": 1000.0,
+                "response_method": "arx_rc",
+                "response_terms": 5,
+                "SCC": 0.1,
+                "SCR": 0.8,
+                "epsilon": 0.9,
+            }
+        ],
+    }
+    data, warnings, _details = prepare_raw_config(cfg, unknown_keys="strip")
+    surface = data["surfaces"][0]
+    assert surface["nocturnal"] == [1.0, 2.0]
+    assert surface["night_radiation"] == [3.0, 4.0]
+    assert surface["comment"] == "wall note"
+    assert surface["a_capacity"] == 1000.0
+    assert surface["response_method"] == "arx_rc"
+    assert surface["response_terms"] == 5
+    assert surface["SCC"] == 0.1
+    assert surface["SCR"] == 0.8
+    assert not any("nocturnal" in w for w in warnings)
+
+
+def test_prepare_then_build_keeps_nocturnal_branch():
+    """prepare_raw_config → build_config 経由でも nocturnal ブランチが生成される。"""
+    from app.builder import build_config
+
+    cfg = {
+        **MIN_CFG,
+        "simulation": {
+            "index": {
+                "start": "2025-01-01T00:00:00Z",
+                "end": "2025-01-01T00:02:00Z",
+                "timestep": 60,
+                "length": 2,
+            }
+        },
+        "nodes": [{"key": "室内", "t": 20.0}, {"key": "外部", "t": 0.0}],
+        "surfaces": [
+            {
+                "key": "室内->外部",
+                "part": "wall",
+                "area": 2.0,
+                "u_value": 1.0,
+                "epsilon": 0.9,
+                "nocturnal": [10.0, 20.0],
+            }
+        ],
+    }
+    prepared, _, _ = prepare_raw_config(cfg, unknown_keys="strip")
+    assert "nocturnal" in prepared["surfaces"][0]
+    out = build_config(prepared, add_aircon=False, add_capacity=False)
+    assert any(b.get("subtype") == "nocturnal_loss" for b in out.get("thermal_branches", []))

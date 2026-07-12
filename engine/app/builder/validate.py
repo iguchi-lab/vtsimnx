@@ -554,9 +554,13 @@ def validate_node_config(
                 node["p"] = 0.0
             elif isinstance(p_val, (int, float)):
                 node["p"] = float(p_val)
-            elif isinstance(p_val, list):
-                # ベクトルが与えられた場合はそのまま（長さチェックは行わない）
-                node["p"] = p_val
+            elif isinstance(p_val, (list, np.ndarray)):
+                try:
+                    node["p"] = ensure_timeseries(p_val, int(sim_config["index"]["length"]))
+                except ValueError as e:
+                    errors.append(f"ノード {node['key']} の'p': {e}")
+            else:
+                errors.append(f"ノード {node['key']} の'p'は数値または配列である必要があります")
         elif "p" in node:
             del node["p"]
 
@@ -567,8 +571,13 @@ def validate_node_config(
                 node["t"] = 20.0
             elif isinstance(t_val, (int, float)):
                 node["t"] = float(t_val)
-            elif isinstance(t_val, list):
-                node["t"] = t_val
+            elif isinstance(t_val, (list, np.ndarray)):
+                try:
+                    node["t"] = ensure_timeseries(t_val, int(sim_config["index"]["length"]))
+                except ValueError as e:
+                    errors.append(f"ノード {node['key']} の't': {e}")
+            else:
+                errors.append(f"ノード {node['key']} の't'は数値または配列である必要があります")
         elif "t" in node:
             del node["t"]
 
@@ -580,8 +589,12 @@ def validate_node_config(
             if pre is None:
                 node["pre_temp"] = ensure_timeseries(20.0, sim_length)
             elif isinstance(pre, (int, float, list, np.ndarray)):
-                pre_series = ensure_timeseries(pre, sim_length)
-                mode_series = ensure_timeseries(mode, sim_length) if mode is not None else None
+                try:
+                    pre_series = ensure_timeseries(pre, sim_length)
+                    mode_series = ensure_timeseries(mode, sim_length) if mode is not None else None
+                except ValueError as e:
+                    errors.append(f"ノード {node['key']} の pre_temp/mode: {e}")
+                    continue
                 for idx, val in enumerate(pre_series):
                     if not _is_nan_like(val):
                         continue
@@ -691,14 +704,16 @@ def validate_ventilation_config(
             if pressure_loss_errors:
                 continue
 
-        # FIXED_FLOW の vol はスカラーのまま（配列が来た場合はそのまま）
+        # FIXED_FLOW の vol はスカラーのまま（配列は length に正規化）
         if branch["type"] == VentilationBranchTypeEnum.FIXED_FLOW:
             vol_value = branch.get("vol")
             if isinstance(vol_value, (int, float)):
                 branch["vol"] = float(vol_value)
-            elif isinstance(vol_value, list):
-                # ベクトルが来た場合は長さチェックを行わず受け入れ
-                branch["vol"] = vol_value
+            elif isinstance(vol_value, (list, np.ndarray)):
+                try:
+                    branch["vol"] = ensure_timeseries(vol_value, int(sim_config["index"]["length"]))
+                except ValueError as e:
+                    errors.append(f"換気ブランチ {branch['key']} の'vol': {e}")
             else:
                 errors.append(f"換気ブランチ {branch['key']} の'vol'は数値または配列である必要があります")
 
@@ -805,6 +820,15 @@ def validate_thermal_config(
 
         if branch["type"] == ThermalBranchTypeEnum.RESPONSE_CONDUCTION:
             errors.extend(_validate_response_conduction(branch))
+
+        # heat_generation 時系列長の正規化
+        if "heat_generation" in branch and isinstance(branch.get("heat_generation"), (list, np.ndarray)):
+            try:
+                branch["heat_generation"] = ensure_timeseries(
+                    branch["heat_generation"], int(sim_config["index"]["length"])
+                )
+            except ValueError as e:
+                errors.append(f"熱ブランチ {branch['key']} の'heat_generation': {e}")
 
         # air_capacity: conductance は ρ·cp·V/Δt と一致させる（moist_enthalpy ON 時は体積から再計算するため）
         if str(branch.get("subtype") or "") == "air_capacity":

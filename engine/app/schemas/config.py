@@ -308,8 +308,26 @@ class SurfaceModel(_StrictExtraBase):
         description="日射取得",
         json_schema_extra=field_extra(SOLAR_IRRADIANCE_W_M2),
     )
+    nocturnal: Optional[ScalarOrSeries] = Field(
+        default=None,
+        description="夜間放射（推奨キー）",
+        json_schema_extra=field_extra(SOLAR_IRRADIANCE_W_M2),
+    )
+    night_radiation: Optional[ScalarOrSeries] = Field(
+        default=None,
+        description="夜間放射（互換キー）",
+        json_schema_extra=field_extra(SOLAR_IRRADIANCE_W_M2),
+    )
     eta: Optional[float] = None
     epsilon: Optional[float] = None
+    comment: Optional[str] = None
+    a_capacity: Optional[float] = None
+    response_method: Optional[str] = None
+    response_terms: Optional[int] = None
+    SCC: Optional[float] = None
+    SCR: Optional[float] = None
+    scc: Optional[float] = None
+    scr: Optional[float] = None
     response: Optional[Dict[str, Any]] = None
 
 

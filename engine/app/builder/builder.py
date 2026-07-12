@@ -14,7 +14,7 @@ from .heat_sources import build_heat_generation_branches
 from .moisture import build_humidity_generation_vents
 from .aircon import process_aircons
 from .thermal import process_capacities
-from .moisture_capacity import process_moisture_capacities
+from .moisture_capacity import derive_calc_x_from_moisture_capacity, process_moisture_capacities
 from .validate import validate_dict_with_warnings, validate_dict_with_warning_details
 
 logger = get_logger(__name__)
@@ -69,6 +69,9 @@ def _build_output_json(raw: Dict[str, Any], *, options: BuildOptions) -> Dict[st
     except Exception as e:
         logger.exception("humidity_source の処理に失敗しました: %s", e)
         raise
+
+    # 展開前に必要計算フラグを導出（湿気容量など）。空調への伝播より先に行う。
+    derive_calc_x_from_moisture_capacity(node_config)
 
     if aircon_config and options.add_aircon:
         # 設定ノード(set)で calc_x/c=true の場合、aircon ノードにもフラグを引き継ぐ。
@@ -153,8 +156,8 @@ def _build_core(
     add_surface_nocturnal: bool | None,
     add_surface_radiation: bool | None,
     add_surface_radiation_exclude_glass: bool | None,
-    surface_layer_method: str,
-    response_method: str,
+    surface_layer_method: str | None,
+    response_method: str | None,
     response_terms: int | None,
     with_warning_details: bool,
     build_stats_out: Optional[list] = None,
@@ -220,8 +223,8 @@ def build_config_with_warnings(
     add_surface_nocturnal: bool | None = None,
     add_surface_radiation: bool | None = None,
     add_surface_radiation_exclude_glass: bool | None = None,
-    surface_layer_method: str = "rc",
-    response_method: str = "arx_rc",
+    surface_layer_method: str | None = None,
+    response_method: str | None = None,
     response_terms: int | None = None,
     build_stats_out: Optional[list] = None,
     unknown_keys: str = "strip",
@@ -232,6 +235,7 @@ def build_config_with_warnings(
     add_surface / add_aircon / add_capacity で各処理の有無を制御できる。
     add_surface_solar / add_surface_radiation で表面の日射・室内放射処理を個別に制御できる。
     add_surface_radiation_exclude_glass で室内放射対象からガラス面を除外できる。
+    surface_layer_method / response_method は None（未指定）のとき JSON / 既定値で解決する。
     """
     logger.info("設定データの読み込み開始")
     try:
@@ -271,14 +275,15 @@ def build_config_with_warning_details(
     add_surface_nocturnal: bool | None = None,
     add_surface_radiation: bool | None = None,
     add_surface_radiation_exclude_glass: bool | None = None,
-    surface_layer_method: str = "rc",
-    response_method: str = "arx_rc",
+    surface_layer_method: str | None = None,
+    response_method: str | None = None,
     response_terms: int | None = None,
     build_stats_out: Optional[list] = None,
     unknown_keys: str = "strip",
 ) -> tuple[Dict[str, Any], list[str], list[dict]]:
     """
     設定 raw_config を正規化・展開・検証して dict と warnings（文字列/構造化）を返す。
+    surface_layer_method / response_method は None（未指定）のとき JSON / 既定値で解決する。
     """
     logger.info("設定データの読み込み開始")
     validated, warnings, warning_details = _build_core(
@@ -315,8 +320,8 @@ def build_config(
     add_surface_nocturnal: bool | None = None,
     add_surface_radiation: bool | None = None,
     add_surface_radiation_exclude_glass: bool | None = None,
-    surface_layer_method: str = "rc",
-    response_method: str = "arx_rc",
+    surface_layer_method: str | None = None,
+    response_method: str | None = None,
     response_terms: int | None = None,
 ) -> Dict[str, Any]:
     """
@@ -325,6 +330,7 @@ def build_config(
     add_surface / add_aircon / add_capacity で各処理の有無を制御できる。
     add_surface_solar / add_surface_radiation で表面の日射・室内放射処理を個別に制御できる。
     add_surface_radiation_exclude_glass で室内放射対象からガラス面を除外できる。
+    surface_layer_method / response_method は None（未指定）のとき JSON / 既定値で解決する。
     """
     validated, _warnings = build_config_with_warnings(
         raw_config,
