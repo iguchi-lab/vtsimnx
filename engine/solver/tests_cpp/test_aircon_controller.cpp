@@ -9,6 +9,8 @@
 #include "aircon/aircon_capacity.h"
 #include "aircon/aircon_network_utils.h"
 #include "aircon/aircon_operation_mode.h"
+#include "core/thermal/thermal_moist_air.h"
+#include "core/thermal/thermal_solver_linear_direct.h"
 #include "network/thermal_network.h"
 #include "network/ventilation_network.h"
 #include "simulation_error.h"
@@ -898,6 +900,184 @@ int main() {
             expectNear(powerW[1], 0.0, 0.0, "invalid in_node case: power should fall back to 0");
         }
         expectTrue(calls == 1, "invalid in_node case: only valid unit should call estimateCOP");
+    }
+
+    // IDEAL（モデルなし）も制御キーに入る
+    {
+        ThermalNetwork tIdeal;
+        tIdeal.addNode(makeNode("R", "normal", 20.0));
+        auto ac = makeNode("AC_IDEAL", "aircon", 20.0);
+        ac.set_node = "R";
+        ac.model = "IDEAL";
+        tIdeal.addNode(ac);
+        AirconController cIdeal;
+        std::ostringstream logs;
+        cIdeal.initializeModels(tIdeal, logs, 0);
+        const auto& keys = cIdeal.getAirconKeys();
+        expectTrue(keys.size() == 1 && keys[0] == "AC_IDEAL", "IDEAL aircon must be in getAirconKeys");
+        expectTrue(cIdeal.getModel("AC_IDEAL") == nullptr, "IDEAL has no COP model");
+    }
+
+    // applyPreset: モード継続時は前ステップの ON/OFF を維持
+    {
+        ThermalNetwork tP;
+        tP.addNode(makeNode("R", "normal", 20.0));
+        auto ac = makeNode("AC_P", "aircon", 20.0);
+        ac.set_node = "R";
+        ac.model = "IDEAL";
+        ac.current_mode = "HEATING";
+        tP.addNode(ac);
+        AirconController cP;
+        std::ostringstream logs;
+        cP.initializeModels(tP, logs, 0);
+        cP.applyPreset(tP, logs);
+        expectTrue(tP.getNode("AC_P").on, "first preset starts ON");
+        tP.getNode("AC_P").on = false;
+        cP.applyPreset(tP, logs);
+        expectTrue(!tP.getNode("AC_P").on, "continued HEATING keeps previous OFF");
+        tP.getNode("AC_P").current_mode = "COOLING";
+        cP.applyPreset(tP, logs);
+        expectTrue(tP.getNode("AC_P").on, "mode switch HEATING→COOLING restarts ON");
+    }
+
+    // 符号付き処理熱量ヘルパ
+    {
+        const double qHeat = thermal_moist_air::signedProcessedHeatW(
+            20.0, 0.0, 30.0, 0.0, 0.1, /*moist=*/false);
+        const double qCool = thermal_moist_air::signedProcessedHeatW(
+            26.0, 0.0, 16.0, 0.0, 0.1, /*moist=*/false);
+        expectTrue(qHeat > 0.0, "heating deltaT → positive signed heat");
+        expectTrue(qCool < 0.0, "cooling deltaT → negative signed heat");
+        FlowRateMap fr;
+        fr[{"IN", "B"}] = 0.1;
+        thermal.getNode("IN").current_t = 20.0;
+        thermal.getNode("B").current_t = 30.0;
+        const double qCtrl = controller.calculateSignedProcessedHeat(thermal, "IN", "B", fr);
+        expectNear(qCtrl, qHeat, 1e-6, "controller signed heat matches helper");
+    }
+
+    // 熱ソルバが required_heat_w を符号付き処理熱量として書く
+    {
+        auto makeSolveConstants = []() {
+            SimulationConstants c{};
+            c.temperatureCalc = true;
+            c.thermalTolerance = 1e-3;
+            c.thermalBalanceToleranceW = 1.0;
+            c.timestep = 3600;
+            return c;
+        };
+
+        auto addAirconLoop = [](ThermalNetwork& net, const std::string& roomKey,
+                                const std::string& acKey, const std::string& outKey,
+                                double flow, bool acBeforeRoom) {
+            VertexProperties out{};
+            out.key = outKey;
+            out.type = "normal";
+            out.calc_t = false;
+            out.current_t = 0.0;
+            VertexProperties room{};
+            room.key = roomKey;
+            room.type = "normal";
+            room.calc_t = true;
+            room.current_t = 20.0;
+            VertexProperties ac{};
+            ac.key = acKey;
+            ac.type = "aircon";
+            ac.calc_t = true;
+            ac.on = true;
+            ac.set_node = roomKey;
+            ac.in_node = roomKey;
+            ac.current_pre_temp = 20.0;
+            ac.current_requested_pre_temp = 20.0;
+            ac.current_t = 20.0;
+            ac.current_mode = "HEATING";
+            if (acBeforeRoom) {
+                net.addNode(ac);
+                net.addNode(room);
+            } else {
+                net.addNode(room);
+                net.addNode(ac);
+            }
+            net.addNode(out);
+
+            EdgeProperties cond{};
+            cond.key = "cond_" + roomKey;
+            cond.unique_id = cond.key;
+            cond.type = "conductance";
+            cond.subtype = "conduction";
+            cond.source = roomKey;
+            cond.target = outKey;
+            cond.conductance = 50.0; // 外気 0℃・設定 20℃ → 約 1000W 暖房需要
+            net.addEdge(cond);
+
+            EdgeProperties ret{};
+            ret.key = "ret_" + acKey;
+            ret.unique_id = ret.key;
+            ret.type = "advection";
+            ret.source = roomKey;
+            ret.target = acKey;
+            ret.flow_rate = flow;
+            ret.is_aircon_inflow = true;
+            net.addEdge(ret);
+
+            EdgeProperties sup{};
+            sup.key = "sup_" + acKey;
+            sup.unique_id = sup.key;
+            sup.type = "advection";
+            sup.source = acKey;
+            sup.target = roomKey;
+            sup.flow_rate = flow;
+            net.addEdge(sup);
+        };
+
+        // 暖房需要: required_heat_w > 0
+        {
+            ThermalNetwork net;
+            addAirconLoop(net, "ROOM", "AC", "OUT", 0.2, /*acBeforeRoom=*/false);
+            std::ostringstream logs;
+            ThermalSolverLinearDirect::resetDirectTSolverContext();
+            ThermalSolverLinearDirect::solveTemperaturesLinearDirect(net, makeSolveConstants(), logs);
+            const double q = net.getNode("AC").required_heat_w;
+            expectTrue(std::isfinite(q) && q > 100.0, "heating load case: required_heat_w > 0");
+            // 外気0℃・設定20℃・conductance=50 → 約1000W の暖房負荷（容量過渡を含む）
+            expectTrue(q > 800.0, "heating load roughly matches UA*dT scale");
+        }
+        // 頂点順を逆にしても同じ
+        {
+            ThermalNetwork net;
+            addAirconLoop(net, "ROOM2", "AC2", "OUT2", 0.2, /*acBeforeRoom=*/true);
+            std::ostringstream logs;
+            ThermalSolverLinearDirect::resetDirectTSolverContext();
+            ThermalSolverLinearDirect::solveTemperaturesLinearDirect(net, makeSolveConstants(), logs);
+            const double q = net.getNode("AC2").required_heat_w;
+            expectTrue(std::isfinite(q) && q > 100.0, "vertex-order independent heating Qreq > 0");
+        }
+        // 冷房需要: 外気高温・設定低め
+        {
+            ThermalNetwork net;
+            addAirconLoop(net, "ROOMC", "ACC", "OUTC", 0.2, false);
+            net.getNode("OUTC").current_t = 35.0;
+            net.getNode("ACC").current_pre_temp = 24.0;
+            net.getNode("ACC").current_requested_pre_temp = 24.0;
+            net.getNode("ACC").current_mode = "COOLING";
+            net.getNode("ROOMC").current_t = 24.0;
+            std::ostringstream logs;
+            ThermalSolverLinearDirect::resetDirectTSolverContext();
+            ThermalSolverLinearDirect::solveTemperaturesLinearDirect(net, makeSolveConstants(), logs);
+            const double q = net.getNode("ACC").required_heat_w;
+            expectTrue(std::isfinite(q) && q < -100.0, "cooling load case: required_heat_w < 0");
+        }
+        // 負荷なしに近い: 外気=設定、伝導のみ → Q≈0
+        {
+            ThermalNetwork net;
+            addAirconLoop(net, "ROOM0", "AC0", "OUT0", 0.2, false);
+            net.getNode("OUT0").current_t = 20.0;
+            std::ostringstream logs;
+            ThermalSolverLinearDirect::resetDirectTSolverContext();
+            ThermalSolverLinearDirect::solveTemperaturesLinearDirect(net, makeSolveConstants(), logs);
+            const double q = net.getNode("AC0").required_heat_w;
+            expectTrue(std::isfinite(q) && std::abs(q) < 5.0, "no-load case: required_heat_w ≈ 0");
+        }
     }
 
     if (g_failures == 0) {

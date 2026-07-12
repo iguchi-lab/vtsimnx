@@ -170,6 +170,8 @@ public:
 
     // 5) Diagnostics / cache controls
     void invalidateCaches();
+    // 熱容量ノード温度の更新後など、RHS が大きく変わるタイミングで因子化・解キャッシュを捨てる
+    void invalidateDirectTSolveCache();
     void setLastThermalConvergence(bool ok, double rmseBalance, double maxBalance, const std::string& method);
     bool getLastThermalConverged() const { return lastThermalConverged; }
     double getLastThermalRmseBalance() const { return lastThermalRmseBalance; }

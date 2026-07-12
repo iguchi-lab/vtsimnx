@@ -175,11 +175,11 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    A["1. checkAndAdjustDuctCentralAirflow"] --> B{"風量変更?"}
-    B -->|Yes| R1["RecomputeForFlow"]
-    B -->|No| C["2. controlAllAircons"]
-    C --> D{"ON/OFF 変化?"}
-    D -->|Yes| R2["RecomputeForControl"]
+    A["1. controlAllAircons"] --> B{"ON/OFF 変化?"}
+    B -->|Yes| R2["RecomputeForControl"]
+    B -->|No| C["2. checkAndAdjustDuctCentralAirflow"]
+    C --> D{"風量変更?"}
+    D -->|Yes| R1["RecomputeForFlow"]
     D -->|No| E["3. checkAndAdjustCapacity"]
     E --> F{"設定温度 or 吹出湿度?"}
     F -->|能力| R3["RecomputeForCapacity"]
@@ -195,11 +195,12 @@ flowchart TD
 flowchart LR
     REQ["requestedSetpoint<br/>current_requested_pre_temp<br/>スケジュール"] --> ON["ON/OFF<br/>OFF中は温度 / ON中はQreq"]
     EFF["effectiveSetpoint<br/>current_pre_temp<br/>能力制限で可動"] --> FIX["熱ソルバ fixed-row"]
-    FIX --> QR["required_heat_w<br/>符号付き必要負荷"]
+    FIX --> QR["required_heat_w<br/>符号付き処理熱量"]
     QR --> ON
 ```
 
-ON 中は `required_heat_w`（暖房正）の符号で停止判定します。能力探索が最終検証後も上限を満たせない場合は Accept せず例外終了します。
+ON 中かつ `set_node` が実効設定近傍にあるときだけ `required_heat_w` を使います。  
+室温が大きく外れている解では温度バンドへフォールバックし、ON/OFF 振動を防ぎます。能力探索が最終検証後も上限を満たせない場合は Accept せず例外終了します。
 
 ---
 

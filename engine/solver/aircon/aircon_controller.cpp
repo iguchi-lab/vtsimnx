@@ -7,6 +7,7 @@
 #include "network/thermal_network.h"
 #include "network/ventilation_network.h"
 #include "archenv/include/archenv.h"
+#include "core/thermal/thermal_moist_air.h"
 #include "utils/utils.h"
 #include "acmodel/acmodel.h"
 
@@ -46,6 +47,7 @@ void AirconController::initializeModels(ThermalNetwork& thermalNetwork,
     airconModels.clear();
     airconKeysCacheInitialized_ = false;
     airconKeysOrdered_.clear();
+    lastAppliedMode_.clear();
     clearCouplingWarmStart();
     clearCapacityLimitBracket();
 
@@ -65,11 +67,14 @@ void AirconController::initializeModels(ThermalNetwork& thermalNetwork,
         if (node.type != "aircon") {
             continue;
         }
+        // 制御対象キーはモデル有無に関わらず全 aircon を登録する
+        airconKeysOrdered_.push_back(node.key);
+
+        if (node.model == "IDEAL") {
+            writeLog(logs, "　エアコン IDEAL モード（モデルなし）: " + node.key);
+            continue;
+        }
         if (node.ac_spec.empty()) {
-            if (node.model == "IDEAL") {
-                writeLog(logs, "　エアコン IDEAL モード（モデルなし）: " + node.key);
-                continue;
-            }
             throw std::runtime_error(
                 "aircon model init failed: ac_spec missing for key=" + node.key +
                 " (use model=IDEAL for intentional model-less aircon)");
@@ -95,6 +100,8 @@ void AirconController::initializeModels(ThermalNetwork& thermalNetwork,
                 "aircon model init failed: key=" + node.key + " - " + e.what());
         }
     }
+    std::sort(airconKeysOrdered_.begin(), airconKeysOrdered_.end());
+    airconKeysCacheInitialized_ = true;
 
     // 同一 set_node を複数空調が制御すると fixed-row が頂点順依存になるため禁止する
     {
@@ -120,14 +127,19 @@ void AirconController::initializeModels(ThermalNetwork& thermalNetwork,
 void AirconController::registerModelForTesting(const std::string& airconKey,
                                                std::unique_ptr<acmodel::AirconSpec> model) {
     airconModels[airconKey] = std::move(model);
-    airconKeysCacheInitialized_ = false;
-    airconKeysOrdered_.clear();
+    if (std::find(airconKeysOrdered_.begin(), airconKeysOrdered_.end(), airconKey) ==
+        airconKeysOrdered_.end()) {
+        airconKeysOrdered_.push_back(airconKey);
+        std::sort(airconKeysOrdered_.begin(), airconKeysOrdered_.end());
+    }
+    airconKeysCacheInitialized_ = true;
 }
 
 void AirconController::clearModelsForTesting() {
     airconModels.clear();
-    airconKeysCacheInitialized_ = false;
+    airconKeysCacheInitialized_ = true;
     airconKeysOrdered_.clear();
+    lastAppliedMode_.clear();
     clearCouplingWarmStart();
     clearCapacityLimitBracket();
 }
@@ -176,6 +188,27 @@ double AirconController::calculateHeatCapacity(ThermalNetwork& thermalNetwork,
     }
     double heatCapacity = kAirDensity * kAirSpecificHeat * std::abs(flowRate) * deltaT;
     return clampHeatCapacity(heatCapacity);
+}
+
+double AirconController::calculateSignedProcessedHeat(ThermalNetwork& thermalNetwork,
+                                                      const std::string& inNode,
+                                                      const std::string& airconNode,
+                                                      const FlowRateMap& flowRates) const {
+    if (inNode.empty() || airconNode.empty()) {
+        return 0.0;
+    }
+    double inletTemp = 0.0;
+    double outletTemp = 0.0;
+    if (!aircon::network_utils::tryGetTempFromThermalNetwork(thermalNetwork, inNode, inletTemp) ||
+        !aircon::network_utils::tryGetTempFromThermalNetwork(thermalNetwork, airconNode, outletTemp)) {
+        return 0.0;
+    }
+    const double flowRate =
+        aircon::network_utils::getAirconProcessFlowRate(flowRates, inNode, airconNode);
+    const double xIn = aircon::network_utils::getAbsoluteHumidityFromNode(thermalNetwork, inNode);
+    const double xOut = aircon::network_utils::getAbsoluteHumidityFromNode(thermalNetwork, airconNode);
+    return thermal_moist_air::signedProcessedHeatW(
+        inletTemp, xIn, outletTemp, xOut, flowRate, moistEnthalpyEnabled_);
 }
 
 AirconValidationData AirconController::validateAirconData(const std::string& airconKey,
@@ -255,8 +288,15 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
         }
         double targetTemp = nodeProps.current_requested_pre_temp;
 
+        // Qreq は set_node が実効設定近傍にあるときだけ信頼する。
+        // fixed-row が効いていない解（室温が大きく外れている）では、
+        // 容量ノードからの見かけの加熱などで符号が反転し ON/OFF が振動しうる。
+        const double setpointBandK = std::max(tolerance, 0.5);
+        const bool nearSetpoint =
+            std::isfinite(nodeProps.current_pre_temp) &&
+            std::abs(currentTemp - nodeProps.current_pre_temp) <= setpointBandK;
         const bool useRequiredHeat =
-            nodeProps.on && std::isfinite(nodeProps.required_heat_w);
+            nodeProps.on && std::isfinite(nodeProps.required_heat_w) && nearSetpoint;
         auto result = controlAircon(nodeProps, currentTemp, targetTemp, tolerance, logFile,
                                     useRequiredHeat, nodeProps.required_heat_w,
                                     /*loadDeadbandW=*/1.0);
@@ -755,10 +795,21 @@ void AirconController::applyPreset(ThermalNetwork& thermalNetwork,
     // 順序を決定的にしてログ/挙動の再現性を上げる
     for (const auto& airconKey : getAirconKeys()) {
         auto& nodeProps = thermalNetwork.getNode(airconKey);
-        // 既定は「モードOFF以外なら初期ON」。
-        // 制御ループで不要運転はOFFへ落とす。
-        // （毎ステップOFF開始より、再計算回数を抑えられるケースが多い）
-        nodeProps.on = (nodeProps.current_mode != "OFF");
+        const std::string& mode = nodeProps.current_mode;
+        if (mode == "OFF") {
+            nodeProps.on = false;
+        } else {
+            const auto it = lastAppliedMode_.find(airconKey);
+            const bool firstOrWasOff =
+                (it == lastAppliedMode_.end() || it->second == "OFF");
+            const bool modeSwitched =
+                (it != lastAppliedMode_.end() && it->second != "OFF" && it->second != mode);
+            // 初回・OFF→運転・暖房↔冷房切替は ON で開始。モード継続時は前ステップの ON/OFF を維持。
+            if (firstOrWasOff || modeSwitched) {
+                nodeProps.on = true;
+            }
+        }
+        lastAppliedMode_[airconKey] = mode;
         std::string target = nodeProps.set_node.empty() ? nodeProps.key : nodeProps.set_node;
         writeLog(logs,
                  std::string("　エアコン設定（初期化）: ") + target +

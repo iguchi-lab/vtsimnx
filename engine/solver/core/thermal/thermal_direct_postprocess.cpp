@@ -2,6 +2,33 @@
 #include "core/thermal/thermal_edge_physics.h"
 
 namespace ThermalSolverLinearDirect::detail {
+namespace {
+
+// 既に accumulatePostprocess 済みの heat_rate から、edge が vertex へ与える流入 [W] を返す
+double edgeHeatIntoVertex(const Graph& graph, Edge e, Vertex v) {
+    const auto& ep = graph[e];
+    const Vertex sv = boost::source(e, graph);
+    const Vertex tv = boost::target(e, graph);
+    if (ep.getTypeCode() == EdgeProperties::TypeCode::Advection) {
+        if (ep.flow_rate > 0.0) {
+            return (tv == v) ? ep.heat_rate : 0.0;
+        }
+        if (ep.flow_rate < 0.0) {
+            return (sv == v) ? ep.heat_rate : 0.0;
+        }
+        return 0.0;
+    }
+    // conductance / capacity / response など: sv -= Q, tv += Q（Q=heat_rate）
+    if (tv == v) return ep.heat_rate;
+    if (sv == v) return -ep.heat_rate;
+    return 0.0;
+}
+
+bool edgeTouchesVertex(const Graph& graph, Edge e, Vertex v) {
+    return boost::source(e, graph) == v || boost::target(e, graph) == v;
+}
+
+} // namespace
 
 void postprocessAndReport(ThermalNetwork& network,
                           Graph& graph,
@@ -17,23 +44,37 @@ void postprocessAndReport(ThermalNetwork& network,
     for (auto e : boost::make_iterator_range(boost::edges(graph))) {
         thermal_edge_physics::accumulatePostprocess(graph, e, heatBalance, &topo.moist);
     }
+
+    // 1パス目: heat_source 加算と required_heat_w の初期化
     for (size_t i = 0; i < curV; ++i) {
         heatBalance[i] += graph[i].heat_source;
-        // 未評価に戻す（この呼び出しで ON の台だけ下で再設定）
         if (graph[i].getTypeCode() == VertexProperties::TypeCode::Aircon) {
             graph[i].required_heat_w = std::numeric_limits<double>::quiet_NaN();
         }
-        if (graph[i].getTypeCode() == VertexProperties::TypeCode::Aircon && graph[i].on) {
-            Vertex setV = topo.airconSetVertex[i];
-            if (setV != std::numeric_limits<Vertex>::max()) {
-                // set_node の熱収支残差を空調へ移す。
-                // heatBalance>0 = ノードへの正味熱流入 → 設定温度維持には除熱が必要 → Qrequired<0（冷房需要）
-                // よって Qrequired（暖房正）= -heatBalance
-                heatBalance[i] = heatBalance[static_cast<size_t>(setV)];
-                graph[i].required_heat_w = -heatBalance[i];
-                heatBalance[static_cast<size_t>(setV)] = 0.0;
-            }
+    }
+
+    // 2パス目: 設定温度維持に必要な符号付き負荷（AC 以外の set_node 熱収支の符号反転）
+    // dual-row 解のコイル熱 ρcpV(Tsup-Tret) は、解が病的なときに符号が狂い得るため使わない。
+    for (Vertex acV : topo.airconVertices) {
+        const size_t i = static_cast<size_t>(acV);
+        if (!graph[i].on) continue;
+
+        Vertex setV = topo.airconSetVertex[i];
+        if (setV == std::numeric_limits<Vertex>::max()) continue;
+
+        const size_t setIdx = static_cast<size_t>(setV);
+        double qAcIntoSet = 0.0;
+        for (auto e : topo.incidentEdges[setIdx]) {
+            if (!edgeTouchesVertex(graph, e, acV)) continue;
+            qAcIntoSet += edgeHeatIntoVertex(graph, e, setV);
         }
+        const double qOther = heatBalance[setIdx] - qAcIntoSet;
+        // qOther>0 = AC以外が室を加熱 → 設定維持には除熱が必要 → Qrequired<0
+        graph[i].required_heat_w = -qOther;
+
+        // RMSE 用: 固定温度行の残差は空調側へ移す（必要負荷とは別）
+        heatBalance[i] = heatBalance[setIdx];
+        heatBalance[setIdx] = 0.0;
     }
 
     double maxB = 0.0, rmseB = 0.0;

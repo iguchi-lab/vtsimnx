@@ -336,6 +336,9 @@ static bool runSimulationLoop(const InputData& inputData,
                         thermalGraph[capacityVertices[i]].current_t =
                             prevTempByVertex[static_cast<size_t>(capacityRefVertices[i])];
                     }
+                    // 容量ノード温度は RHS のみ変化だが、解/因子キャッシュが残ると
+                    // fixed-row 解と不整合な温度が再利用されることがあるため無効化する。
+                    thermalNetwork.invalidateDirectTSolveCache();
                     if (verboseStepLog) {
                         writeLog(logs, "熱容量ノード温度を更新しました: " + std::to_string(capacityVertices.size()) + "個");
                     }

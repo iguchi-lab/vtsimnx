@@ -108,6 +108,19 @@ void ThermalNetwork::invalidateCaches() {
     advectionEdgeByVentUniqueId.clear();
 }
 
+void ThermalNetwork::invalidateDirectTSolveCache() {
+    auto& ctx = directTContext();
+    ctx.sparseLu.factorized = false;
+    ctx.sparseLu.analyzed = false;
+    ctx.chol.factorized = false;
+    ctx.chol.analyzed = false;
+    ctx.solutionReuse = {};
+    ctx.postprocessReuse = {};
+    ctx.topology.rhsCoeffSig = 0;
+    ctx.lastCoeffSig = 0;
+    ThermalSolverLinearDirect::detail::resetOptionalDirectSolverCaches(ctx);
+}
+
 // データからネットワークを構築（熱ブランチのみ）
 void ThermalNetwork::buildFromData(const std::vector<VertexProperties>& allNodes,
                                    const std::vector<EdgeProperties>& thermalBranches,

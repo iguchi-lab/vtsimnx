@@ -65,6 +65,22 @@ inline double processedEnthalpyHeatW(double tIn,
     return (dh > 0.0) ? (mDot * dh) : 0.0;
 }
 
+// 空調の符号付き処理熱量 [W]（暖房正・冷房負）: mDot*(h_out - h_in)
+// 能力チェック用の processedEnthalpyHeatW と異なり、逆向きも符号付きで返す。
+inline double signedProcessedHeatW(double tIn,
+                                   double xIn,
+                                   double tOut,
+                                   double xOut,
+                                   double flowRateM3sAbs,
+                                   bool moistEnthalpy) {
+    if (!(flowRateM3sAbs > archenv::FLOW_RATE_MIN)) return 0.0;
+    const double mDot = massFlowKgPerS(flowRateM3sAbs);
+    if (moistEnthalpy) {
+        return mDot * (moistAirEnthalpy(tOut, xOut) - moistAirEnthalpy(tIn, xIn));
+    }
+    return mDot * archenv::SPECIFIC_HEAT_AIR * (tOut - tIn);
+}
+
 // DirectT 組立へ渡すコンテキスト（TopologyCache が保持）
 struct MoistAssembleContext {
     bool enabled = false;

@@ -60,9 +60,12 @@ private:
         OperationMode operationMode = OperationMode::Cooling;
     };
 
-    // 出力用：エアコンキー順キャッシュ（airconModels のキーを昇順で保持）
+    // 出力用：エアコンキー順キャッシュ（全 type=aircon。COPモデル有無とは独立）
     mutable bool airconKeysCacheInitialized_ = false;
     mutable std::vector<std::string> airconKeysOrdered_;
+
+    // applyPreset のウォームスタート用（前ステップで適用した mode）
+    mutable std::unordered_map<std::string, std::string> lastAppliedMode_;
 
     // 能力超過時 nullopt 用の二分探索 bracket（タイムステップごとにクリア）
     mutable aircon::capacity::CapacityBracketMap capacityLimitBracket_;
@@ -123,6 +126,13 @@ public:
                                  const std::string& inNode,
                                  const std::string& airconNode,
                                  const FlowRateMap& flowRates) const;
+
+    // 符号付き処理熱量 [W]（暖房正・冷房負）。ON/OFF の必要負荷判定用。
+    // モード逆向きも 0 に丸めない。moistEnthalpyEnabled_ に従い顕熱 or エンタルピー。
+    double calculateSignedProcessedHeat(ThermalNetwork& thermalNetwork,
+                                        const std::string& inNode,
+                                        const std::string& airconNode,
+                                        const FlowRateMap& flowRates) const;
 
     // === 制御関数 ===
     template<typename NodeType>

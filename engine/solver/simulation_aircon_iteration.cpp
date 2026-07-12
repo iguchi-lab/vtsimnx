@@ -28,27 +28,7 @@ AirconIterationAction runAirconIteration(AirconIterationContext& ctx,
     const double humidityAbsTol = detail::couplingHumidityTol(ctx.constants);
     std::vector<AirconStateProposal> proposals;
 
-    bool ductFlowAdjusted = false;
-    {
-        ScopedTimer timer(ctx.timings, "aircon_duct_flow_adjust", meta);
-        const auto t0 = std::chrono::steady_clock::now();
-        ductFlowAdjusted = ctx.aircon.checkAndAdjustDuctCentralAirflow(
-            ctx.thermal, ctx.ventilation, flowRates, ctx.logs, &supplyHumidityChanged,
-            humidityAbsTol, &proposals);
-        if (metrics) {
-            metrics->airconMs +=
-                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0)
-                    .count();
-        }
-    }
-    if (ductFlowAdjusted) {
-        const auto reasons = aggregateProposalReasons(proposals) |
-                             reasonsFromAirconFlags(true, true, false, supplyHumidityChanged);
-        recordAirconRecomputeMetrics(metrics, reasons);
-        return decideAirconIterationAction(reasons);
-    }
-
-    // 制御評価（heat_source のゼロ化は行わない。熱源の正本は SeparatedHeatSources）
+    // 1) ON/OFF（符号付き必要負荷）。OFF 変更があれば風量・能力より先に再計算へ戻る。
     bool allAirconControlled = false;
     {
         ScopedTimer timer(ctx.timings, "aircon_control", meta);
@@ -71,6 +51,28 @@ AirconIterationAction runAirconIteration(AirconIterationContext& ctx,
         return decideAirconIterationAction(reasons);
     }
 
+    // 2) ON が安定した機器だけダクト風量補正
+    bool ductFlowAdjusted = false;
+    {
+        ScopedTimer timer(ctx.timings, "aircon_duct_flow_adjust", meta);
+        const auto t0 = std::chrono::steady_clock::now();
+        ductFlowAdjusted = ctx.aircon.checkAndAdjustDuctCentralAirflow(
+            ctx.thermal, ctx.ventilation, flowRates, ctx.logs, &supplyHumidityChanged,
+            humidityAbsTol, &proposals);
+        if (metrics) {
+            metrics->airconMs +=
+                std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0)
+                    .count();
+        }
+    }
+    if (ductFlowAdjusted) {
+        const auto reasons = aggregateProposalReasons(proposals) |
+                             reasonsFromAirconFlags(true, true, false, supplyHumidityChanged);
+        recordAirconRecomputeMetrics(metrics, reasons);
+        return decideAirconIterationAction(reasons);
+    }
+
+    // 3) 能力制限
     bool adjustmentMade = false;
     {
         ScopedTimer timer(ctx.timings, "aircon_capacity_adjust", meta);

@@ -72,11 +72,11 @@ flowchart TD
 
 入口は `solver/simulation_aircon_iteration.cpp` の `runAirconIteration()` です。ループ全体の位置づけは [`simulation_loops.md`](simulation_loops.md) を参照してください。
 
-1. `checkAndAdjustDuctCentralAirflow()` で DUCT_CENTRAL の風量補正を先に確認する
-2. `controlAllAircons()` で ON/OFF を決める
+1. `controlAllAircons()` で ON/OFF を決める
+2. ON が安定していれば `checkAndAdjustDuctCentralAirflow()` で DUCT_CENTRAL の風量補正を確認する
 3. 全台の ON/OFF が安定していれば `checkAndAdjustCapacity()` で能力超過を確認する
 4. 各段階は `AirconStateProposal` を積み上げ、`AirconRecomputeReason` を OR 集約する
-5. 優先順位 Flow > ON/OFF > Capacity > SupplyHumidity で再計算 or Accept を決める
+5. 優先順位 ON/OFF > Flow > Capacity > SupplyHumidity で再計算 or Accept を決める
 
 メトリクスには従来の種別カウンタに加え、次を記録します。
 
@@ -100,8 +100,16 @@ flowchart TD
 1. **ON かつ** 熱ソルバが `required_heat_w`（符号付き必要負荷）を算出済み → **負荷の符号**で判定
 2. それ以外（OFF 中、または負荷未評価）→ `set_node` 室温と **要求設定** `current_requested_pre_temp` の温度バンド
 
-符号付き必要負荷（暖房正・冷房負）は、fixed-row 後の `set_node` 熱収支残差から  
-`required_heat_w = -heatBalance[set_node]` として求めます。固定後の室温は常に設定付近なので、温度比較だけでは「暖房不要なのに ON 維持」を検出できません。
+符号付き必要負荷（暖房正・冷房負）は、fixed-row 解の後に **設定温度を維持するために空調が担うべき負荷**です。
+
+```text
+qOther = set_node 熱収支のうち空調ブランチ以外
+required_heat_w = -qOther
+```
+
+コイルの `ρ·cp·|V|·(Tsupply−Treturn)` は dual-row 解が健全なときはこれと一致しますが、  
+吹出温度が病的なときは符号が狂い得るため、ON/OFF 判定の正本には使いません。
+固定後の室温は常に設定付近なので、温度比較だけでは「暖房不要なのに ON 維持」を検出できません。
 
 ```mermaid
 flowchart TD
@@ -224,7 +232,7 @@ Q = \dot m\,|h_\mathrm{in}-h_\mathrm{out}|
 
 ### 8. DUCT_CENTRAL の処理熱量連動風量（外側ループ連成）
 
-`model="DUCT_CENTRAL"` かつ運転中の機器については、能力補正の前段で風量を見直します。
+`model="DUCT_CENTRAL"` かつ運転中の機器については、ON/OFF が安定したあとに風量を見直します。
 
 目的:
 
