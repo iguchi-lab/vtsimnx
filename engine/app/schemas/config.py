@@ -173,7 +173,7 @@ class VentilationBranchModel(_StrictExtraBase):
     h_to: Optional[float] = Field(
         default=None, description="到達高さ", json_schema_extra=field_extra(LENGTH_M)
     )
-    eta: Optional[ScalarOrSeries] = None
+    eta: Optional[float] = None
     alpha: Optional[float] = Field(
         default=None, description="有効開口率", json_schema_extra=field_extra("-")
     )

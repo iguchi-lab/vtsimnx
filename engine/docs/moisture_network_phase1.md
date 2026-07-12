@@ -25,10 +25,12 @@ flowchart LR
 
 - `moisture_capacity` (number, optional)
   - ノードの湿気容量
+  - **有限かつ `> 0` であること**（負値・0・NaN・inf はエラー）
   - `>0` のとき、湿度更新で容量項として使われる
   - 既定単位: `[J/(kg/kg')]`
 - `moisture_capacity_unit` (string, optional)
   - `moisture_capacity` の入力単位を指定
+  - `moisture_capacity` 無しで unit のみの指定はエラー（`add_moisture_capacity=true` 時）
   - 対応:
     - `"J/(kg/kg')"`（既定、builder で内部単位へ変換）
     - `"kg/(kg/kg)"`（内部単位としてそのまま使用）
@@ -61,7 +63,7 @@ flowchart LR
   - `builder.add_moisture_capacity`（既定: `true`）
     - `true`: 上記の材料側ノード展開を行う
     - `false`: 湿気容量を**無効化**する
-      - `moisture_capacity` / `moisture_capacity_unit` を除去する
+      - `moisture_capacity` / `moisture_capacity_unit` を除去する（どちらか一方だけでも両方除去）
       - `<key>_mx` は生成しない
       - 元ノードへ `calc_x` を強制しない
       - solver へ室ノードの `moisture_capacity` を直接渡す「別物理モデル」にはしない

@@ -171,6 +171,32 @@ def _is_sequence_like(value) -> bool:
     return isinstance(value, (list, tuple))
 
 
+def _coerce_series_element(value, element_type: str):
+    """時系列要素を number / bool に強制する。文字列数値や int-as-bool は拒否。"""
+    if element_type == "number":
+        if isinstance(value, (bool, np.bool_)):
+            raise ValueError(f"timeseries element must be a number, got bool {value!r}")
+        if isinstance(value, (int, float, np.integer, np.floating)):
+            out = float(value)
+            if not np.isfinite(out):
+                raise ValueError(f"timeseries element must be finite, got {value!r}")
+            return out
+        raise ValueError(f"timeseries element must be a number, got {type(value).__name__}: {value!r}")
+
+    if element_type == "bool":
+        if isinstance(value, (bool, np.bool_)):
+            return bool(value)
+        raise ValueError(f"timeseries element must be bool, got {type(value).__name__}: {value!r}")
+
+    raise ValueError(f"unsupported element_type={element_type!r}")
+
+
+def _coerce_series_values(seq: list, element_type: str | None) -> list:
+    if element_type is None:
+        return seq
+    return [_coerce_series_element(x, element_type) for x in seq]
+
+
 def normalize_optional_series(
     obj: dict,
     field: str,
@@ -179,6 +205,7 @@ def normalize_optional_series(
     default=None,
     fill_if_missing: bool = False,
     expand_scalars: bool = True,
+    element_type: str | None = None,
 ) -> None:
     """
     obj[field] を時系列長 length に正規化する（破壊的）。
@@ -186,24 +213,31 @@ def normalize_optional_series(
     - 欠落時: fill_if_missing なら default を length 展開
     - 存在時: ensure_timeseries で正規化
     - expand_scalars=False: スカラー（非シーケンス）はそのまま残す（巨大化回避用）
+    - element_type: "number" | "bool" | None（要素型検査）
     """
     if field not in obj or obj[field] is None:
         if fill_if_missing:
-            obj[field] = ensure_timeseries(default, length)
+            seq = ensure_timeseries(default, length)
+            obj[field] = _coerce_series_values(seq, element_type)
         return
 
     value = obj[field]
     if isinstance(value, np.ndarray) and value.ndim == 0:
+        value = value.item()
         if expand_scalars:
-            obj[field] = ensure_timeseries(value, length)
+            seq = ensure_timeseries(value, length)
+            obj[field] = _coerce_series_values(seq, element_type)
         else:
-            obj[field] = value.item()
+            obj[field] = _coerce_series_element(value, element_type) if element_type else value
         return
 
     if not expand_scalars and not _is_sequence_like(value):
+        if element_type is not None:
+            obj[field] = _coerce_series_element(value, element_type)
         return
 
-    obj[field] = ensure_timeseries(value, length)
+    seq = ensure_timeseries(value, length)
+    obj[field] = _coerce_series_values(seq, element_type)
 
 
 

@@ -257,3 +257,25 @@ def test_humidity_generation_normalizes_length_one(minimal_simulation):
     assert hg == [0.5] * length
 
 
+def test_eta_array_is_rejected(minimal_simulation):
+    cfg = {
+        "simulation": minimal_simulation,
+        "nodes": [{"key": "A"}, {"key": "B"}],
+        "ventilation_branches": [{"key": "A->B", "vol": 0.1, "eta": [0.5]}],
+        "thermal_branches": [],
+    }
+    with pytest.raises(validate.ValidationError, match="eta.*スカラー"):
+        validate.validate_dict(cfg)
+
+
+def test_enable_int_array_is_rejected(minimal_simulation):
+    cfg = {
+        "simulation": minimal_simulation,
+        "nodes": [{"key": "A"}, {"key": "B"}],
+        "ventilation_branches": [{"key": "A->B", "vol": 0.1, "enable": [1]}],
+        "thermal_branches": [],
+    }
+    with pytest.raises(validate.ValidationError, match="enable"):
+        validate.validate_dict(cfg)
+
+

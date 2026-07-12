@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from app.builder import build_config
 
 
@@ -113,6 +115,54 @@ def test_add_moisture_capacity_false_strips_fields_and_does_not_force_calc_x():
     assert ac.get("calc_x") is not True
     assert not any(n["key"] == "室1_mx" for n in out["nodes"])
     assert out["simulation"]["calc_flag"]["x"] is False
+
+
+def test_add_moisture_capacity_false_strips_unit_only():
+    raw = {
+        "simulation": {
+            "index": {"start": "2025-01-01T00:00:00Z", "end": "2025-01-01T01:00:00Z", "timestep": 60, "length": 1},
+            "tolerance": {"ventilation": 1e-6, "thermal": 1e-6, "convergence": 1e-6},
+            "calc_flag": {"p": False, "t": False, "x": False, "c": False},
+        },
+        "nodes": [{"key": "室1", "t": 22.0, "moisture_capacity_unit": "kg/(kg/kg)"}],
+        "ventilation_branches": [],
+        "thermal_branches": [],
+    }
+    out = build_config(raw, add_surface=False, add_aircon=False, add_capacity=False, add_moisture_capacity=False)
+    room = next(n for n in out["nodes"] if n["key"] == "室1")
+    assert "moisture_capacity_unit" not in room
+
+
+def test_moisture_capacity_unit_only_errors_when_enabled():
+    raw = {
+        "simulation": {
+            "index": {"start": "2025-01-01T00:00:00Z", "end": "2025-01-01T01:00:00Z", "timestep": 60, "length": 1},
+            "tolerance": {"ventilation": 1e-6, "thermal": 1e-6, "convergence": 1e-6},
+            "calc_flag": {"p": False, "t": False, "x": False, "c": False},
+        },
+        "nodes": [{"key": "室1", "t": 22.0, "moisture_capacity_unit": "kg/(kg/kg)"}],
+        "ventilation_branches": [],
+        "thermal_branches": [],
+    }
+    with pytest.raises(ValueError, match="moisture_capacity_unit without moisture_capacity"):
+        build_config(raw, add_surface=False, add_aircon=False, add_capacity=False, add_moisture_capacity=True)
+
+
+def test_moisture_capacity_rejects_non_positive():
+    raw = {
+        "simulation": {
+            "index": {"start": "2025-01-01T00:00:00Z", "end": "2025-01-01T01:00:00Z", "timestep": 60, "length": 1},
+            "tolerance": {"ventilation": 1e-6, "thermal": 1e-6, "convergence": 1e-6},
+            "calc_flag": {"p": False, "t": False, "x": False, "c": False},
+        },
+        "nodes": [
+            {"key": "室1", "t": 22.0, "moisture_capacity": -1.0, "moisture_capacity_unit": "kg/(kg/kg)"}
+        ],
+        "ventilation_branches": [],
+        "thermal_branches": [],
+    }
+    with pytest.raises(ValueError, match="moisture_capacity must be finite and > 0"):
+        build_config(raw, add_surface=False, add_aircon=False, add_capacity=False, add_moisture_capacity=True)
 
 
 def test_builder_flags_can_be_set_in_json_builder_section_and_overridden_by_args():

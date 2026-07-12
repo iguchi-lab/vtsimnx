@@ -150,7 +150,7 @@ flowchart LR
 - `add_capacity`: `thermal_mass` から熱容量ノード/ブランチを生成するか
 - `add_moisture_capacity`: `moisture_capacity` から材料側湿気容量ノード（`<key>_mx`）を生成するか
   - `true`（既定）: 展開前に当該ノードへ `calc_x=True` を立て、空調ノードへも伝播したうえで `<key>_mx` を生成
-  - `false`: 湿気容量を**無効化**する（`moisture_capacity` フィールドを除去し、室ノードへ直接載せた別モデルにもしない）
+  - `false`: 湿気容量を**無効化**する（`moisture_capacity` / `moisture_capacity_unit` のどちらか一方でもあれば両方除去し、室ノードへ直接載せた別モデルにもしない）
 
 詳細は [`moisture_network_phase1.md`](moisture_network_phase1.md)。
 
@@ -218,14 +218,17 @@ builder / validation は、時系列になり得るフィールドを **`simulat
 | 長さ `length` の配列 | そのまま受理 |
 | その他の長さ（空含む） | **エラー**（途中から直前値を使い続ける事故を防ぐ） |
 
-※ `p` / `t` / `vol` / `enable` / `eta` / `beta` などは、スカラー指定を巨大化回避のためスカラーのまま残すことがあります。配列で渡した場合は上表どおり長さ検査します。
+※ `p` / `t` / `vol` / `enable` / `beta` などは、スカラー指定を巨大化回避のためスカラーのまま残すことがあります。配列で渡した場合は上表どおり長さ検査します。
+配列要素はフィールドに応じて **number** または **bool** であることを要求します（文字列数値や `enable: [1]` はエラー）。
 
 代表的な対象フィールド:
 
 - ノード: `p`, `t`, `x`, `c`, `beta`, `w`, 空調の `pre_temp` / `mode`
-- 換気枝: `vol`, `humidity_generation`, `dust_generation`, `enable`, `eta`
+- 換気枝: `vol`, `humidity_generation`, `dust_generation`, `enable`
 - 熱枝: `heat_generation`, `enable`
 - 表面: `solar`, `nocturnal` / `night_radiation`（スカラー可）
+
+`ventilation_branches[].eta`（除去効率）は **スカラーのみ**（solver が `double` スカラーしか受理しないため）。
 
 実務的には:
 
@@ -312,9 +315,10 @@ builder の raw_config では `key` 記法（`A->B` / `->外部` 等）から `s
   - ブランチの `target` ノードへ水蒸気生成項として加算されます（空気移動が無くても生成項だけ入れたい場合、`void->{room}` の `fixed_flow` に `vol=0` として付与する運用が可能です）
 - `dust_generation`（任意）: **発塵量 \([count/s]\)**（スカラー or 配列）
   - ブランチの `target` ノードへ濃度の生成項として加算されます（同様に `vol=0` の `void->{room}` ブランチに付与可能）
-- `eta`（任意）: **除去効率 \([-]\)**（スカラー or 配列）
+- `eta`（任意）: **除去効率 \([-]\)**（**スカラーのみ**）
   - 濃度計算で、流入側の寄与に \((1-\eta)\) として適用されます（フィルタ等）
   - 注意: 現状の実装では **濃度（c）のみに適用**されます（湿度xには適用しません）
+  - 時系列 `eta` は builder / solver とも未対応です
 
 ---
 

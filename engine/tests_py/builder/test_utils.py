@@ -145,12 +145,30 @@ def test_ensure_timeseries_rejects_mismatched_length():
 def test_normalize_optional_series_fill_and_mismatch():
     obj: dict = {}
     utils.normalize_optional_series(
-        obj, "humidity_generation", length=3, default=0.0, fill_if_missing=True
+        obj, "humidity_generation", length=3, default=0.0, fill_if_missing=True, element_type="number"
     )
     assert obj["humidity_generation"] == [0.0, 0.0, 0.0]
 
     obj2 = {"humidity_generation": [1.0, 2.0]}
     with pytest.raises(ValueError, match="timeseries length mismatch"):
-        utils.normalize_optional_series(obj2, "humidity_generation", length=5, expand_scalars=True)
+        utils.normalize_optional_series(
+            obj2, "humidity_generation", length=5, expand_scalars=True, element_type="number"
+        )
+
+
+def test_normalize_optional_series_rejects_non_numeric_and_non_bool_elements():
+    bad_num = {"humidity_generation": ["invalid"]}
+    with pytest.raises(ValueError, match="must be a number"):
+        utils.normalize_optional_series(
+            bad_num, "humidity_generation", length=1, element_type="number"
+        )
+
+    bad_str_num = {"x": ["0.01"]}
+    with pytest.raises(ValueError, match="must be a number"):
+        utils.normalize_optional_series(bad_str_num, "x", length=1, element_type="number")
+
+    bad_enable = {"enable": [1]}
+    with pytest.raises(ValueError, match="must be bool"):
+        utils.normalize_optional_series(bad_enable, "enable", length=1, element_type="bool")
 
 

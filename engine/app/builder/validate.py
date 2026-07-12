@@ -444,17 +444,22 @@ def set_default_generation(branch: Dict[str, Any], sim_config: SimConfigType, fi
         default=0.0,
         fill_if_missing=bool(sim_config["calc_flag"][calc_flag]),
         expand_scalars=True,
+        element_type="number",
     )
 
 
 def _normalize_node_series_fields(node: Dict[str, Any], sim_length: int, errors: List[str]) -> None:
-    """ノードの時系列候補フィールドを正規化する（スカラーは維持、配列は length 検査）。"""
+    """ノードの時系列候補フィールドを正規化する（スカラーは維持、配列は length/型検査）。"""
     for field in ("x", "c", "beta", "w"):
         if field not in node or node[field] is None:
             continue
         try:
             normalize_optional_series(
-                node, field, length=sim_length, expand_scalars=False
+                node,
+                field,
+                length=sim_length,
+                expand_scalars=False,
+                element_type="number",
             )
         except ValueError as e:
             errors.append(f"ノード {node.get('key', '?')} の'{field}': {e}")
@@ -467,10 +472,34 @@ def _normalize_branch_enable(branch: Dict[str, Any], sim_length: int, errors: Li
         return
     try:
         normalize_optional_series(
-            branch, "enable", length=sim_length, expand_scalars=False
+            branch,
+            "enable",
+            length=sim_length,
+            expand_scalars=False,
+            element_type="bool",
         )
     except ValueError as e:
         errors.append(f"{ctx} {branch.get('key', '?')} の'enable': {e}")
+
+
+def _normalize_scalar_eta(branch: Dict[str, Any], errors: List[str]) -> None:
+    """solver は eta を double スカラーのみ受理するため、配列は拒否する。"""
+    if "eta" not in branch or branch["eta"] is None:
+        return
+    eta = branch["eta"]
+    if isinstance(eta, (list, tuple, np.ndarray)):
+        errors.append(
+            f"換気ブランチ {branch.get('key', '?')} の'eta'はスカラーである必要があります"
+            "（solver が時系列 eta を未対応）"
+        )
+        return
+    if isinstance(eta, (bool, np.bool_)):
+        errors.append(f"換気ブランチ {branch.get('key', '?')} の'eta'は数値である必要があります")
+        return
+    try:
+        branch["eta"] = float(eta)
+    except (TypeError, ValueError):
+        errors.append(f"換気ブランチ {branch.get('key', '?')} の'eta'は数値である必要があります")
 
 
 # ------------------------------
@@ -751,11 +780,17 @@ def validate_ventilation_config(
         # FIXED_FLOW の vol はスカラーのまま（配列は length に正規化）
         if branch["type"] == VentilationBranchTypeEnum.FIXED_FLOW:
             vol_value = branch.get("vol")
-            if isinstance(vol_value, (int, float)):
+            if isinstance(vol_value, (int, float)) and not isinstance(vol_value, bool):
                 branch["vol"] = float(vol_value)
             elif isinstance(vol_value, (list, np.ndarray)):
                 try:
-                    branch["vol"] = ensure_timeseries(vol_value, sim_length)
+                    normalize_optional_series(
+                        branch,
+                        "vol",
+                        length=sim_length,
+                        expand_scalars=True,
+                        element_type="number",
+                    )
                 except ValueError as e:
                     errors.append(f"換気ブランチ {branch['key']} の'vol': {e}")
             else:
@@ -764,10 +799,7 @@ def validate_ventilation_config(
         # 付加情報
         branch["h_from"] = branch.get("h_from", 0.0)
         branch["h_to"] = branch.get("h_to", 0.0)
-        try:
-            normalize_optional_series(branch, "eta", length=sim_length, expand_scalars=False)
-        except ValueError as e:
-            errors.append(f"換気ブランチ {branch['key']} の'eta': {e}")
+        _normalize_scalar_eta(branch, errors)
         # 発湿/発塵（必要時はデフォルトゼロを入れて solver 側の分岐を減らす）
         try:
             set_default_generation(branch, sim_config, "humidity_generation", "x")
@@ -877,7 +909,11 @@ def validate_thermal_config(
         if "heat_generation" in branch and branch.get("heat_generation") is not None:
             try:
                 normalize_optional_series(
-                    branch, "heat_generation", length=sim_length, expand_scalars=True
+                    branch,
+                    "heat_generation",
+                    length=sim_length,
+                    expand_scalars=True,
+                    element_type="number",
                 )
             except ValueError as e:
                 errors.append(f"熱ブランチ {branch['key']} の'heat_generation': {e}")
