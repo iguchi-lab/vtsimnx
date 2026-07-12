@@ -11,6 +11,7 @@
 #include "aircon/aircon_operation_mode.h"
 #include "network/thermal_network.h"
 #include "network/ventilation_network.h"
+#include "simulation_error.h"
 
 #include <unordered_map>
 #include <utility>
@@ -587,18 +588,25 @@ int main() {
                 brackets, oss3, adjustmentMade);
             expectTrue(brackets["AC3"].finalVerificationPending, "re-arm pending on width converge");
             adjustmentMade = false;
-            // 天井まで拡張済みに見せるため tHigh を天井に固定して拡張失敗→終了
+            // 天井まで拡張済みに見せるため tHigh を天井に固定して拡張失敗→未解決例外
             brackets["AC3"].tLow = 49.999;
             brackets["AC3"].tHigh = 50.0;
             brackets["AC3"].finalVerificationPending = true;
             node.current_pre_temp = 50.0;
-            std::ostringstream oss4;
-            aircon::capacity::applyExceededCapacityAdjustment(
-                "AC3", node, OperationMode::Cooling, 24.0, 0.1, 500.0, 900.0,
-                brackets, oss4, adjustmentMade);
+            bool threw = false;
+            try {
+                std::ostringstream oss4;
+                aircon::capacity::applyExceededCapacityAdjustment(
+                    "AC3", node, OperationMode::Cooling, 24.0, 0.1, 500.0, 900.0,
+                    brackets, oss4, adjustmentMade);
+            } catch (const simulation::Error& e) {
+                threw = true;
+                expectTrue(e.code() == simulation::ErrorCode::CapacityConstraintUnresolved,
+                           "unresolved capacity should use CapacityConstraintUnresolved");
+            }
+            expectTrue(threw, "give up after final verify must throw");
             expectTrue(brackets.find("AC3") == brackets.end(),
-                       "give up after final verify when bracket cannot expand");
-            expectTrue(!adjustmentMade, "give-up must not keep requesting recompute");
+                       "bracket erased before throw");
         } else {
             expectTrue(!adjustmentMade || oss2.str().find("最終検証") != std::string::npos,
                        "final verification should end or log verification");
@@ -622,6 +630,82 @@ int main() {
         expectTrue(brackets.find("AC4") == brackets.end(), "final OK erases bracket");
         expectTrue(!adjustmentMade, "final OK should not request another recompute");
         expectNear(node.current_pre_temp, 28.0, 1e-12, "final OK keeps verified setpoint");
+    }
+
+    // 符号付き必要負荷: 暖房ONでも冷房需要ならOFFへ
+    {
+        VertexProperties ac;
+        ac.key = "H1";
+        ac.set_node = "ROOM";
+        ac.current_mode = "HEATING";
+        ac.on = true;
+        ac.current_requested_pre_temp = 20.0;
+        ac.current_pre_temp = 20.0;
+        ac.required_heat_w = -120.0; // 冷房需要
+        std::ostringstream logs;
+        auto r = controller.controlAircon(ac, /*currentTemp=*/20.0, /*targetTemp=*/20.0, 0.5, logs,
+                                          /*useRequiredHeat=*/true, ac.required_heat_w, 1.0);
+        expectTrue(r.stateChanged && !r.on, "heating with cooling demand must turn OFF");
+    }
+    // 符号付き必要負荷: 冷房ONでも暖房需要ならOFFへ
+    {
+        VertexProperties ac;
+        ac.key = "C1";
+        ac.set_node = "ROOM";
+        ac.current_mode = "COOLING";
+        ac.on = true;
+        ac.required_heat_w = 80.0;
+        std::ostringstream logs;
+        auto r = controller.controlAircon(ac, 24.0, 24.0, 0.5, logs, true, ac.required_heat_w, 1.0);
+        expectTrue(r.stateChanged && !r.on, "cooling with heating demand must turn OFF");
+    }
+    // OFF中は室温で再起動判定（負荷未評価）
+    {
+        VertexProperties ac;
+        ac.key = "H2";
+        ac.set_node = "ROOM";
+        ac.current_mode = "HEATING";
+        ac.on = false;
+        std::ostringstream logs;
+        auto r = controller.controlAircon(ac, /*currentTemp=*/18.0, /*targetTemp=*/20.0, 0.5, logs,
+                                          /*useRequiredHeat=*/false, 0.0, 1.0);
+        expectTrue(r.stateChanged && r.on, "cold free room should turn heating ON");
+    }
+
+    // 同一 set_node を複数空調が制御すると fixed-row が頂点順依存になるため禁止する
+    {
+        ThermalNetwork t2;
+        t2.addNode(makeNode("R", "normal", 20.0));
+        auto a1 = makeNode("AC_A", "aircon", 20.0);
+        a1.set_node = "R";
+        a1.model = "IDEAL";
+        auto a2 = makeNode("AC_B", "aircon", 20.0);
+        a2.set_node = "R";
+        a2.model = "IDEAL";
+        t2.addNode(a1);
+        t2.addNode(a2);
+        AirconController c2;
+        bool threw = false;
+        try {
+            std::ostringstream logs;
+            c2.initializeModels(t2, logs, 0);
+        } catch (const std::exception& e) {
+            threw = std::string(e.what()).find("multiple aircons") != std::string::npos;
+        }
+        expectTrue(threw, "duplicate set_node must be rejected at initializeModels");
+    }
+
+    // 符号付き必要負荷: 暖房でも Qreq≈0 なら OFF（能力0Wで室温拘束を残さない）
+    {
+        VertexProperties ac;
+        ac.key = "H0";
+        ac.set_node = "ROOM";
+        ac.current_mode = "HEATING";
+        ac.on = true;
+        ac.required_heat_w = 0.0;
+        std::ostringstream logs;
+        auto r = controller.controlAircon(ac, 20.0, 20.0, 0.5, logs, true, 0.0, 1.0);
+        expectTrue(r.stateChanged && !r.on, "heating with Qreq≈0 must turn OFF");
     }
 
     // AirconStateProposal: ON/OFF 変化で OnOffChanged が立つ

@@ -95,31 +95,35 @@ flowchart TD
 
 ### 3. ON/OFF 判定
 
-`controlAllAircons()` は、`set_node` の現在温度と **要求設定** `current_requested_pre_temp` を比べて ON/OFF を決めます（能力制限後の実効設定には引きずられない）。
+`controlAllAircons()` は次の優先順で ON/OFF を決めます。
+
+1. **ON かつ** 熱ソルバが `required_heat_w`（符号付き必要負荷）を算出済み → **負荷の符号**で判定
+2. それ以外（OFF 中、または負荷未評価）→ `set_node` 室温と **要求設定** `current_requested_pre_temp` の温度バンド
+
+符号付き必要負荷（暖房正・冷房負）は、fixed-row 後の `set_node` 熱収支残差から  
+`required_heat_w = -heatBalance[set_node]` として求めます。固定後の室温は常に設定付近なので、温度比較だけでは「暖房不要なのに ON 維持」を検出できません。
 
 ```mermaid
 flowchart TD
     M{"mode"} -->|OFF| Z["強制 OFF"]
-    M -->|HEATING| H{"Troom < Trequested − tol?"}
-    H -->|Yes| ON1["ON"]
-    H -->|No / deadband| KEEP1["現状維持 or OFF"]
-    M -->|COOLING| C{"Troom > Trequested + tol?"}
-    C -->|Yes| ON2["ON"]
-    C -->|No / deadband| KEEP2["現状維持 or OFF"]
-    M -->|AUTO| A["許容帯外なら ON<br/>帯内は現状維持"]
+    M -->|ON + Qreq あり| Q{"符号付き必要負荷"}
+    Q -->|HEATING かつ Qreq > +tol| ON1["ON 維持"]
+    Q -->|HEATING かつ Qreq ≤ +tol| OFF1["OFF"]
+    Q -->|COOLING かつ Qreq < −tol| ON2["ON 維持"]
+    Q -->|COOLING かつ Qreq ≥ −tol| OFF2["OFF"]
+    M -->|OFF 中 / Qreq なし| T["室温 vs 要求設定（deadband）"]
 ```
 
-- 暖房: 室温が要求設定より低ければ ON、高ければ OFF
-- 冷房: 室温が要求設定より高ければ ON、低ければ OFF
-- `AUTO`: 許容帯の外なら ON、許容帯内では現状態を維持
-
-収束性を落とさないため、許容誤差帯の中では即座に反転せず deadband を持たせています（fixed-row で設定一致直後のチャタリング防止）。
+- 暖房: `Qreq > tol` なら ON。`Qreq ≤ tol`（冷房需要・ほぼゼロ含む）なら OFF
+- 冷房: `Qreq < -tol` なら ON。それ以外は OFF
+- OFF 中の再起動は従来どおり温度バンド（帯内は現状維持）
 
 注意:
 
 - `set_node.calc_t` は ON/OFF に応じて切り替えていません
 - 実際の固定温度化は熱ソルバ側の fixed-row ロジックで行います（値は実効設定 `current_pre_temp`）
-
+- 同一 `set_node` を複数空調が制御する入力は `initializeModels()` で拒否します
+- 能力 bracket の最終検証でも上限を満たせず拡張できない場合は `CapacityConstraintUnresolved` で例外終了します（超過のまま Accept しない）
 ---
 
 ### 4. 熱ソルバとの接続

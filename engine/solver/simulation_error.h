@@ -13,6 +13,7 @@ enum class ErrorCode {
     HumidityNotConverged,
     ConcentrationNotConverged,
     AirconMaxIterations,
+    CapacityConstraintUnresolved,
 };
 
 // API / manifest 向けの安定な snake_case 文字列。
@@ -30,6 +31,8 @@ inline std::string_view toErrorCodeString(ErrorCode code) noexcept {
         return "concentration_not_converged";
     case ErrorCode::AirconMaxIterations:
         return "aircon_max_iterations";
+    case ErrorCode::CapacityConstraintUnresolved:
+        return "capacity_constraint_unresolved";
     }
     return "solver_error";
 }

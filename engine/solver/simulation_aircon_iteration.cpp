@@ -48,11 +48,9 @@ AirconIterationAction runAirconIteration(AirconIterationContext& ctx,
         return decideAirconIterationAction(reasons);
     }
 
-    // 制御前に heat_source をゼロ化してから再設定する（外側ループ開始時の初期化とは別意図）。
+    // 制御評価（heat_source のゼロ化は行わない。熱源の正本は SeparatedHeatSources）
     bool allAirconControlled = false;
     {
-        detail::resetNodeHeatSources(ctx.thermal.getGraph());
-
         ScopedTimer timer(ctx.timings, "aircon_control", meta);
         const auto t0 = std::chrono::steady_clock::now();
         allAirconControlled =

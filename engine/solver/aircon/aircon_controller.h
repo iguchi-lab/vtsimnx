@@ -127,7 +127,10 @@ public:
     // === 制御関数 ===
     template<typename NodeType>
     AirconControlResult controlAircon(const NodeType& nodeProps, double currentTemp,
-                                      double targetTemp, double tolerance, [[maybe_unused]] std::ostream& logs) const {
+                                      double targetTemp, double tolerance, [[maybe_unused]] std::ostream& logs,
+                                      bool useRequiredHeat = false,
+                                      double requiredHeatW = 0.0,
+                                      double loadDeadbandW = 1.0) const {
         AirconControlResult result{false, nodeProps.on, ""};
         const std::string targetName = nodeProps.set_node.empty() ? nodeProps.key : nodeProps.set_node;
         if (nodeProps.current_mode == "OFF") {
@@ -141,37 +144,43 @@ public:
             result.logMessage = oss.str();
             return result;
         }
-        bool shouldBeOn = false;
-        // NOTE:
-        // 熱ソルバ側で set_node を fixed-row(T=pre_temp) にするため、
-        // ONにした直後の反復では currentTemp が「ちょうど目標」になりやすい。
-        // ここで「目標になったから即OFF」をやると、外側ループで ON/OFF が交互になり収束しない。
-        // そのため、誤差帯(±tolerance)内では状態を維持（deadband）する。
-        const double diff = currentTemp - targetTemp;
-        const bool withinBand = (std::abs(diff) <= tolerance);
 
-        if (nodeProps.current_mode == "HEATING") {
-            // 暖房:
-            // - 目標未満（-tolより低い）ならON
-            // - 目標超過（+tolより高い）ならOFF
-            // - ±tol内なら現状態を維持（収束扱い）
-            if (withinBand) shouldBeOn = nodeProps.on;
-            else shouldBeOn = (diff < 0.0);
-        } else if (nodeProps.current_mode == "COOLING") {
-            // 冷房:
-            // - 目標超過（+tolより高い）ならON
-            // - 目標未満（-tolより低い）ならOFF
-            // - ±tol内なら現状態を維持（収束扱い）
-            if (withinBand) shouldBeOn = nodeProps.on;
-            else shouldBeOn = (diff > 0.0);
-        } else if (nodeProps.current_mode == "AUTO") {
-            // AUTO:
-            // - ±tol内なら現状態を維持（収束扱い）
-            // - 外れたらON（方向は後段のoperationMode判定等に委ねる）
-            shouldBeOn = withinBand ? nodeProps.on : true;
+        bool shouldBeOn = false;
+        std::ostringstream detail;
+
+        // ON かつ fixed-row 後の必要負荷が取れるときは符号付き負荷で active-set を決める。
+        // （固定後の室温は常に設定値付近なので温度比較では停止判定できない）
+        // 符号: Qrequired>0 = 暖房需要、Qrequired<0 = 冷房需要
+        if (useRequiredHeat && nodeProps.on && std::isfinite(requiredHeatW)) {
+            const double qTol = std::max(0.0, loadDeadbandW);
+            if (nodeProps.current_mode == "HEATING") {
+                shouldBeOn = (requiredHeatW > qTol);
+            } else if (nodeProps.current_mode == "COOLING") {
+                shouldBeOn = (requiredHeatW < -qTol);
+            } else if (nodeProps.current_mode == "AUTO") {
+                shouldBeOn = (std::abs(requiredHeatW) > qTol);
+            } else {
+                throw std::runtime_error("エアコンのモードが不正です: " + nodeProps.current_mode);
+            }
+            detail << "Qreq=" << requiredHeatW << "W";
         } else {
-            throw std::runtime_error("エアコンのモードが不正です: " + nodeProps.current_mode);
+            // OFF 中（室温が自由）または負荷未評価: 従来の温度バンド
+            const double diff = currentTemp - targetTemp;
+            const bool withinBand = (std::abs(diff) <= tolerance);
+            if (nodeProps.current_mode == "HEATING") {
+                if (withinBand) shouldBeOn = nodeProps.on;
+                else shouldBeOn = (diff < 0.0);
+            } else if (nodeProps.current_mode == "COOLING") {
+                if (withinBand) shouldBeOn = nodeProps.on;
+                else shouldBeOn = (diff > 0.0);
+            } else if (nodeProps.current_mode == "AUTO") {
+                shouldBeOn = withinBand ? nodeProps.on : true;
+            } else {
+                throw std::runtime_error("エアコンのモードが不正です: " + nodeProps.current_mode);
+            }
+            detail << "T=" << currentTemp << "°C";
         }
+
         if (shouldBeOn != nodeProps.on) {
             result.stateChanged = true;
             result.on = shouldBeOn;
@@ -179,14 +188,15 @@ public:
             const char* action = result.on ? "起動" : "停止";
             std::ostringstream oss;
             oss << "　" << targetName << " エアコン " << transition << " (" << action << ")"
-                << " : 現在 " << currentTemp << "°C"
+                << " : " << detail.str()
                 << ", 目標 " << targetTemp << "°C";
             result.logMessage = oss.str();
         } else {
             std::ostringstream oss;
             oss << "　" << targetName << " エアコン: "
                 << (shouldBeOn ? "運転継続" : "停止維持")
-                << " (現在 " << currentTemp << "°C, 目標 " << targetTemp << "°C)";
+                << " (" << detail.str()
+                << ", 目標 " << targetTemp << "°C)";
             result.logMessage = oss.str();
         }
         return result;

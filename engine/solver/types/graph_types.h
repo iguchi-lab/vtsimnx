@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <limits>
 #include <optional>
 #include <string>
 #include <vector>
@@ -62,6 +63,8 @@ struct VertexProperties {
     double v = 0.0;
     bool on = false;
     AirconControlState aircon_control_state = AirconControlState::Off;
+    // fixed-row 拘束時の必要空調負荷 [W]（暖房需要>0、冷房需要<0）。未評価は NaN。
+    double required_heat_w = std::numeric_limits<double>::quiet_NaN();
     // 空調除湿診断 [kg/s]（正=凝縮除去）。空気ノード湿気収支の airconCondensation に反映。
     double aircon_moisture_removal_kg_s = 0.0;
     std::optional<AirconSpec> aircon_spec;

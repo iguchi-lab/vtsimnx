@@ -24,8 +24,6 @@ double couplingHumidityTol(const SimulationConstants& constants);
 std::size_t effectiveMaxCouplingIterations(const SimulationConstants& constants);
 std::size_t effectiveMaxAirconControlIterations(const SimulationConstants& constants);
 
-void resetNodeHeatSources(Graph& graph);
-
 // 熱源の内部分離（合成は composeHeatSourcesIntoGraph）
 struct SeparatedHeatSources {
     std::vector<double> scheduled;       // 入力スケジュール等

@@ -19,10 +19,18 @@ void postprocessAndReport(ThermalNetwork& network,
     }
     for (size_t i = 0; i < curV; ++i) {
         heatBalance[i] += graph[i].heat_source;
+        // 未評価に戻す（この呼び出しで ON の台だけ下で再設定）
+        if (graph[i].getTypeCode() == VertexProperties::TypeCode::Aircon) {
+            graph[i].required_heat_w = std::numeric_limits<double>::quiet_NaN();
+        }
         if (graph[i].getTypeCode() == VertexProperties::TypeCode::Aircon && graph[i].on) {
             Vertex setV = topo.airconSetVertex[i];
             if (setV != std::numeric_limits<Vertex>::max()) {
+                // set_node の熱収支残差を空調へ移す。
+                // heatBalance>0 = ノードへの正味熱流入 → 設定温度維持には除熱が必要 → Qrequired<0（冷房需要）
+                // よって Qrequired（暖房正）= -heatBalance
                 heatBalance[i] = heatBalance[static_cast<size_t>(setV)];
+                graph[i].required_heat_w = -heatBalance[i];
                 heatBalance[static_cast<size_t>(setV)] = 0.0;
             }
         }

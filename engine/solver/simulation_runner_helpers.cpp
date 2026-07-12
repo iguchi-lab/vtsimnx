@@ -132,12 +132,6 @@ std::size_t effectiveMaxAirconControlIterations(const SimulationConstants& const
                                                     : constants.maxInnerIterations;
 }
 
-void resetNodeHeatSources(Graph& graph) {
-    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
-        graph[v].heat_source = 0.0;
-    }
-}
-
 void ensureHeatSourceVectors(SeparatedHeatSources& src, std::size_t nV) {
     auto ensureSize = [nV](std::vector<double>& v) {
         if (v.size() != nV) {

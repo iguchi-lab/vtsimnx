@@ -1,10 +1,12 @@
 #include "aircon/aircon_capacity.h"
 
 #include "archenv/include/archenv.h"
+#include "simulation_error.h"
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <string>
 
 namespace {
 constexpr double kAirDensity = archenv::DENSITY_DRY_AIR;         // [kg/m^3]
@@ -271,7 +273,11 @@ void applyBracketStepResult(
         oss << (underCapacityPath ? ", " : " → ");
         oss << "bracket最終検証でも能力超過のまま探索終了 設定温度=" << previousSetpoint
             << "°C（処理熱量=" << currentTotal << "W, 上限=" << maxHeatCapacity << "W）";
-        return;
+        throw simulation::Error(
+            simulation::ErrorCode::CapacityConstraintUnresolved,
+            "Aircon capacity constraint unresolved: aircon=" + airconKey +
+                ", Q=" + std::to_string(currentTotal) + "W, Qmax=" + std::to_string(maxHeatCapacity) +
+                "W, setpoint=" + std::to_string(previousSetpoint) + "C");
     }
 
     nodeProps.current_pre_temp = result.newSetpoint;

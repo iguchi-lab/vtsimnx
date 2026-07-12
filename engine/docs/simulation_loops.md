@@ -193,9 +193,13 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    REQ["requestedSetpoint<br/>current_requested_pre_temp<br/>スケジュール"] --> ON["ON/OFF 判定"]
+    REQ["requestedSetpoint<br/>current_requested_pre_temp<br/>スケジュール"] --> ON["ON/OFF<br/>OFF中は温度 / ON中はQreq"]
     EFF["effectiveSetpoint<br/>current_pre_temp<br/>能力制限で可動"] --> FIX["熱ソルバ fixed-row"]
+    FIX --> QR["required_heat_w<br/>符号付き必要負荷"]
+    QR --> ON
 ```
+
+ON 中は `required_heat_w`（暖房正）の符号で停止判定します。能力探索が最終検証後も上限を満たせない場合は Accept せず例外終了します。
 
 ---
 
@@ -213,7 +217,7 @@ flowchart TB
 
 - 外側ループの **周の先頭**で `airconSensible` をゼロ化してから再合成します。
 - `humidityLatent` は潜熱連成 ON のとき次ステップへ持ち越せます。
-
+- 空調制御直前にノード `heat_source` をゼロ化する処理は行いません（正本は `SeparatedHeatSources`）。
 ---
 
 ## 8. コード対応表
