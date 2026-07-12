@@ -5,7 +5,7 @@
 """
 from __future__ import annotations
 
-from typing import Final, Mapping
+from typing import Any, Final, Mapping
 
 # --- 基本単位（正本） ---
 TEMPERATURE_C: Final = "degC"
@@ -82,9 +82,9 @@ def unit_for_series(name: str) -> str | None:
     return SERIES_UNITS.get(name)
 
 
-def field_extra(unit: str, **more: object) -> dict[str, object]:
+def field_extra(unit: str, **more: object) -> dict[str, Any]:
     """Pydantic Field(json_schema_extra=...) 用。"""
-    out: dict[str, object] = {"unit": unit}
+    out: dict[str, Any] = {"unit": unit}
     out.update(more)
     return out
 

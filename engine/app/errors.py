@@ -14,7 +14,7 @@
 """
 from __future__ import annotations
 
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, Mapping, NoReturn, Optional, Sequence
 
 from fastapi import HTTPException, Request
 from fastapi.exceptions import RequestValidationError
@@ -81,7 +81,7 @@ def raise_api_error(
     path: Sequence[Any] | None = None,
     run_id: str | None = None,
     extra: Mapping[str, Any] | None = None,
-) -> None:
+) -> NoReturn:
     """HTTPException with structured detail (normalized by exception handlers)."""
     detail = error_body(
         code=code,

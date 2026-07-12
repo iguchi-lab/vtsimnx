@@ -50,22 +50,27 @@ def nocturnal_gain_by_angles(
             raise ValueError("nocturnal_gain_by_angles: rh_out index must match t_out index.")
         if not isinstance(t_out.index, pd.DatetimeIndex):
             raise TypeError("nocturnal_gain_by_angles: t_out index must be DatetimeIndex.")
-        rn_horizontal = MJ_to_Wh(rn(t_out, rh_out))
+        rn_converted = MJ_to_Wh(rn(t_out, rh_out))
+        if isinstance(rn_converted, pd.Series):
+            rn_series = rn_converted
+        else:
+            rn_series = pd.Series(np.asarray(rn_converted, dtype=float), index=t_out.index)
     else:
         if not isinstance(rn_horizontal, pd.Series):
             raise TypeError("nocturnal_gain_by_angles: rn_horizontal は pandas.Series で指定してください。")
         if not isinstance(rn_horizontal.index, pd.DatetimeIndex):
             raise TypeError("nocturnal_gain_by_angles: rn_horizontal index must be DatetimeIndex.")
+        rn_series = rn_horizontal
 
     beta = np.radians(float(tilt_deg))
     f_sky = (1.0 + float(np.cos(beta))) / 2.0
 
-    s_nocturnal = (rn_horizontal * f_sky).rename(C.NOCTURNAL_RADIATION)
+    s_nocturnal = (rn_series * f_sky).rename(C.NOCTURNAL_RADIATION)
     if not return_details:
         return s_nocturnal
 
-    out = pd.DataFrame(index=rn_horizontal.index)
-    out[C.NOCTURNAL_RADIATION_HORIZONTAL] = rn_horizontal
+    out = pd.DataFrame(index=rn_series.index)
+    out[C.NOCTURNAL_RADIATION_HORIZONTAL] = rn_series
     out[C.NOCTURNAL_RADIATION] = s_nocturnal
     return out
 
