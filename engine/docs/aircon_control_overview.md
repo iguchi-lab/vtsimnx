@@ -68,7 +68,18 @@ flowchart TD
 4. 各段階は `AirconStateProposal` を積み上げ、`AirconRecomputeReason` を OR 集約する
 5. 優先順位 Flow > ON/OFF > Capacity > SupplyHumidity で再計算 or Accept を決める
 
-メトリクスには従来の種別カウンタに加え、タイムステップ内で観測した理由の OR である `aircon_recompute_reasons_mask` を記録します。
+メトリクスには従来の種別カウンタに加え、次を記録します。
+
+| キー | 意味 |
+|---|---|
+| `aircon_recompute_reasons_mask` | 観測した `AirconRecomputeReason` の OR |
+| `outer_iterations` | 全タイムステップの外側反復の合計 |
+| `outer_iterations_max` | 1ステップあたりの最大外側反復 |
+| `outer_iterations_mean` | 平均外側反復（`outer_iterations / solve_timesteps`） |
+| `outer_iterations_ge3` / `_share` | 外側反復が 3 以上だったステップ数とその割合 |
+| `aircon_capacity_recalc_share` | 空調再計算のうち能力制限起因の割合 |
+
+能力固定モード導入の判断目安: `outer_iterations_mean` が通常 1〜2 なら大改修の効果は限定的。`outer_iterations_ge3_share` が高く、かつ `aircon_capacity_recalc_share` が大きいときに効果が大きい。
 
 ---
 
@@ -337,7 +348,7 @@ ac1 DUCT_CENTRAL風量補正: 処理熱量=3624.00W, Q.rtd=7200.00W, 比率=0.50
 1. ~~二分探索収束時に設定温度が変わったのに再計算しない不整合の修正~~（済）
 2. ~~`requested` / `effective` setpoint と `AirconControlState` の分離~~（済）
 3. ~~`AirconStateProposal` + `AirconRecomputeReason` を外側ループへ配線~~（済: `runAirconIteration` が提案を集約し、メトリクスに `aircon_recompute_reasons_mask` を記録）
-4. `simulation_metrics` の `outer_iterations`（p95）と `aircon_capacity_recalc` 割合を見て、能力制限時の反復コストを定量化
+4. ~~`simulation_metrics` の outer 反復分布と `aircon_capacity_recalc` 割合を見られるようにする~~（済: mean/max/ge3_share/capacity_share）
 5. 負荷が大きければ thermal solver に能力固定モードを追加し、`Qac=±Qmax` で室温を未知数に戻す（設定温度二分探索の廃止）
 
 望ましい最終モデル:

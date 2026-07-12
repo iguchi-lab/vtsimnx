@@ -203,4 +203,7 @@ void runSimulation(VentilationNetwork& ventNetwork,
                         timestepResultOut);
 
     logTimestepFinished(ctx.logs, logEnabled, totalIterations);
+    if (metrics) {
+        metrics->finalizeTimestepOuterStats();
+    }
 }

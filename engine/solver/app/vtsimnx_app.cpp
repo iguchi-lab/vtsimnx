@@ -361,6 +361,11 @@ static bool runSimulationLoop(const InputData& inputData,
                 runSimulation(ventNetwork, thermalNetwork, humidityNetwork, contaminantNetwork, airconController, simConstants, timestepResult, logs, timings, stepMeta, &stepMetrics);
                 // ラン全体に加算
                 runMetrics.outerIterations += stepMetrics.outerIterations;
+                if (stepMetrics.outerIterationsMax > runMetrics.outerIterationsMax) {
+                    runMetrics.outerIterationsMax = stepMetrics.outerIterationsMax;
+                }
+                runMetrics.solveTimesteps += stepMetrics.solveTimesteps;
+                runMetrics.outerIterationsGe3 += stepMetrics.outerIterationsGe3;
                 runMetrics.coupledIterations += stepMetrics.coupledIterations;
                 runMetrics.pressureSolveCalls += stepMetrics.pressureSolveCalls;
                 runMetrics.pressureCeresIterations += stepMetrics.pressureCeresIterations;

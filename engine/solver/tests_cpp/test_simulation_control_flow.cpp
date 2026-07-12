@@ -184,6 +184,19 @@ void testAirconDecideActions() {
     const auto agg = aggregateProposalReasons({p1, p2});
     expectEqAircon(decideAirconIterationAction(agg), AirconIterationAction::RecomputeForCapacity,
                    "aggregate proposals prefer capacity");
+
+    simulation::TimestepSolveMetrics step;
+    step.outerIterations = 4;
+    step.airconCapacityRecalc = 3;
+    step.airconOnOffRecalc = 1;
+    step.finalizeTimestepOuterStats();
+    expectTrue(step.solveTimesteps == 1, "finalize counts timestep");
+    expectTrue(step.outerIterationsMax == 4, "finalize tracks max");
+    expectTrue(step.outerIterationsGe3 == 1, "finalize tracks ge3");
+    const auto j = step.toJson();
+    expectTrue(j.contains("aircon_capacity_recalc_share"), "json has capacity share");
+    expectTrue(std::abs(j["aircon_capacity_recalc_share"].get<double>() - 0.75) < 1e-12,
+               "capacity share 3/4");
 }
 
 void testOuterMaxIterationsThrow() {

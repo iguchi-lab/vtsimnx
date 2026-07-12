@@ -13,6 +13,9 @@ namespace simulation {
 // タイムステップ単位の連成・ソルバ計測。
 struct TimestepSolveMetrics {
     std::size_t outerIterations = 0;
+    std::size_t outerIterationsMax = 0;      // 1タイムステップあたりの最大外側反復
+    std::size_t solveTimesteps = 0;          // 連成を回したタイムステップ数（run 集約用）
+    std::size_t outerIterationsGe3 = 0;      // outerIterations >= 3 のタイムステップ数
     std::size_t coupledIterations = 0; // 内側連成の累積回数（外側をまたぐ）
     std::size_t pressureSolveCalls = 0;
     std::size_t pressureCeresIterations = 0;
@@ -36,9 +39,29 @@ struct TimestepSolveMetrics {
 
     void reset() { *this = TimestepSolveMetrics{}; }
 
+    /** タイムステップ終了時に outer 分布用フィールドを確定する。 */
+    void finalizeTimestepOuterStats() {
+        ++solveTimesteps;
+        if (outerIterations > outerIterationsMax) {
+            outerIterationsMax = outerIterations;
+        }
+        if (outerIterations >= 3) {
+            ++outerIterationsGe3;
+        }
+    }
+
+    std::size_t airconRecalcTotal() const {
+        return airconFlowAdjustRecalc + airconOnOffRecalc + airconCapacityRecalc +
+               airconSupplyHumidityRecalc;
+    }
+
     nlohmann::json toJson() const {
-        return nlohmann::json{
+        const auto recalcTotal = airconRecalcTotal();
+        nlohmann::json j{
             {"outer_iterations", outerIterations},
+            {"outer_iterations_max", outerIterationsMax},
+            {"solve_timesteps", solveTimesteps},
+            {"outer_iterations_ge3", outerIterationsGe3},
             {"coupled_iterations", coupledIterations},
             {"pressure_solve_calls", pressureSolveCalls},
             {"pressure_ceres_iterations", pressureCeresIterations},
@@ -53,12 +76,24 @@ struct TimestepSolveMetrics {
             {"aircon_on_off_recalc", airconOnOffRecalc},
             {"aircon_capacity_recalc", airconCapacityRecalc},
             {"aircon_supply_humidity_recalc", airconSupplyHumidityRecalc},
+            {"aircon_recalc_total", recalcTotal},
             {"aircon_recompute_reasons_mask", airconRecomputeReasonsMask},
             {"pressure_ms", pressureMs},
             {"thermal_ms", thermalMs},
             {"humidity_ms", humidityMs},
             {"aircon_ms", airconMs},
         };
+        if (solveTimesteps > 0) {
+            j["outer_iterations_mean"] =
+                static_cast<double>(outerIterations) / static_cast<double>(solveTimesteps);
+            j["outer_iterations_ge3_share"] =
+                static_cast<double>(outerIterationsGe3) / static_cast<double>(solveTimesteps);
+        }
+        if (recalcTotal > 0) {
+            j["aircon_capacity_recalc_share"] =
+                static_cast<double>(airconCapacityRecalc) / static_cast<double>(recalcTotal);
+        }
+        return j;
     }
 };
 

@@ -94,6 +94,6 @@
 残り:
 
 1. ~~`AirconStateProposal` / `AirconRecomputeReason` を外側ループへ配線~~（済）
-2. metrics で `outer_iterations` p95 と `aircon_capacity_recalc` 割合を分析（`aircon_recompute_reasons_mask` も出力）
-3. 効果が大きければ thermal に能力固定モード（`Qac=±Qmax`、室温未知）を追加し二分探索を廃止
+2. ~~metrics で outer 分布と `aircon_capacity_recalc` 割合を出せるようにする~~（済: mean/max/ge3_share/capacity_share。実ケースでの判定は次）
+3. 実ランの `metrics` を見て効果が大きければ thermal に能力固定モード（`Qac=±Qmax`、室温未知）を追加し二分探索を廃止
 
