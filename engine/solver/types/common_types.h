@@ -69,8 +69,8 @@ struct SimulationConstants {
     // 内側反復での緩和係数（0<alpha<=1）。1.0=緩和なし
     double humidityRelaxation = 1.0;
     double latentRelaxation = 0.5;
-    // 潜熱→熱フィードバック。0=Disabled, 1=FeedbackToThermal（既定 Disabled）
-    int latentCouplingMode = 0;
+    // 潜熱→熱: 0=Disabled, 1=FromHumidityChange（ノード dx → 同ノード潜熱, 既定 ON）
+    int latentCouplingMode = 1;
     // 湿気内部ソルバ（直接法）の残差許容誤差
     double humiditySolverTolerance = 1e-9;
     // 潜熱源収束: |ΔQ| ≤ abs + rel * max(|Qold|,|Qnew|)

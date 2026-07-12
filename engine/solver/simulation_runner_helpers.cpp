@@ -139,9 +139,14 @@ void resetNodeHeatSources(Graph& graph) {
 }
 
 void ensureHeatSourceVectors(SeparatedHeatSources& src, std::size_t nV) {
-    src.scheduled.assign(nV, 0.0);
-    src.airconSensible.assign(nV, 0.0);
-    src.humidityLatent.assign(nV, 0.0);
+    auto ensureSize = [nV](std::vector<double>& v) {
+        if (v.size() != nV) {
+            v.assign(nV, 0.0);
+        }
+    };
+    ensureSize(src.scheduled);
+    ensureSize(src.airconSensible);
+    ensureSize(src.humidityLatent);
 }
 
 void captureScheduledHeatSources(const Graph& graph, SeparatedHeatSources& src) {
@@ -167,6 +172,33 @@ void composeHeatSourcesIntoGraph(Graph& graph, const SeparatedHeatSources& src) 
 
 double maxAbsLatentHeatChange(const std::vector<double>& prev, const std::vector<double>& curr) {
     return calculateMaxAbsDiff(prev, curr);
+}
+
+void updateLatentFromHumidityChange(const Graph& graph,
+                                    const std::vector<double>& xN,
+                                    double dt,
+                                    double relaxation,
+                                    std::vector<double>& humidityLatentInOut) {
+    if (!(dt > 0.0)) {
+        return;
+    }
+    const size_t nV = static_cast<size_t>(boost::num_vertices(graph));
+    if (humidityLatentInOut.size() != nV) {
+        humidityLatentInOut.assign(nV, 0.0);
+    }
+    const std::vector<double> prev = humidityLatentInOut;
+    const double alpha = std::min(1.0, std::max(0.0, relaxation));
+    const double rho = PhysicalConstants::DENSITY_DRY_AIR;
+    const double L = PhysicalConstants::LATENT_HEAT_VAPORIZATION;
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        const size_t i = static_cast<size_t>(v);
+        double qRaw = 0.0;
+        const double V = graph[v].v;
+        if (V > 0.0 && i < xN.size()) {
+            qRaw = -rho * V * L * (graph[v].current_x - xN[i]) / dt;
+        }
+        humidityLatentInOut[i] = (1.0 - alpha) * prev[i] + alpha * qRaw;
+    }
 }
 
 void capturePrevTempsByVertex(const Graph& graph, std::vector<double>& prevTempsByVertex) {

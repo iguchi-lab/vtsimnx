@@ -38,6 +38,14 @@ void composeHeatSourcesIntoGraph(Graph& graph, const SeparatedHeatSources& src);
 double maxAbsLatentHeatChange(const std::vector<double>& prev,
                               const std::vector<double>& curr);
 
+// 同ノード: Q_latent = -rho * V * L * (x_new - x_n) / dt [W]
+// V<=0 は 0。raw を計算し、relaxation で prev と混合して humidityLatentOut に書く。
+void updateLatentFromHumidityChange(const Graph& graph,
+                                    const std::vector<double>& xN,
+                                    double dt,
+                                    double relaxation,
+                                    std::vector<double>& humidityLatentInOut);
+
 void capturePrevTempsByVertex(const Graph& graph, std::vector<double>& prevTempsByVertex);
 void captureXPrevByVertex(const Graph& graph, std::vector<double>& xPrev);
 void captureWPrevByVertex(const Graph& graph, std::vector<double>& wPrev);

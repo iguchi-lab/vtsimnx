@@ -87,6 +87,17 @@ void runSimulation(VentilationNetwork& ventNetwork,
                             static_cast<size_t>(boost::num_vertices(ctx.thermal.getGraph())));
     // タイムステップ開始時の heat_source を scheduled として保持
     captureScheduledHeatSources(ctx.thermal.getGraph(), heatSources);
+    std::fill(heatSources.airconSensible.begin(), heatSources.airconSensible.end(), 0.0);
+
+    // 前ステップの潜熱を latent(0) として引き継ぐ
+    static thread_local std::vector<double> s_carriedHumidityLatent;
+    static thread_local bool s_haveCarriedHumidityLatent = false;
+    if (simulation::latentCouplingActive(ctx.constants) && s_haveCarriedHumidityLatent &&
+        s_carriedHumidityLatent.size() == heatSources.humidityLatent.size()) {
+        heatSources.humidityLatent = s_carriedHumidityLatent;
+    } else {
+        std::fill(heatSources.humidityLatent.begin(), heatSources.humidityLatent.end(), 0.0);
+    }
 
     auto innerCtx = simulation::makeInnerCouplingContext(ctx);
 
@@ -123,7 +134,7 @@ void runSimulation(VentilationNetwork& ventNetwork,
                 step.flowRates = ctx.ventilation.collectFlowRateMap();
             }
 
-            runDecoupledHumidityStep(innerCtx, initial, step, iteration);
+            runDecoupledHumidityStep(innerCtx, initial, step, iteration, &heatSources);
 
             const std::string airconMeta =
                 simulation::appendLoopMeta(ctx.meta, loopIndex1Based);
@@ -155,6 +166,14 @@ void runSimulation(VentilationNetwork& ventNetwork,
     }
 
     ensureOuterAirconLoopConverged(outerLoopConverged);
+
+    if (simulation::latentCouplingActive(ctx.constants)) {
+        s_carriedHumidityLatent = heatSources.humidityLatent;
+        s_haveCarriedHumidityLatent = true;
+    } else {
+        s_carriedHumidityLatent.clear();
+        s_haveCarriedHumidityLatent = false;
+    }
 
     s_prevAirconSig = airconStateSignature(ctx.thermal);
     s_havePrevAirconSig = true;

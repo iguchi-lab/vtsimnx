@@ -193,8 +193,56 @@ void testOuterAcceptDoesNotThrow() {
 void testLatentModeResolve() {
     expectTrue(resolveLatentAppliedThisIter(LatentCouplingMode::Disabled) == 0.0,
                "latent: Disabled returns 0");
-    expectNear(resolveLatentAppliedThisIter(LatentCouplingMode::FeedbackToThermal, 12.5), 12.5, 0.0,
-               "latent: Feedback returns applied W");
+    expectNear(resolveLatentAppliedThisIter(LatentCouplingMode::FromHumidityChange, 12.5), 12.5, 0.0,
+               "latent: FromHumidityChange returns applied W");
+}
+
+void testLatentFromHumidityChangeKnownDx() {
+    using simulation::detail::updateLatentFromHumidityChange;
+
+    Graph g;
+    const auto v = boost::add_vertex(g);
+    g[v].key = "ROOM";
+    g[v].v = 10.0;
+    g[v].current_x = 0.012;
+    const std::vector<double> xN{0.010};
+    const double dt = 2.0;
+    const double rho = PhysicalConstants::DENSITY_DRY_AIR;
+    const double L = PhysicalConstants::LATENT_HEAT_VAPORIZATION;
+    const double expected = -rho * 10.0 * L * (0.012 - 0.010) / dt;
+
+    std::vector<double> latent{0.0};
+    updateLatentFromHumidityChange(g, xN, dt, /*relaxation=*/1.0, latent);
+    expectNear(latent[0], expected, 1e-9, "latent: known dx formula");
+
+    // V<=0 → 0
+    g[v].v = 0.0;
+    latent[0] = 123.0;
+    updateLatentFromHumidityChange(g, xN, dt, 1.0, latent);
+    expectNear(latent[0], 0.0, 0.0, "latent: V<=0 yields 0");
+
+    // relaxation: Q = (1-a)*prev + a*raw
+    g[v].v = 10.0;
+    latent[0] = 100.0;
+    updateLatentFromHumidityChange(g, xN, dt, 0.5, latent);
+    expectNear(latent[0], 0.5 * 100.0 + 0.5 * expected, 1e-9, "latent: relaxation mix");
+
+    // dt<=0 → no-op
+    latent[0] = 42.0;
+    updateLatentFromHumidityChange(g, xN, 0.0, 1.0, latent);
+    expectNear(latent[0], 42.0, 0.0, "latent: dt<=0 no-op");
+}
+
+void testLatentCouplingActiveRequiresHumidity() {
+    SimulationConstants c{};
+    c.humidityCalc = true;
+    c.latentCouplingMode = 1;
+    expectTrue(simulation::latentCouplingActive(c), "latent active when humidity on");
+    c.humidityCalc = false;
+    expectTrue(!simulation::latentCouplingActive(c), "latent inactive when humidity off");
+    c.humidityCalc = true;
+    c.latentCouplingMode = 0;
+    expectTrue(!simulation::latentCouplingActive(c), "latent inactive when disabled");
 }
 
 void testEffectiveIterationFallback() {
@@ -272,6 +320,30 @@ void testParserPositiveIntegerIterations() {
         }
         expectTrue(threw, "parser: reject non-positive max_inner");
     }
+
+    {
+        auto j = minimalSimJson();
+        const auto c = parseSimulationConstants(j, logs);
+        expectTrue(c.latentCouplingMode == 1, "parser: latent default FromHumidityChange");
+    }
+    {
+        auto j = minimalSimJson();
+        j["simulation"]["coupling"] = {{"latent_coupling_mode", "disabled"}};
+        const auto c = parseSimulationConstants(j, logs);
+        expectTrue(c.latentCouplingMode == 0, "parser: disabled");
+    }
+    {
+        auto j = minimalSimJson();
+        j["simulation"]["coupling"] = {{"latent_coupling_mode", "from_humidity_change"}};
+        const auto c = parseSimulationConstants(j, logs);
+        expectTrue(c.latentCouplingMode == 1, "parser: from_humidity_change");
+    }
+    {
+        auto j = minimalSimJson();
+        j["simulation"]["coupling"] = {{"latent_coupling_mode", "feedback_to_thermal"}};
+        const auto c = parseSimulationConstants(j, logs);
+        expectTrue(c.latentCouplingMode == 1, "parser: feedback_to_thermal alias");
+    }
 }
 
 } // namespace
@@ -288,6 +360,8 @@ int main() {
     testOuterMaxIterationsThrow();
     testOuterAcceptDoesNotThrow();
     testLatentModeResolve();
+    testLatentFromHumidityChangeKnownDx();
+    testLatentCouplingActiveRequiresHumidity();
     testEffectiveIterationFallback();
     testParserPositiveIntegerIterations();
 

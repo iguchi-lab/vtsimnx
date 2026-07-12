@@ -240,11 +240,14 @@ SimulationConstants parseSimulationConstants(const nlohmann::json& config,
                 const std::string mode = cp["latent_coupling_mode"].get<std::string>();
                 if (mode == "disabled" || mode == "Disabled" || mode == "DISABLED") {
                     outConstants.latentCouplingMode = 0;
-                } else if (mode == "feedback_to_thermal" || mode == "FeedbackToThermal") {
+                } else if (mode == "from_humidity_change" || mode == "FromHumidityChange" ||
+                           mode == "feedback_to_thermal" || mode == "FeedbackToThermal") {
+                    // feedback_to_thermal は旧名の互換 alias
                     outConstants.latentCouplingMode = 1;
                 } else {
                     throw std::runtime_error(
-                        "Invalid 'simulation.coupling.latent_coupling_mode' (disabled|feedback_to_thermal)");
+                        "Invalid 'simulation.coupling.latent_coupling_mode' "
+                        "(disabled|from_humidity_change)");
                 }
             } else if (cp["latent_coupling_mode"].is_number_integer()) {
                 outConstants.latentCouplingMode = cp["latent_coupling_mode"].get<int>();
