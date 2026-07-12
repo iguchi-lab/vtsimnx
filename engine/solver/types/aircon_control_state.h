@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <string>
+#include <vector>
 
 /** 空調の運転状態（設定温度拘束 vs 能力上限）。 */
 enum class AirconControlState : std::uint8_t {
@@ -44,7 +45,6 @@ inline constexpr bool hasReason(AirconRecomputeReason flags, AirconRecomputeReas
 
 /**
  * 1台分の状態提案。外側ループはこれを集約して再計算要否を決める。
- * （現状は段階導入: capacity / ON/OFF 経路から埋めていく）
  */
 struct AirconStateProposal {
     std::string airconKey;
@@ -53,9 +53,32 @@ struct AirconStateProposal {
     double requestedSetpoint = 0.0;   // スケジュール設定温度
     double effectiveSetpoint = 0.0;   // 能力制限などを反映した拘束温度（熱ソルバ fixed-row）
     double processedHeatW = 0.0;
-    double maxCapacityW = 0.0;        // 不明時は NaN ではなく 0 以下で「未定義」扱い可
+    double maxCapacityW = 0.0;        // 不明時は hasMaxCapacity=false
     bool hasMaxCapacity = false;
     double targetFlowRate = 0.0;
     double supplyHumidity = 0.0;
     AirconRecomputeReason reasons = AirconRecomputeReason::None;
 };
+
+/** ノードの現在状態から提案の共通フィールドを埋める。 */
+template <typename NodeProps>
+inline AirconStateProposal makeAirconStateProposalBase(const std::string& airconKey,
+                                                       const NodeProps& node) {
+    AirconStateProposal p;
+    p.airconKey = airconKey;
+    p.on = node.on;
+    p.state = node.aircon_control_state;
+    p.requestedSetpoint = node.current_requested_pre_temp;
+    p.effectiveSetpoint = node.current_pre_temp;
+    p.supplyHumidity = node.current_x;
+    return p;
+}
+
+inline AirconRecomputeReason aggregateProposalReasons(
+    const std::vector<AirconStateProposal>& proposals) {
+    AirconRecomputeReason all = AirconRecomputeReason::None;
+    for (const auto& p : proposals) {
+        all |= p.reasons;
+    }
+    return all;
+}

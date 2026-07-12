@@ -1,4 +1,5 @@
 #include <cmath>
+#include <cstdint>
 #include <iostream>
 #include <optional>
 #include <sstream>
@@ -12,7 +13,9 @@
 #include "simulation_coupling_control.h"
 #include "simulation_error.h"
 #include "simulation_inner_coupling.h"
+#include "simulation_metrics.h"
 #include "simulation_runner_helpers.h"
+#include "types/aircon_control_state.h"
 #include "types/common_types.h"
 
 namespace {
@@ -155,6 +158,32 @@ void testAirconDecideActions() {
                    "aircon: accept");
     expectEqAircon(decideAirconIterationAction(false, true, true, true),
                    AirconIterationAction::RecomputeForCapacity, "aircon: capacity before supply");
+
+    using simulation::reasonsFromAirconFlags;
+    using simulation::recordAirconRecomputeMetrics;
+    const auto flowReasons = reasonsFromAirconFlags(true, false, true, true);
+    expectEqAircon(decideAirconIterationAction(flowReasons), AirconIterationAction::RecomputeForFlow,
+                   "aircon reasons: flow wins");
+    expectTrue(hasReason(flowReasons, AirconRecomputeReason::AirflowChanged), "mask has airflow");
+    expectTrue(hasReason(flowReasons, AirconRecomputeReason::OnOffChanged), "mask has onoff");
+    expectTrue(hasReason(flowReasons, AirconRecomputeReason::CapacitySetpointChanged), "mask has capacity");
+    expectTrue(hasReason(flowReasons, AirconRecomputeReason::SupplyHumidityChanged), "mask has humidity");
+
+    simulation::TimestepSolveMetrics metrics;
+    recordAirconRecomputeMetrics(&metrics, flowReasons);
+    expectTrue(metrics.airconFlowAdjustRecalc == 1, "primary metric is flow");
+    expectTrue(metrics.airconOnOffRecalc == 0, "non-primary onoff not counted");
+    expectTrue(metrics.airconCapacityRecalc == 0, "non-primary capacity not counted");
+    expectTrue(metrics.airconRecomputeReasonsMask == static_cast<std::uint32_t>(flowReasons),
+               "reasons mask ORed");
+
+    AirconStateProposal p1;
+    p1.reasons = AirconRecomputeReason::CapacitySetpointChanged;
+    AirconStateProposal p2;
+    p2.reasons = AirconRecomputeReason::SupplyHumidityChanged;
+    const auto agg = aggregateProposalReasons({p1, p2});
+    expectEqAircon(decideAirconIterationAction(agg), AirconIterationAction::RecomputeForCapacity,
+                   "aggregate proposals prefer capacity");
 }
 
 void testOuterMaxIterationsThrow() {

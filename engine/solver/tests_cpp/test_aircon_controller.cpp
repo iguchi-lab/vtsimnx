@@ -454,6 +454,31 @@ int main() {
                    "setpoint change must imply adjustmentMade");
     }
 
+    // AirconStateProposal: ON/OFF 変化で OnOffChanged が立つ
+    {
+        thermal.addNode(makeNode("ROOM2", "normal", 18.0));
+        auto& room = thermal.getNode("ROOM2");
+        auto& ac = thermal.getNode("B");
+        ac.set_node = "ROOM2";
+        ac.current_mode = "HEATING";
+        ac.on = false;
+        setRequestedAndEffective(ac, 26.0);
+        room.current_t = 18.0;
+        std::ostringstream logs;
+        std::vector<AirconStateProposal> proposals;
+        (void)controller.controlAllAircons(thermal, 0.5, logs, nullptr, 1e-9, &proposals);
+        expectTrue(ac.on, "cold room should turn heating ON");
+        bool sawOnOff = false;
+        for (const auto& p : proposals) {
+            if (p.airconKey == "B" && hasReason(p.reasons, AirconRecomputeReason::OnOffChanged)) {
+                sawOnOff = true;
+                expectNear(p.requestedSetpoint, 26.0, 1e-12, "proposal requested");
+                expectNear(p.effectiveSetpoint, 26.0, 1e-12, "proposal effective after ON");
+            }
+        }
+        expectTrue(sawOnOff, "ON transition should set OnOffChanged in proposal");
+    }
+
     // ON/OFF は要求設定温度を参照し、能力補正後の実効設定には引きずられない
     {
         thermal.addNode(makeNode("ROOM", "normal", 21.0));

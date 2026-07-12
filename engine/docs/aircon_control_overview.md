@@ -60,12 +60,15 @@ flowchart TD
     updateConcentration --> writeResult
 ```
 
-入口は `solver/simulation_runner.cpp` の `runAirconControlAndAdjust()` です。
+入口は `solver/simulation_aircon_iteration.cpp` の `runAirconIteration()` です。
 
 1. `checkAndAdjustDuctCentralAirflow()` で DUCT_CENTRAL の風量補正を先に確認する
 2. `controlAllAircons()` で ON/OFF を決める
 3. 全台の ON/OFF が安定していれば `checkAndAdjustCapacity()` で能力超過を確認する
-4. いずれかで修正が入れば `shouldRecompute=true` を返し、同じ timestep の outer loop をやり直す
+4. 各段階は `AirconStateProposal` を積み上げ、`AirconRecomputeReason` を OR 集約する
+5. 優先順位 Flow > ON/OFF > Capacity > SupplyHumidity で再計算 or Accept を決める
+
+メトリクスには従来の種別カウンタに加え、タイムステップ内で観測した理由の OR である `aircon_recompute_reasons_mask` を記録します。
 
 ---
 
@@ -333,7 +336,7 @@ ac1 DUCT_CENTRAL風量補正: 処理熱量=3624.00W, Q.rtd=7200.00W, 比率=0.50
 
 1. ~~二分探索収束時に設定温度が変わったのに再計算しない不整合の修正~~（済）
 2. ~~`requested` / `effective` setpoint と `AirconControlState` の分離~~（済）
-3. `AirconStateProposal` + `AirconRecomputeReason` を外側ループへ配線し、再計算理由をビットフラグ集約（型は `aircon_control_state.h` に用意済み）
+3. ~~`AirconStateProposal` + `AirconRecomputeReason` を外側ループへ配線~~（済: `runAirconIteration` が提案を集約し、メトリクスに `aircon_recompute_reasons_mask` を記録）
 4. `simulation_metrics` の `outer_iterations`（p95）と `aircon_capacity_recalc` 割合を見て、能力制限時の反復コストを定量化
 5. 負荷が大きければ thermal solver に能力固定モードを追加し、`Qac=±Qmax` で室温を未知数に戻す（設定温度二分探索の廃止）
 

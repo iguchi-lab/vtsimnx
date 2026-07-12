@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstddef>
+#include <cstdint>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -26,6 +27,8 @@ struct TimestepSolveMetrics {
     std::size_t airconOnOffRecalc = 0;
     std::size_t airconCapacityRecalc = 0;
     std::size_t airconSupplyHumidityRecalc = 0;
+    // AirconRecomputeReason の OR（タイムステップ内の外側反復をまたぐ）
+    std::uint32_t airconRecomputeReasonsMask = 0;
     double pressureMs = 0.0;
     double thermalMs = 0.0;
     double humidityMs = 0.0;
@@ -50,6 +53,7 @@ struct TimestepSolveMetrics {
             {"aircon_on_off_recalc", airconOnOffRecalc},
             {"aircon_capacity_recalc", airconCapacityRecalc},
             {"aircon_supply_humidity_recalc", airconSupplyHumidityRecalc},
+            {"aircon_recompute_reasons_mask", airconRecomputeReasonsMask},
             {"pressure_ms", pressureMs},
             {"thermal_ms", thermalMs},
             {"humidity_ms", humidityMs},

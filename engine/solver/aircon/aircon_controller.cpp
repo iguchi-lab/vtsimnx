@@ -213,7 +213,8 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
                                          double tolerance,
                                          std::ostream& logFile,
                                          bool* supplyHumidityChanged,
-                                         double humidityAbsTol) const {
+                                         double humidityAbsTol,
+                                         std::vector<AirconStateProposal>* outProposals) const {
     bool allControlled = true;
 
     // 順序を決定的にしてログ/挙動の再現性を上げる
@@ -236,9 +237,11 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
 
         auto result = controlAircon(nodeProps, currentTemp, targetTemp, tolerance, logFile);
         writeLog(logFile, result.logMessage);
+        AirconRecomputeReason unitReasons = AirconRecomputeReason::None;
         if (result.stateChanged) {
             allControlled = false;
             nodeProps.on = result.on;
+            unitReasons |= AirconRecomputeReason::OnOffChanged;
             // NOTE:
             // set_node の calc_t を ON/OFF で切り替えると、
             // 熱ソルバ側の「固定温度行（fixed row）」の適用条件（= set_node が未知数）を満たさず、
@@ -256,11 +259,18 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
             if (aircon::latent::applyPassthroughHumidityToAirconNode(
                     thermalNetwork, airconKey, humidityAbsTol)) {
                 if (supplyHumidityChanged) *supplyHumidityChanged = true;
+                unitReasons |= AirconRecomputeReason::SupplyHumidityChanged;
             }
         } else if (nodeProps.aircon_control_state != AirconControlState::CapacityLimited) {
             nodeProps.aircon_control_state = AirconControlState::SetpointControlled;
             // 能力制限中でなければ実効設定=要求設定
             nodeProps.current_pre_temp = nodeProps.current_requested_pre_temp;
+        }
+
+        if (outProposals) {
+            auto proposal = makeAirconStateProposalBase(airconKey, nodeProps);
+            proposal.reasons = unitReasons;
+            outProposals->push_back(std::move(proposal));
         }
     }
 
@@ -274,7 +284,8 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                                               std::ostream& logs,
                                               int& /*totalIterations*/,
                                               bool* supplyHumidityChanged,
-                                              double humidityAbsTol) const {
+                                              double humidityAbsTol,
+                                              std::vector<AirconStateProposal>* outProposals) const {
     moistEnthalpyEnabled_ = constants.moistEnthalpyEnabled;
     const double xTol = (humidityAbsTol > 0.0) ? humidityAbsTol : 1e-9;
     // 分岐: (1) 超過 → 公式で補正可能なら limitedSetpoint 適用、でなければ bracket 二分探索
@@ -291,9 +302,11 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
             const auto loads = aircon::latent::estimateLatentProcess(
                 context.validData, context.operationMode, context.heatCapacity, context.airFlowRate,
                 nodeProps, moistEnthalpyEnabled_);
+            AirconRecomputeReason unitReasons = AirconRecomputeReason::None;
             if (aircon::latent::applySupplyHumidityToAirconNode(
                     thermalNetwork, airconKey, loads, xTol)) {
                 if (supplyHumidityChanged) *supplyHumidityChanged = true;
+                unitReasons |= AirconRecomputeReason::SupplyHumidityChanged;
             }
             std::string sourceLabel = "unknown";
             auto maxHeatCapacity = aircon::capacity::resolveMaxHeatCapacity(
@@ -312,6 +325,8 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
             }
             oss << ", 現在処理熱量(全熱)=" << std::fixed << std::setprecision(2) << current
                 << "W (顕熱=" << sensibleQ << "W, 潜熱=" << latentQ << "W)";
+
+            bool unitAdjusted = false;
             if (maxHeatCapacity && current > *maxHeatCapacity) {
                 aircon::capacity::applyExceededCapacityAdjustment(
                     airconKey,
@@ -323,7 +338,7 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                     current,
                     capacityLimitBracket_,
                     oss,
-                    adjustmentMade);
+                    unitAdjusted);
             } else if (maxHeatCapacity && current < *maxHeatCapacity && capacityLimitBracket_.count(airconKey)) {
                 aircon::capacity::applyUnderCapacityBracketAdjustment(
                     airconKey,
@@ -333,7 +348,7 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                     current,
                     capacityLimitBracket_,
                     oss,
-                    adjustmentMade);
+                    unitAdjusted);
             } else {
                 oss << " → OK";
                 // CapacityLimited 中は実効設定を維持（要求値へ勝手に戻さない）
@@ -343,7 +358,23 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                     nodeProps.aircon_control_state = AirconControlState::SetpointControlled;
                 }
             }
+            if (unitAdjusted) {
+                adjustmentMade = true;
+                unitReasons |= AirconRecomputeReason::CapacitySetpointChanged;
+            }
             writeLog(logs, oss.str());
+
+            if (outProposals) {
+                auto proposal = makeAirconStateProposalBase(airconKey, nodeProps);
+                proposal.processedHeatW = current;
+                if (maxHeatCapacity) {
+                    proposal.maxCapacityW = *maxHeatCapacity;
+                    proposal.hasMaxCapacity = true;
+                }
+                proposal.targetFlowRate = context.airFlowRate;
+                proposal.reasons = unitReasons;
+                outProposals->push_back(std::move(proposal));
+            }
         } catch (const std::exception& e) {
             writeLog(logs, std::string("　　エラー: エアコン ") + airconKey + " - " + e.what());
         }
@@ -356,7 +387,8 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
                                                         const FlowRateMap& flowRates,
                                                         std::ostream& logs,
                                                         bool* supplyHumidityChanged,
-                                                        double humidityAbsTol) const {
+                                                        double humidityAbsTol,
+                                                        std::vector<AirconStateProposal>* outProposals) const {
     bool adjustmentMade = false;
     constexpr double kMinFlowTol = 1e-6;        // [m3/s]
     constexpr double kRelativeFlowTol = 1e-3;   // [-]
@@ -373,9 +405,11 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
             const auto loads = aircon::latent::estimateLatentProcess(
                 context.validData, context.operationMode, context.heatCapacity, context.airFlowRate,
                 nodeProps, moistEnthalpyEnabled_);
+            AirconRecomputeReason unitReasons = AirconRecomputeReason::None;
             if (aircon::latent::applySupplyHumidityToAirconNode(
                     thermalNetwork, airconKey, loads, xTol)) {
                 if (supplyHumidityChanged) *supplyHumidityChanged = true;
+                unitReasons |= AirconRecomputeReason::SupplyHumidityChanged;
             }
             const double processedHeatW = aircon::latent::totalHeatCapacity(loads);
 
@@ -389,6 +423,13 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
                                             std::max(targetFlow, context.airFlowRate) * kRelativeFlowTol);
 
             if (!std::isfinite(context.airFlowRate) || std::abs(context.airFlowRate - targetFlow) <= flowTol) {
+                if (outProposals && unitReasons != AirconRecomputeReason::None) {
+                    auto proposal = makeAirconStateProposalBase(airconKey, nodeProps);
+                    proposal.processedHeatW = processedHeatW;
+                    proposal.targetFlowRate = targetFlow;
+                    proposal.reasons = unitReasons;
+                    outProposals->push_back(std::move(proposal));
+                }
                 continue;
             }
 
@@ -403,12 +444,21 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
             }
 
             adjustmentMade = true;
+            unitReasons |= AirconRecomputeReason::AirflowChanged;
             std::ostringstream oss;
             oss << "　" << airconKey
                 << " DUCT_CENTRAL風量補正: 処理熱量=" << std::fixed << std::setprecision(2)
                 << processedHeatW << "W"
                 << ", 風量 " << context.airFlowRate << "→" << targetFlow << " m3/s, 再計算要求";
             writeLog(logs, oss.str());
+
+            if (outProposals) {
+                auto proposal = makeAirconStateProposalBase(airconKey, nodeProps);
+                proposal.processedHeatW = processedHeatW;
+                proposal.targetFlowRate = targetFlow;
+                proposal.reasons = unitReasons;
+                outProposals->push_back(std::move(proposal));
+            }
         } catch (const std::exception& e) {
             writeLog(logs, std::string("　　エラー: DUCT_CENTRAL風量補正に失敗 ")
                                + airconKey + " - " + e.what());

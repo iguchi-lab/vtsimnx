@@ -2,6 +2,7 @@
 
 #include "vtsim_solver.h"
 #include "aircon/aircon_operation_mode.h"
+#include "types/aircon_control_state.h"
 #include <cstdint>
 #include <vector>
 #include <string>
@@ -195,7 +196,8 @@ public:
                            double tolerance,
                            std::ostream& logFile,
                            bool* supplyHumidityChanged = nullptr,
-                           double humidityAbsTol = 1e-9) const;
+                           double humidityAbsTol = 1e-9,
+                           std::vector<AirconStateProposal>* outProposals = nullptr) const;
 
     bool checkAndAdjustCapacity(ThermalNetwork& thermalNetwork, VentilationNetwork& ventNetwork,
                                 const SimulationConstants& constants,
@@ -203,7 +205,8 @@ public:
                                 std::ostream& logFile,
                                 int& totalIterations,
                                 bool* supplyHumidityChanged = nullptr,
-                                double humidityAbsTol = 1e-9) const;
+                                double humidityAbsTol = 1e-9,
+                                std::vector<AirconStateProposal>* outProposals = nullptr) const;
 
     // DUCT_CENTRAL 用: 処理熱量に応じて送風量を補正する。
     // - 処理熱量=0 -> 風量=0
@@ -214,7 +217,8 @@ public:
                                           const FlowRateMap& flowRates,
                                           std::ostream& logs,
                                           bool* supplyHumidityChanged = nullptr,
-                                          double humidityAbsTol = 1e-9) const;
+                                          double humidityAbsTol = 1e-9,
+                                          std::vector<AirconStateProposal>* outProposals = nullptr) const;
 
     // 潜熱処理量を熱方程式の heat_source へ反映する（冷房時のみ有効）。
     // relaxation=1.0 で全量反映。<1.0 で緩和反映。

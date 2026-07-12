@@ -8,6 +8,8 @@
 
 #include <chrono>
 #include <string>
+#include <utility>
+#include <vector>
 
 namespace simulation {
 
@@ -24,6 +26,7 @@ AirconIterationAction runAirconIteration(AirconIterationContext& ctx,
     auto* metrics = ctx.metrics;
     bool supplyHumidityChanged = false;
     const double humidityAbsTol = detail::couplingHumidityTol(ctx.constants);
+    std::vector<AirconStateProposal> proposals;
 
     bool ductFlowAdjusted = false;
     {
@@ -31,7 +34,7 @@ AirconIterationAction runAirconIteration(AirconIterationContext& ctx,
         const auto t0 = std::chrono::steady_clock::now();
         ductFlowAdjusted = ctx.aircon.checkAndAdjustDuctCentralAirflow(
             ctx.thermal, ctx.ventilation, flowRates, ctx.logs, &supplyHumidityChanged,
-            humidityAbsTol);
+            humidityAbsTol, &proposals);
         if (metrics) {
             metrics->airconMs +=
                 std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0)
@@ -39,8 +42,10 @@ AirconIterationAction runAirconIteration(AirconIterationContext& ctx,
         }
     }
     if (ductFlowAdjusted) {
-        if (metrics) ++metrics->airconFlowAdjustRecalc;
-        return decideAirconIterationAction(true, false, false, supplyHumidityChanged);
+        const auto reasons = aggregateProposalReasons(proposals) |
+                             reasonsFromAirconFlags(true, true, false, supplyHumidityChanged);
+        recordAirconRecomputeMetrics(metrics, reasons);
+        return decideAirconIterationAction(reasons);
     }
 
     // 制御前に heat_source をゼロ化してから再設定する（外側ループ開始時の初期化とは別意図）。
@@ -53,7 +58,7 @@ AirconIterationAction runAirconIteration(AirconIterationContext& ctx,
         allAirconControlled =
             ctx.aircon.controlAllAircons(
                 ctx.thermal, effectiveAirconTemperatureToleranceK(ctx.constants), ctx.logs,
-                &supplyHumidityChanged, humidityAbsTol);
+                &supplyHumidityChanged, humidityAbsTol, &proposals);
         if (metrics) {
             metrics->airconMs +=
                 std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0)
@@ -62,8 +67,10 @@ AirconIterationAction runAirconIteration(AirconIterationContext& ctx,
     }
 
     if (!allAirconControlled) {
-        if (metrics) ++metrics->airconOnOffRecalc;
-        return decideAirconIterationAction(false, false, false, supplyHumidityChanged);
+        const auto reasons = aggregateProposalReasons(proposals) |
+                             reasonsFromAirconFlags(false, false, false, supplyHumidityChanged);
+        recordAirconRecomputeMetrics(metrics, reasons);
+        return decideAirconIterationAction(reasons);
     }
 
     bool adjustmentMade = false;
@@ -72,7 +79,7 @@ AirconIterationAction runAirconIteration(AirconIterationContext& ctx,
         const auto t0 = std::chrono::steady_clock::now();
         adjustmentMade = ctx.aircon.checkAndAdjustCapacity(
             ctx.thermal, ctx.ventilation, ctx.constants, flowRates, ctx.logs, totalIterations,
-            &supplyHumidityChanged, humidityAbsTol);
+            &supplyHumidityChanged, humidityAbsTol, &proposals);
         if (metrics) {
             metrics->airconMs +=
                 std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0)
@@ -80,9 +87,10 @@ AirconIterationAction runAirconIteration(AirconIterationContext& ctx,
         }
     }
 
-    if (adjustmentMade && metrics) ++metrics->airconCapacityRecalc;
-    if (supplyHumidityChanged && !adjustmentMade && metrics) ++metrics->airconSupplyHumidityRecalc;
-    return decideAirconIterationAction(false, true, adjustmentMade, supplyHumidityChanged);
+    const auto reasons = aggregateProposalReasons(proposals) |
+                         reasonsFromAirconFlags(false, true, adjustmentMade, supplyHumidityChanged);
+    recordAirconRecomputeMetrics(metrics, reasons);
+    return decideAirconIterationAction(reasons);
 }
 
 } // namespace simulation
