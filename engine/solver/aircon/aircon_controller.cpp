@@ -371,7 +371,8 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                     proposal.maxCapacityW = *maxHeatCapacity;
                     proposal.hasMaxCapacity = true;
                 }
-                proposal.targetFlowRate = context.airFlowRate;
+                proposal.currentFlowRate = context.airFlowRate;
+                proposal.proposedFlowRate = context.airFlowRate;
                 proposal.reasons = unitReasons;
                 outProposals->push_back(std::move(proposal));
             }
@@ -426,7 +427,8 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
                 if (outProposals && unitReasons != AirconRecomputeReason::None) {
                     auto proposal = makeAirconStateProposalBase(airconKey, nodeProps);
                     proposal.processedHeatW = processedHeatW;
-                    proposal.targetFlowRate = targetFlow;
+                    proposal.currentFlowRate = context.airFlowRate;
+                    proposal.proposedFlowRate = targetFlow;
                     proposal.reasons = unitReasons;
                     outProposals->push_back(std::move(proposal));
                 }
@@ -455,7 +457,8 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
             if (outProposals) {
                 auto proposal = makeAirconStateProposalBase(airconKey, nodeProps);
                 proposal.processedHeatW = processedHeatW;
-                proposal.targetFlowRate = targetFlow;
+                proposal.currentFlowRate = context.airFlowRate;
+                proposal.proposedFlowRate = targetFlow;
                 proposal.reasons = unitReasons;
                 outProposals->push_back(std::move(proposal));
             }

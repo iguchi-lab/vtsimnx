@@ -6,10 +6,14 @@
 #include <algorithm>
 
 #include "aircon/aircon_controller.h"
+#include "aircon/aircon_capacity.h"
 #include "aircon/aircon_network_utils.h"
+#include "aircon/aircon_operation_mode.h"
 #include "network/thermal_network.h"
 #include "network/ventilation_network.h"
 
+#include <unordered_map>
+#include <utility>
 namespace {
 
 int g_failures = 0;
@@ -449,9 +453,85 @@ int main() {
         expectTrue(adjusted2, "second call: under capacity with bracket should request recalc");
         expectTrue(b.current_pre_temp > setpointAfter1,
                    "under capacity: setpoint should increase toward max capacity");
-        // 設定温度が動いた反復では必ず recompute 要求（capacityConverged でも同様）
-        expectTrue(adjusted2 || std::abs(b.current_pre_temp - setpointAfter1) <= 1e-9,
-                   "setpoint change must imply adjustmentMade");
+        // 設定温度が動いたなら必ず recompute 要求（tautology にならないよう明示）
+        expectTrue(std::abs(b.current_pre_temp - setpointAfter1) > 1e-9,
+                   "under capacity should move effective setpoint");
+        expectTrue(adjusted2, "moved setpoint must request recompute");
+    }
+
+    // capacityConverged: 現在点が上限近傍なら設定温度を動かさず bracket を終了し、再計算しない
+    {
+        VertexProperties node;
+        node.key = "AC1";
+        node.on = true;
+        node.current_mode = "COOLING";
+        node.current_requested_pre_temp = 24.0;
+        node.current_pre_temp = 24.0;
+        node.aircon_control_state = AirconControlState::CapacityLimited;
+
+        // 冷房: bracket 幅は大きいが、現在能力は max±tol 内（tol = 500*0.001+1 = 1.5W）
+        std::unordered_map<std::string, std::pair<double, double>> brackets;
+        brackets["AC1"] = {24.0, 34.0};
+        bool adjustmentMade = false;
+        std::ostringstream oss;
+        // inlet≈setpoint にして公式補正を nullopt にし、bracket 経路へ
+        aircon::capacity::applyExceededCapacityAdjustment(
+            "AC1",
+            node,
+            OperationMode::Cooling,
+            /*indoorTemp=*/24.0,
+            /*airFlowRate=*/0.1,
+            /*maxHeatCapacity=*/500.0,
+            /*currentTotal=*/500.4,
+            brackets,
+            oss,
+            adjustmentMade);
+
+        expectNear(node.current_pre_temp, 24.0, 1e-12,
+                   "capacityConverged must keep current effective setpoint");
+        expectTrue(!adjustmentMade,
+                   "capacityConverged at current point must not request recompute");
+        expectTrue(brackets.find("AC1") == brackets.end(),
+                   "capacityConverged should erase bracket");
+        expectTrue(node.aircon_control_state == AirconControlState::CapacityLimited,
+                   "state stays CapacityLimited");
+        expectTrue(oss.str().find("二分探索収束") != std::string::npos,
+                   "log should indicate capacity convergence");
+    }
+
+    // 未収束なら中点へ動かし、bracket は残す（次回も探索継続）
+    {
+        VertexProperties node;
+        node.key = "AC2";
+        node.on = true;
+        node.current_mode = "COOLING";
+        node.current_requested_pre_temp = 24.0;
+        node.current_pre_temp = 24.0;
+        node.aircon_control_state = AirconControlState::SetpointControlled;
+
+        std::unordered_map<std::string, std::pair<double, double>> brackets;
+        brackets["AC2"] = {24.0, 34.0};
+        bool adjustmentMade = false;
+        std::ostringstream oss;
+        aircon::capacity::applyExceededCapacityAdjustment(
+            "AC2",
+            node,
+            OperationMode::Cooling,
+            /*indoorTemp=*/24.0,
+            /*airFlowRate=*/0.1,
+            /*maxHeatCapacity=*/500.0,
+            /*currentTotal=*/820.0,  // 明らかに超過 → 中点へ
+            brackets,
+            oss,
+            adjustmentMade);
+
+        expectTrue(adjustmentMade, "over capacity far from max must request recompute");
+        expectNear(node.current_pre_temp, 29.0, 1e-9,
+                   "cooling over capacity should move to bracket midpoint");
+        expectTrue(brackets.find("AC2") != brackets.end(),
+                   "non-converged step must keep bracket for next iteration");
+        expectNear(brackets["AC2"].first, 24.0, 1e-12, "cooling: tLow becomes current");
+        expectNear(brackets["AC2"].second, 34.0, 1e-12, "cooling: tHigh unchanged when over");
     }
 
     // AirconStateProposal: ON/OFF 変化で OnOffChanged が立つ

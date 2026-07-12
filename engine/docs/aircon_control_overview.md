@@ -287,9 +287,9 @@ flowchart TD
 2. **二分探索（フォールバック）**  
    公式で有効解が得られない場合、熱ソルバの解（処理熱量）を利用した bracket 二分探索で、処理熱量 ≒ 最大能力 となる setpoint を求める。収束判定は「処理熱量が最大能力に十分近い」（相対 0.1% + 絶対 1W）で行い、bracket のみ狭まった場合はあと 1 回再計算してから完了。
 
-重要: `stepCapacityLimitBracket()` 後に `effectiveSetpoint`（`current_pre_temp`）を更新したとき、たとえ `capacityConverged==true` でも **設定温度が変わっていれば必ず `adjustmentMade=true`** とし、同じ timestep を再計算する。熱計算結果は旧設定温度に対応しているため、収束判定だけ見て Accept すると不整合になる。
+重要: `stepCapacityLimitBracket()` は **現在点の処理熱量**で先に `capacityConverged` を判定する。収束していれば設定温度は動かさず bracket を消し、再計算もしない。未収束のときだけ bracket を更新して中点へ進む。旧実装のように「旧設定温度で収束判定しつつ中点へ動かして bracket 削除」すると、次反復で能力不足側を Accept する不整合が起きる。
 
-補正後は `adjustmentMade=true` を返し、外側ループが同じ timestep を再計算します。  
+補正後に設定温度が動いた場合は `adjustmentMade=true` を返し、外側ループが同じ timestep を再計算します。  
 処理熱量が最大能力を**下回る**状態で既に bracket が存在する場合（例: 設定を下げすぎて処理熱量が 0 に近い）は、設定温度を上げる方向に bracket を更新して探索を継続します。
 
 ### 9.1 要求設定と実効設定

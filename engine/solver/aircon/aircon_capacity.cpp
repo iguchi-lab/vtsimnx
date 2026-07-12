@@ -102,6 +102,15 @@ void initCapacityLimitBracket(bool heating, double currentPreTemp, double& tLow,
 CapacityLimitBracketResult stepCapacityLimitBracket(bool heating, double maxQ, double currentQ,
                                                     double currentSetpoint,
                                                     double& tLow, double& tHigh) {
+    // 現在点の処理熱量で先に収束判定する。
+    // （先に bracket/中点を更新すると、旧設定温度で収束と判定しながら
+    //  実効設定だけ中点へ動かし bracket を消す不整合になる）
+    const bool capacityConverged =
+        std::abs(currentQ - maxQ) <= (maxQ * kCapacityConvergenceRelTol + kCapacityConvergenceAbsTol);
+    if (capacityConverged) {
+        return {currentSetpoint, /*bracketConverged=*/false, /*capacityConverged=*/true};
+    }
+
     if (currentQ > maxQ) {
         if (heating) {
             tHigh = currentSetpoint;
@@ -117,9 +126,7 @@ CapacityLimitBracketResult stepCapacityLimitBracket(bool heating, double maxQ, d
     }
     const double newSetpoint = 0.5 * (tLow + tHigh);
     const bool bracketConverged = (tHigh - tLow) <= kSetpointSearchTolerance;
-    const bool capacityConverged =
-        std::abs(currentQ - maxQ) <= (maxQ * kCapacityConvergenceRelTol + kCapacityConvergenceAbsTol);
-    return {newSetpoint, bracketConverged, capacityConverged};
+    return {newSetpoint, bracketConverged, /*capacityConverged=*/false};
 }
 
 std::pair<double, double>& ensureCapacityLimitBracket(
@@ -196,7 +203,8 @@ void applyExceededCapacityAdjustment(
                                                  nodeProps.current_pre_temp, tLow, tHigh);
     nodeProps.current_pre_temp = result.newSetpoint;
     nodeProps.aircon_control_state = AirconControlState::CapacityLimited;
-    // 熱計算は旧設定温度の結果。newSetpoint が変わったら capacityConverged でも必ず再計算する。
+    // 熱計算は旧設定温度の結果。newSetpoint が変わったら必ず再計算する。
+    // capacityConverged は「現在点」で判定するため、収束時は newSetpoint==previous で動かない。
     const bool setpointChanged =
         std::abs(result.newSetpoint - previousSetpoint) > kSetpointSearchTolerance;
     if (setpointChanged) {
@@ -240,6 +248,7 @@ void applyUnderCapacityBracketAdjustment(
                                                  nodeProps.current_pre_temp, tLow, tHigh);
     nodeProps.current_pre_temp = result.newSetpoint;
     nodeProps.aircon_control_state = AirconControlState::CapacityLimited;
+    // capacityConverged は現在点判定のため、収束時は setpoint を動かさない。
     const bool setpointChanged =
         std::abs(result.newSetpoint - previousSetpoint) > kSetpointSearchTolerance;
     if (setpointChanged) {

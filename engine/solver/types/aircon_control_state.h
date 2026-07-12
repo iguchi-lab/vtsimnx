@@ -44,7 +44,8 @@ inline constexpr bool hasReason(AirconRecomputeReason flags, AirconRecomputeReas
 }
 
 /**
- * 1台分の状態提案。外側ループはこれを集約して再計算要否を決める。
+ * 1台分の状態記録（現状は変更適用後の観測。将来の「評価→一括適用」に向けた足場）。
+ * 名称は proposal だが、現時点では mutation 後スナップショットとして使う。
  */
 struct AirconStateProposal {
     std::string airconKey;
@@ -55,7 +56,8 @@ struct AirconStateProposal {
     double processedHeatW = 0.0;
     double maxCapacityW = 0.0;        // 不明時は hasMaxCapacity=false
     bool hasMaxCapacity = false;
-    double targetFlowRate = 0.0;
+    double currentFlowRate = 0.0;     // 評価時点の実風量 [m3/s]
+    double proposedFlowRate = 0.0;    // ダクト補正などでの目標風量 [m3/s]（未提案時は current と同値可）
     double supplyHumidity = 0.0;
     AirconRecomputeReason reasons = AirconRecomputeReason::None;
 };
