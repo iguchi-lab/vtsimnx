@@ -28,7 +28,7 @@ def build_input_data() -> Dict[str, Any]:
                 "source": "外部",
                 "target": "室1",
                 "type": "fixed_flow",
-                "vol": 30.0,
+                "vol": 30.0 / 3600.0,  # m3/s (= 30 m3/h)
             }
         ],
         "thermal_branches": [

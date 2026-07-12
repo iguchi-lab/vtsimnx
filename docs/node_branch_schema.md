@@ -24,7 +24,7 @@
     { "key": "室1", "calc_t": true, "v": 30.0 }
   ],
   "ventilation_branches": [
-    { "key": "外部->室1", "source": "外部", "target": "室1", "type": "fixed_flow", "vol": 30.0 }
+    { "key": "外部->室1", "source": "外部", "target": "室1", "type": "fixed_flow", "vol": 0.008333 }
   ],
   "thermal_branches": [
     { "key": "外部->室1", "source": "外部", "target": "室1", "type": "conductance", "conductance": 50.0 }
@@ -32,6 +32,7 @@
 }
 ```
 
+`vol` の単位は **m3/s** です（上例は約 30 m3/h）。単位正本: [`units.md`](units.md)。  
 `surfaces` / `aircon` / `heat_source` は、この最小形が動いてから追加するのが安全です。
 
 ## 共通ルール
@@ -101,25 +102,25 @@
 | `a` | 開口率 | number | - |
 | `n` | 隙間係数 | number | - |
 | `p_max` | 最大静圧 | number | Pa |
-| `q_max` | 最大風量 | number | m3/h（builder 入力）→ solver JSON では m3/s |
+| `q_max` | 最大風量 | number | **m3/s**（単位正本: [`units.md`](units.md)） |
 | `p1` | 点の静圧 | number | Pa |
-| `q1` | 点の風量 | number | m3/h（builder 入力）→ solver JSON では m3/s |
-| `vol` | 風量 | number \| number[] | m3/h（builder 入力）→ solver JSON / C++ 内部は **m3/s** |
+| `q1` | 点の風量 | number | **m3/s** |
+| `vol` | 風量 | number \| number[] | **m3/s**（builder も換算しない。例: 30 m3/h → `30/3600`） |
 | `k_total` | 圧損係数（合成） | number | `pressure_loss` 用 |
 | `friction_factor` | 摩擦係数 λ | number | `pressure_loss` 用 |
 | `length` | 要素長 | number | m, `pressure_loss` 用 |
 | `diameter` | 水力直径 | number | m, `pressure_loss` 用 |
 | `zeta_total` | 局所損失係数合計 | number | `pressure_loss` 用（任意） |
 | `eta` | 除塵効率 | number | - |
-| `humidity_generation` | 発湿源 | number \| number[] | g/s |
-| `dust_generation` | 発塵源 | number \| number[] | g/s |
+| `humidity_generation` | 発湿源 | number \| number[] | kg/s（正本: [`units.md`](units.md)） |
+| `dust_generation` | 発塵源 | number \| number[] | モデル依存（濃度単位に合わせる） |
 
 ### Ventilation branches: 例
 
 ```json
 {
   "ventilation_branches": [
-    { "key": "外部->室1", "source": "外部", "target": "室1", "type": "fixed_flow", "vol": 30.0 }
+    { "key": "外部->室1", "source": "外部", "target": "室1", "type": "fixed_flow", "vol": 0.008333 }
   ]
 }
 ```
@@ -158,6 +159,6 @@
 
 - **`source` / `target` に存在しないノード名**を入れる
 - **配列長がシミュレーション長と合っていない**（例: 8760 なのに 24 要素）
-- **単位混在**（`vol` を m3/s で入れてしまう等）
+- **単位誤り**（`vol` / `q_max` / `q1` を m3/h のまま入れる等。正本は [`units.md`](units.md)）
 
 

@@ -25,7 +25,7 @@
 
 ## 2. Core（vtsimnx）で定義されている関連定数
 
-### 2.1 建築環境定数（`core/vtsimnx/archenv/archenv.py`）
+### 2.1 建築環境定数（`vtsimnx/archenv/archenv.py`）
 
 | 定数名 | 値 | 単位 | 用途 |
 |--------|-----|------|------|
@@ -38,17 +38,17 @@
 - **capa_air(v, t_c=20)**: 容積 v [m³] の空気の熱容量 [J/K]。`v * Air_Cp * air_density(t_c) * 1000`。  
   → 中空層・通気層の**熱容量**は builder では 1298（SimHeat/材料表準拠）を採用しているため、builder と core の `capa_air` は異なる値になる。日射・夜間放射などの**計算**では core の定数のみ使用。
 
-### 2.2 空気密度（`core/vtsimnx/archenv/archenv.py`）
+### 2.2 空気密度（`vtsimnx/archenv/archenv.py`）
 
 - **get_rho(θ)**: 空気密度 ρ [kg/m³]。理想気体として `353.25 / (θ + 273.15)`（標準大気圧/気体定数に基づく）。
 
-### 2.3 材料テーブル（`core/vtsimnx/materials/table.py`）
+### 2.3 材料テーブル（`vtsimnx/materials/table.py`）
 
 - **lambda**: 熱伝導率 [W/(m·K)]
 - **v_capa**: 体積熱容量 [J/(m³·K)]。内部テーブルは [kJ/(m³·K)] で保持し、公開用 `materials` で ×1000 して [J/(m³·K)] に統一。
 - **中空層**の v_capa: 内部 1.298 → 公開時 **1298** J/(m³·K)。builder の `DEFAULT_AIR_V_CAPA` と一致させる想定。
 
-### 2.4 日射・ガラス（`core/vtsimnx/archenv/solar.py`）
+### 2.4 日射・ガラス（`vtsimnx/archenv/solar.py`）
 
 | 引数名 | デフォルト | 用途 |
 |--------|------------|------|

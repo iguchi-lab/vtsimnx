@@ -1,64 +1,49 @@
-# docs index
+# docs index（利用者向け）
 
-このディレクトリは、`vtsimnx` 利用者が  
-**`vtsimnx/vtsimnx` の API（主に `vt.run_calc`）で入力を組み立てるための実務ガイド**をまとめています。
+`vtsimnx` の Python クライアントで入力を組み立て、`vt.run_calc` で計算するためのガイドです。  
+engine 実装の厳密仕様は [`../engine/docs/README.md`](../engine/docs/README.md) を参照してください。
 
-engine 側の実装詳細は参照先として残しつつ、ここでは「利用者が何をどう書くか」を優先して説明します。
+## 読み順（最短）
 
-補足: 本プロジェクトは monorepo 構成で、API サーバー実装の正本は `../engine/` です。
+1. [`builder_input_quickstart.md`](builder_input_quickstart.md) — `input_data` の最小形
+2. [`node_branch_schema.md`](node_branch_schema.md) — nodes / branches 早見表
+3. [`../examples/README.md`](../examples/README.md) — 動くサンプル
 
-## まず読む
+単位の正本は常に [`units.md`](units.md)（コード: `vtsimnx.units`）です。
 
-- `builder_input_quickstart.md`
-  - `vt.run_calc` に渡す `input_data` の最小構成と、JSONの書き方
-- `../examples/README.md`
-  - 実際に動かせるサンプルコード（`run_calc_minimal.py`, `vs_simheat_sample.py` と気象データ）
-- `building_environment_engineering_basics.md`
-  - 熱収支、日射、換気、湿気、快適性の背景
-- `node_branch_schema.md`
-  - `input_data` の `nodes` / `ventilation_branches` / `thermal_branches` 早見表
+## 機能ガイド
 
-## 機能別ガイド（ライブラリ利用）
+| ガイド | 内容 |
+|---|---|
+| [`solar_usage.md`](solar_usage.md) | 日射取得 |
+| [`surface_usage.md`](surface_usage.md) | `surfaces` の組み立て |
+| [`schedule_usage.md`](schedule_usage.md) | 8760 スケジュール |
+| [`archenv_comfort_nocturnal_wind_usage.md`](archenv_comfort_nocturnal_wind_usage.md) | 風圧・夜間放射・地盤・PMV/PPD |
+| [`vs_simheat_example.md`](vs_simheat_example.md) | SimHeat 比較ケースの入力フロー |
+| [`building_environment_engineering_basics.md`](building_environment_engineering_basics.md) | 建築環境の背景（利用者向け） |
 
-- `solar_usage.md`
-  - `solar_gain_by_angles`, `solar_gain_by_angles_with_shade`
-- `archenv_comfort_nocturnal_wind_usage.md`
-  - 風圧、夜間放射、地盤温度、PMV/PPD
-- `schedule_usage.md`
-  - `vtsimnx.schedule` の8760スケジュール設計
-- `surface_usage.md`
-  - `surfaces` を組み立てるための実務的な考え方
-- `vs_simheat_example.md`
-  - SimHeat比較ケースでの入力構築フロー
+## 方針・契約
 
-## 信頼性と運用
+| 文書 | 内容 |
+|---|---|
+| [`public_api.md`](public_api.md) | stable / experimental / deprecated |
+| [`units.md`](units.md) | 単位系の正本 |
+| [`validation_strategy.md`](validation_strategy.md) | 検証ピラミッドと保証範囲 |
+| [`release_policy.md`](release_policy.md) | バージョン / tag / リリース運用 |
 
-- `public_api.md`
-  - stable / experimental / deprecated と戻り値の目安
-- `units.md`
-  - 温度・圧力・流量・熱量などの単位（コード正本 `vtsimnx.units`）
-- `validation_strategy.md`
-  - 検証ピラミッド、保証範囲、未保証範囲
-- `release_policy.md`
-  - バージョン正本（pyproject）と tag/docs/examples の対応ルール
+## 実装仕様が必要なとき
 
-補足（空調）:
+利用者ガイドで足りない場合のみ参照してください（正本は engine 側）。
 
-- DUCT_CENTRAL では solver 側で「処理熱量に応じた送風量補正（`Q=0 -> V=0`, `Q=Q.rtd -> V=V_inner.dsgn`）」を行い、必要時は同一 timestep の再計算ループに戻ります。
-- 詳細仕様は `../engine/docs/aircon_control_overview.md` を参照してください。
-
-## APIドキュメントへの境界
-
-以下は実装詳細・厳密仕様を確認したいときの参照先です。
-
-- 実装ドキュメント入口: `../engine/docs/README.md`
-- APIエンドポイント契約: `../engine/docs/api_reference.md`
-- builder入力JSON仕様: `../engine/docs/builder_json.md`
-- solver/aircon挙動の詳細: `../engine/docs/simulation_overview.md`, `../engine/docs/aircon_control_overview.md`
+| 用途 | 正本 |
+|---|---|
+| HTTP API 契約 | [`../engine/docs/api_reference.md`](../engine/docs/api_reference.md) |
+| builder 入力 JSON（厳密） | [`../engine/docs/builder_json.md`](../engine/docs/builder_json.md) |
+| 計算フロー全体 | [`../engine/docs/simulation_overview.md`](../engine/docs/simulation_overview.md) |
+| 空調制御 | [`../engine/docs/aircon_control_overview.md`](../engine/docs/aircon_control_overview.md) |
+| 湿気 Phase1 | [`../engine/docs/moisture_network_phase1.md`](../engine/docs/moisture_network_phase1.md) |
 
 ## 関連入口
 
-- リポジトリ入口: `../README.md`
-- API運用入口: `../engine/README.md`
-
-
+- リポジトリ入口: [`../README.md`](../README.md)
+- engine 運用: [`../engine/README.md`](../engine/README.md)

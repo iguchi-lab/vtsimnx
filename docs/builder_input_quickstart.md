@@ -37,7 +37,7 @@ input_data = {
         {"key": "室1", "calc_t": True, "v": 30.0},
     ],
     "ventilation_branches": [
-        {"key": "外部->室1", "source": "外部", "target": "室1", "type": "fixed_flow", "vol": 30.0},
+        {"key": "外部->室1", "source": "外部", "target": "室1", "type": "fixed_flow", "vol": 30.0 / 3600.0},  # m3/s
     ],
     "thermal_branches": [
         {"key": "外部->室1", "source": "外部", "target": "室1", "type": "conductance", "conductance": 50.0},

@@ -1,43 +1,63 @@
-# engine docs index
+# engine docs index（実装仕様）
 
-このディレクトリは、`engine/` 実装の仕様・設計メモ（API/builder/solver/aircon）の正本です。  
-`vt.run_calc` の入力を作る利用者向けガイドは `../../docs/README.md` を参照してください。
+`engine/`（FastAPI / builder / C++ solver）の仕様正本です。  
+Python クライアント利用者向けガイドは [`../../docs/README.md`](../../docs/README.md) を先に読んでください。
 
-## 主要ドキュメント
+> このディレクトリ内の相対パス `docs/foo.md` は **本ディレクトリ**（`engine/docs/`）を指します。  
+> リポジトリ直下の利用者 doc は `../../docs/foo.md` と書いてください。
 
-- `api_reference.md`: APIエンドポイント契約
-- `builder_json.md`: builder入力JSON（raw_config）の作り方
-- `simulation_overview.md`: シミュレーション全体の概略（builder→solver）
-- `aircon_control_overview.md`: エアコン制御ロジックの概要
-- `acmodel_overview.md`: エアコンモデル（CRIEPI/RAC/DUCT_CENTRAL など）
-- `aircon_spec_reference.md`: `ac_spec` の必須キー・モデル別仕様
-- `duct_central_model_validation.md`: DUCT_CENTRAL の pyhees整合と回帰テスト観点
-- `cpp_test_catalog.md`: C++テストの検証観点と具体例
-- `thermal_rc.md`: 壁モデル（RC法）
-- `thermal_response_factor.md`: 壁モデル（応答係数法/CTF）
-- `future_issues_memo.md`: 直近の性能課題・Colab二層運用メモ
-- `refactoring_backlog.md`: 優先度付きリファクタリング台帳
-- `theory_basics.md`, `physics_math_notes.md`: 理論・数理メモ
-- `constants_and_spec.md`, `check_outer_surface_colder_than_air.md`: 補助仕様・検証メモ
+## まず読む
 
-## 読み方ガイド（目的別）
+| 順序 | 文書 | 内容 |
+|---|---|---|
+| 1 | [`theory_basics.md`](theory_basics.md) | 実装につながる物理の全体像 |
+| 2 | [`simulation_overview.md`](simulation_overview.md) | builder → solver の計算順 |
+| 3 | [`builder_json.md`](builder_json.md) | raw_config の厳密仕様（入力正本） |
 
-- 初めて全体像を把握する: `theory_basics.md` → `simulation_overview.md` → `builder_json.md`
-- 入力JSON仕様を深掘りする: `builder_json.md` → `thermal_rc.md` / `thermal_response_factor.md`
-- 空調の挙動を確認する: `aircon_control_overview.md` → `acmodel_overview.md` → `aircon_spec_reference.md`
-- DUCT_CENTRAL を深掘りする: `acmodel_overview.md` → `duct_central_model_validation.md`
-- テスト観点を確認する: `cpp_test_catalog.md`
-- 実装寄りに追う: `simulation_overview.md` → `aircon_control_overview.md` → `acmodel_overview.md`
+## API / 入力 / 物理
+
+| 文書 | 役割 |
+|---|---|
+| [`api_reference.md`](api_reference.md) | HTTP エンドポイント契約 |
+| [`builder_json.md`](builder_json.md) | builder 入力 JSON 正本 |
+| [`simulation_overview.md`](simulation_overview.md) | 連成・タイムステップ概略 |
+| [`moisture_network_phase1.md`](moisture_network_phase1.md) | 湿気回路網 Phase1 |
+| [`physics_math_notes.md`](physics_math_notes.md) | 符号・単位・離散化の注意 |
+| [`constants_and_spec.md`](constants_and_spec.md) | 定数・材料テーブル対応 |
+| [`thermal_rc.md`](thermal_rc.md) | 壁モデル（RC） |
+| [`thermal_response_factor.md`](thermal_response_factor.md) | 壁モデル（応答係数/CTF） |
+
+単位の利用者向け正本は [`../../docs/units.md`](../../docs/units.md) です。
+
+## 空調
+
+| 文書 | 役割 |
+|---|---|
+| [`aircon_control_overview.md`](aircon_control_overview.md) | solver 側制御ロジック |
+| [`acmodel_overview.md`](acmodel_overview.md) | COP / 電力モデル |
+| [`aircon_spec_reference.md`](aircon_spec_reference.md) | `ac_spec` キー一覧 |
+| [`duct_central_model_validation.md`](duct_central_model_validation.md) | DUCT_CENTRAL 検証観点 |
+
+## テスト
+
+| 文書 | 役割 |
+|---|---|
+| [`cpp_test_catalog.md`](cpp_test_catalog.md) | C++ テスト観点 |
+| [`../tests_py/README.md`](../tests_py/README.md) | Python テスト |
+| [`../solver/tests_cpp/README.md`](../solver/tests_cpp/README.md) | C++ テスト最小 README |
+
+## 内部作業メモ
+
+公開仕様ではありません。[`internal/`](internal/README.md) を参照してください。
 
 ## 導線
 
-- 利用者向けドキュメント: `../../docs/README.md`
-- リポジトリ入口: `../../README.md`
-- API運用入口: `../README.md`
+- 利用者向け: [`../../docs/README.md`](../../docs/README.md)
+- リポジトリ入口: [`../../README.md`](../../README.md)
+- 起動・運用: [`../RUN_FASTAPI.md`](../RUN_FASTAPI.md)
+- 開発参加: [`../CONTRIBUTING.md`](../CONTRIBUTING.md)
 
-## 低負荷でビルド/テストしたいとき（メモ）
+## 低負荷ビルド（メモ）
 
-CPU/RAMを抑えたい場合は並列数を下げます。
-
-- build: `cmake --build build-solver -j1`（または `-j2`）
+- build: `cmake --build build-solver -j1`（cwd: `engine/`）
 - test: `ctest --test-dir build-solver -j1 --output-on-failure`

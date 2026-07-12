@@ -1,5 +1,7 @@
 # Network Layer Naming Guide
 
+> 内部実装メモです。公開仕様ではありません（索引: [`../../docs/internal/README.md`](../../docs/internal/README.md)）。
+
 このドキュメントは、`solver/network` 配下の4ネットワーク（換気・熱・湿気・濃度）で
 命名規則と責務を揃えるための最小ルールを定義する。
 

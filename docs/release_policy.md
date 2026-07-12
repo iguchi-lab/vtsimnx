@@ -20,7 +20,7 @@
 - **MINOR**: 後方互換の機能追加、experimental API の変更は許容
 - **PATCH**: バグ修正・ドキュメント修正
 
-公開 API の安定性区分は `docs/public_api.md` を参照してください。
+公開 API の安定性区分は [`public_api.md`](public_api.md) を参照してください。
 
 ## ドキュメントとサンプルの対応
 

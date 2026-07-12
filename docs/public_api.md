@@ -85,5 +85,5 @@ from vtsimnx.schedule import make_8760_data
 
 ## 単位
 
-温度・圧力・流量・熱量などの単位は `docs/units.md` および `vtsimnx.units` を参照してください。  
+温度・圧力・流量・熱量などの単位は [`units.md`](units.md) および `vtsimnx.units` を参照してください。  
 OpenAPI / Pydantic スキーマでは `json_schema_extra.unit` に同じ表記を載せます。

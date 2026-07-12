@@ -145,6 +145,7 @@
 
 ## 8. 関連ドキュメント
 
-- 日射計算のAPI: `docs/solar_usage.md`
-- 風圧/夜間放射/地盤/快適性: `docs/archenv_comfort_nocturnal_wind_usage.md`
-- ノード・枝スキーマ: `docs/node_branch_schema.md`
+- 日射計算の API: [`solar_usage.md`](solar_usage.md)
+- 風圧/夜間放射/地盤/快適性: [`archenv_comfort_nocturnal_wind_usage.md`](archenv_comfort_nocturnal_wind_usage.md)
+- ノード・枝スキーマ: [`node_branch_schema.md`](node_branch_schema.md)
+- 実装寄りの物理整理: [`../engine/docs/theory_basics.md`](../engine/docs/theory_basics.md)

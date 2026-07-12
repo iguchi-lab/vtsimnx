@@ -63,14 +63,16 @@ python examples/run_calc_minimal.py
 
 ## ドキュメント導線
 
-- 利用者向け入口: `docs/README.md`
-- engine 実装仕様入口: `engine/docs/README.md`
-- API契約: `engine/docs/api_reference.md`
-- builder 入力仕様（正本）: `engine/docs/builder_json.md`
-- 検証戦略: `docs/validation_strategy.md`
-- 公開 API 安定性: `docs/public_api.md`
-- 単位系: `docs/units.md`
-- リリース運用: `docs/release_policy.md`
+| 対象 | 入口 |
+|---|---|
+| 利用者（入力の書き方） | [`docs/README.md`](docs/README.md) |
+| engine 実装仕様 | [`engine/docs/README.md`](engine/docs/README.md) |
+| 単位の正本 | [`docs/units.md`](docs/units.md) |
+| 公開 API 安定性 | [`docs/public_api.md`](docs/public_api.md) |
+| 検証方針 | [`docs/validation_strategy.md`](docs/validation_strategy.md) |
+| リリース運用 | [`docs/release_policy.md`](docs/release_policy.md) |
+
+入力 JSON の厳密仕様（正本）: [`engine/docs/builder_json.md`](engine/docs/builder_json.md)
 
 ## CI（公開チェック）
 
@@ -80,14 +82,16 @@ python examples/run_calc_minimal.py
 |---|---|
 | `lint` | `ruff` + `mypy`（Python 3.11） |
 | `python-client` | `pytest vtsimnx/tests`（Python **3.10 / 3.11 / 3.13**） |
-| `engine-python` | C++ solver ビルド + `pytest engine/tests_py`（Python **3.10 / 3.11 / 3.13**） |
+| `engine-python` | C++ solver ビルド + `pytest engine/tests_py`（physics/perf 除外） |
+| `physics-regression` | physics marker のベースライン回帰（Python 3.11） |
+| `perf-history` | 性能ベンチ（warn-only, Python 3.11） |
 | `cpp-solver` | CMake ビルド + CTest |
 | `package` | wheel ビルド → クリーン環境へ install → import 確認（Python 3.11） |
 | `example` | uvicorn 起動 + `examples/run_calc_minimal.py`（Python 3.11） |
 
 対応 Python: **3.10 以上**（`pyproject.toml` の `requires-python`）。lint / package / example は主要版 3.11 固定。
 
-ワークフロー定義: `.github/workflows/ci.yml`
+ワークフロー定義: [`.github/workflows/ci.yml`](.github/workflows/ci.yml)
 ## 検証と保証範囲
 
 本プロジェクトは研究用途のため、検証方針と既知の限界を公開しています。  

@@ -1,7 +1,8 @@
 ### 建築環境工学の基礎（VTSimNX向け）
 
 このドキュメントは、VTSimNX で扱う主要な物理現象を、建築環境工学の観点から「実装につながる粒度」で整理したものです。  
-実装仕様そのものは `docs/builder_json.md`、計算順は `docs/simulation_overview.md` を参照してください。
+利用者向けの背景説明は [`../../docs/building_environment_engineering_basics.md`](../../docs/building_environment_engineering_basics.md) を先に読んでください。  
+実装仕様そのものは [`builder_json.md`](builder_json.md)、計算順は [`simulation_overview.md`](simulation_overview.md) を参照してください。
 
 ---
 
@@ -15,7 +16,7 @@
 - 濃度（粒子やガスが移流・生成・除去される）
 
 VTSimNX では、まず圧力と温度を反復して収束させ、その確定流量で湿度と濃度を更新する構成です。  
-この順序の概要は `docs/simulation_overview.md` に記載しています。
+この順序の概要は [`simulation_overview.md`](simulation_overview.md) に記載しています。
 
 ---
 
@@ -33,7 +34,7 @@ VTSimNX では、まず圧力と温度を反復して収束させ、その確定
 
 - 入力は `ventilation_branches` に定義
 - 代表モデルは `fixed_flow` / `simple_opening` / `gap` / `fan`
-- 詳細な入力形式は `docs/builder_json.md` を参照
+- 詳細な入力形式は [`builder_json.md`](builder_json.md) を参照
 
 ---
 
@@ -57,7 +58,7 @@ VTSimNX では、まず圧力と温度を反復して収束させ、その確定
 
 - `thermal_branches` が熱回路の基本入力
 - `surfaces` から RC法または応答係数法の壁モデルを builder が展開
-- 詳細は `docs/thermal_rc.md` / `docs/thermal_response_factor.md`
+- 詳細は [`thermal_rc.md`](thermal_rc.md) / [`thermal_response_factor.md`](thermal_response_factor.md)
 
 ---
 
@@ -109,9 +110,10 @@ VTSimNX では、まず圧力と温度を反復して収束させ、その確定
 
 ### 7. 関連ドキュメント
 
-- 実装と入力仕様: `docs/builder_json.md`
-- 計算順と連成フロー: `docs/simulation_overview.md`
-- RC法: `docs/thermal_rc.md`
-- 応答係数法: `docs/thermal_response_factor.md`
-- 実装上の数学メモ: `docs/physics_math_notes.md`
+- 実装と入力仕様: [`builder_json.md`](builder_json.md)
+- 計算順と連成フロー: [`simulation_overview.md`](simulation_overview.md)
+- RC法: [`thermal_rc.md`](thermal_rc.md)
+- 応答係数法: [`thermal_response_factor.md`](thermal_response_factor.md)
+- 実装上の数学メモ: [`physics_math_notes.md`](physics_math_notes.md)
+- 利用者向け背景: [`../../docs/building_environment_engineering_basics.md`](../../docs/building_environment_engineering_basics.md)
 

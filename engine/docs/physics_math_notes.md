@@ -30,8 +30,8 @@
 
 換気（風量）の単位について（重要）:
 
-- 公開入力（builder / `node_branch_schema`）の `vol` / fan 風量は慣習的に **`m3/h`** で書かれることがあります
-- builder は JSON 出力前に **`m3/s` へ換算**します（`docs/units.md`）
+- 入力の `vol` / fan の `q_max` / `q1` は **m3/s**（正本: [`../../docs/units.md`](../../docs/units.md)）
+- builder は風量を **換算しない**（そのまま solver JSON へ渡す）
 - 換気回路網の **C++ solver 内部**が扱う風量は常に **体積流量 \(\dot V\) \([m^3/s]\)** です
   - `ventilation_branches[].vol`（`fixed_flow` / `has_prescribed_vol`）も solver 入力時点では \([m^3/s]\)
   - `FlowRateMap` / `FlowBalanceMap` / `ventilationTolerance` も **体積流量収支 [m³/s]**（質量収支ではない）

@@ -64,4 +64,4 @@ git commit -m "<message>"
 git push
 ```
 
-詳細なリポジトリ運用メモは `docs/developer_notes.md` を参照してください。
+リリース運用は [`../docs/release_policy.md`](../docs/release_policy.md) を参照してください。

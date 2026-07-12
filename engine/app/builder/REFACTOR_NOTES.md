@@ -1,5 +1,7 @@
 # builder 配下の整理メモ
 
+> 内部作業メモです。公開仕様ではありません（索引: [`../../docs/internal/README.md`](../../docs/internal/README.md)）。
+
 surfaces リファクタ後、他モジュールで検討・対応するとよい点をまとめたものです。
 
 ---

@@ -165,8 +165,8 @@ input_data["surfaces"] = [
 このページは、`vtsimnx` 利用者が「**`input_data["surfaces"] をどう書くか**」に集中するためのガイドです。
 
 - 材料物性テーブル `vt.materials`
-- 日射取得 `vt.solar_gain_by_angles`（`docs/solar_usage.md`）
-- 地盤・夜間放射の係数 `solar_to_surface_temp_coeff` / `nocturnal_to_surface_temp_coeff`（`docs/archenv_comfort_nocturnal_wind_usage.md`）
+- 日射取得 `vt.solar_gain_by_angles`（[`solar_usage.md`](solar_usage.md)）
+- 地盤・夜間放射の係数 `solar_to_surface_temp_coeff` / `nocturnal_to_surface_temp_coeff`（[`archenv_comfort_nocturnal_wind_usage.md`](archenv_comfort_nocturnal_wind_usage.md)）
 
 などと組み合わせて、`surfaces` を構成します。
 

@@ -1,98 +1,63 @@
 # VTSimNX Engine Service
 
-VTSimNX のシミュレーションを HTTP で実行するための FastAPI ラッパです。  
-`/run` に JSON を送ると、builder で設定を正規化した後に C++ solver を実行し、結果と artifact 情報を返します。
+VTSimNX のシミュレーションを HTTP で実行する FastAPI サービスです。  
+JSON を受け取ると builder で正規化し、C++ solver を実行して結果と artifact を返します。
 
-この `engine/` はモノレポ内の計算サーバー実装です。  
-ルートの全体導線は `../README.md`、core側解説は `../docs/README.md` を参照してください。
+- リポジトリ全体: [`../README.md`](../README.md)
+- 利用者向け入力ガイド: [`../docs/README.md`](../docs/README.md)
+- 実装仕様索引: [`docs/README.md`](docs/README.md)
 
-## この API でできること
+## エンドポイント（概要）
 
-- `GET /ping`: ヘルスチェック
-- `POST /run`: シミュレーション実行
-- `GET /artifacts/...`: 実行後の `schema.json` / `solver.log` / バイナリ結果の取得
+- `GET /ping` — ヘルスチェック
+- `POST /runs` — 非同期実行（推奨）
+- `POST /run` — 同期実行（互換）
+- `GET /artifacts/...` — 成果物取得
 
-詳細仕様は `docs/api_reference.md` を参照してください。
+詳細: [`docs/api_reference.md`](docs/api_reference.md)
 
 ## クイックスタート
 
-1. API を起動
-
 ```bash
 python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000
-```
-
-2. 動作確認
-
-```bash
 curl -sS http://127.0.0.1:8000/ping
-# {"status":"ok"}
 ```
-
-3. シミュレーション実行
 
 ```bash
 curl -sS -X POST http://127.0.0.1:8000/run \
   -H 'Content-Type: application/json' \
   -d '{
     "config": {
-      "simulation": {"step": 1, "timestep": 3600},
-      "nodes": [{"key": "outside"}, {"key": "room"}],
+      "simulation": {
+        "index": {
+          "start": "2026-01-01T00:00:00",
+          "end": "2026-01-01T01:00:00",
+          "timestep": 3600,
+          "length": 2
+        }
+      },
+      "nodes": [{"key": "outside", "t": 5.0}, {"key": "room", "calc_t": true, "v": 30.0}],
       "ventilation_branches": [],
       "thermal_branches": []
     }
   }'
 ```
 
-レスポンス例（抜粋）:
-
-```json
-{
-  "result": {
-    "artifact_dir": "run_20260312_xxxxxxxx",
-    "result_files": {
-      "schema": "schema.json"
-    }
-  },
-  "warnings": [],
-  "warning_details": []
-}
-```
+運用の詳細は [`RUN_FASTAPI.md`](RUN_FASTAPI.md) を参照してください。
 
 ## ドキュメント
 
-- API仕様: `docs/api_reference.md`
-- 起動・運用メモ: `RUN_FASTAPI.md`
-- builder 入力仕様: `docs/builder_json.md`
-- シミュレーション全体像: `docs/simulation_overview.md`
-- 空調モデル概要: `docs/acmodel_overview.md`
-- 空調制御仕様: `docs/aircon_control_overview.md`
-- 湿気回路網（Phase1）: `docs/moisture_network_phase1.md`
-- 物理・数学メモ: `docs/physics_math_notes.md`
+| 文書 | 内容 |
+|---|---|
+| [`docs/README.md`](docs/README.md) | 実装仕様の索引 |
+| [`docs/api_reference.md`](docs/api_reference.md) | HTTP API 契約 |
+| [`docs/builder_json.md`](docs/builder_json.md) | builder 入力正本 |
+| [`docs/simulation_overview.md`](docs/simulation_overview.md) | 計算フロー |
+| [`docs/aircon_control_overview.md`](docs/aircon_control_overview.md) | 空調制御 |
+| [`docs/moisture_network_phase1.md`](docs/moisture_network_phase1.md) | 湿気 Phase1 |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | 開発参加・テスト |
 
-## 開発者向け情報
+## License / Disclaimer
 
-- 参加方法・テスト・コミット方針: `CONTRIBUTING.md`
-- リポジトリ運用メモ: `docs/developer_notes.md`
-
-## 読み始めガイド
-
-- 初回導入: `RUN_FASTAPI.md` -> `docs/api_reference.md`
-- 入力JSONを作る: `docs/builder_json.md` -> `docs/simulation_overview.md`
-- 空調モデルを調整する: `docs/aircon_control_overview.md` -> `docs/acmodel_overview.md`
-- solver実装を追う: `solver/` と `docs/physics_math_notes.md`
-
-## License
-
-This project is licensed under the MIT License. See `../LICENSE`.
-
-## Disclaimer
-
-- This software is provided for research and development purposes.  
-  本ソフトウェアは研究・開発目的で提供されます。
-- Results are not guaranteed to be accurate, complete, or fit for any specific purpose.  
-  結果の正確性・完全性・特定目的適合性は保証されません。
-- Validate inputs, assumptions, and outputs before operational use.  
-  運用利用前の妥当性確認は利用者責任で実施してください。
-- Legally binding terms are defined by `../LICENSE` (MIT License).  
-  法的拘束力を持つ保証・責任条件は `../LICENSE`（MIT License）に従います。
+- MIT: [`../LICENSE`](../LICENSE)
+- 研究・開発目的。結果の正確性は保証しません。運用前の妥当性確認は利用者責任です。
