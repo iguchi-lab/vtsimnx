@@ -68,8 +68,15 @@ inline double processedEnthalpyHeatW(double tIn,
 // DirectT 組立へ渡すコンテキスト（TopologyCache が保持）
 struct MoistAssembleContext {
     bool enabled = false;
+    double dt = 0.0; // [s] SimulationConstants.timestep
     // タイムステップ初期湿度 x_n（頂点インデックス）。未設定時は current_x を x_n とする。
     const std::vector<double>* humidityXnByVertex = nullptr;
 };
+
+// 空気体積からの ρV/Δt（付加熱容量を含まない）
+inline double rhoVOverDtFromVolume(double volumeM3, double dt) {
+    if (!(dt > 0.0) || !(volumeM3 > 0.0)) return 0.0;
+    return archenv::DENSITY_DRY_AIR * volumeM3 / dt;
+}
 
 } // namespace thermal_moist_air

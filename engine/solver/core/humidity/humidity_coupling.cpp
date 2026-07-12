@@ -439,8 +439,8 @@ void evaluateMoistureBalanceTerms(const Graph& tGraph,
         out.vaporGeneration[i] = (itG == terms.genByVertex.end()) ? 0.0 : itG->second;
 
         double mat = 0.0;
-        if (i < terms.moistureLinks.size()) {
-            for (const auto& lk : terms.moistureLinks[i]) {
+        if (i < terms.phaseChangeLinks.size()) {
+            for (const auto& lk : terms.phaseChangeLinks[i]) {
                 mat += lk.second * (xOf(lk.first) - xi);
             }
         }

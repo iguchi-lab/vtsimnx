@@ -22,7 +22,8 @@ struct HumidityNetworkTerms {
     std::unordered_map<Vertex, double> genByVertex;
     std::vector<double> outSum;
     WeightedVertexLinks inflow;
-    WeightedVertexLinks moistureLinks;
+    WeightedVertexLinks moistureLinks;      // 全 moisture_conductance（湿度方程式）
+    WeightedVertexLinks phaseChangeLinks;   // moisture_transfer_type=phase_change のみ
     // 有効換気枝の無向隣接（流量・向き非依存）。疎行列の固定上位パターン用。
     std::vector<std::vector<Vertex>> ventNeighbors;
     std::vector<Vertex> updateVertices;

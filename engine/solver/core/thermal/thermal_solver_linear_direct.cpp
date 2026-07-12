@@ -94,6 +94,7 @@ void solveTemperaturesLinearDirect(ThermalNetwork& network,
 
     // 湿りエンタルピー組立コンテキスト（係数署名より前に同期）
     ctx.topology.moist.enabled = constants.moistEnthalpyEnabled;
+    ctx.topology.moist.dt = static_cast<double>(constants.timestep);
     ctx.topology.moist.humidityXnByVertex = network.moistEnthalpyHumidityXn();
 
     const detail::CoeffSignatureBreakdown coeffSigBreakdown =

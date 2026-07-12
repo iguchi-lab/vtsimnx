@@ -119,19 +119,21 @@ Phase1 では、既存の移流ベース湿度計算に加えて、線形RC型�
 `simulation.coupling.moist_enthalpy_enabled`（既定 `false`）:
 
 - ON 時、換気移流と空気ノード capacity 蓄積を \(h(T,x)=(c_{pa}+x c_{pv})T+x L_v\) の収支で解く（未知数は温度 \(T\)、連成中の \(x\) は既知）
+- 空気蓄積: `subtype=air_capacity` は \(\rho V/\Delta t\) を体積・dt から直接計算。レガシー `capacity`+`v>0` は乾き conductance（家具等）を維持し、水蒸気分のみ \(\rho V\) を加算
+- builder は `v>0` のとき空気分を `air_capacity`、残りを `capacity` に分離
 - 空調処理熱（能力・COP・DUCT 風量連動の全熱）も \(\dot m |h_\mathrm{in}-h_\mathrm{out}|\) に統一（顕熱/潜熱は acmodel 互換のため分解）
 - 吹出絶対湿度 `supplyX` を空調ノード `current_x` に反映し、除湿量 \(\dot m(x_\mathrm{in}-x_\mathrm{supply})\) を `airconCondensation` 診断へ記録（湿気移流境界と能力計算を一致）
 - 必須: `calc_flag.x` かつ `calc_flag.t` かつ `moisture_enabled=true`（非連成では当該ステップの更新後 \(x\) を熱へ戻せない）
 - `from_humidity_change` との併用は禁止（二重計上）
 - `from_phase_change` との併用も当面禁止（材料側のみ \(Q=-L\dot m\) だと空気側の対向項がなくエネルギーが片側欠損する）
+- 湿気枝の `moisture_transfer_type`（`phase_change`|`vapor_diffusion`|`liquid_transport`|`sorption`、未指定は `phase_change`）。潜熱診断 `materialPhaseChange` は `phase_change` のみ
 
 ### 将来（Phase1.5 以降）
 
 - 相変化潜熱の材料↔空気 対向項（同一基準エンタルピー）
 - `room_evaporation` 発湿の室内潜熱
 - `from_humidity_change` の削除
-- 空気 capacity の \(\rho V/\Delta t\) を体積・dt から直接計算（付加熱容量との分離）
-- `moisture_transfer_type` による相変化枝の明示
+- `from_phase_change` + moist enthalpy の併用解禁（空気側対向項）
 ## 圧力・熱・湿気の連成
 
 Phase1 実装では、1タイムステップの内側反復で次のように連成します。

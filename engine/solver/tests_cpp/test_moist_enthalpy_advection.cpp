@@ -5,15 +5,24 @@
 #include <string>
 #include <vector>
 
+#include <boost/range/iterator_range.hpp>
+
+#include "aircon/aircon_latent.h"
+#include "aircon/aircon_operation_mode.h"
+#include "core/humidity/humidity_coupling.h"
+#include "core/humidity/humidity_solver.h"
 #include "core/thermal/heat_calculation.h"
 #include "core/thermal/thermal_direct_internal.h"
+#include "core/thermal/thermal_edge_physics.h"
 #include "core/thermal/thermal_moist_air.h"
 #include "core/thermal/thermal_solver.h"
 #include "core/thermal/thermal_solver_linear_direct.h"
-#include "aircon/aircon_latent.h"
-#include "aircon/aircon_operation_mode.h"
+#include "network/humidity_network.h"
 #include "network/thermal_network.h"
+#include "network/ventilation_network.h"
 #include "parser/sim_constants_parser.h"
+#include "types/common_types.h"
+#include "vtsimnx_solver_timing.h"
 
 namespace {
 
@@ -418,6 +427,233 @@ void testFlagOffRegression() {
                "OFF: x change does not affect T B");
 }
 
+void testFurnitureCapacityDoesNotInflateVaporStorage() {
+    ThermalSolverLinearDirect::resetDirectTSolverContext();
+    // 家具付き capacity: 潜熱蓄積は ρV 基準。T は k*(ΔT)≈ρV/dt*Lv*Δx で下がる（家具 k が大きいほど ΔT は小さい）。
+    // 旧換算 (k/cp を ρV/dt 扱い) だと ΔT≈Lv*Δx/cp となり家具と無関係に大きく下がる。
+    const double V = 50.0;
+    const double dt = 60.0;
+    const double airMass = archenv::DENSITY_DRY_AIR * archenv::SPECIFIC_HEAT_AIR * V;
+    const double furniture = 5.0e5;
+    const double T = 20.0;
+    const double xN = 0.005;
+    const double xNp1 = 0.015;
+    const double k = (airMass + furniture) / dt;
+    const double rhoV_dt = archenv::DENSITY_DRY_AIR * V / dt;
+    const double dx = xNp1 - xN;
+
+    ThermalNetwork net;
+    auto room = makeAir("ROOM", true, T, V, xNp1);
+    auto cap = makeCapacity("ROOM_c", "ROOM", T);
+    net.addNode(room);
+    net.addNode(cap);
+    EdgeProperties ep{};
+    ep.key = "ROOM_c->ROOM";
+    ep.unique_id = "ROOM_c->ROOM";
+    ep.type = "conductance";
+    ep.subtype = "capacity";
+    ep.source = "ROOM_c";
+    ep.target = "ROOM";
+    ep.conductance = k;
+    net.addEdge(ep);
+
+    std::vector<double> xn(boost::num_vertices(net.getGraph()), xN);
+    net.setMoistEnthalpyHumidityXn(xn);
+
+    auto c = makeThermalConstants(true);
+    c.timestep = static_cast<int>(dt);
+    std::ostringstream logs;
+    ThermalSolver solver(net, logs);
+    solver.solveTemperatures(c);
+
+    const double tRoom = net.getGraph()[net.getKeyToVertex().at("ROOM")].current_t;
+    // 1次近似: k(T - Troom) ≈ ρV/dt * Lv * dx （cpv 項は小さい）
+    const double dTApprox =
+        rhoV_dt * archenv::LATENT_HEAT_VAPORIZATION * dx / k;
+    expectNear(T - tRoom, dTApprox, 0.5, "furniture: ΔT follows rho*V latent / k");
+    const double dTWrongLegacy =
+        archenv::LATENT_HEAT_VAPORIZATION * dx / archenv::SPECIFIC_HEAT_AIR;
+    expectTrue(T - tRoom < 0.5 * dTWrongLegacy,
+               "must not use conductance/cp as vapor storage mass");
+
+    // 固定同温度で後処理 heat_rate が ρV 基準であることも確認
+    Graph& g = net.getGraph();
+    g[net.getKeyToVertex().at("ROOM")].current_t = T;
+    g[net.getKeyToVertex().at("ROOM_c")].current_t = T;
+    thermal_moist_air::MoistAssembleContext moist{};
+    moist.enabled = true;
+    moist.dt = dt;
+    moist.humidityXnByVertex = net.moistEnthalpyHumidityXn();
+    std::vector<double> bal(boost::num_vertices(g), 0.0);
+    for (auto e : boost::make_iterator_range(boost::edges(g))) {
+        thermal_edge_physics::accumulatePostprocess(g, e, bal, &moist);
+    }
+    double qCap = 0.0;
+    for (auto e : boost::make_iterator_range(boost::edges(g))) {
+        if (g[e].subtype == "capacity") qCap = g[e].heat_rate;
+    }
+    const double expectedQ =
+        rhoV_dt * ((xN - xNp1) * archenv::SPECIFIC_HEAT_WATER_VAPOR * T +
+                   archenv::LATENT_HEAT_VAPORIZATION * (xN - xNp1));
+    expectNear(qCap, expectedQ, std::abs(expectedQ) * 1e-6 + 1e-6,
+               "same-T postprocess: vapor storage uses rho*V not k/cp");
+}
+
+void testMoistureTransferTypePhaseChangeOnly() {
+    SimulationConstants constants{};
+    constants.timestep = 60;
+    constants.humidityCalc = true;
+    constants.temperatureCalc = false;
+    constants.pressureCalc = false;
+    constants.logVerbosity = 0;
+    constants.humiditySolverTolerance = 1e-12;
+    std::ostringstream logs;
+
+    auto ROOM = makeAir("ROOM", false, 20.0, 100.0, 0.010);
+    ROOM.calc_x = true;
+    auto MAT = makeAir("MAT", false, 20.0, 0.0, 0.002);
+    MAT.calc_x = true;
+    MAT.v = 0.0;
+    MAT.moisture_capacity = 50.0;
+
+    EdgeProperties phase{};
+    phase.key = "MAT->ROOM";
+    phase.unique_id = "MAT->ROOM";
+    phase.type = "conductance";
+    phase.source = "MAT";
+    phase.target = "ROOM";
+    phase.moisture_conductance = 0.002;
+    phase.moisture_transfer_type = "phase_change";
+
+    EdgeProperties diff{};
+    diff.key = "MAT2->ROOM";
+    diff.unique_id = "MAT2->ROOM";
+    diff.type = "conductance";
+    diff.source = "MAT";
+    diff.target = "ROOM";
+    diff.moisture_conductance = 0.010; // 大きいが phase_change ではない
+    diff.moisture_transfer_type = "vapor_diffusion";
+
+    VentilationNetwork vent;
+    vent.addNode(ROOM);
+    vent.addNode(MAT);
+
+    ThermalNetwork thermal;
+    thermal.addNode(ROOM);
+    thermal.addNode(MAT);
+    thermal.addEdge(phase);
+    thermal.addEdge(diff);
+
+    HumidityNetwork humidity;
+    HumidityNetworkTerms terms;
+    humidity.buildTerms(static_cast<const ThermalNetwork&>(thermal).nodeStateView(), vent, terms);
+    const auto& g = thermal.getGraph();
+    const auto vRoom = thermal.getKeyToVertex().at("ROOM");
+    const size_t iRoom = static_cast<size_t>(vRoom);
+    expectTrue(terms.moistureLinks[iRoom].size() == 2, "both links in humidity solve");
+    expectTrue(terms.phaseChangeLinks[iRoom].size() == 1, "only phase_change in latent links");
+
+    std::vector<double> xN(boost::num_vertices(g), 0.0);
+    for (auto v : boost::make_iterator_range(boost::vertices(g))) {
+        xN[static_cast<size_t>(v)] = g[v].current_x;
+    }
+    MoistureBalanceTerms bal;
+    core::humidity::evaluateMoistureBalanceTerms(g, terms, xN, 60.0, bal);
+    // phase_change のみ: k=0.002。diffusion k=0.010 は materialPhaseChange に入らない
+    const double xR = g[vRoom].current_x;
+    const double xM = g[thermal.getKeyToVertex().at("MAT")].current_x;
+    const double expectedPhase = 0.002 * (xM - xR);
+    expectNear(bal.materialPhaseChange[iRoom], expectedPhase, 1e-9,
+               "materialPhaseChange uses phase_change link only");
+    (void)logs;
+}
+
+void testCoupledOutdoorHumidInflow() {
+    // 熱⇔湿度の簡易連成: 同T湿潤外気の流入で室 x・エンタルピーが上昇する
+    ThermalSolverLinearDirect::resetDirectTSolverContext();
+    SimulationConstants c = makeThermalConstants(true);
+    c.timestep = 60;
+    std::ostringstream logs;
+    TimingList timings;
+
+    const double T = 20.0;
+    const double V = 50.0;
+    const double C = archenv::DENSITY_DRY_AIR * archenv::SPECIFIC_HEAT_AIR * V;
+
+    auto OUT = makeAir("OUT", false, T, 0.0, 0.015);
+    OUT.calc_x = false;
+    auto ROOM = makeAir("ROOM", true, T, V, 0.005);
+    ROOM.calc_x = true;
+    auto Rc = makeCapacity("ROOM_c", "ROOM", T);
+
+    ThermalNetwork thermal;
+    thermal.addNode(OUT);
+    thermal.addNode(ROOM);
+    thermal.addNode(Rc);
+
+    EdgeProperties cap{};
+    cap.key = "ROOM_c->ROOM";
+    cap.unique_id = "ROOM_c->ROOM";
+    cap.type = "conductance";
+    cap.subtype = "capacity";
+    cap.source = "ROOM_c";
+    cap.target = "ROOM";
+    cap.conductance = C / 60.0;
+    thermal.addEdge(cap);
+
+    EdgeProperties adv{};
+    adv.key = "OUT->ROOM";
+    adv.unique_id = "OUT->ROOM";
+    adv.type = "advection";
+    adv.source = "OUT";
+    adv.target = "ROOM";
+    adv.flow_rate = 0.05;
+    thermal.addEdge(adv);
+
+    VentilationNetwork vent;
+    vent.addNode(OUT);
+    vent.addNode(ROOM);
+    EdgeProperties ventE{};
+    ventE.key = "OUT->ROOM";
+    ventE.unique_id = "OUT->ROOM";
+    ventE.type = "fixed_flow";
+    ventE.source = "OUT";
+    ventE.target = "ROOM";
+    ventE.flow_rate = 0.05;
+    ventE.vol = {0.05};
+    ventE.current_vol = 0.05;
+    ventE.has_prescribed_vol = true;
+    vent.addEdge(ventE);
+
+    HumidityNetwork humidity;
+    const auto vR = thermal.getKeyToVertex().at("ROOM");
+    const double x0 = thermal.getGraph()[vR].current_x;
+    const double h0 = thermal_moist_air::moistAirEnthalpy(T, x0);
+
+    std::vector<double> xn(boost::num_vertices(thermal.getGraph()), 0.0);
+    for (auto v : boost::make_iterator_range(boost::vertices(thermal.getGraph()))) {
+        xn[static_cast<size_t>(v)] = thermal.getGraph()[v].current_x;
+    }
+    thermal.setMoistEnthalpyHumidityXn(xn);
+
+    FlowRateMap flows;
+    flows[{"OUT", "ROOM"}] = 0.05;
+    for (int iter = 0; iter < 4; ++iter) {
+        ThermalSolverLinearDirect::resetDirectTSolverContext();
+        ThermalSolver solver(thermal, logs);
+        solver.solveTemperatures(c);
+        (void)core::humidity::updateHumidityIfEnabled(
+            c, vent, thermal.getGraph(),
+            static_cast<const ThermalNetwork&>(thermal).nodeStateView(), humidity, flows, logs,
+            timings, "coup");
+    }
+
+    const auto& g = thermal.getGraph();
+    expectTrue(g[vR].current_x > x0 + 1e-4, "coupled: room humidity rises");
+    const double h1 = thermal_moist_air::moistAirEnthalpy(g[vR].current_t, g[vR].current_x);
+    expectTrue(h1 > h0, "coupled: room moist enthalpy increases");
+}
+
 void testAirconProcessedEnthalpyHelper() {
     const double Q = 0.1;
     const double tIn = 27.0, tOut = 14.0;
@@ -488,6 +724,9 @@ int main() {
         testSameXDifferentTNearSensible();
         testClosedSystemMixingEnthalpy();
         testFlagOffRegression();
+        testFurnitureCapacityDoesNotInflateVaporStorage();
+        testMoistureTransferTypePhaseChangeOnly();
+        testCoupledOutdoorHumidInflow();
         testAirconProcessedEnthalpyHelper();
         testAirconLatentProcessMoistTotal();
         std::cout << "OK moist enthalpy advection/storage\n";

@@ -365,6 +365,21 @@ std::vector<EdgeProperties> parseThermalBranches(const json& config, std::ostrea
         if (branchJson.contains("moisture_conductance")) {
             branch.moisture_conductance = branchJson["moisture_conductance"].get<double>();
         }
+        parser_utils::checkStringIfPresent(branchJson, "moisture_transfer_type", branchPrefix);
+        if (branchJson.contains("moisture_transfer_type")) {
+            branch.moisture_transfer_type = branchJson["moisture_transfer_type"].get<std::string>();
+            if (branch.moisture_transfer_type != "phase_change" &&
+                branch.moisture_transfer_type != "vapor_diffusion" &&
+                branch.moisture_transfer_type != "liquid_transport" &&
+                branch.moisture_transfer_type != "sorption") {
+                throw std::runtime_error(
+                    "Invalid 'moisture_transfer_type' (phase_change|vapor_diffusion|"
+                    "liquid_transport|sorption) at " +
+                    branchPrefix);
+            }
+        } else if (branch.moisture_conductance > 0.0) {
+            branch.moisture_transfer_type = "phase_change";
+        }
         if (branchJson.contains("area"))         branch.area         = branchJson["area"].get<double>();
 
         // response_conduction 用係数（配列）

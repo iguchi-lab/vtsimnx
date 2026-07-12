@@ -32,6 +32,7 @@ void HumidityNetwork::buildTerms(ConstNodeStateView nodeState,
     terms.outSum.assign(nV, 0.0);
     terms.inflow.assign(nV, {});
     terms.moistureLinks.assign(nV, {});
+    terms.phaseChangeLinks.assign(nV, {});
     terms.ventNeighbors.assign(nV, {});
     terms.updateVertices.clear();
     terms.updateVertices.reserve(nV / 4 + 1);
@@ -102,6 +103,14 @@ void HumidityNetwork::buildTerms(ConstNodeStateView nodeState,
         const Vertex tv = boost::target(e, tGraph);
         terms.moistureLinks[idxOf(sv)].push_back({tv, k});
         terms.moistureLinks[idxOf(tv)].push_back({sv, k});
+        // 潜熱・相変化診断は phase_change のみ（未指定は既定 phase_change）
+        const std::string& xfer = ep.moisture_transfer_type.empty()
+                                      ? std::string("phase_change")
+                                      : ep.moisture_transfer_type;
+        if (xfer == "phase_change") {
+            terms.phaseChangeLinks[idxOf(sv)].push_back({tv, k});
+            terms.phaseChangeLinks[idxOf(tv)].push_back({sv, k});
+        }
     }
 
     // 更新対象を決定

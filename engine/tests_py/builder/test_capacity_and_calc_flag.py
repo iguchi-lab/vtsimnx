@@ -26,6 +26,32 @@ def test_thermal_mass_is_converted_to_capacity_node_and_branch_and_removed():
     assert tb["conductance"] == 100.0 / 10
 
 
+def test_thermal_mass_with_volume_splits_air_capacity():
+    raw = {
+        "simulation": {
+            "index": {"start": "2025-01-01T00:00:00Z", "end": "2025-01-01T01:00:00Z", "timestep": 60, "length": 1},
+            "tolerance": {"ventilation": 1e-6, "thermal": 1e-6, "convergence": 1e-6},
+            "calc_flag": {"p": False, "t": False, "x": False, "c": False},
+        },
+        # ρ cp V = 1.2*1006*50 ≈ 60360, thermal_mass はそれより大きい
+        "nodes": [{"key": "ROOM", "v": 50.0, "thermal_mass": 5.0e5, "t": 20.0}],
+        "ventilation_branches": [],
+        "thermal_branches": [],
+    }
+
+    out = build_config(raw, add_surface=False, add_aircon=False, add_capacity=True)
+    air_mass = 1.2 * 1006.0 * 50.0
+    furniture = 5.0e5 - air_mass
+
+    tb_air = next(b for b in out["thermal_branches"] if b["key"] == "ROOM_air->ROOM")
+    assert tb_air["subtype"] == "air_capacity"
+    assert abs(tb_air["conductance"] - air_mass / 60.0) < 1e-6
+
+    tb_c = next(b for b in out["thermal_branches"] if b["key"] == "ROOM_c->ROOM")
+    assert tb_c["subtype"] == "capacity"
+    assert abs(tb_c["conductance"] - furniture / 60.0) < 1e-6
+
+
 def test_calc_flag_is_auto_set_from_node_calc_fields():
     raw = {
         "simulation": {

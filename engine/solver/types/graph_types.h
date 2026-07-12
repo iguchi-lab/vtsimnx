@@ -173,6 +173,9 @@ struct EdgeProperties {
     double current_dust_generation = 0.0;
     // 湿気回路網（Phase1）: source-target の湿気伝達コンダクタンス [kg/s]
     double moisture_conductance = 0.0;
+    // phase_change | vapor_diffusion | liquid_transport | sorption
+    // 未指定時は phase_change（後方互換）。from_phase_change 潜熱は phase_change のみ。
+    std::string moisture_transfer_type = "phase_change";
 
     // -----------------------------------------------------------------
     // 応答係数（CTF/応答係数法）用: 両端表面の熱流を別々に表現する二端子要素

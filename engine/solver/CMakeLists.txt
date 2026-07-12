@@ -361,12 +361,16 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         network/thermal_network_outputs.cpp
         network/humidity_network.cpp
         network/humidity_network_outputs.cpp
+        network/ventilation_network.cpp
+        network/ventilation_network_outputs.cpp
+        ${VENTILATION_PRESSURE_SOURCES}
         aircon/aircon_latent.cpp
         parser/sim_constants_parser.cpp
         ../archenv/archenv_core.cpp
     )
     target_link_libraries(vtsimnx_solver_cpp_test_moist_enthalpy_advection
         Boost::boost
+        ceres
     )
     target_include_directories(vtsimnx_solver_cpp_test_moist_enthalpy_advection PRIVATE /usr/include/eigen3)
     target_compile_options(vtsimnx_solver_cpp_test_moist_enthalpy_advection PRIVATE
