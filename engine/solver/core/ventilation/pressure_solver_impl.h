@@ -198,4 +198,10 @@ struct PressureSolver::Impl {
     std::optional<double> calculateFlowForEdge(const PressureMap& pressureMap, Edge edge) const;
 
     SolverResult solvePressures(const SimulationConstants& constants);
+
+    // 同一 PressureSolver 寿命内（構造シグネチャ不変）で primary Problem を再利用
+    bool ensurePrimaryProblemCached();
+    bool primaryProblemReady_ = false;
+    std::unique_ptr<SolverSetup> primarySetup_;
+    std::unique_ptr<ceres::Problem> primaryProblem_;
 };

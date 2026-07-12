@@ -68,7 +68,7 @@ struct SimulationConstants {
     bool moistureCouplingEnabled = true;
     // 内側反復での緩和係数（0<alpha<=1）。1.0=緩和なし
     double humidityRelaxation = 1.0;
-    double latentRelaxation = 0.5;
+    double latentRelaxation = 1.0;
     // 潜熱→熱: 0=Disabled（既定）, 1=FromHumidityChange（実験的 opt-in: ノード dx→同ノード潜熱。
     // Δx 全量は換気を相変化と誤認し得るため、明示設定時のみ有効）
     int latentCouplingMode = 0;

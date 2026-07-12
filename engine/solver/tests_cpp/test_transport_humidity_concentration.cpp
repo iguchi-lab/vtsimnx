@@ -757,6 +757,34 @@ int main() {
             throw std::runtime_error("humidity cache: expected reuse or factorize progress");
         }
         (void)analyzes1;
+
+        // 流量だけ変えても固定上位パターンなら analyze せず factorize のみ
+        ventEdges[0].current_vol = 0.2;
+        ventEdges[0].vol = {0.2};
+        vent.updatePropertiesForTimestep(nodes, ventEdges, 0);
+        // fixed_flow の flow_rate を明示更新
+        for (auto e : boost::make_iterator_range(boost::edges(vent.getGraph()))) {
+            auto& ep = vent.getGraph()[e];
+            if (ep.key == "A->B") ep.flow_rate = 0.2;
+        }
+        const auto analyzesBeforeFlow = humidity.humiditySolverContext().patternAnalyzes;
+        const auto factorsBeforeFlow = humidity.humiditySolverContext().factorizes;
+        const auto s3 = core::humidity::updateHumidityIfEnabled(
+            constants, vent, thermal.getGraph(),
+            static_cast<const ThermalNetwork&>(thermal).nodeStateView(),
+            humidity, {}, logs, timings, "hum-cache-3");
+        if (!s3.converged) {
+            throw std::runtime_error("humidity cache: flow-change solve should converge");
+        }
+        if (humidity.humiditySolverContext().patternAnalyzes != analyzesBeforeFlow) {
+            throw std::runtime_error(
+                "humidity cache: flow magnitude change must not re-analyze pattern");
+        }
+        if (!(humidity.humiditySolverContext().factorizes > factorsBeforeFlow ||
+              humidity.humiditySolverContext().rhsOnlySolves > rhs1)) {
+            throw std::runtime_error(
+                "humidity cache: flow change should factorize or rhs-solve");
+        }
     }
 
     std::cout << "[OK] all tests passed\n";

@@ -114,18 +114,21 @@ SolveStats solveHumidityImplicitStep(const Graph& tGraph,
         coeffSig = hashDoubleBits(coeffSig, terms.outSum[i]);
         coeffSig = fnv1a64_update(coeffSig, (cap > 0.0) ? 1u : 0u);
 
-        for (const auto& in : terms.inflow[i]) {
-            const Vertex sv = in.first;
-            const double md = in.second;
-            coeffSig = fnv1a64_update(coeffSig, static_cast<std::uint64_t>(sv));
-            coeffSig = hashDoubleBits(coeffSig, md);
-            auto itCol = rowByVertex.find(sv);
-            if (itCol != rowByVertex.end()) {
-                patternSig = fnv1a64_update(
-                    patternSig,
-                    (static_cast<std::uint64_t>(r) << 32) ^
-                        static_cast<std::uint64_t>(itCol->second));
+        // パターンは流量非依存の換気隣接＋湿気リンク（固定上位パターン）
+        if (i < terms.ventNeighbors.size()) {
+            for (const Vertex nv : terms.ventNeighbors[i]) {
+                auto itCol = rowByVertex.find(nv);
+                if (itCol != rowByVertex.end()) {
+                    patternSig = fnv1a64_update(
+                        patternSig,
+                        (static_cast<std::uint64_t>(r) << 32) ^
+                            static_cast<std::uint64_t>(itCol->second));
+                }
             }
+        }
+        for (const auto& in : terms.inflow[i]) {
+            coeffSig = fnv1a64_update(coeffSig, static_cast<std::uint64_t>(in.first));
+            coeffSig = hashDoubleBits(coeffSig, in.second);
         }
         for (const auto& lk : terms.moistureLinks[i]) {
             const Vertex ov = lk.first;
@@ -142,7 +145,6 @@ SolveStats solveHumidityImplicitStep(const Graph& tGraph,
         }
 
         if (!(cap > 0.0)) {
-            // ゼロ容量の identity 保持パスは g の有無で行列係数が変わる
             const bool hasFlow = (terms.outSum[i] > 0.0) || !terms.inflow[i].empty();
             const bool hasLinks = !terms.moistureLinks[i].empty();
             const bool holdIdentity = !hasFlow && !hasLinks && g == 0.0;
@@ -162,6 +164,13 @@ SolveStats solveHumidityImplicitStep(const Graph& tGraph,
         ctx.coefficientSignature == coeffSig;
 
     using Triplet = Eigen::Triplet<double>;
+    auto inflowFrom = [&](size_t i, Vertex sv) -> double {
+        for (const auto& in : terms.inflow[i]) {
+            if (in.first == sv) return in.second;
+        }
+        return 0.0;
+    };
+
     auto buildMatrixAndRhs = [&](std::vector<Triplet>* tripsOut, Eigen::VectorXd& bOut) {
         if (tripsOut) {
             tripsOut->clear();
@@ -170,13 +179,12 @@ SolveStats solveHumidityImplicitStep(const Graph& tGraph,
         bOut.resize(n);
         bOut.setZero();
 
-        auto addCoeff = [&](int row, Vertex colV, double coeff, double& rhsKnown) {
-            if (std::abs(coeff) <= 0.0) return;
+        // 構造スロットは係数0でも残す（SparseLU の pattern 固定用）
+        auto addStructural = [&](int row, Vertex colV, double coeff, double& rhsKnown) {
             auto itRow = rowByVertex.find(colV);
             if (itRow != rowByVertex.end()) {
                 if (tripsOut) tripsOut->emplace_back(row, itRow->second, coeff);
-            } else {
-                // 境界・既知ノードは連成反復値 x_k
+            } else if (std::abs(coeff) > 0.0) {
                 rhsKnown -= coeff * ctx.xIterate[idxOf(colV)];
             }
         };
@@ -193,20 +201,19 @@ SolveStats solveHumidityImplicitStep(const Graph& tGraph,
 
             double rhs = 0.0;
             if (cap > 0.0) {
-                // 時間離散化 RHS は x_n（タイムステップ初期値）を使う
                 double diag = 1.0 + dt * terms.outSum[i] / cap;
                 rhs = ctx.xN[i] + dt * (g / cap);
 
-                for (const auto& in : terms.inflow[i]) {
-                    const Vertex sv = in.first;
-                    const double md = in.second;
-                    addCoeff(r, sv, -dt * (md / cap), rhs);
+                if (i < terms.ventNeighbors.size()) {
+                    for (const Vertex nv : terms.ventNeighbors[i]) {
+                        const double md = inflowFrom(i, nv);
+                        addStructural(r, nv, -dt * md / cap, rhs);
+                    }
                 }
                 for (const auto& lk : terms.moistureLinks[i]) {
-                    const Vertex ov = lk.first;
                     const double k = lk.second;
                     diag += dt * (k / cap);
-                    addCoeff(r, ov, -dt * (k / cap), rhs);
+                    addStructural(r, lk.first, -dt * (k / cap), rhs);
                 }
                 if (tripsOut) tripsOut->emplace_back(r, r, diag);
                 bOut[r] = rhs;
@@ -214,19 +221,26 @@ SolveStats solveHumidityImplicitStep(const Graph& tGraph,
                 const bool hasFlow = (terms.outSum[i] > 0.0) || !terms.inflow[i].empty();
                 const bool hasLinks = !terms.moistureLinks[i].empty();
                 if (!hasFlow && !hasLinks && g == 0.0) {
+                    // identity でも換気隣接スロットを0で埋め pattern を固定
                     if (tripsOut) tripsOut->emplace_back(r, r, 1.0);
-                    // 現状態保持は連成反復値
+                    if (i < terms.ventNeighbors.size()) {
+                        for (const Vertex nv : terms.ventNeighbors[i]) {
+                            addStructural(r, nv, 0.0, rhs);
+                        }
+                    }
                     bOut[r] = ctx.xIterate[i];
                 } else {
                     double diag = terms.outSum[i];
                     rhs = g;
-                    for (const auto& in : terms.inflow[i]) {
-                        addCoeff(r, in.first, -in.second, rhs);
+                    if (i < terms.ventNeighbors.size()) {
+                        for (const Vertex nv : terms.ventNeighbors[i]) {
+                            addStructural(r, nv, -inflowFrom(i, nv), rhs);
+                        }
                     }
                     for (const auto& lk : terms.moistureLinks[i]) {
                         const double k = lk.second;
                         diag += k;
-                        addCoeff(r, lk.first, -k, rhs);
+                        addStructural(r, lk.first, -k, rhs);
                     }
                     if (tripsOut) tripsOut->emplace_back(r, r, diag);
                     bOut[r] = rhs;
@@ -300,7 +314,7 @@ SolveStats solveHumidityImplicitStep(const Graph& tGraph,
         return stats;
     }
 
-    // --- Rebuild matrix (pattern and/or coefficients changed) ----------------
+    // --- Rebuild matrix: pattern same → factorize only; else analyze+factorize ---
     std::vector<Triplet> trips;
     buildMatrixAndRhs(&trips, ctx.rhs);
 
@@ -314,24 +328,36 @@ SolveStats solveHumidityImplicitStep(const Graph& tGraph,
     ctx.coefficientSignature = coeffSig;
     ctx.rhsSignature = 0; // invalidate until successful solve
 
-    // 行列を作り直したら SparseLU も新規に analyze（Eigen の symbolic 再利用制約を避ける）
-    // NOTE: この Eigen 版では m_isInitialized は factorize 後に立つため、analyze 直後に info() を呼ばない。
-    ctx.solver = std::make_unique<Eigen::SparseLU<Eigen::SparseMatrix<double>>>();
-    ctx.solver->analyzePattern(ctx.matrix);
-    ++ctx.patternAnalyzes;
-    stats.patternAnalyzes = 1;
+    if (patternSame) {
+        // 同一 sparsity: symbolic を再利用し数値分解のみ
+        ctx.solver->factorize(ctx.matrix);
+        if (ctx.solver->info() != Eigen::Success) {
+            ctx.analyzed = false;
+            ctx.factorized = false;
+            failSolve(stats);
+            return stats;
+        }
+        ctx.factorized = true;
+        ++ctx.factorizes;
+        stats.factorizes = 1;
+    } else {
+        ctx.solver = std::make_unique<Eigen::SparseLU<Eigen::SparseMatrix<double>>>();
+        ctx.solver->analyzePattern(ctx.matrix);
+        ++ctx.patternAnalyzes;
+        stats.patternAnalyzes = 1;
 
-    ctx.solver->factorize(ctx.matrix);
-    if (ctx.solver->info() != Eigen::Success) {
-        ctx.analyzed = false;
-        ctx.factorized = false;
-        failSolve(stats);
-        return stats;
+        ctx.solver->factorize(ctx.matrix);
+        if (ctx.solver->info() != Eigen::Success) {
+            ctx.analyzed = false;
+            ctx.factorized = false;
+            failSolve(stats);
+            return stats;
+        }
+        ctx.analyzed = true;
+        ctx.factorized = true;
+        ++ctx.factorizes;
+        stats.factorizes = 1;
     }
-    ctx.analyzed = true;
-    ctx.factorized = true;
-    ++ctx.factorizes;
-    stats.factorizes = 1;
 
     ctx.solution = ctx.solver->solve(ctx.rhs);
     stats.iterations = 1;

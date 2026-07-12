@@ -454,11 +454,20 @@ std::optional<PressureSolver::Impl::SolverResult> PressureSolver::Impl::tryPrima
         }
     }
 
-    ceres::Problem problem;
-    addFlowBalanceConstraints(setup, problem);
+    // setup が primary キャッシュと同一なら Problem を再利用
+    ceres::Problem* problemPtr = nullptr;
+    std::unique_ptr<ceres::Problem> ephemeral;
+    if (primaryProblemReady_ && primaryProblem_ && primarySetup_ && &setup == primarySetup_.get()) {
+        problemPtr = primaryProblem_.get();
+    } else {
+        ephemeral = std::make_unique<ceres::Problem>();
+        addFlowBalanceConstraints(setup, *ephemeral);
+        problemPtr = ephemeral.get();
+    }
+
     ceres::Solver::Summary summary;
     bool physicalAccepted = false;
-    runPrimarySolvers(constants, problem, summary, setup, massBalanceMaxAbs, physicalAccepted);
+    runPrimarySolvers(constants, *problemPtr, summary, setup, massBalanceMaxAbs, physicalAccepted);
 
     PressureMap pressureMap = extractPressures(setup.pressures, setup.nodeNames);
     auto eval = evaluatePressureSolution(pressureMap, massBalanceMaxAbs);
@@ -505,12 +514,31 @@ std::optional<std::map<std::string, double>> PressureSolver::Impl::calculateIndi
     return individualFlowRates;
 }
 
+bool PressureSolver::Impl::ensurePrimaryProblemCached() {
+    if (primaryProblemReady_ && primaryProblem_ && primarySetup_) {
+        setInitialPressures(primarySetup_->pressures, primarySetup_->nodeNames);
+        return true;
+    }
+
+    primarySetup_ = std::make_unique<SolverSetup>();
+    if (!initializeSolverSetup(*primarySetup_)) {
+        primaryProblemReady_ = false;
+        primaryProblem_.reset();
+        primarySetup_.reset();
+        return false;
+    }
+
+    primaryProblem_ = std::make_unique<ceres::Problem>();
+    addFlowBalanceConstraints(*primarySetup_, *primaryProblem_);
+    primaryProblemReady_ = true;
+    return true;
+}
+
 PressureSolver::Impl::SolverResult PressureSolver::Impl::solvePressures(
     const SimulationConstants& constants) {
     const auto tols = ventilation::makePressureSolverTolerances(constants);
 
-    SolverSetup setup;
-    if (!initializeSolverSetup(setup)) {
+    if (!ensurePrimaryProblemCached()) {
         // calc_p ノードなし = 全圧既知。流量のみ評価して自明解として受理する。
         writeLog(logFile_, "--情報: 圧力未知ノードがないため固定圧ネットワークとして流量評価します");
         PressureMap pressureMap;
@@ -524,19 +552,17 @@ PressureSolver::Impl::SolverResult PressureSolver::Impl::solvePressures(
             writeLog(logFile_, "--警告: 固定圧ネットワークの風量評価に失敗: " + eval.detail);
             return makePressureSolveResult(pressureMap, {}, {}, /*accepted=*/false, {}, "fixed_pressure");
         }
-        // 未知圧が無い場合、質量収支の「計算ノード」は空 → acceptMassBalance は complete=false になり得る。
-        // 流量が有限に評価できれば自明解として受理する。
         network_.setLastPressureConverged(true);
         writeLog(logFile_, "---固定圧ネットワーク: 流量評価完了（圧力求解スキップ）");
         return makePressureSolveResult(
             pressureMap, eval.flows, eval.allNodeBalances,
             /*accepted=*/true, eval.solvedNodeMetrics, "fixed_pressure");
     }
-    auto& nodeNames = setup.nodeNames;
-    auto& pressures = setup.pressures;
 
-    ceres::Problem problem;
-    addFlowBalanceConstraints(setup, problem);
+    auto& setup = *primarySetup_;
+    auto& pressures = setup.pressures;
+    auto& nodeNames = setup.nodeNames;
+    ceres::Problem& problem = *primaryProblem_;
 
     ceres::Solver::Summary summary;
     bool physicalAccepted = false;

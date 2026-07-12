@@ -32,10 +32,23 @@ void HumidityNetwork::buildTerms(ConstNodeStateView nodeState,
     terms.outSum.assign(nV, 0.0);
     terms.inflow.assign(nV, {});
     terms.moistureLinks.assign(nV, {});
+    terms.ventNeighbors.assign(nV, {});
     terms.updateVertices.clear();
     terms.updateVertices.reserve(nV / 4 + 1);
 
     auto idxOf = [](Vertex v) { return static_cast<size_t>(v); };
+
+    auto addVentNeighbor = [&](Vertex a, Vertex b) {
+        if (a == b) return;
+        auto& na = terms.ventNeighbors[idxOf(a)];
+        if (std::find(na.begin(), na.end(), b) == na.end()) {
+            na.push_back(b);
+        }
+        auto& nb = terms.ventNeighbors[idxOf(b)];
+        if (std::find(nb.begin(), nb.end(), a) == nb.end()) {
+            nb.push_back(a);
+        }
+    };
 
     // 生成項（発湿）: 換気ブランチの humidity_generation を target 側へ集計
     for (auto e : boost::make_iterator_range(boost::edges(vGraph))) {
@@ -48,12 +61,10 @@ void HumidityNetwork::buildTerms(ConstNodeStateView nodeState,
         terms.genByVertex[itT->second] += g;
     }
 
-    // 換気枝から inflow/outflow を構築
+    // 換気枝から inflow/outflow を構築し、有効枝は流量ゼロでも無向隣接を登録
     for (auto e : boost::make_iterator_range(boost::edges(vGraph))) {
         const auto& ep = vGraph[e];
         if (!ep.current_enabled) continue;
-        const double f = ep.flow_rate; // [m3/s]
-        if (f == 0.0) continue;
 
         const Vertex vSv = boost::source(e, vGraph);
         const Vertex vTv = boost::target(e, vGraph);
@@ -63,6 +74,11 @@ void HumidityNetwork::buildTerms(ConstNodeStateView nodeState,
         auto itTS = tKeyToV.find(kS);
         auto itTT = tKeyToV.find(kT);
         if (itTS == tKeyToV.end() || itTT == tKeyToV.end()) continue;
+
+        addVentNeighbor(itTS->second, itTT->second);
+
+        const double f = ep.flow_rate; // [m3/s]
+        if (f == 0.0) continue;
 
         Vertex src = itTS->second;
         Vertex dst = itTT->second;

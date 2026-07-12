@@ -187,17 +187,29 @@ void updateLatentFromHumidityChange(const Graph& graph,
         humidityLatentInOut.assign(nV, 0.0);
     }
     const std::vector<double> prev = humidityLatentInOut;
-    const double alpha = std::min(1.0, std::max(0.0, relaxation));
+    double alpha = std::min(1.0, std::max(0.0, relaxation));
     const double rho = PhysicalConstants::DENSITY_DRY_AIR;
     const double L = PhysicalConstants::LATENT_HEAT_VAPORIZATION;
+
+    // 生値を先に計算し、符号反転（振動）があれば alpha を 0.5 以下へ落とす
+    std::vector<double> qRaw(nV, 0.0);
+    bool oscillating = false;
     for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
         const size_t i = static_cast<size_t>(v);
-        double qRaw = 0.0;
         const double V = graph[v].v;
         if (V > 0.0 && i < xN.size()) {
-            qRaw = -rho * V * L * (graph[v].current_x - xN[i]) / dt;
+            qRaw[i] = -rho * V * L * (graph[v].current_x - xN[i]) / dt;
         }
-        humidityLatentInOut[i] = (1.0 - alpha) * prev[i] + alpha * qRaw;
+        if (prev[i] != 0.0 && qRaw[i] != 0.0 && qRaw[i] * prev[i] < 0.0) {
+            oscillating = true;
+        }
+    }
+    if (oscillating) {
+        alpha = std::min(alpha, 0.5);
+    }
+
+    for (size_t i = 0; i < nV; ++i) {
+        humidityLatentInOut[i] = (1.0 - alpha) * prev[i] + alpha * qRaw[i];
     }
 }
 

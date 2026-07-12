@@ -23,6 +23,8 @@ struct HumidityNetworkTerms {
     std::vector<double> outSum;
     WeightedVertexLinks inflow;
     WeightedVertexLinks moistureLinks;
+    // 有効換気枝の無向隣接（流量・向き非依存）。疎行列の固定上位パターン用。
+    std::vector<std::vector<Vertex>> ventNeighbors;
     std::vector<Vertex> updateVertices;
 };
 
