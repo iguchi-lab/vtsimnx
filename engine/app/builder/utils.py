@@ -140,13 +140,16 @@ def ensure_timeseries(value, length: int):
     """
     時系列を sim length に正規化する。
 
-    - スカラー: length まで展開
+    - スカラー / 0次元 ndarray: length まで展開
     - 長さ 1 の配列: length まで展開
     - 長さ length: そのまま
     - それ以外（空・不一致長）: ValueError
     """
     if length <= 0:
         raise ValueError(f"ensure_timeseries: length must be positive, got {length}")
+
+    if isinstance(value, np.ndarray) and value.ndim == 0:
+        return [value.item()] * length
 
     if isinstance(value, (list, tuple, np.ndarray)):
         seq = list(value)
@@ -160,6 +163,47 @@ def ensure_timeseries(value, length: int):
         )
 
     return [value] * length
+
+
+def _is_sequence_like(value) -> bool:
+    if isinstance(value, np.ndarray):
+        return value.ndim > 0
+    return isinstance(value, (list, tuple))
+
+
+def normalize_optional_series(
+    obj: dict,
+    field: str,
+    *,
+    length: int,
+    default=None,
+    fill_if_missing: bool = False,
+    expand_scalars: bool = True,
+) -> None:
+    """
+    obj[field] を時系列長 length に正規化する（破壊的）。
+
+    - 欠落時: fill_if_missing なら default を length 展開
+    - 存在時: ensure_timeseries で正規化
+    - expand_scalars=False: スカラー（非シーケンス）はそのまま残す（巨大化回避用）
+    """
+    if field not in obj or obj[field] is None:
+        if fill_if_missing:
+            obj[field] = ensure_timeseries(default, length)
+        return
+
+    value = obj[field]
+    if isinstance(value, np.ndarray) and value.ndim == 0:
+        if expand_scalars:
+            obj[field] = ensure_timeseries(value, length)
+        else:
+            obj[field] = value.item()
+        return
+
+    if not expand_scalars and not _is_sequence_like(value):
+        return
+
+    obj[field] = ensure_timeseries(value, length)
 
 
 

@@ -129,6 +129,7 @@ flowchart TB
   - `"modal_expsum"`: 離散系をモード分解して **指数項（λ^k）の和**で近似し、`response_terms` 個に縮約してARX化
 - `response_terms`:
   - `"modal_expsum"` のときに効く「項数（次数）」です（未指定なら層数相当）
+  - **正の整数のみ**（`bool`・非整数 float・`<=0` は builder が拒否）
   - `resp_a_* / resp_b_*` の長さは `response_terms+1`
   - `resp_c_*` の長さは `response_terms`
 

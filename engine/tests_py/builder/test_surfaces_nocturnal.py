@@ -26,3 +26,23 @@ def test_process_surfaces_adds_nocturnal_branch():
     assert hg.tolist() == [-18.0, -36.0, -54.0]  # -area * epsilon * nocturnal
 
 
+def test_process_surfaces_accepts_scalar_nocturnal_and_solar():
+    surfaces = [
+        {
+            "key": "室内->外部",
+            "part": "wall",
+            "area": 2.0,
+            "u_value": 1.0,
+            "epsilon": 0.9,
+            "eta": 0.8,
+            "nocturnal": 50.0,
+            "solar": 400.0,
+        }
+    ]
+    _nodes, branches = process_surfaces(
+        surfaces, sim_length=4, add_solar=True, add_nocturnal=True, add_radiation=False
+    )
+    noct = next(b for b in branches if b.get("subtype") == "nocturnal_loss")
+    solar = next(b for b in branches if b.get("subtype") == "solar_gain")
+    assert noct["heat_generation"] == [-90.0] * 4  # -2 * 0.9 * 50
+    assert solar["heat_generation"] == [640.0] * 4  # 2 * 0.8 * 400

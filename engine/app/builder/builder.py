@@ -14,7 +14,11 @@ from .heat_sources import build_heat_generation_branches
 from .moisture import build_humidity_generation_vents
 from .aircon import process_aircons
 from .thermal import process_capacities
-from .moisture_capacity import derive_calc_x_from_moisture_capacity, process_moisture_capacities
+from .moisture_capacity import (
+    derive_calc_x_from_moisture_capacity,
+    process_moisture_capacities,
+    strip_moisture_capacity_fields,
+)
 from .validate import validate_dict_with_warnings, validate_dict_with_warning_details
 
 logger = get_logger(__name__)
@@ -70,8 +74,11 @@ def _build_output_json(raw: Dict[str, Any], *, options: BuildOptions) -> Dict[st
         logger.exception("humidity_source の処理に失敗しました: %s", e)
         raise
 
-    # 展開前に必要計算フラグを導出（湿気容量など）。空調への伝播より先に行う。
-    derive_calc_x_from_moisture_capacity(node_config)
+    # 湿気容量: True なら展開前に calc_x を立てる。False ならフィールド除去（無効化）。
+    if options.add_moisture_capacity:
+        derive_calc_x_from_moisture_capacity(node_config)
+    else:
+        strip_moisture_capacity_fields(node_config)
 
     if aircon_config and options.add_aircon:
         # 設定ノード(set)で calc_x/c=true の場合、aircon ノードにもフラグを引き継ぐ。

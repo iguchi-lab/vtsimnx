@@ -128,6 +128,11 @@ def test_ensure_timeseries_broadcasts_length_one():
     assert utils.ensure_timeseries(np.array([2.5]), length=3) == [2.5, 2.5, 2.5]
 
 
+def test_ensure_timeseries_0d_numpy_as_scalar():
+    assert utils.ensure_timeseries(np.array(50.0), length=3) == [50.0, 50.0, 50.0]
+    assert utils.ensure_timeseries(np.array(400), length=2) == [400, 400]
+
+
 def test_ensure_timeseries_rejects_mismatched_length():
     with pytest.raises(ValueError, match="timeseries length mismatch"):
         utils.ensure_timeseries([1, 2], length=5)
@@ -135,5 +140,17 @@ def test_ensure_timeseries_rejects_mismatched_length():
         utils.ensure_timeseries([], length=3)
     with pytest.raises(ValueError, match="length must be positive"):
         utils.ensure_timeseries(1.0, length=0)
+
+
+def test_normalize_optional_series_fill_and_mismatch():
+    obj: dict = {}
+    utils.normalize_optional_series(
+        obj, "humidity_generation", length=3, default=0.0, fill_if_missing=True
+    )
+    assert obj["humidity_generation"] == [0.0, 0.0, 0.0]
+
+    obj2 = {"humidity_generation": [1.0, 2.0]}
+    with pytest.raises(ValueError, match="timeseries length mismatch"):
+        utils.normalize_optional_series(obj2, "humidity_generation", length=5, expand_scalars=True)
 
 

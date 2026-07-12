@@ -222,3 +222,38 @@ def test_vol_timeseries_rejects_mismatched_length(minimal_simulation):
         validate.validate_dict(cfg)
 
 
+def test_humidity_generation_rejects_mismatched_length(minimal_simulation):
+    length = int(minimal_simulation["index"]["length"])
+    sim = dict(minimal_simulation)
+    sim["calc_flag"] = {"p": True, "t": False, "x": True, "c": False}
+    cfg = {
+        "simulation": sim,
+        "nodes": [{"key": "A", "calc_x": True}, {"key": "B"}],
+        "ventilation_branches": [
+            {"key": "A->B", "vol": 0.01, "humidity_generation": [0.1, 0.2]},
+        ],
+        "thermal_branches": [],
+    }
+    # length は 24。長さ2は不一致。
+    assert length != 2
+    with pytest.raises(validate.ValidationError, match="timeseries length mismatch"):
+        validate.validate_dict(cfg)
+
+
+def test_humidity_generation_normalizes_length_one(minimal_simulation):
+    length = int(minimal_simulation["index"]["length"])
+    sim = dict(minimal_simulation)
+    sim["calc_flag"] = {"p": True, "t": False, "x": True, "c": False}
+    cfg = {
+        "simulation": sim,
+        "nodes": [{"key": "A", "calc_x": True}, {"key": "B"}],
+        "ventilation_branches": [
+            {"key": "A->B", "vol": 0.01, "humidity_generation": [0.5]},
+        ],
+        "thermal_branches": [],
+    }
+    out = validate.validate_dict(cfg)
+    hg = out["ventilation_branches"][0]["humidity_generation"]
+    assert hg == [0.5] * length
+
+

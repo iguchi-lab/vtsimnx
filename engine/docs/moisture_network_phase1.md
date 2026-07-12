@@ -53,10 +53,20 @@ flowchart LR
 ## builder 拡張（任意）
 
 - `nodes[].moisture_capacity` を持つノードに対して、以下を自動生成:
-  - 容量ノード: `<key>_mx`
+  - 容量ノード: `<key>_mx`（`calc_x=true`）
   - 湿気伝達枝: `<key>_mx-><key>` (`moisture_conductance = moisture_capacity / timestep`)
+  - 元ノードからも `moisture_capacity` を除去し、`calc_x=true` を立てる
+- 空調がある場合、設定ノード（`set`）の `calc_x` は空調ノードへ伝播する（室内循環で湿度が 0 固定にならないようにするため）
 - builder オプション:
-  - `builder.add_moisture_capacity`（既定: true）
+  - `builder.add_moisture_capacity`（既定: `true`）
+    - `true`: 上記の材料側ノード展開を行う
+    - `false`: 湿気容量を**無効化**する
+      - `moisture_capacity` / `moisture_capacity_unit` を除去する
+      - `<key>_mx` は生成しない
+      - 元ノードへ `calc_x` を強制しない
+      - solver へ室ノードの `moisture_capacity` を直接渡す「別物理モデル」にはしない
+
+手書きで材料ノードへ `moisture_capacity` を載せたい場合は、builder 展開後の solver JSON を直接編集するか、`add_moisture_capacity=false` ではなく明示的に `<key>_mx` ノードと枝を書いてください。
 
 ## 互換性
 

@@ -209,6 +209,8 @@ builder 入力 (`config`) を受け取り、solver 実行結果を**同期**で�
 - `debug` (optional, default `false`): ログ冗長度制御をデバッグ寄りにする
 - `debug_verbosity` (optional, default `2`): `debug=true` 時の最小 verbosity
 - `add_*` 系 (optional): builder の各展開処理を API から上書き制御
+  - `null` / 省略は「未指定」（`raw_config.builder` → トップレベル → 既定値の順で解決）
+  - `add_moisture_capacity=false` は湿気容量の無効化（フィールド除去）。材料側ノードへ展開しない別モデルにはしない。詳細は `docs/moisture_network_phase1.md` / `docs/builder_json.md`
 
 ### Response 200
 

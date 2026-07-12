@@ -96,7 +96,7 @@ flowchart TB
 
 - 短波: `eta`（吸収率）が効く
 - 長波: `epsilon` など。室内放射はガラス除外オプションあり
-- 実装: `surfaces` の `solar` / `nocturnal` / `night_radiation` と builder オプション
+- 実装: `surfaces` の `solar` / `nocturnal` / `night_radiation`（スカラー可）と builder オプション
 
 ---
 
@@ -126,7 +126,7 @@ flowchart LR
 - 物性値（λ、比熱、放射率、日射吸収率）
 - U値の定義差（表面熱伝達率の内包有無）
 - 放射配分（ガラスの扱い、面積配分）
-- 時系列入力の整列（時刻の意味、配列長）
+- 時系列入力の整列（時刻の意味、配列長）。builder は長さ不一致をエラーにし、長さ1のみ broadcast する
 
 ---
 

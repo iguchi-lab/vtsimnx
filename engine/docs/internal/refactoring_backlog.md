@@ -79,6 +79,7 @@
 ### M3. builder オプションの dataclass 化 — **完了**
 
 - 実施: `engine/app/builder/build_options.py` の `BuildOptions.resolve()`。公開 `build_config*` シグネチャは維持。
+- 追記: `surface_layer_method` / `response_method` は引数 `None` を未指定とし、明示 `"rc"` が JSON に負けない。`response_terms` は正の整数のみ。
 
 ## 3. Low Priority（余力時）
 

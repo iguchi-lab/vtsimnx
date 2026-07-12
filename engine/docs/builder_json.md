@@ -95,6 +95,15 @@ flowchart LR
 
 ### 3. `builder` オプション
 
+優先順位（いずれも `None`/未指定はスキップ）:
+
+1. 関数引数 / API の `add_*`・`surface_layer_method` など（明示指定のみ）
+2. `raw_config["builder"]` 内の同名キー
+3. `raw_config` トップレベルの同名キー
+4. 既定値（`surface_layer_method="rc"`, `response_method="arx_rc"`, 各 `add_*=true` など）
+
+重要: 関数引数の既定は「未指定 = `None`」です。`"rc"` を明示した場合は JSON の `"response"` に上書きされません。
+
 #### 3.1 `surface_layer_method`（全surface一括の壁モデル指定）
 
 ```json
@@ -124,7 +133,8 @@ flowchart LR
     "add_surface_radiation": true,
     "add_surface_radiation_exclude_glass": false,
     "add_aircon": true,
-    "add_capacity": true
+    "add_capacity": true,
+    "add_moisture_capacity": true
   }
 }
 ```
@@ -138,6 +148,11 @@ flowchart LR
 - `add_surface_radiation_exclude_glass`: 室内放射対象から `part="glass"` を除外するか（`add_surface_radiation=true` のときに有効、既定 `false`）
 - `add_aircon`: `aircon` の展開を行うか
 - `add_capacity`: `thermal_mass` から熱容量ノード/ブランチを生成するか
+- `add_moisture_capacity`: `moisture_capacity` から材料側湿気容量ノード（`<key>_mx`）を生成するか
+  - `true`（既定）: 展開前に当該ノードへ `calc_x=True` を立て、空調ノードへも伝播したうえで `<key>_mx` を生成
+  - `false`: 湿気容量を**無効化**する（`moisture_capacity` フィールドを除去し、室ノードへ直接載せた別モデルにもしない）
+
+詳細は [`moisture_network_phase1.md`](moisture_network_phase1.md)。
 
 #### 3.2 応答係数の自動生成方法（CTF）
 
@@ -157,10 +172,12 @@ flowchart LR
   - `"modal_expsum"`: 離散系をモード分解して **指数項（λ^k）の和**で近似し、`response_terms` 個に縮約してARX化
 - `response_terms`:
   - `"modal_expsum"` のときに効く「項数（次数）」です（未指定なら層数相当）
+  - **正の整数のみ**受理（`bool`・非整数 float・`<=0` はエラー）
   - `resp_a_* / resp_b_*` の長さは `response_terms+1`
   - `resp_c_*` の長さは `response_terms`
 
 互換としてトップレベルに `"response_method"` / `"response_terms"` を置くことも許可されています。
+`response_method` / `response_terms` も `surface_layer_method` と同様に、未指定（`None`）のときだけ JSON を読みます。
 
 ---
 
@@ -192,15 +209,29 @@ builder は `key` 文字列にいくつかの記法を持ちます。
 
 ### 5. 時系列（スカラー or 配列）
 
-builder/validation/solver はフィールドによって **スカラー**または **配列（時系列）**を受けます。
+builder / validation は、時系列になり得るフィールドを **`simulation.index.length` に正規化**します。
 
-- builder は `numpy.ndarray` / `pandas.Series` を受けた場合、listへ正規化します
-- solver側で「配列が短い」場合は、実装により最後の値が使われます（枝/項目による）
+| 入力 | 結果 |
+|------|------|
+| スカラー（および 0 次元 NumPy） | `length` まで展開（またはスカラーのまま残すフィールドあり ※） |
+| 長さ 1 の配列 | `length` まで broadcast |
+| 長さ `length` の配列 | そのまま受理 |
+| その他の長さ（空含む） | **エラー**（途中から直前値を使い続ける事故を防ぐ） |
+
+※ `p` / `t` / `vol` / `enable` / `eta` / `beta` などは、スカラー指定を巨大化回避のためスカラーのまま残すことがあります。配列で渡した場合は上表どおり長さ検査します。
+
+代表的な対象フィールド:
+
+- ノード: `p`, `t`, `x`, `c`, `beta`, `w`, 空調の `pre_temp` / `mode`
+- 換気枝: `vol`, `humidity_generation`, `dust_generation`, `enable`, `eta`
+- 熱枝: `heat_generation`, `enable`
+- 表面: `solar`, `nocturnal` / `night_radiation`（スカラー可）
 
 実務的には:
 
 - まずスカラーで作る
 - 必要な項目だけ配列にする（巨大JSON回避）
+- 配列にするなら **必ず `length` か 1** にする
 
 ---
 
@@ -376,6 +407,15 @@ builder の raw_config では `key` 記法（`A->B` / `->外部` 等）から `s
 - `u_value`（任意）: `layers` が無い場合の簡略伝熱
 - `alpha_i/alpha_o`（任意）: 内外表面の対流熱伝達率
 - `layer_method`（任意）: `"rc"` or `"response"`（未指定なら builder の `surface_layer_method` が入る）
+- `solar`（任意）: 日射取得 [W/m²]（スカラー or 時系列）
+- `nocturnal` / `night_radiation`（任意）: 夜間放射 [W/m²]（スカラー or 時系列。`nocturnal` 推奨）
+- `epsilon`（任意）: 長波放射率（夜間放射・室内放射で使用）
+- `eta` / `SCR` / `SCC`（任意）: 日射吸収・配分割合（ガラス透過日射など）
+- `a_capacity`（任意）: 表面熱容量まわりの係数（RC 展開で使用）
+- `response_method` / `response_terms`（任意）: 当該 surface だけ応答係数生成を上書き
+- `comment`（任意）
+
+HTTP `/run` や `prepare_raw_config()` 経由でも、上記の既知フィールドは strip されません（未定義キーだけ除去）。
 
 RC/CTFの詳細は以下:
 
@@ -462,12 +502,13 @@ solver は `artifact_dir` に **schema（キー配列）** と **時系列バイ
 - ブランチ `key` が重複した場合:
   - solver側はエラーにします
   - builder validation は `(...01)` のようにリネームして回避します（`source/target`は保持）
+- 時系列配列の長さ不一致は **エラー**（§5 参照）。solver に短い配列を渡して「直前値保持」になる経路は意図的に塞いでいます
 
 #### 12.1 `enable` の既定値（ブランチの有効/無効）
 
 `ventilation_branches[].enable` / `thermal_branches[].enable` は **省略すると既定で有効（true）**です。
 
-- boolean: `true/false`
-- array<boolean>: 時系列（短い場合は末尾を使用）
+- boolean: `true/false`（スカラーのまま保持し、巨大化を避ける）
+- array<boolean>: 時系列。長さは `simulation.index.length` または 1（broadcast）。それ以外はエラー
 
 

@@ -88,3 +88,19 @@ def test_build_options_independent_string_resolution():
 def test_build_options_invalid_response_terms():
     with pytest.raises(ValueError, match="builder.response_terms"):
         BuildOptions.resolve({"builder": {"response_terms": "x"}})
+
+
+def test_build_options_rejects_bool_and_non_integer_response_terms():
+    with pytest.raises(ValueError, match="response_terms"):
+        BuildOptions.resolve({"builder": {"response_terms": True}})
+    with pytest.raises(ValueError, match="response_terms"):
+        BuildOptions.resolve({"builder": {"response_terms": 2.9}})
+    with pytest.raises(ValueError, match="response_terms"):
+        BuildOptions.resolve({}, response_terms=0)
+    with pytest.raises(ValueError, match="response_terms"):
+        BuildOptions.resolve({}, response_terms=-1)
+
+
+def test_build_options_accepts_integer_float_response_terms():
+    opt = BuildOptions.resolve({"builder": {"response_terms": 4.0}})
+    assert opt.response_terms == 4

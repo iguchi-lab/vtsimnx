@@ -11,7 +11,13 @@ from typing import Any, Dict, Iterator, List, Literal, Optional, Set, Tuple, Typ
 import numpy as np
 
 from .logger import get_logger
-from .utils import CHAIN_DELIMITER, convert_numeric_values, convert_to_json_compatible, ensure_timeseries
+from .utils import (
+    CHAIN_DELIMITER,
+    convert_numeric_values,
+    convert_to_json_compatible,
+    ensure_timeseries,
+    normalize_optional_series,
+)
 from .config_types import (
     SimConfigType,
     NodeType,
@@ -429,8 +435,42 @@ def _validate_response_conduction(branch: Dict[str, Any]) -> List[str]:
 
 
 def set_default_generation(branch: Dict[str, Any], sim_config: SimConfigType, field: str, calc_flag: str) -> None:
-    if sim_config["calc_flag"][calc_flag]:
-        branch[field] = branch.get(field, np.zeros(sim_config["index"]["length"]))
+    """発湿/発塵を length 正規化する。calc_flag が真で欠落していれば 0 系列を埋める。"""
+    length = int(sim_config["index"]["length"])
+    normalize_optional_series(
+        branch,
+        field,
+        length=length,
+        default=0.0,
+        fill_if_missing=bool(sim_config["calc_flag"][calc_flag]),
+        expand_scalars=True,
+    )
+
+
+def _normalize_node_series_fields(node: Dict[str, Any], sim_length: int, errors: List[str]) -> None:
+    """ノードの時系列候補フィールドを正規化する（スカラーは維持、配列は length 検査）。"""
+    for field in ("x", "c", "beta", "w"):
+        if field not in node or node[field] is None:
+            continue
+        try:
+            normalize_optional_series(
+                node, field, length=sim_length, expand_scalars=False
+            )
+        except ValueError as e:
+            errors.append(f"ノード {node.get('key', '?')} の'{field}': {e}")
+
+
+def _normalize_branch_enable(branch: Dict[str, Any], sim_length: int, errors: List[str], ctx: str) -> None:
+    """enable はスカラー True のまま巨大化を避け、配列なら length 正規化する。"""
+    if "enable" not in branch or branch["enable"] is None:
+        branch["enable"] = True
+        return
+    try:
+        normalize_optional_series(
+            branch, "enable", length=sim_length, expand_scalars=False
+        )
+    except ValueError as e:
+        errors.append(f"{ctx} {branch.get('key', '?')} の'enable': {e}")
 
 
 # ------------------------------
@@ -611,6 +651,9 @@ def validate_node_config(
         elif "pre_temp" in node:
             del node["pre_temp"]
 
+        # x / c / beta / w の時系列長
+        _normalize_node_series_fields(node, int(sim_config["index"]["length"]), errors)
+
         # 参照ノード
         if "ref_node" in node:
             result = validate_node_exists(node["ref_node"], node_config, f"ノード {node['key']} の参照先")
@@ -684,8 +727,9 @@ def validate_ventilation_config(
             errors.extend(result.errors)
             continue
 
-        # enable はデフォルトでスカラー True（巨大化回避）
-        branch["enable"] = branch.get("enable", True)
+        # enable はデフォルトでスカラー True（巨大化回避）。配列なら length 正規化。
+        sim_length = int(sim_config["index"]["length"])
+        _normalize_branch_enable(branch, sim_length, errors, "換気ブランチ")
 
         # タイプ判定と必須確認
         result = validate_branch_type(branch, VENTILATION_BRANCH_TYPES, "換気ブランチ")
@@ -711,7 +755,7 @@ def validate_ventilation_config(
                 branch["vol"] = float(vol_value)
             elif isinstance(vol_value, (list, np.ndarray)):
                 try:
-                    branch["vol"] = ensure_timeseries(vol_value, int(sim_config["index"]["length"]))
+                    branch["vol"] = ensure_timeseries(vol_value, sim_length)
                 except ValueError as e:
                     errors.append(f"換気ブランチ {branch['key']} の'vol': {e}")
             else:
@@ -720,9 +764,16 @@ def validate_ventilation_config(
         # 付加情報
         branch["h_from"] = branch.get("h_from", 0.0)
         branch["h_to"] = branch.get("h_to", 0.0)
+        try:
+            normalize_optional_series(branch, "eta", length=sim_length, expand_scalars=False)
+        except ValueError as e:
+            errors.append(f"換気ブランチ {branch['key']} の'eta': {e}")
         # 発湿/発塵（必要時はデフォルトゼロを入れて solver 側の分岐を減らす）
-        set_default_generation(branch, sim_config, "humidity_generation", "x")
-        set_default_generation(branch, sim_config, "dust_generation", "c")
+        try:
+            set_default_generation(branch, sim_config, "humidity_generation", "x")
+            set_default_generation(branch, sim_config, "dust_generation", "c")
+        except ValueError as e:
+            errors.append(f"換気ブランチ {branch['key']}: {e}")
         # set_default_generation(branch, sim_config, "eta", "c")  # 必要に応じて
 
     logger.info("ventilation_configのバリデーションが完了しました。")
@@ -783,8 +834,9 @@ def validate_thermal_config(
             errors.extend(result.errors)
             continue
 
-        # enable はデフォルトでスカラー True
-        branch["enable"] = branch.get("enable", True)
+        # enable はデフォルトでスカラー True。配列なら length 正規化。
+        sim_length = int(sim_config["index"]["length"])
+        _normalize_branch_enable(branch, sim_length, errors, "熱ブランチ")
 
         # 自動タイプ判定（u_value × area → conductance）
         if "type" not in branch:
@@ -821,11 +873,11 @@ def validate_thermal_config(
         if branch["type"] == ThermalBranchTypeEnum.RESPONSE_CONDUCTION:
             errors.extend(_validate_response_conduction(branch))
 
-        # heat_generation 時系列長の正規化
-        if "heat_generation" in branch and isinstance(branch.get("heat_generation"), (list, np.ndarray)):
+        # heat_generation 時系列長の正規化（スカラーも length 展開）
+        if "heat_generation" in branch and branch.get("heat_generation") is not None:
             try:
-                branch["heat_generation"] = ensure_timeseries(
-                    branch["heat_generation"], int(sim_config["index"]["length"])
+                normalize_optional_series(
+                    branch, "heat_generation", length=sim_length, expand_scalars=True
                 )
             except ValueError as e:
                 errors.append(f"熱ブランチ {branch['key']} の'heat_generation': {e}")

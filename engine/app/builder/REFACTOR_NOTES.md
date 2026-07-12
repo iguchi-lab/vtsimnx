@@ -24,15 +24,13 @@ surfaces リファクタ後、他モジュールで検討・対応するとよ�
 
 ---
 
-## 2. builder.py のオプション解決
+## 2. builder.py のオプション解決 — **実施済み**
 
-`_resolve_builder_options` は次のパターンが多数繰り返されている。
+`BuildOptions.resolve()`（`build_options.py`）に集約済み。
 
-- `if add_XXX is None: add_XXX = _pick_bool(builder_opt, "add_XXX")`
-- トップレベルでの上書き
-- 最終デフォルト `add_XXX = True if add_XXX is None else bool(add_XXX)`
-
-**案**: オプション名のリストでループする、または「オプション名 → デフォルト値」の dict で一括解決するヘルパーにすると、追加・変更がしやすくなる。既存の `surface_layer_method` / `response_method` / `response_terms` は別扱いのまま。
+- bool 系: 引数 `None` → JSON → 既定
+- `surface_layer_method` / `response_method` / `response_terms`: 引数 `None` を未指定とし、明示値は JSON に負けない
+- `response_terms` は正の整数のみ
 
 ---
 

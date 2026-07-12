@@ -77,6 +77,7 @@ flowchart TB
 
 1. **ネットワーク更新（時変プロパティ）**
    - ノード/ブランチの時系列（`t`, `x`, `c`, `beta`, `vol`, `humidity_generation`, `dust_generation` など）を当該ステップ値へ更新
+   - 入力配列長は builder validation で `simulation.index.length`（または長さ1の broadcast）に揃える。不一致は実行前にエラー
    - スケジュール配列の `index=0` は **開始時刻 (1/1 0:00)〜1:00 の状態**として扱い、`timestep=0` の計算に使う
 2. **圧力計算（換気回路網, `p`）**
    - `pressureCalc=true` のとき、圧力を解き、各換気ブランチの流量（体積流量）を更新

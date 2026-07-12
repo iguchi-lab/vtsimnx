@@ -87,11 +87,28 @@ def derive_calc_x_from_moisture_capacity(node_config: list) -> None:
     """
     湿気容量展開前に、moisture_capacity を持つノードへ calc_x=True を立てる。
 
-    空調ノードへの calc_x 伝播より先に呼ぶこと。
+    add_moisture_capacity=True のときだけ呼ぶこと（空調ノードへの伝播より先）。
     """
     for node in node_config:
         if isinstance(node, dict) and "moisture_capacity" in node:
             node["calc_x"] = True
+
+
+def strip_moisture_capacity_fields(node_config: list) -> None:
+    """
+    add_moisture_capacity=False のとき、solver へ直接渡さないよう moisture_capacity を除去する。
+
+    False は「材料側ノードへ展開しない別モデル」ではなく「湿気容量を無効」と解釈する。
+    """
+    for node in node_config:
+        if not isinstance(node, dict) or "moisture_capacity" not in node:
+            continue
+        logger.info(
+            "　湿気容量を無効化します（add_moisture_capacity=False）: key=%s",
+            node.get("key", "?"),
+        )
+        node.pop("moisture_capacity", None)
+        node.pop("moisture_capacity_unit", None)
 
 
 def process_moisture_capacities(node_config: list, time_step: float) -> tuple[list, list]:

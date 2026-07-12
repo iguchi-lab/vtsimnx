@@ -37,10 +37,19 @@ def _pick_optional_int(obj: dict[str, Any], name: str) -> int | None:
     v = obj.get(name)
     if v is None:
         return None
-    try:
-        return int(v)
-    except Exception as e:
-        raise ValueError(f"{name} must be int, got {v!r}") from e
+    return _coerce_positive_int(v, name)
+
+
+def _coerce_positive_int(v: Any, name: str) -> int:
+    """bool・非整数 float を拒否し、正の整数のみ受理する。"""
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        raise ValueError(f"{name} must be a positive int, got {v!r}")
+    if isinstance(v, float) and not v.is_integer():
+        raise ValueError(f"{name} must be a positive int, got {v!r}")
+    iv = int(v)
+    if iv <= 0:
+        raise ValueError(f"{name} must be a positive int, got {iv}")
+    return iv
 
 
 @dataclass(frozen=True)
@@ -116,6 +125,8 @@ class BuildOptions:
         resolved_layer = surface_layer_method
         resolved_rm = response_method
         resolved_rt = response_terms
+        if resolved_rt is not None:
+            resolved_rt = _coerce_positive_int(resolved_rt, "response_terms")
 
         if resolved_layer is None and builder_opt is not None:
             resolved_layer = _pick_str(builder_opt, "surface_layer_method")
@@ -135,7 +146,9 @@ class BuildOptions:
             try:
                 resolved_rt = _pick_optional_int(builder_opt, "response_terms")
             except ValueError as e:
-                raise ValueError(f"builder.response_terms must be int, got {builder_opt.get('response_terms')!r}") from e
+                raise ValueError(
+                    f"builder.response_terms must be a positive int, got {builder_opt.get('response_terms')!r}"
+                ) from e
         if resolved_rt is None and "response_terms" in raw:
             resolved_rt = _pick_optional_int(raw, "response_terms")
 
