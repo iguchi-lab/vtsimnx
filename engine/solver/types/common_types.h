@@ -72,6 +72,9 @@ struct SimulationConstants {
     // 潜熱→熱: 0=Disabled（既定）, 1=FromHumidityChange（実験・非推奨: Δx全量）,
     // 2=FromPhaseChange（材料 moisture_conductance 相変化のみ）
     int latentCouplingMode = 0;
+    // 換気移流・空気蓄熱を湿り空気エンタルピー収支で解く（既定OFF）
+    // from_humidity_change (latentCouplingMode==1) との併用は禁止
+    bool moistEnthalpyEnabled = false;
     // 湿気内部ソルバ（直接法）の残差許容誤差
     double humiditySolverTolerance = 1e-9;
     // 潜熱源収束: |ΔQ| ≤ abs + rel * max(|Qold|,|Qnew|)

@@ -2,6 +2,7 @@
 
 #include "../../vtsim_solver.h"
 #include "core/thermal/thermal_direct_response.h"
+#include "core/thermal/thermal_moist_air.h"
 #include "core/thermal/thermal_linear_utils.h"
 #include "core/thermal/heat_calculation.h"
 #include "utils/utils.h"
@@ -70,7 +71,15 @@ struct TopologyCache {
     std::vector<std::vector<HeatGenTerm>> heatGenByRow;
     std::vector<std::vector<ResponseHistTerm>> responseHistByRow;
     std::vector<Vertex> fixedRowAirconVertex; // [row] -> aircon vertex providing set temp (or max if not fixed)
+    // 湿りエンタルピーの温度非依存 RHS（b += value）
+    struct ConstRhsTerm {
+        double value = 0.0;
+    };
+    std::vector<std::vector<ConstRhsTerm>> moistConstRhsByRow;
     std::uint64_t rhsCoeffSig = 0;
+
+    // 湿り空気エンタルピー組立（solve 入口で network / constants から同期）
+    thermal_moist_air::MoistAssembleContext moist;
 
     bool initialized = false;
 };
@@ -151,6 +160,7 @@ struct CoeffSignatureBreakdown {
     std::uint64_t airconOnSig = 0;
     std::uint64_t setNodeActiveSig = 0;
     std::uint64_t enableSig = 0;
+    std::uint64_t humidityXSig = 0; // moist enthalpy: current_x / x_n
 
     std::uint64_t combined() const {
         std::uint64_t h = 0;
@@ -158,6 +168,7 @@ struct CoeffSignatureBreakdown {
         h = thermal_linear_utils::fnv1a64_update(h, airconOnSig);
         h = thermal_linear_utils::fnv1a64_update(h, setNodeActiveSig);
         h = thermal_linear_utils::fnv1a64_update(h, enableSig);
+        h = thermal_linear_utils::fnv1a64_update(h, humidityXSig);
         return h;
     }
 };

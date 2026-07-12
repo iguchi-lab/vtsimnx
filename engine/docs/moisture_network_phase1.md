@@ -114,12 +114,20 @@ Phase1 では、既存の移流ベース湿度計算に加えて、線形RC型�
 
 有効条件: `calc_flag.x` かつ `calc_flag.t` かつ `moisture_enabled=true`。
 
+### 換気エンタルピー（湿り空気エネルギー収支）
+
+`simulation.coupling.moist_enthalpy_enabled`（既定 `false`）:
+
+- ON 時、換気移流と空気ノード capacity 蓄積を \(h(T,x)=(c_{pa}+x c_{pv})T+x L_v\) の収支で解く（未知数は温度 \(T\)、連成中の \(x\) は既知）
+- `from_humidity_change` との併用は禁止（二重計上）
+- `from_phase_change` との併用は可（材料相変化潜熱は別経路）
+- 要 `calc_flag.x=true`
+
 ### 将来（Phase1.5 以降）
 
 - 空調除湿量と能力制限の統合（室内熱源への二重計上防止）
 - `room_evaporation` 発湿の室内潜熱
-- 換気の湿り空気エンタルピー移流
-
+- 空調処理熱の \(\dot m(h_\mathrm{in}-h_\mathrm{out})\) 化
 ## 圧力・熱・湿気の連成
 
 Phase1 実装では、1タイムステップの内側反復で次のように連成します。

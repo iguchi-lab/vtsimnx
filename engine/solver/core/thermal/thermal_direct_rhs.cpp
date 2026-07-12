@@ -62,6 +62,27 @@ CoeffSignatureBreakdown computeCoeffSignatureBreakdown(const Graph& graph, const
             s.enableSig = fnv1a64_update(s.enableSig, static_cast<std::uint64_t>(ep.getTypeCode()));
         }
     }
+
+    // 湿りエンタルピー: 移流端点・空気 capacity の current_x / x_n を署名に含める
+    if (topo.moist.enabled) {
+        s.humidityXSig = fnv1a64_update(s.humidityXSig, 1u);
+        for (auto e : topo.advectionEdges) {
+            const Vertex sv = boost::source(e, graph);
+            const Vertex tv = boost::target(e, graph);
+            s.humidityXSig = hashDoubleBits(s.humidityXSig, graph[sv].current_x);
+            s.humidityXSig = hashDoubleBits(s.humidityXSig, graph[tv].current_x);
+        }
+        for (size_t vi = 0; vi < topo.incidentEdges.size(); ++vi) {
+            for (auto e : topo.incidentEdges[vi]) {
+                if (boost::source(e, graph) != static_cast<Vertex>(vi)) continue;
+                if (!thermal_edge_physics::isAirCapacityEdge(graph, e)) continue;
+                const Vertex airV = thermal_edge_physics::airVertexOfCapacityEdge(graph, e);
+                s.humidityXSig = hashDoubleBits(s.humidityXSig, graph[airV].current_x);
+                s.humidityXSig = hashDoubleBits(
+                    s.humidityXSig, thermal_edge_physics::humidityXnAt(topo.moist, graph, airV));
+            }
+        }
+    }
     return s;
 }
 
@@ -74,6 +95,7 @@ void rebuildRhsPrecomputeForCoeffSig(const Graph& graph, TopologyCache& topo, st
     topo.knownTermsByRow.assign(n, {});
     topo.heatGenByRow.assign(n, {});
     topo.responseHistByRow.assign(n, {});
+    topo.moistConstRhsByRow.assign(n, {});
     topo.fixedRowAirconVertex.assign(n, std::numeric_limits<Vertex>::max());
 
     auto addKnown = [&](size_t row, Vertex v, double coeff) {
@@ -87,6 +109,10 @@ void rebuildRhsPrecomputeForCoeffSig(const Graph& graph, TopologyCache& topo, st
     };
     auto addRespHist = [&](size_t row, Edge e, bool isSrc, double factor) {
         topo.responseHistByRow[row].push_back(TopologyCache::ResponseHistTerm{e, isSrc, factor});
+    };
+    auto addMoistConst = [&](size_t row, double value) {
+        if (std::abs(value) < 1e-15) return;
+        topo.moistConstRhsByRow[row].push_back(TopologyCache::ConstRhsTerm{value});
     };
 
     for (size_t i = 0; i < n; ++i) {
@@ -120,7 +146,13 @@ void rebuildRhsPrecomputeForCoeffSig(const Graph& graph, TopologyCache& topo, st
                 edge,
                 procV,
                 1.0,
-                [&](Vertex col, double aCoeff) { addKnown(i, col, aCoeff); });
+                [&](Vertex col, double aCoeff) { addKnown(i, col, aCoeff); },
+                &topo.moist);
+
+            if (topo.moist.enabled) {
+                thermal_edge_physics::assembleMoistConstRhsAtNode(
+                    graph, edge, procV, 1.0, [&](double delta) { addMoistConst(i, delta); }, topo.moist);
+            }
 
             const auto tc = ep.getTypeCode();
             if (tc == EdgeProperties::TypeCode::HeatGeneration) {
@@ -169,22 +201,24 @@ void buildRhsOnlyAbsoluteFast(const Graph& graph, const TopologyCache& topo, std
         if (i < topo.knownTermsByRow.size()) {
             for (const auto& t : topo.knownTermsByRow[i]) {
                 if (t.v == std::numeric_limits<Vertex>::max()) continue;
-                if (std::abs(t.coeff) < 1e-15) continue;
                 bOut[i] -= t.coeff * graph[t.v].current_t;
             }
         }
+        if (i < topo.moistConstRhsByRow.size()) {
+            for (const auto& t : topo.moistConstRhsByRow[i]) {
+                bOut[i] += t.value;
+            }
+        }
         if (i < topo.heatGenByRow.size()) {
-            for (const auto& tg : topo.heatGenByRow[i]) {
-                if (!thermal_edge_physics::isActive(graph[tg.e])) continue;
-                bOut[i] += tg.sign * graph[tg.e].current_heat_generation;
+            for (const auto& t : topo.heatGenByRow[i]) {
+                bOut[i] += t.sign * graph[t.e].current_heat_generation;
             }
         }
         if (i < topo.responseHistByRow.size()) {
-            for (const auto& rh : topo.responseHistByRow[i]) {
-                if (!thermal_edge_physics::isActive(graph[rh.e])) continue;
-                const auto& ep = graph[rh.e];
-                const double hW = rh.isSrc ? evalResponseHistoryWattSrc(ep) : evalResponseHistoryWattTgt(ep);
-                bOut[i] += rh.factor * (+hW);
+            for (const auto& t : topo.responseHistByRow[i]) {
+                const double hW = t.isSrc ? evalResponseHistoryWattSrc(graph[t.e])
+                                          : evalResponseHistoryWattTgt(graph[t.e]);
+                bOut[i] += t.factor * hW;
             }
         }
     }

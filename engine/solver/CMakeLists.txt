@@ -297,14 +297,18 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         core/thermal/thermal_direct_build.cpp
         core/thermal/thermal_direct_solve.cpp
         core/thermal/thermal_direct_postprocess.cpp
+        core/humidity/humidity_solver.cpp
+        core/humidity/humidity_coupling.cpp
         network/thermal_network.cpp
         network/thermal_network_outputs.cpp
         network/humidity_network.cpp
         network/humidity_network_outputs.cpp
+        ../archenv/archenv_core.cpp
     )
     target_link_libraries(vtsimnx_solver_cpp_test_thermal_direct_cache
         Boost::boost
     )
+    target_include_directories(vtsimnx_solver_cpp_test_thermal_direct_cache PRIVATE /usr/include/eigen3)
     target_compile_options(vtsimnx_solver_cpp_test_thermal_direct_cache PRIVATE
         -Wall
         -Wextra
@@ -322,19 +326,53 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         core/thermal/thermal_direct_build.cpp
         core/thermal/thermal_direct_solve.cpp
         core/thermal/thermal_direct_postprocess.cpp
+        core/humidity/humidity_solver.cpp
+        core/humidity/humidity_coupling.cpp
         network/thermal_network.cpp
         network/thermal_network_outputs.cpp
         network/humidity_network.cpp
         network/humidity_network_outputs.cpp
+        ../archenv/archenv_core.cpp
     )
     target_link_libraries(vtsimnx_solver_cpp_test_thermal_advection_sign
         Boost::boost
     )
+    target_include_directories(vtsimnx_solver_cpp_test_thermal_advection_sign PRIVATE /usr/include/eigen3)
     target_compile_options(vtsimnx_solver_cpp_test_thermal_advection_sign PRIVATE
         -Wall
         -Wextra
     )
     add_test(NAME vtsimnx_solver_cpp_test_thermal_advection_sign COMMAND vtsimnx_solver_cpp_test_thermal_advection_sign)
+
+    # 5b2) moist air enthalpy advection + air capacity storage
+    add_executable(vtsimnx_solver_cpp_test_moist_enthalpy_advection
+        tests_cpp/test_moist_enthalpy_advection.cpp
+        core/thermal/thermal_solver.cpp
+        core/thermal/thermal_solver_linear_direct.cpp
+        core/thermal/thermal_direct_internal.cpp
+        core/thermal/thermal_direct_topology.cpp
+        core/thermal/thermal_direct_rhs.cpp
+        core/thermal/thermal_direct_build.cpp
+        core/thermal/thermal_direct_solve.cpp
+        core/thermal/thermal_direct_postprocess.cpp
+        core/humidity/humidity_solver.cpp
+        core/humidity/humidity_coupling.cpp
+        network/thermal_network.cpp
+        network/thermal_network_outputs.cpp
+        network/humidity_network.cpp
+        network/humidity_network_outputs.cpp
+        parser/sim_constants_parser.cpp
+        ../archenv/archenv_core.cpp
+    )
+    target_link_libraries(vtsimnx_solver_cpp_test_moist_enthalpy_advection
+        Boost::boost
+    )
+    target_include_directories(vtsimnx_solver_cpp_test_moist_enthalpy_advection PRIVATE /usr/include/eigen3)
+    target_compile_options(vtsimnx_solver_cpp_test_moist_enthalpy_advection PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_test_moist_enthalpy_advection COMMAND vtsimnx_solver_cpp_test_moist_enthalpy_advection)
 
     # 5c) thermal enable / heat_source sign / response history / rebuild cache
     add_executable(vtsimnx_solver_cpp_test_thermal_enable_response
@@ -347,14 +385,18 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         core/thermal/thermal_direct_build.cpp
         core/thermal/thermal_direct_solve.cpp
         core/thermal/thermal_direct_postprocess.cpp
+        core/humidity/humidity_solver.cpp
+        core/humidity/humidity_coupling.cpp
         network/thermal_network.cpp
         network/thermal_network_outputs.cpp
         network/humidity_network.cpp
         network/humidity_network_outputs.cpp
+        ../archenv/archenv_core.cpp
     )
     target_link_libraries(vtsimnx_solver_cpp_test_thermal_enable_response
         Boost::boost
     )
+    target_include_directories(vtsimnx_solver_cpp_test_thermal_enable_response PRIVATE /usr/include/eigen3)
     target_compile_options(vtsimnx_solver_cpp_test_thermal_enable_response PRIVATE
         -Wall
         -Wextra

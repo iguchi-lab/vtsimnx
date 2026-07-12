@@ -10,7 +10,7 @@
 
 namespace HeatCalculation {
 
-// 移流熱流量計算（advection）
+// 移流熱流量計算（advection）— 顕熱（乾き空気 cp）
 inline double calcAdvectionHeat(double sourceTemp, double targetTemp, const EdgeProperties& edgeData) {
     double flowRate = edgeData.flow_rate; // m3/s
     if (std::abs(flowRate) < archenv::FLOW_RATE_MIN) return 0.0;
@@ -20,6 +20,20 @@ inline double calcAdvectionHeat(double sourceTemp, double targetTemp, const Edge
     // flowRate > 0 のとき: mDotCpAbs * (sourceTemp - targetTemp)
     // flowRate < 0 のとき: mDotCpAbs * (targetTemp - sourceTemp)
     return mDotCp * (sourceTemp - targetTemp);
+}
+
+// 移流熱流量（湿り空気エンタルピー）: mDot * (h_src - h_dst)
+inline double calcAdvectionHeatMoist(double sourceTemp,
+                                    double sourceX,
+                                    double targetTemp,
+                                    double targetX,
+                                    const EdgeProperties& edgeData) {
+    double flowRate = edgeData.flow_rate;
+    if (std::abs(flowRate) < archenv::FLOW_RATE_MIN) return 0.0;
+    const double mDot = archenv::DENSITY_DRY_AIR * flowRate;
+    const double hSrc = archenv::total_enthalpy_from_x(sourceTemp, sourceX);
+    const double hTgt = archenv::total_enthalpy_from_x(targetTemp, targetX);
+    return mDot * (hSrc - hTgt);
 }
 
 // 伝導熱流量計算（conductance）

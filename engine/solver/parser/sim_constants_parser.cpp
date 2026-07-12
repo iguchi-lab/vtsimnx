@@ -276,6 +276,13 @@ SimulationConstants parseSimulationConstants(const nlohmann::json& config,
             }
             outConstants.couplingLatentRelativeTolerance = cp["latent_relative_tolerance"];
         }
+        if (cp.contains("moist_enthalpy_enabled")) {
+            if (!cp["moist_enthalpy_enabled"].is_boolean()) {
+                throw std::runtime_error(
+                    "Missing or invalid 'simulation.coupling.moist_enthalpy_enabled' (boolean required)");
+            }
+            outConstants.moistEnthalpyEnabled = cp["moist_enthalpy_enabled"];
+        }
         if (cp.contains("humidity_solver_max_iter")) {
             if (!cp["humidity_solver_max_iter"].is_number_integer()) {
                 throw std::runtime_error("Missing or invalid 'simulation.coupling.humidity_solver_max_iter' (integer required)");
@@ -353,6 +360,19 @@ SimulationConstants parseSimulationConstants(const nlohmann::json& config,
             throw std::runtime_error(
                 "Invalid combination: simulation.coupling.latent_coupling_mode requires "
                 "calc_flag.t=true when humidityCalc is enabled");
+        }
+    }
+
+    if (outConstants.moistEnthalpyEnabled) {
+        if (!outConstants.humidityCalc) {
+            throw std::runtime_error(
+                "Invalid combination: simulation.coupling.moist_enthalpy_enabled requires "
+                "calc_flag.x=true");
+        }
+        if (outConstants.latentCouplingMode == 1) {
+            throw std::runtime_error(
+                "Invalid combination: simulation.coupling.moist_enthalpy_enabled cannot be used "
+                "with latent_coupling_mode=from_humidity_change (double-counting risk)");
         }
     }
 

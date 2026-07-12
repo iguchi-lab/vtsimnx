@@ -82,6 +82,12 @@ void runSimulation(VentilationNetwork& ventNetwork,
     const TimestepInitialState initial =
         captureTimestepInitialState(ctx.thermal, ctx.constants.humidityCalc);
 
+    if (ctx.constants.moistEnthalpyEnabled && ctx.constants.humidityCalc) {
+        ctx.thermal.setMoistEnthalpyHumidityXn(initial.humidityX);
+    } else {
+        ctx.thermal.clearMoistEnthalpyHumidityXn();
+    }
+
     SeparatedHeatSources heatSources;
     ensureHeatSourceVectors(heatSources,
                             static_cast<size_t>(boost::num_vertices(ctx.thermal.getGraph())));

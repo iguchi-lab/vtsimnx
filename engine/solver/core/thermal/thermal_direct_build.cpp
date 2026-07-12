@@ -38,7 +38,8 @@ void buildLinearSystemAbsoluteFast(const Graph& graph, const TopologyCache& topo
                 v,
                 f,
                 [&](Vertex col, double aCoeff) { addCoeffOrKnownToB(row, rowMap, col, aCoeff); },
-                [&](double delta) { system.b[row] += delta; });
+                [&](double delta) { system.b[row] += delta; },
+                &topo.moist);
         }
     };
 

@@ -2,14 +2,26 @@
 
 #include "core/thermal/heat_calculation.h"
 #include "core/thermal/thermal_direct_response.h"
+#include "core/thermal/thermal_moist_air.h"
 #include "../../archenv/include/archenv.h"
 
+#include <limits>
 #include <vector>
 
 // 熱枝の有効判定・符号・行列寄与・後処理熱流量を一箇所に集約する。
 // build / RHS precompute / postprocess が同じ定義を参照する。
 
 namespace thermal_edge_physics {
+
+using MoistAssembleContext = thermal_moist_air::MoistAssembleContext;
+
+inline double humidityXnAt(const MoistAssembleContext& moist, const Graph& graph, Vertex v) {
+    if (moist.humidityXnByVertex != nullptr) {
+        const size_t i = static_cast<size_t>(v);
+        if (i < moist.humidityXnByVertex->size()) return (*moist.humidityXnByVertex)[i];
+    }
+    return graph[v].current_x;
+}
 
 inline bool isActive(const EdgeProperties& ep) {
     return ep.current_enabled;
@@ -20,21 +32,63 @@ inline double heatSourceToRhs(double heatSource) {
     return -heatSource;
 }
 
+inline bool isAirCapacityEdge(const Graph& graph, Edge edge) {
+    const auto& ep = graph[edge];
+    if (ep.getTypeCode() != EdgeProperties::TypeCode::Conductance) return false;
+    if (ep.subtype != "capacity") return false;
+    const Vertex tv = boost::target(edge, graph);
+    if (graph[tv].v > 0.0) return true;
+    const Vertex sv = boost::source(edge, graph);
+    return graph[sv].v > 0.0;
+}
+
+inline Vertex airVertexOfCapacityEdge(const Graph& graph, Edge edge) {
+    const Vertex tv = boost::target(edge, graph);
+    if (graph[tv].v > 0.0) return tv;
+    return boost::source(edge, graph);
+}
+
+inline Vertex capacityRefVertexOfEdge(const Graph& graph, Edge edge) {
+    const Vertex sv = boost::source(edge, graph);
+    const Vertex tv = boost::target(edge, graph);
+    if (graph[tv].v > 0.0) return sv;
+    return tv;
+}
+
 // 温度に比例する係数だけを組み立てる（conductance / advection / response の a0,b0）。
+// 湿りエンタルピーの温度非依存項は assembleMoistConstRhsAtNode 側。
 template <typename AddCoeffOrKnown>
 inline void assembleTemperatureCoeffsAtNode(const Graph& graph,
                                             Edge edge,
                                             Vertex v,
                                             double f,
-                                            AddCoeffOrKnown&& addCoeffOrKnown) {
+                                            AddCoeffOrKnown&& addCoeffOrKnown,
+                                            const MoistAssembleContext* moist = nullptr) {
     const auto& ep = graph[edge];
     if (!isActive(ep)) return;
 
     const Vertex sv = boost::source(edge, graph);
     const Vertex tv = boost::target(edge, graph);
     const auto tc = ep.getTypeCode();
+    const bool moistOn = moist != nullptr && moist->enabled;
 
     if (tc == EdgeProperties::TypeCode::Conductance) {
+        if (moistOn && isAirCapacityEdge(graph, edge)) {
+            const Vertex airV = airVertexOfCapacityEdge(graph, edge);
+            const Vertex capV = capacityRefVertexOfEdge(graph, edge);
+            const double rhoV_dt =
+                thermal_moist_air::rhoVOverDtFromCapacityConductance(ep.conductance);
+            const double xNp1 = graph[airV].current_x;
+            const double xN = humidityXnAt(*moist, graph, airV);
+            const double cpNp1 = thermal_moist_air::moistAirCp(xNp1);
+            const double cpN = thermal_moist_air::moistAirCp(xN);
+            // 流入 = (ρV/Δt)*(h_n - h_{n+1}) → A 係数は T 比例部のみ
+            if (v == airV) {
+                addCoeffOrKnown(airV, f * (-rhoV_dt * cpNp1));
+                addCoeffOrKnown(capV, f * (+rhoV_dt * cpN));
+            }
+            return;
+        }
         const double k = ep.conductance;
         if (sv == v) {
             addCoeffOrKnown(sv, f * (-k));
@@ -49,6 +103,26 @@ inline void assembleTemperatureCoeffsAtNode(const Graph& graph,
     if (tc == EdgeProperties::TypeCode::Advection) {
         double flowRate = ep.flow_rate;
         if (std::abs(flowRate) < archenv::FLOW_RATE_MIN) return;
+
+        if (moistOn) {
+            const double mDot = thermal_moist_air::massFlowKgPerS(flowRate);
+            const double cpS = thermal_moist_air::moistAirCp(graph[sv].current_x);
+            const double cpT = thermal_moist_air::moistAirCp(graph[tv].current_x);
+            if (flowRate > 0) {
+                if (tv == v && !(ep.is_aircon_inflow && graph[tv].on)) {
+                    addCoeffOrKnown(sv, f * (+mDot * cpS));
+                    addCoeffOrKnown(tv, f * (-mDot * cpT));
+                }
+            } else {
+                if (sv == v && !(graph[sv].getTypeCode() == VertexProperties::TypeCode::Aircon &&
+                                 graph[sv].on)) {
+                    addCoeffOrKnown(tv, f * (-mDot * cpT));
+                    addCoeffOrKnown(sv, f * (+mDot * cpS));
+                }
+            }
+            return;
+        }
+
         const double mDotCp = archenv::DENSITY_DRY_AIR * archenv::SPECIFIC_HEAT_AIR * flowRate;
         if (flowRate > 0) {
             if (tv == v && !(ep.is_aircon_inflow && graph[tv].on)) {
@@ -81,6 +155,56 @@ inline void assembleTemperatureCoeffsAtNode(const Graph& graph,
     }
 }
 
+// 湿りエンタルピーの温度非依存 RHS（潜熱差分など）。A*T = b の b へ加算。
+template <typename AddRhs>
+inline void assembleMoistConstRhsAtNode(const Graph& graph,
+                                        Edge edge,
+                                        Vertex v,
+                                        double f,
+                                        AddRhs&& addRhs,
+                                        const MoistAssembleContext& moist) {
+    if (!moist.enabled || !isActive(graph[edge])) return;
+
+    const auto& ep = graph[edge];
+    const Vertex sv = boost::source(edge, graph);
+    const Vertex tv = boost::target(edge, graph);
+    const auto tc = ep.getTypeCode();
+    const double Lv = archenv::LATENT_HEAT_VAPORIZATION;
+
+    if (tc == EdgeProperties::TypeCode::Advection) {
+        double flowRate = ep.flow_rate;
+        if (std::abs(flowRate) < archenv::FLOW_RATE_MIN) return;
+        const double mDot = thermal_moist_air::massFlowKgPerS(flowRate);
+        const double xs = graph[sv].current_x;
+        const double xt = graph[tv].current_x;
+        // 流入 = mDot*(h_s-h_t) → A*T = -hs - mDot*Lv*(xs-xt) のため b へ -潜熱項
+        const double latentW = mDot * Lv * (xs - xt);
+        if (flowRate > 0) {
+            if (tv == v && !(ep.is_aircon_inflow && graph[tv].on)) {
+                addRhs(f * (-latentW));
+            }
+        } else {
+            if (sv == v && !(graph[sv].getTypeCode() == VertexProperties::TypeCode::Aircon &&
+                             graph[sv].on)) {
+                addRhs(f * (-latentW));
+            }
+        }
+        return;
+    }
+
+    if (tc == EdgeProperties::TypeCode::Conductance && isAirCapacityEdge(graph, edge)) {
+        const Vertex airV = airVertexOfCapacityEdge(graph, edge);
+        if (v != airV) return;
+        const double rhoV_dt =
+            thermal_moist_air::rhoVOverDtFromCapacityConductance(ep.conductance);
+        const double xNp1 = graph[airV].current_x;
+        const double xN = humidityXnAt(moist, graph, airV);
+        // 流入 = (ρV/Δt)*(h_n-h_np1) → 潜熱部 (ρV/Δt)*Lv*(x_n - x_np1)
+        // A*T=b では b += (ρV/Δt)*Lv*(x_np1 - x_n)  （符号は既出の導出）
+        addRhs(f * (rhoV_dt * Lv * (xNp1 - xN)));
+    }
+}
+
 // heat_generation の RHS 符号（A*T = b 側）。sv 側 +q、tv 側 -q。
 inline double heatGenerationRhsSignAtNode(Vertex v, Vertex sv) {
     return (sv == v) ? +1.0 : -1.0;
@@ -90,18 +214,22 @@ inline bool responseHistIsSrcSide(Vertex v, Vertex sv) {
     return sv == v;
 }
 
-// フル行列構築向け: 温度係数 + 可変 RHS（発熱・応答履歴）を同時に適用。
+// フル行列構築向け: 温度係数 + 可変 RHS（発熱・応答履歴・湿り定数項）を同時に適用。
 template <typename AddCoeffOrKnown, typename AddRhs>
 inline void assembleEdgeAtNode(const Graph& graph,
                                Edge edge,
                                Vertex v,
                                double f,
                                AddCoeffOrKnown&& addCoeffOrKnown,
-                               AddRhs&& addRhs) {
+                               AddRhs&& addRhs,
+                               const MoistAssembleContext* moist = nullptr) {
     const auto& ep = graph[edge];
     if (!isActive(ep)) return;
 
-    assembleTemperatureCoeffsAtNode(graph, edge, v, f, addCoeffOrKnown);
+    assembleTemperatureCoeffsAtNode(graph, edge, v, f, addCoeffOrKnown, moist);
+    if (moist != nullptr && moist->enabled) {
+        assembleMoistConstRhsAtNode(graph, edge, v, f, addRhs, *moist);
+    }
 
     const Vertex sv = boost::source(edge, graph);
     const auto tc = ep.getTypeCode();
@@ -121,7 +249,10 @@ inline void assembleEdgeAtNode(const Graph& graph,
 }
 
 // 後処理: heat_rate / current_q_* を更新し、熱収支ベクトルへ流入寄与を加算する。
-inline void accumulatePostprocess(Graph& graph, Edge e, std::vector<double>& heatBalance) {
+inline void accumulatePostprocess(Graph& graph,
+                                  Edge e,
+                                  std::vector<double>& heatBalance,
+                                  const MoistAssembleContext* moist = nullptr) {
     auto& ep = graph[e];
     const Vertex sv = boost::source(e, graph);
     const Vertex tv = boost::target(e, graph);
@@ -138,6 +269,7 @@ inline void accumulatePostprocess(Graph& graph, Edge e, std::vector<double>& hea
     const double Ts = graph[sv].current_t;
     const double Tt = graph[tv].current_t;
     const auto tc = ep.getTypeCode();
+    const bool moistOn = moist != nullptr && moist->enabled;
 
     if (tc == EdgeProperties::TypeCode::ResponseConduction) {
         using thermal_direct_response::evalResponseQSrc;
@@ -153,7 +285,9 @@ inline void accumulatePostprocess(Graph& graph, Edge e, std::vector<double>& hea
     }
 
     if (tc == EdgeProperties::TypeCode::Advection) {
-        double Q = HeatCalculation::calcAdvectionHeat(Ts, Tt, ep);
+        double Q = moistOn ? HeatCalculation::calcAdvectionHeatMoist(
+                                 Ts, graph[sv].current_x, Tt, graph[tv].current_x, ep)
+                           : HeatCalculation::calcAdvectionHeat(Ts, Tt, ep);
         if (ep.flow_rate > 0) {
             if (ep.is_aircon_inflow && graph[tv].on) Q = 0.0;
             heatBalance[static_cast<size_t>(tv)] += Q;
@@ -162,6 +296,23 @@ inline void accumulatePostprocess(Graph& graph, Edge e, std::vector<double>& hea
             heatBalance[static_cast<size_t>(sv)] += Q;
         }
         ep.heat_rate = Q;
+        return;
+    }
+
+    if (moistOn && isAirCapacityEdge(graph, e)) {
+        const Vertex airV = airVertexOfCapacityEdge(graph, e);
+        const Vertex capV = capacityRefVertexOfEdge(graph, e);
+        const double rhoV_dt =
+            thermal_moist_air::rhoVOverDtFromCapacityConductance(ep.conductance);
+        const double xNp1 = graph[airV].current_x;
+        const double xN = humidityXnAt(*moist, graph, airV);
+        const double hN = thermal_moist_air::moistAirEnthalpy(graph[capV].current_t, xN);
+        const double hNp1 = thermal_moist_air::moistAirEnthalpy(graph[airV].current_t, xNp1);
+        // source→target 向きの熱流（capacity→air）= (ρV/Δt)*(h_n - h_np1)
+        const double Q = rhoV_dt * (hN - hNp1);
+        ep.heat_rate = Q;
+        heatBalance[static_cast<size_t>(sv)] -= Q;
+        heatBalance[static_cast<size_t>(tv)] += Q;
         return;
     }
 

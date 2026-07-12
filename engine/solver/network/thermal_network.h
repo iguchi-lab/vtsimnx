@@ -83,6 +83,8 @@ private:
 
     // タイムステップ跨ぎの湿度潜熱 [W]（同一 ThermalNetwork のみ。buildFromData でクリア）
     std::vector<double> carriedHumidityLatent_;
+    // 湿りエンタルピー: ステップ初期絶対湿度 x_n（頂点順）
+    std::vector<double> moistEnthalpyHumidityXn_;
 
 public:
     ThermalNetwork();
@@ -180,6 +182,15 @@ public:
     const std::vector<double>& carriedHumidityLatent() const { return carriedHumidityLatent_; }
     void setCarriedHumidityLatent(std::vector<double> values) {
         carriedHumidityLatent_ = std::move(values);
+    }
+
+    // 湿りエンタルピー用: タイムステップ初期湿度 x_n（頂点インデックス）
+    void setMoistEnthalpyHumidityXn(std::vector<double> values) {
+        moistEnthalpyHumidityXn_ = std::move(values);
+    }
+    void clearMoistEnthalpyHumidityXn() { moistEnthalpyHumidityXn_.clear(); }
+    const std::vector<double>* moistEnthalpyHumidityXn() const {
+        return moistEnthalpyHumidityXn_.empty() ? nullptr : &moistEnthalpyHumidityXn_;
     }
 };
 

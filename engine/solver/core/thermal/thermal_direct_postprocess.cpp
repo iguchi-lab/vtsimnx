@@ -15,7 +15,7 @@ void postprocessAndReport(ThermalNetwork& network,
                           DirectTStats& stats) {
     std::vector<double> heatBalance(curV, 0.0);
     for (auto e : boost::make_iterator_range(boost::edges(graph))) {
-        thermal_edge_physics::accumulatePostprocess(graph, e, heatBalance);
+        thermal_edge_physics::accumulatePostprocess(graph, e, heatBalance, &topo.moist);
     }
     for (size_t i = 0; i < curV; ++i) {
         heatBalance[i] += graph[i].heat_source;

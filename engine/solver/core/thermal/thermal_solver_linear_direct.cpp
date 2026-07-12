@@ -92,6 +92,10 @@ void solveTemperaturesLinearDirect(ThermalNetwork& network,
         ctx.systemGraphPtr = &graph;
     }
 
+    // 湿りエンタルピー組立コンテキスト（係数署名より前に同期）
+    ctx.topology.moist.enabled = constants.moistEnthalpyEnabled;
+    ctx.topology.moist.humidityXnByVertex = network.moistEnthalpyHumidityXn();
+
     const detail::CoeffSignatureBreakdown coeffSigBreakdown =
         detail::computeCoeffSignatureBreakdown(graph, ctx.topology);
     const std::uint64_t coeffSig = coeffSigBreakdown.combined();
@@ -112,7 +116,8 @@ void solveTemperaturesLinearDirect(ThermalNetwork& network,
     if (ctx.topology.rhsCoeffSig != coeffSig ||
         ctx.topology.fixedRowAirconVertex.size() != n ||
         ctx.topology.knownTermsByRow.size() != n ||
-        ctx.topology.responseHistByRow.size() != n) {
+        ctx.topology.responseHistByRow.size() != n ||
+        ctx.topology.moistConstRhsByRow.size() != n) {
         ++ctx.stats.rhsPrecomputeRebuild;
         detail::rebuildRhsPrecomputeForCoeffSig(graph, ctx.topology, coeffSig);
     }
