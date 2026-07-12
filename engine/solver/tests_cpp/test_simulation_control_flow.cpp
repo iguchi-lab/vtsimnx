@@ -149,8 +149,12 @@ void testAirconDecideActions() {
                    "aircon: control wins");
     expectEqAircon(decideAirconIterationAction(false, true, true), AirconIterationAction::RecomputeForCapacity,
                    "aircon: capacity");
+    expectEqAircon(decideAirconIterationAction(false, true, false, true),
+                   AirconIterationAction::RecomputeForSupplyHumidity, "aircon: supply humidity");
     expectEqAircon(decideAirconIterationAction(false, true, false), AirconIterationAction::Accept,
                    "aircon: accept");
+    expectEqAircon(decideAirconIterationAction(false, true, true, true),
+                   AirconIterationAction::RecomputeForCapacity, "aircon: capacity before supply");
 }
 
 void testOuterMaxIterationsThrow() {

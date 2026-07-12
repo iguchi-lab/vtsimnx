@@ -669,6 +669,11 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         network/thermal_network_outputs.cpp
         network/humidity_network.cpp
         network/humidity_network_outputs.cpp
+        network/ventilation_network.cpp
+        network/ventilation_network_outputs.cpp
+        ${VENTILATION_PRESSURE_SOURCES}
+        core/humidity/humidity_coupling.cpp
+        core/humidity/humidity_solver.cpp
         core/thermal/thermal_solver.cpp
         core/thermal/thermal_solver_linear_direct.cpp
         core/thermal/thermal_direct_internal.cpp
@@ -689,6 +694,7 @@ if(VTSIMNX_BUILD_CPP_TESTS)
     )
     target_link_libraries(vtsimnx_solver_cpp_test_aircon_controller
         Boost::boost
+        ceres
     )
     target_include_directories(vtsimnx_solver_cpp_test_aircon_controller PRIVATE /usr/include/eigen3)
     target_compile_options(vtsimnx_solver_cpp_test_aircon_controller PRIVATE

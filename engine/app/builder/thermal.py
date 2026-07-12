@@ -14,6 +14,10 @@ def add_capacity(node: dict, time_step: float) -> tuple[list, list]:
 
     v>0 のとき空気質量 ρ·cp·V を subtype=air_capacity として分離し、
     残り（家具等）を従来の subtype=capacity とする。
+
+    thermal_mass < ρ·cp·V は入力エラー（切り詰めない）。
+    moist_enthalpy ON 時は air_capacity が体積から ρV/Δt を再計算するため、
+    切り詰めるとフラグ切替で顕熱容量が変わってしまう。
     """
     nodes: list = []
     thermal_branches: list = []
@@ -21,8 +25,12 @@ def add_capacity(node: dict, time_step: float) -> tuple[list, list]:
     thermal_mass = float(node["thermal_mass"])
     volume = float(node.get("v") or 0.0)
     air_mass = _DRY_AIR_RHO_CP * volume if volume > 0.0 else 0.0
-    if air_mass > thermal_mass:
-        air_mass = thermal_mass
+    if air_mass > thermal_mass + 1e-9:
+        raise ValueError(
+            f"ノード【{node['key']}】: thermal_mass ({thermal_mass:.6g} J/K) が "
+            f"空気熱容量 ρ·cp·V ({air_mass:.6g} J/K, v={volume}) 未満です。"
+            f" thermal_mass を空気分以上にするか、体積 v を減らしてください。"
+        )
     furniture_mass = max(0.0, thermal_mass - air_mass)
     init_t = _scalar_initial_temperature(node.get("t"))
 

@@ -13,12 +13,14 @@ enum class AirconIterationAction {
     RecomputeForFlow,
     RecomputeForControl,
     RecomputeForCapacity,
+    RecomputeForSupplyHumidity,
 };
 
 // 空調反復の分岐判定（ユニットテスト用に純粋関数として公開）
 inline AirconIterationAction decideAirconIterationAction(bool ductFlowAdjusted,
                                                          bool allAirconControlled,
-                                                         bool capacityAdjusted) {
+                                                         bool capacityAdjusted,
+                                                         bool supplyHumidityChanged = false) {
     if (ductFlowAdjusted) {
         return AirconIterationAction::RecomputeForFlow;
     }
@@ -27,6 +29,9 @@ inline AirconIterationAction decideAirconIterationAction(bool ductFlowAdjusted,
     }
     if (capacityAdjusted) {
         return AirconIterationAction::RecomputeForCapacity;
+    }
+    if (supplyHumidityChanged) {
+        return AirconIterationAction::RecomputeForSupplyHumidity;
     }
     return AirconIterationAction::Accept;
 }

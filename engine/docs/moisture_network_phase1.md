@@ -84,10 +84,11 @@ Phase1 では、既存の移流ベース湿度計算に加えて、線形RC型�
 
 - `ventilationTransport`: 換気による正味水蒸気流入
 - `vaporGeneration`: `humidity_generation`
-- `materialPhaseChange`: `moisture_conductance` による正味水蒸気流入
-- `airconCondensation`: 現状 0（将来の空調除湿）
+- `materialTransport`: 全 `moistureLinks`（全 `moisture_transfer_type`）の正味水蒸気流入。湿度方程式と一致し、**残差検算に使用**
+- `materialPhaseChange`: `moisture_transfer_type=phase_change` のみ。潜熱 `from_phase_change` に使用
+- `airconCondensation`: 空調ノード除湿の診断項（吹出境界に織込み済みのため残差には含めない）
 - `storage`: \(C(x^{n+1}-x^n)/\Delta t\)
-- `residual`: `storage - (vent+gen+material+aircon)`（方程式適合の検算）
+- `residual`: `storage - (vent+gen+materialTransport)`（方程式適合の検算）
 
 符号規約（相変化）:
 
@@ -120,13 +121,17 @@ Phase1 では、既存の移流ベース湿度計算に加えて、線形RC型�
 
 - ON 時、換気移流と空気ノード capacity 蓄積を \(h(T,x)=(c_{pa}+x c_{pv})T+x L_v\) の収支で解く（未知数は温度 \(T\)、連成中の \(x\) は既知）
 - 空気蓄積: `subtype=air_capacity` は \(\rho V/\Delta t\) を体積・dt から直接計算。レガシー `capacity`+`v>0` は乾き conductance（家具等）を維持し、水蒸気分のみ \(\rho V\) を加算
-- builder は `v>0` のとき空気分を `air_capacity`、残りを `capacity` に分離
+- builder は `v>0` のとき空気分を `air_capacity`、残りを `capacity` に分離。`thermal_mass < ρ·cp·V` は入力エラー（切り詰めない）
 - 空調処理熱（能力・COP・DUCT 風量連動の全熱）も \(\dot m |h_\mathrm{in}-h_\mathrm{out}|\) に統一（顕熱/潜熱は acmodel 互換のため分解）
 - 吹出絶対湿度 `supplyX` を空調ノード `current_x` に反映し、除湿量 \(\dot m(x_\mathrm{in}-x_\mathrm{supply})\) を `airconCondensation` 診断へ記録（湿気移流境界と能力計算を一致）
+- 吹出湿度が前回適用値から変化した場合、外側ループで再計算し、**同一タイムステップの湿度・エンタルピー連成へ反映**する
 - 必須: `calc_flag.x` かつ `calc_flag.t` かつ `moisture_enabled=true`（非連成では当該ステップの更新後 \(x\) を熱へ戻せない）
 - `from_humidity_change` との併用は禁止（二重計上）
 - `from_phase_change` との併用も当面禁止（材料側のみ \(Q=-L\dot m\) だと空気側の対向項がなくエネルギーが片側欠損する）
-- 湿気枝の `moisture_transfer_type`（`phase_change`|`vapor_diffusion`|`liquid_transport`|`sorption`、未指定は `phase_change`）。潜熱診断 `materialPhaseChange` は `phase_change` のみ
+- 湿気枝の `moisture_transfer_type`（未指定は `phase_change`）:
+  - `phase_change`: 相変化。潜熱診断・`from_phase_change` の対象
+  - `vapor_diffusion`: 現状は湿度方程式上 `phase_change` と同じ \(k(x_j-x_i)\)。潜熱診断には含めない（分類用）
+  - `liquid_transport` / `sorption`: **将来用の分類値**。液水ポテンシャル・含水率平衡は未実装。現状も同じ \(k\Delta x\) で解くのみ
 
 ### 将来（Phase1.5 以降）
 
@@ -134,6 +139,7 @@ Phase1 では、既存の移流ベース湿度計算に加えて、線形RC型�
 - `room_evaporation` 発湿の室内潜熱
 - `from_humidity_change` の削除
 - `from_phase_change` + moist enthalpy の併用解禁（空気側対向項）
+- `vapor_diffusion` / `liquid_transport` / `sorption` 固有の移動式
 ## 圧力・熱・湿気の連成
 
 Phase1 実装では、1タイムステップの内側反復で次のように連成します。

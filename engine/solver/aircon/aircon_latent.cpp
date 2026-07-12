@@ -284,12 +284,19 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
     return result;
 }
 
-void applySupplyHumidityToAirconNode(ThermalNetwork& thermalNetwork,
+bool applySupplyHumidityToAirconNode(ThermalNetwork& thermalNetwork,
                                      const std::string& airconKey,
-                                     const LatentProcessResult& loads) {
+                                     const LatentProcessResult& loads,
+                                     double humidityAbsTol) {
     auto& node = thermalNetwork.getNode(airconKey);
+    const double newRemoval = std::max(0.0, loads.condensationRateKgPerS);
+    const double tol = (humidityAbsTol > 0.0) ? humidityAbsTol : 1e-9;
+    const bool changed =
+        std::abs(node.current_x - loads.supplyX) > tol ||
+        std::abs(node.aircon_moisture_removal_kg_s - newRemoval) > tol;
     node.current_x = loads.supplyX;
-    node.aircon_moisture_removal_kg_s = std::max(0.0, loads.condensationRateKgPerS);
+    node.aircon_moisture_removal_kg_s = newRemoval;
+    return changed;
 }
 
 } // namespace aircon::latent

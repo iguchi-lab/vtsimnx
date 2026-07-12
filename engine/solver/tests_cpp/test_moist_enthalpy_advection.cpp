@@ -21,6 +21,7 @@
 #include "network/thermal_network.h"
 #include "network/ventilation_network.h"
 #include "parser/sim_constants_parser.h"
+#include "simulation_aircon_iteration.h"
 #include "types/common_types.h"
 #include "vtsimnx_solver_timing.h"
 
@@ -563,8 +564,15 @@ void testMoistureTransferTypePhaseChangeOnly() {
     const double xR = g[vRoom].current_x;
     const double xM = g[thermal.getKeyToVertex().at("MAT")].current_x;
     const double expectedPhase = 0.002 * (xM - xR);
+    const double expectedTransport = (0.002 + 0.010) * (xM - xR);
     expectNear(bal.materialPhaseChange[iRoom], expectedPhase, 1e-9,
                "materialPhaseChange uses phase_change link only");
+    expectNear(bal.materialTransport[iRoom], expectedTransport, 1e-9,
+               "materialTransport includes all moisture links");
+    expectNear(bal.residual[iRoom],
+               bal.storage[iRoom] - (bal.ventilationTransport[iRoom] + bal.vaporGeneration[iRoom] +
+                                     bal.materialTransport[iRoom]),
+               1e-12, "residual uses materialTransport");
     (void)logs;
 }
 
@@ -654,6 +662,97 @@ void testCoupledOutdoorHumidInflow() {
     expectTrue(h1 > h0, "coupled: room moist enthalpy increases");
 }
 
+void testCoolingSupplyHumiditySameTimestepPropagation() {
+    // 冷房開始相当: 吹出湿度を適用したあと外側再計算相当で湿度を解き直し、
+    // 同一タイムステップ内で室湿度へ伝播することを確認する。
+    SimulationConstants c{};
+    c.timestep = 60;
+    c.humidityCalc = true;
+    c.temperatureCalc = false;
+    c.pressureCalc = false;
+    c.logVerbosity = 0;
+    c.humiditySolverTolerance = 1e-12;
+    std::ostringstream logs;
+    TimingList timings;
+
+    const double xInit = 0.012;
+    const double supplyX = 0.008;
+    const double flow = 0.05;
+
+    auto ROOM = makeAir("ROOM", false, 27.0, 100.0, xInit);
+    ROOM.calc_x = true;
+    auto AC = makeAir("AC", false, 14.0, 0.0, xInit);
+    AC.calc_x = false;
+    AC.type = "aircon";
+    AC.on = true;
+
+    ThermalNetwork thermal;
+    thermal.addNode(ROOM);
+    thermal.addNode(AC);
+
+    VentilationNetwork vent;
+    vent.addNode(ROOM);
+    vent.addNode(AC);
+    EdgeProperties supply{};
+    supply.key = "AC->ROOM";
+    supply.unique_id = "AC->ROOM";
+    supply.type = "fixed_flow";
+    supply.source = "AC";
+    supply.target = "ROOM";
+    supply.flow_rate = flow;
+    supply.vol = {flow};
+    supply.current_vol = flow;
+    supply.has_prescribed_vol = true;
+    vent.addEdge(supply);
+    EdgeProperties ret{};
+    ret.key = "ROOM->AC";
+    ret.unique_id = "ROOM->AC";
+    ret.type = "fixed_flow";
+    ret.source = "ROOM";
+    ret.target = "AC";
+    ret.flow_rate = flow;
+    ret.vol = {flow};
+    ret.current_vol = flow;
+    ret.has_prescribed_vol = true;
+    vent.addEdge(ret);
+
+    HumidityNetwork humidity;
+    FlowRateMap flows;
+    flows[{"AC", "ROOM"}] = flow;
+    flows[{"ROOM", "AC"}] = flow;
+
+    // 1) 旧吹出湿度(=室内)のまま湿度更新 → 室湿度はほぼ不変
+    (void)core::humidity::updateHumidityIfEnabled(
+        c, vent, thermal.getGraph(),
+        static_cast<const ThermalNetwork&>(thermal).nodeStateView(), humidity, flows, logs,
+        timings, "stale");
+    const double xAfterStale =
+        thermal.getGraph()[thermal.getKeyToVertex().at("ROOM")].current_x;
+    expectNear(xAfterStale, xInit, 1e-6, "stale supplyX: room x unchanged");
+
+    // 2) supplyX 適用（能力調整なしでも変化を検出）
+    aircon::latent::LatentProcessResult loads{};
+    loads.supplyX = supplyX;
+    loads.condensationRateKgPerS =
+        archenv::DENSITY_DRY_AIR * flow * std::max(0.0, xInit - supplyX);
+    const bool changed =
+        aircon::latent::applySupplyHumidityToAirconNode(thermal, "AC", loads);
+    expectTrue(changed, "supplyX apply reports change");
+    expectTrue(simulation::decideAirconIterationAction(false, true, false, changed) ==
+                   simulation::AirconIterationAction::RecomputeForSupplyHumidity,
+               "outer loop requests recompute for supply humidity");
+
+    // 3) 再計算相当の湿度更新 → 同一ステップで室湿度が低下
+    (void)core::humidity::updateHumidityIfEnabled(
+        c, vent, thermal.getGraph(),
+        static_cast<const ThermalNetwork&>(thermal).nodeStateView(), humidity, flows, logs,
+        timings, "fresh");
+    const double xAfterFresh =
+        thermal.getGraph()[thermal.getKeyToVertex().at("ROOM")].current_x;
+    expectTrue(xAfterFresh < xInit - 1e-4, "same-timestep: room humidity falls toward supplyX");
+    expectTrue(xAfterFresh > supplyX - 1e-6, "room x stays above supply boundary");
+}
+
 void testAirconProcessedEnthalpyHelper() {
     const double Q = 0.1;
     const double tIn = 27.0, tOut = 14.0;
@@ -727,6 +826,7 @@ int main() {
         testFurnitureCapacityDoesNotInflateVaporStorage();
         testMoistureTransferTypePhaseChangeOnly();
         testCoupledOutdoorHumidInflow();
+        testCoolingSupplyHumiditySameTimestepPropagation();
         testAirconProcessedEnthalpyHelper();
         testAirconLatentProcessMoistTotal();
         std::cout << "OK moist enthalpy advection/storage\n";

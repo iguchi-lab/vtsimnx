@@ -52,6 +52,50 @@ def test_thermal_mass_with_volume_splits_air_capacity():
     assert abs(tb_c["conductance"] - furniture / 60.0) < 1e-6
 
 
+def test_thermal_mass_below_air_capacity_is_error():
+    raw = {
+        "simulation": {
+            "index": {"start": "2025-01-01T00:00:00Z", "end": "2025-01-01T01:00:00Z", "timestep": 60, "length": 1},
+            "tolerance": {"ventilation": 1e-6, "thermal": 1e-6, "convergence": 1e-6},
+            "calc_flag": {"p": False, "t": False, "x": False, "c": False},
+        },
+        # ρ cp V ≈ 60360 より小さい thermal_mass
+        "nodes": [{"key": "ROOM", "v": 50.0, "thermal_mass": 1.0e4, "t": 20.0}],
+        "ventilation_branches": [],
+        "thermal_branches": [],
+    }
+    try:
+        build_config(raw, add_surface=False, add_aircon=False, add_capacity=True)
+        assert False, "expected ValueError for thermal_mass < rho*cp*V"
+    except ValueError as e:
+        assert "thermal_mass" in str(e)
+        assert "空気熱容量" in str(e) or "ρ" in str(e) or "rho" in str(e).lower()
+
+
+def test_manual_air_capacity_conductance_must_match_volume():
+    from app.builder.validate import validate_thermal_config
+
+    sim = {
+        "index": {"start": "2025-01-01T00:00:00Z", "end": "2025-01-01T01:00:00Z", "timestep": 60, "length": 1},
+        "tolerance": {"ventilation": 1e-6, "thermal": 1e-6, "convergence": 1e-6},
+        "calc_flag": {"p": False, "t": True, "x": False, "c": False},
+    }
+    nodes = [{"key": "ROOM", "v": 50.0, "t": 20.0}, {"key": "ROOM_air", "type": "capacity", "ref_node": "ROOM", "t": 20.0}]
+    # 意図的に小さい conductance
+    branches = [
+        {
+            "key": "ROOM_air->ROOM",
+            "type": "conductance",
+            "subtype": "air_capacity",
+            "conductance": 1.0,
+            "source": "ROOM_air",
+            "target": "ROOM",
+        }
+    ]
+    _, result = validate_thermal_config(sim, nodes, branches)
+    assert not result.is_valid
+    assert any("air_capacity" in e for e in result.errors)
+
 def test_calc_flag_is_auto_set_from_node_calc_fields():
     raw = {
         "simulation": {

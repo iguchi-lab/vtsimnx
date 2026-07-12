@@ -39,14 +39,15 @@ builder で `aircon` を与えると、solver 形式では `type="aircon"` の�
 ### 2. タイムステップ内での位置づけ
 
 エアコン制御は、圧力-熱の連成計算が一度落ち着いた後に実行されます。
+吹出湿度 `supplyX` が変化した場合も外側ループで再計算し、**同一タイムステップの湿度連成へ反映**します。
 
 ```mermaid
 flowchart TD
     updateProps[時変プロパティ更新]
     coupledSolve[圧力と熱を連成計算]
     updateHumidity[湿度 x 更新]
-    airconControl[エアコン制御]
-    maybeRecompute{再計算が必要?}
+    airconControl[エアコン制御とsupplyX適用]
+    maybeRecompute{再計算が必要?<br/>風量/ON-OFF/能力/吹出湿度}
     updateConcentration[濃度 c 更新]
     writeResult[結果出力]
 

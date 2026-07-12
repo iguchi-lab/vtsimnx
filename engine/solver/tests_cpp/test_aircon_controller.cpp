@@ -229,6 +229,22 @@ int main() {
         }
     }
 
+    // 出力収集は current_x を変更しない
+    {
+        auto& b = thermal.getNode("B");
+        b.on = true;
+        b.current_mode = "COOLING";
+        b.current_t = 14.0;
+        b.current_x = 0.011111;
+        b.ac_spec = nlohmann::json{{"latent_method", "rh95"}};
+        thermal.getNode("IN").current_x = 0.020;
+        thermal.getNode("IN").current_t = 27.0;
+        const double xBefore = b.current_x;
+        (void)controller.collectAirconDataValues(thermal, flowRates, "sensibleHeatCapacity");
+        (void)controller.collectAirconDataValues(thermal, flowRates, "latentHeatCapacity");
+        expectNear(b.current_x, xBefore, 0.0, "collectAirconDataValues must not mutate current_x");
+    }
+
     // 潜熱フィードバック: 冷房時に in_node へ負の heat_source が入ること
     {
         auto& in = thermal.getNode("IN");

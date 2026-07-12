@@ -24,6 +24,9 @@ from .config_types import (
 
 logger = get_logger(__name__)
 
+# archenv / thermal.py と揃えた乾き空気の ρ·cp [J/(m³·K)]
+_DRY_AIR_RHO_CP = 1.2 * 1006.0
+
 UnknownKeysMode = Literal["strip", "error"]
 _unknown_keys_mode: ContextVar[UnknownKeysMode] = ContextVar("unknown_keys_mode", default="strip")
 
@@ -794,6 +797,31 @@ def validate_thermal_config(
 
         if branch["type"] == ThermalBranchTypeEnum.RESPONSE_CONDUCTION:
             errors.extend(_validate_response_conduction(branch))
+
+        # air_capacity: conductance は ρ·cp·V/Δt と一致させる（moist_enthalpy ON 時は体積から再計算するため）
+        if str(branch.get("subtype") or "") == "air_capacity":
+            node_by_key = {str(n.get("key")): n for n in node_config if isinstance(n, dict)}
+            air_key = str(branch.get("target") or "")
+            air_node = node_by_key.get(air_key)
+            if air_node is None:
+                errors.append(f"熱ブランチ {branch['key']}: air_capacity の target ノードが見つかりません")
+            else:
+                volume = float(air_node.get("v") or 0.0)
+                if volume <= 0.0:
+                    errors.append(
+                        f"熱ブランチ {branch['key']}: air_capacity の対象ノード {air_key} に v>0 が必要です"
+                    )
+                elif "conductance" in branch:
+                    dt = float(sim_config.get("index", {}).get("timestep") or 0.0)
+                    if dt > 0.0:
+                        expected = _DRY_AIR_RHO_CP * volume / dt
+                        cond = float(branch["conductance"])
+                        if expected > 0.0 and abs(cond - expected) > max(1e-6, 1e-6 * expected):
+                            errors.append(
+                                f"熱ブランチ {branch['key']}: air_capacity の conductance ({cond:.6g}) が "
+                                f"ρ·cp·V/Δt ({expected:.6g}) と一致しません。"
+                                f" moist_enthalpy ON 時は体積基準になるため揃えてください。"
+                            )
 
     logger.info("thermal_configのバリデーションが完了しました。")
     return thermal_config, ValidationResult(len(errors) == 0, errors, warnings)

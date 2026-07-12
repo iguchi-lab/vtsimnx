@@ -401,6 +401,7 @@ void evaluateMoistureBalanceTerms(const Graph& tGraph,
     const size_t nV = static_cast<size_t>(boost::num_vertices(tGraph));
     out.ventilationTransport.assign(nV, 0.0);
     out.vaporGeneration.assign(nV, 0.0);
+    out.materialTransport.assign(nV, 0.0);
     out.materialPhaseChange.assign(nV, 0.0);
     out.airconCondensation.assign(nV, 0.0);
     out.storage.assign(nV, 0.0);
@@ -438,16 +439,23 @@ void evaluateMoistureBalanceTerms(const Graph& tGraph,
         const auto itG = terms.genByVertex.find(v);
         out.vaporGeneration[i] = (itG == terms.genByVertex.end()) ? 0.0 : itG->second;
 
-        double mat = 0.0;
-        if (i < terms.phaseChangeLinks.size()) {
-            for (const auto& lk : terms.phaseChangeLinks[i]) {
-                mat += lk.second * (xOf(lk.first) - xi);
+        double matAll = 0.0;
+        if (i < terms.moistureLinks.size()) {
+            for (const auto& lk : terms.moistureLinks[i]) {
+                matAll += lk.second * (xOf(lk.first) - xi);
             }
         }
-        out.materialPhaseChange[i] = mat;
+        out.materialTransport[i] = matAll;
 
-        // 空調除湿診断: 吹出境界 x=supplyX で移流に織り込み済み。残差には載せないよう
-        // active ノードでは通常 0。空調ノードへ除去量（空気系から見た負の生成）を記録。
+        double matPhase = 0.0;
+        if (i < terms.phaseChangeLinks.size()) {
+            for (const auto& lk : terms.phaseChangeLinks[i]) {
+                matPhase += lk.second * (xOf(lk.first) - xi);
+            }
+        }
+        out.materialPhaseChange[i] = matPhase;
+
+        // 診断専用: 吹出境界に織込み済みのため残差には入れない
         if (tGraph[v].getTypeCode() == VertexProperties::TypeCode::Aircon) {
             out.airconCondensation[i] = -std::max(0.0, tGraph[v].aircon_moisture_removal_kg_s);
         }
@@ -463,7 +471,7 @@ void evaluateMoistureBalanceTerms(const Graph& tGraph,
 
         out.residual[i] = out.storage[i]
                           - (out.ventilationTransport[i] + out.vaporGeneration[i]
-                             + out.materialPhaseChange[i] + out.airconCondensation[i]);
+                             + out.materialTransport[i]);
         // 方程式を解いた calc_x ノードのみ residual を検算する
         if (active.count(v) != 0) {
             out.maxAbsResidual = std::max(out.maxAbsResidual, std::abs(out.residual[i]));

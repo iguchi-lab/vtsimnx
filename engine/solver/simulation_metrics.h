@@ -25,6 +25,7 @@ struct TimestepSolveMetrics {
     std::size_t airconFlowAdjustRecalc = 0;
     std::size_t airconOnOffRecalc = 0;
     std::size_t airconCapacityRecalc = 0;
+    std::size_t airconSupplyHumidityRecalc = 0;
     double pressureMs = 0.0;
     double thermalMs = 0.0;
     double humidityMs = 0.0;
@@ -48,6 +49,7 @@ struct TimestepSolveMetrics {
             {"aircon_flow_adjust_recalc", airconFlowAdjustRecalc},
             {"aircon_on_off_recalc", airconOnOffRecalc},
             {"aircon_capacity_recalc", airconCapacityRecalc},
+            {"aircon_supply_humidity_recalc", airconSupplyHumidityRecalc},
             {"pressure_ms", pressureMs},
             {"thermal_ms", thermalMs},
             {"humidity_ms", humidityMs},

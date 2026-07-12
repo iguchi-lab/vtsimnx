@@ -266,7 +266,8 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                                               const SimulationConstants& constants,
                                               const FlowRateMap& flowRates,
                                               std::ostream& logs,
-                                              int& /*totalIterations*/) const {
+                                              int& /*totalIterations*/,
+                                              bool* supplyHumidityChanged) const {
     moistEnthalpyEnabled_ = constants.moistEnthalpyEnabled;
     // 分岐: (1) 超過 → 公式で補正可能なら limitedSetpoint 適用、でなければ bracket 二分探索
     //       (2) 不足かつ bracket あり → 二分探索継続（設定温度を上げて再計算）
@@ -282,7 +283,9 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
             const auto loads = aircon::latent::estimateLatentProcess(
                 context.validData, context.operationMode, context.heatCapacity, context.airFlowRate,
                 nodeProps, moistEnthalpyEnabled_);
-            aircon::latent::applySupplyHumidityToAirconNode(thermalNetwork, airconKey, loads);
+            if (aircon::latent::applySupplyHumidityToAirconNode(thermalNetwork, airconKey, loads)) {
+                if (supplyHumidityChanged) *supplyHumidityChanged = true;
+            }
             std::string sourceLabel = "unknown";
             auto maxHeatCapacity = aircon::capacity::resolveMaxHeatCapacity(
                 nodeProps, context.operationMode, sourceLabel);
@@ -336,7 +339,8 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
 bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalNetwork,
                                                         VentilationNetwork& ventNetwork,
                                                         const FlowRateMap& flowRates,
-                                                        std::ostream& logs) const {
+                                                        std::ostream& logs,
+                                                        bool* supplyHumidityChanged) const {
     bool adjustmentMade = false;
     constexpr double kMinFlowTol = 1e-6;        // [m3/s]
     constexpr double kRelativeFlowTol = 1e-3;   // [-]
@@ -352,7 +356,9 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
             const auto loads = aircon::latent::estimateLatentProcess(
                 context.validData, context.operationMode, context.heatCapacity, context.airFlowRate,
                 nodeProps, moistEnthalpyEnabled_);
-            aircon::latent::applySupplyHumidityToAirconNode(thermalNetwork, airconKey, loads);
+            if (aircon::latent::applySupplyHumidityToAirconNode(thermalNetwork, airconKey, loads)) {
+                if (supplyHumidityChanged) *supplyHumidityChanged = true;
+            }
             const double processedHeatW = aircon::latent::totalHeatCapacity(loads);
 
             const auto targetFlowOpt = aircon::airflow::computeTargetFlowFromProcessedHeat(
@@ -427,6 +433,7 @@ std::vector<double> AirconController::collectAirconDataValues(ThermalNetwork& th
                 values[i] = std::abs(aircon::network_utils::getFlowRate(flowRates, nodeProps.in_node, nodeProps.key));
             } else if (dataType == "sensibleHeatCapacity" || dataType == "latentHeatCapacity") {
                 // 処理熱量は「実機出力」として扱うため、OFF時は 0 を返す。
+                // 出力収集は副作用なし（supplyX のグラフ適用は外側ループ側の正本）。
                 if (!nodeProps.on) {
                     values[i] = 0.0;
                     continue;
@@ -435,7 +442,6 @@ std::vector<double> AirconController::collectAirconDataValues(ThermalNetwork& th
                 const auto loads = aircon::latent::estimateLatentProcess(
                     context.validData, context.operationMode, context.heatCapacity, context.airFlowRate,
                     nodeProps, moistEnthalpyEnabled_);
-                aircon::latent::applySupplyHumidityToAirconNode(thermalNetwork, airconKey, loads);
                 values[i] = (dataType == "sensibleHeatCapacity")
                                 ? loads.sensibleHeatCapacity
                                 : loads.latentHeatCapacity;
@@ -462,8 +468,7 @@ std::pair<double, double> AirconController::estimatePowerAndCOPForAircon(
     const auto loads = aircon::latent::estimateLatentProcess(
         context.validData, context.operationMode, context.heatCapacity, context.airFlowRate,
         nodeProps, moistEnthalpyEnabled_);
-    // 吹出絶対湿度・除湿量をエアコンノードへ反映（湿度移流境界・診断の正本）
-    aircon::latent::applySupplyHumidityToAirconNode(thermalNetwork, airconKey, loads);
+    // 出力・COP 計算はグラフ状態を変更しない（supplyX 適用は外側ループ側）
     acmodel::InputData input =
         aircon::latent::buildAcmodelInput(context.validData,
                                           loads.sensibleHeatCapacity, loads.latentHeatCapacity,

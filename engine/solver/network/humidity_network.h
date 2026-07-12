@@ -33,11 +33,15 @@ struct HumidityNetworkTerms {
 struct MoistureBalanceTerms {
     std::vector<double> ventilationTransport;
     std::vector<double> vaporGeneration;
-    std::vector<double> materialPhaseChange; // moisture_conductance による正味水蒸気流入
-    // 空調ノードの除湿 [kg/s]（負=空気から除去）。吹出 x=supplyX 境界と対応。
+    // 全 moistureLinks の正味水蒸気流入（湿度方程式と一致。残差検算に使用）
+    std::vector<double> materialTransport;
+    // moisture_transfer_type=phase_change のみ（潜熱 from_phase_change 用）
+    std::vector<double> materialPhaseChange;
+    // 空調ノードの除湿診断 [kg/s]（負=空気から除去）。吹出 x=supplyX 境界に織込み済みのため
+    // 残差には含めない（calc_x 空調では二重計上になる）。
     std::vector<double> airconCondensation;
     std::vector<double> storage;             // C*(x_new-x_n)/dt
-    std::vector<double> residual;            // storage - (vent+gen+material+aircon)
+    std::vector<double> residual;            // storage - (vent+gen+materialTransport)
     double maxAbsResidual = 0.0;
 };
 

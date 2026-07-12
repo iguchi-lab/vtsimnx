@@ -199,7 +199,8 @@ public:
                                 const SimulationConstants& constants,
                                 const FlowRateMap& flowRates,
                                 std::ostream& logFile,
-                                int& totalIterations) const;
+                                int& totalIterations,
+                                bool* supplyHumidityChanged = nullptr) const;
 
     // DUCT_CENTRAL 用: 処理熱量に応じて送風量を補正する。
     // - 処理熱量=0 -> 風量=0
@@ -208,7 +209,8 @@ public:
     bool checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalNetwork,
                                           VentilationNetwork& ventNetwork,
                                           const FlowRateMap& flowRates,
-                                          std::ostream& logs) const;
+                                          std::ostream& logs,
+                                          bool* supplyHumidityChanged = nullptr) const;
 
     // 潜熱処理量を熱方程式の heat_source へ反映する（冷房時のみ有効）。
     // relaxation=1.0 で全量反映。<1.0 で緩和反映。

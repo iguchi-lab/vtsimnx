@@ -32,9 +32,11 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
                                           const VertexProperties& nodeProps,
                                           bool moistEnthalpyEnabled = false);
 
-// 吹出湿度・除湿量を空調ノードへ反映（湿気移流境界と診断の正本）
-void applySupplyHumidityToAirconNode(ThermalNetwork& thermalNetwork,
+// 吹出湿度・除湿量を空調ノードへ反映（湿気移流境界と診断の正本）。
+// |Δx| または除湿量の差が許容を超えた場合 true（外側ループ再計算要求用）。
+bool applySupplyHumidityToAirconNode(ThermalNetwork& thermalNetwork,
                                      const std::string& airconKey,
-                                     const LatentProcessResult& loads);
+                                     const LatentProcessResult& loads,
+                                     double humidityAbsTol = 1e-9);
 
 } // namespace aircon::latent

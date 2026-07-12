@@ -374,6 +374,7 @@ static bool runSimulationLoop(const InputData& inputData,
                 runMetrics.airconFlowAdjustRecalc += stepMetrics.airconFlowAdjustRecalc;
                 runMetrics.airconOnOffRecalc += stepMetrics.airconOnOffRecalc;
                 runMetrics.airconCapacityRecalc += stepMetrics.airconCapacityRecalc;
+                runMetrics.airconSupplyHumidityRecalc += stepMetrics.airconSupplyHumidityRecalc;
                 runMetrics.pressureMs += stepMetrics.pressureMs;
                 runMetrics.thermalMs += stepMetrics.thermalMs;
                 runMetrics.humidityMs += stepMetrics.humidityMs;
