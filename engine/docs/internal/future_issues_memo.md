@@ -83,3 +83,17 @@
 2. `solveFull` / `coeffSig*Changed` の減少を同一ケースで再測定。
 3. 近似導入時は結果差分（温度/湿度/flow）を検証して許容範囲を定義。
 
+## 9. 空調制御モデル（段階導入の残り）
+
+実施済み（2026-07）:
+
+- 二分探索収束時に setpoint が変わったら必ず再計算（P0）
+- `requested` / `effective` setpoint 分離と `AirconControlState`
+- `resolveMaxHeatCapacity` の max→mid フォールバック
+
+残り:
+
+1. `AirconStateProposal` / `AirconRecomputeReason` を外側ループへ配線
+2. metrics で `outer_iterations` p95 と `aircon_capacity_recalc` 割合を分析
+3. 効果が大きければ thermal に能力固定モード（`Qac=±Qmax`、室温未知）を追加し二分探索を廃止
+

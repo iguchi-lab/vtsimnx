@@ -71,23 +71,23 @@ flowchart TD
 
 ### 3. ON/OFF 判定
 
-`controlAllAircons()` は、`set_node` の現在温度と `current_pre_temp` を比べて ON/OFF を決めます。
+`controlAllAircons()` は、`set_node` の現在温度と **要求設定** `current_requested_pre_temp` を比べて ON/OFF を決めます（能力制限後の実効設定には引きずられない）。
 
 - 暖房:
-  - 室温が設定温度より低ければ ON
+  - 室温が要求設定より低ければ ON
   - 高ければ OFF
 - 冷房:
-  - 室温が設定温度より高ければ ON
+  - 室温が要求設定より高ければ ON
   - 低ければ OFF
 - `AUTO`:
   - 許容帯の外なら ON、許容帯内では現状態を維持
 
-収束性を落とさないため、許容誤差帯の中では即座に反転せず deadband を持たせています。
+収束性を落とさないため、許容誤差帯の中では即座に反転せず deadband を持たせています（fixed-row で設定一致直後のチャタリング防止）。
 
 注意:
 
 - `set_node.calc_t` は ON/OFF に応じて切り替えていません
-- 実際の固定温度化は熱ソルバ側の fixed-row ロジックで行います
+- 実際の固定温度化は熱ソルバ側の fixed-row ロジックで行います（値は実効設定 `current_pre_temp`）
 
 ---
 
@@ -97,7 +97,7 @@ flowchart TD
 
 固定温度に使う値:
 
-- `graph[v_ac].current_pre_temp`
+- `graph[v_ac].current_pre_temp`（実効設定）
 
 主な参照箇所:
 
@@ -246,8 +246,22 @@ Q = \dot m\,|h_\mathrm{in}-h_\mathrm{out}|
 2. **二分探索（フォールバック）**  
    公式で有効解が得られない場合、熱ソルバの解（処理熱量）を利用した bracket 二分探索で、処理熱量 ≒ 最大能力 となる setpoint を求める。収束判定は「処理熱量が最大能力に十分近い」（相対 0.1% + 絶対 1W）で行い、bracket のみ狭まった場合はあと 1 回再計算してから完了。
 
-補正後は `adjustmentMade=true` を返し、`simulation_runner.cpp` が同じ timestep を再計算します。  
+重要: `stepCapacityLimitBracket()` 後に `effectiveSetpoint`（`current_pre_temp`）を更新したとき、たとえ `capacityConverged==true` でも **設定温度が変わっていれば必ず `adjustmentMade=true`** とし、同じ timestep を再計算する。熱計算結果は旧設定温度に対応しているため、収束判定だけ見て Accept すると不整合になる。
+
+補正後は `adjustmentMade=true` を返し、外側ループが同じ timestep を再計算します。  
 処理熱量が最大能力を**下回る**状態で既に bracket が存在する場合（例: 設定を下げすぎて処理熱量が 0 に近い）は、設定温度を上げる方向に bracket を更新して探索を継続します。
+
+### 9.1 要求設定と実効設定
+
+| フィールド | 意味 |
+|---|---|
+| `current_requested_pre_temp` | スケジュールの要求設定温度 |
+| `current_pre_temp` | 熱ソルバ fixed-row に使う実効設定（能力制限で動きうる） |
+| `aircon_control_state` | `Off` / `SetpointControlled` / `CapacityLimited` |
+
+- ON/OFF 判定は **要求設定** を参照する（deadband は維持）
+- 能力制限は **実効設定** だけを動かす
+- タイムステップ先頭で実効設定は要求設定へリセットされる
 
 ---
 
@@ -313,7 +327,27 @@ ac1 DUCT_CENTRAL風量補正: 処理熱量=3624.00W, Q.rtd=7200.00W, 比率=0.50
 
 ---
 
-### 12. 関連ドキュメント
+### 12. 今後の方針（段階導入）
+
+現状は設定温度を動かして能力制限する近似を維持しつつ、次を段階導入します。
+
+1. ~~二分探索収束時に設定温度が変わったのに再計算しない不整合の修正~~（済）
+2. ~~`requested` / `effective` setpoint と `AirconControlState` の分離~~（済）
+3. `AirconStateProposal` + `AirconRecomputeReason` を外側ループへ配線し、再計算理由をビットフラグ集約（型は `aircon_control_state.h` に用意済み）
+4. `simulation_metrics` の `outer_iterations`（p95）と `aircon_capacity_recalc` 割合を見て、能力制限時の反復コストを定量化
+5. 負荷が大きければ thermal solver に能力固定モードを追加し、`Qac=±Qmax` で室温を未知数に戻す（設定温度二分探索の廃止）
+
+望ましい最終モデル:
+
+| 状態 | 拘束 |
+|---|---|
+| Off | `Qac = 0` |
+| SetpointControlled | `Troom = Trequested` かつ `|Qac| <= Qmax` |
+| CapacityLimited | `Qac = ±Qmax`、室温は設定から外れうる |
+
+---
+
+### 13. 関連ドキュメント
 
 - `docs/simulation_overview.md`
 - `docs/acmodel_overview.md`

@@ -146,10 +146,15 @@ std::optional<double> resolveMaxHeatCapacity(const VertexProperties& nodeProps,
                                              std::string& source) {
     const std::string mode = modeKey(operationMode);
     if (const auto* spec = nodeProps.getAirconSpec()) {
-        auto value = spec->getCapacityMaxForMode(mode);
-        if (value && *value > 0) {
+        auto maxV = spec->getCapacity(mode, "max");
+        if (maxV && *maxV > 0) {
             source = "Q." + mode + ".max";
-            return *value * 1000.0;
+            return *maxV * 1000.0;
+        }
+        auto midV = spec->getCapacity(mode, "mid");
+        if (midV && *midV > 0) {
+            source = "Q." + mode + ".mid";
+            return *midV * 1000.0;
         }
     }
     return std::nullopt;
@@ -175,6 +180,7 @@ void applyExceededCapacityAdjustment(
     const double previousSetpoint = nodeProps.current_pre_temp;
     if (limitedSetpoint) {
         nodeProps.current_pre_temp = *limitedSetpoint;
+        nodeProps.aircon_control_state = AirconControlState::CapacityLimited;
         adjustmentMade = true;
         oss << " → 超過, 設定温度補正=" << previousSetpoint << "→" << *limitedSetpoint << "°C";
         oss << ", 再計算要求";
@@ -189,8 +195,19 @@ void applyExceededCapacityAdjustment(
     const auto result = stepCapacityLimitBracket(heating, maxHeatCapacity, currentTotal,
                                                  nodeProps.current_pre_temp, tLow, tHigh);
     nodeProps.current_pre_temp = result.newSetpoint;
+    nodeProps.aircon_control_state = AirconControlState::CapacityLimited;
+    // 熱計算は旧設定温度の結果。newSetpoint が変わったら capacityConverged でも必ず再計算する。
+    const bool setpointChanged =
+        std::abs(result.newSetpoint - previousSetpoint) > kSetpointSearchTolerance;
+    if (setpointChanged) {
+        adjustmentMade = true;
+    }
     if (result.capacityConverged) {
+        capacityLimitBracket.erase(airconKey);
         oss << " → 二分探索収束 設定温度=" << result.newSetpoint << "°C（処理熱量≒最大能力）";
+        if (setpointChanged) {
+            oss << ", 再計算要求";
+        }
     } else if (result.bracketConverged) {
         adjustmentMade = true;
         oss << " → 超過, 設定温度補正=" << previousSetpoint << "→" << result.newSetpoint
@@ -222,8 +239,18 @@ void applyUnderCapacityBracketAdjustment(
     const auto result = stepCapacityLimitBracket(heating, maxHeatCapacity, currentTotal,
                                                  nodeProps.current_pre_temp, tLow, tHigh);
     nodeProps.current_pre_temp = result.newSetpoint;
+    nodeProps.aircon_control_state = AirconControlState::CapacityLimited;
+    const bool setpointChanged =
+        std::abs(result.newSetpoint - previousSetpoint) > kSetpointSearchTolerance;
+    if (setpointChanged) {
+        adjustmentMade = true;
+    }
     if (result.capacityConverged) {
+        capacityLimitBracket.erase(airconKey);
         oss << ", 二分探索収束 設定温度=" << result.newSetpoint << "°C（処理熱量≒最大能力）";
+        if (setpointChanged) {
+            oss << ", 再計算要求";
+        }
     } else if (result.bracketConverged) {
         adjustmentMade = true;
         oss << ", 設定温度補正=" << previousSetpoint << "→" << result.newSetpoint

@@ -176,8 +176,8 @@ AirconValidationData AirconController::validateAirconData(const std::string& air
     data.outdoorTemp = getTemp(nodeProps.outside_node, "outside_node");
     data.indoorTemp = getTemp(nodeProps.in_node, "in_node");
     data.airconTemp = getTemp(nodeProps.key, "aircon_node");
-    // 設定温度は set_node の現在温度ではなく、airconノードの current_pre_temp を使う。
-    // （set_node は制御対象室であり、設定値そのものではない）
+    // 設定温度は set_node の現在温度ではなく、実効設定温度 current_pre_temp を使う。
+    // （要求設定は current_requested_pre_temp。能力制限時は両者が異なる）
     if (std::isfinite(nodeProps.current_pre_temp)) {
         data.setTemp = nodeProps.current_pre_temp;
     } else if (!nodeProps.set_node.empty()) {
@@ -232,7 +232,7 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
                 currentTemp = nodeProps.current_t;
             }
         }
-        double targetTemp = nodeProps.current_pre_temp;
+        double targetTemp = nodeProps.current_requested_pre_temp;
 
         auto result = controlAircon(nodeProps, currentTemp, targetTemp, tolerance, logFile);
         writeLog(logFile, result.logMessage);
@@ -246,23 +246,21 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
             //
             // setpoint 制御は thermal_solver_linear_direct.cpp の fixed row ロジックで行うため、
             // ここでは set_node.calc_t を変更しない。
-            //
-            // NOTE(将来拡張の忘備録):
-            // 現状は「エアコンOFFでも送風（=in->aircon / aircon->out の換気流量）は入力の ventilation_branches に従う」
-            // という前提で、aircon の ON/OFF と換気枝の enable/vol を自動連動していない。
-            // もし「OFFなら送風も停止（流量=0）」を実現したくなった場合は、
-            // - 入力JSON側で ventilation_branches.enable を時系列で制御する
-            //   もしくは
-            // - solver側で nodeProps.on と換気枝 current_enabled/flow_rate を連動させる
-            // といった対応が必要になる。
         }
 
-        // OFF 中（遷移直後含む）は吹出湿度を入口へ追従。送風継続時の乾燥空気残留を防ぐ。
         if (!nodeProps.on) {
+            nodeProps.aircon_control_state = AirconControlState::Off;
+            // OFF 中は実効設定を要求値へ戻す（次に ON したときの起点を明確化）
+            nodeProps.current_pre_temp = nodeProps.current_requested_pre_temp;
+            // OFF 中（遷移直後含む）は吹出湿度を入口へ追従。送風継続時の乾燥空気残留を防ぐ。
             if (aircon::latent::applyPassthroughHumidityToAirconNode(
                     thermalNetwork, airconKey, humidityAbsTol)) {
                 if (supplyHumidityChanged) *supplyHumidityChanged = true;
             }
+        } else if (nodeProps.aircon_control_state != AirconControlState::CapacityLimited) {
+            nodeProps.aircon_control_state = AirconControlState::SetpointControlled;
+            // 能力制限中でなければ実効設定=要求設定
+            nodeProps.current_pre_temp = nodeProps.current_requested_pre_temp;
         }
     }
 
@@ -338,6 +336,12 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                     adjustmentMade);
             } else {
                 oss << " → OK";
+                // CapacityLimited 中は実効設定を維持（要求値へ勝手に戻さない）
+                if (nodeProps.aircon_control_state != AirconControlState::CapacityLimited &&
+                    !capacityLimitBracket_.count(airconKey)) {
+                    nodeProps.current_pre_temp = nodeProps.current_requested_pre_temp;
+                    nodeProps.aircon_control_state = AirconControlState::SetpointControlled;
+                }
             }
             writeLog(logs, oss.str());
         } catch (const std::exception& e) {

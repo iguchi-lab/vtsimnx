@@ -1,0 +1,61 @@
+#pragma once
+
+#include <cstdint>
+#include <string>
+
+/** 空調の運転状態（設定温度拘束 vs 能力上限）。 */
+enum class AirconControlState : std::uint8_t {
+    Off = 0,
+    SetpointControlled = 1,
+    CapacityLimited = 2,
+};
+
+inline const char* airconControlStateName(AirconControlState s) {
+    switch (s) {
+        case AirconControlState::Off: return "Off";
+        case AirconControlState::SetpointControlled: return "SetpointControlled";
+        case AirconControlState::CapacityLimited: return "CapacityLimited";
+    }
+    return "Unknown";
+}
+
+/** 外側ループ再計算理由（ビットフラグ）。 */
+enum class AirconRecomputeReason : std::uint32_t {
+    None = 0,
+    OnOffChanged = 1u << 0,
+    CapacitySetpointChanged = 1u << 1,
+    AirflowChanged = 1u << 2,
+    SupplyHumidityChanged = 1u << 3,
+};
+
+inline constexpr AirconRecomputeReason operator|(AirconRecomputeReason a, AirconRecomputeReason b) {
+    return static_cast<AirconRecomputeReason>(static_cast<std::uint32_t>(a) | static_cast<std::uint32_t>(b));
+}
+inline constexpr AirconRecomputeReason operator&(AirconRecomputeReason a, AirconRecomputeReason b) {
+    return static_cast<AirconRecomputeReason>(static_cast<std::uint32_t>(a) & static_cast<std::uint32_t>(b));
+}
+inline AirconRecomputeReason& operator|=(AirconRecomputeReason& a, AirconRecomputeReason b) {
+    a = a | b;
+    return a;
+}
+inline constexpr bool hasReason(AirconRecomputeReason flags, AirconRecomputeReason bit) {
+    return (static_cast<std::uint32_t>(flags) & static_cast<std::uint32_t>(bit)) != 0;
+}
+
+/**
+ * 1台分の状態提案。外側ループはこれを集約して再計算要否を決める。
+ * （現状は段階導入: capacity / ON/OFF 経路から埋めていく）
+ */
+struct AirconStateProposal {
+    std::string airconKey;
+    bool on = false;
+    AirconControlState state = AirconControlState::Off;
+    double requestedSetpoint = 0.0;   // スケジュール設定温度
+    double effectiveSetpoint = 0.0;   // 能力制限などを反映した拘束温度（熱ソルバ fixed-row）
+    double processedHeatW = 0.0;
+    double maxCapacityW = 0.0;        // 不明時は NaN ではなく 0 以下で「未定義」扱い可
+    bool hasMaxCapacity = false;
+    double targetFlowRate = 0.0;
+    double supplyHumidity = 0.0;
+    AirconRecomputeReason reasons = AirconRecomputeReason::None;
+};

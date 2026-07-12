@@ -174,7 +174,9 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
             node.current_w = readSeries("w", node.w, 0.0);
         }
         if (nodeJson.contains("pre_temp")) {
-            node.current_pre_temp = readSeries("pre_temp", node.pre_temp, node.current_pre_temp);
+            node.current_requested_pre_temp =
+                readSeries("pre_temp", node.pre_temp, node.current_requested_pre_temp);
+            node.current_pre_temp = node.current_requested_pre_temp;
         }
 
         // モード（配列/単一値の両対応）

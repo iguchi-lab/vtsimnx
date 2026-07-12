@@ -68,9 +68,15 @@ static VertexProperties makeNode(const std::string& key, const std::string& type
     v.type = type;
     v.current_t = t;
     v.current_mode = "COOLING";
+    v.current_requested_pre_temp = 24.0;
     v.current_pre_temp = 24.0;
     v.on = false;
     return v;
+}
+
+static void setRequestedAndEffective(VertexProperties& v, double t) {
+    v.current_requested_pre_temp = t;
+    v.current_pre_temp = t;
 }
 
 static nlohmann::json makeAcSpecWithMax(double coolingMaxKw, double heatingMaxKw) {
@@ -302,7 +308,7 @@ int main() {
         in.current_t = 18.0;
         b.current_t = 24.0;
         b.current_mode = "HEATING";
-        b.current_pre_temp = 26.0;
+        setRequestedAndEffective(b, 26.0);
         b.on = true;
         b.ac_spec = makeAcSpecWithMax(3.3, 0.5);
         b.initializeAirconSpec();
@@ -317,6 +323,10 @@ int main() {
         expectTrue(adjusted, "heating over-capacity should trigger adjustment");
         expectTrue(b.current_pre_temp < 26.0, "heating setpoint should decrease");
         expectTrue(b.current_pre_temp > 18.0, "heating setpoint should stay above inlet temp");
+        expectNear(b.current_requested_pre_temp, 26.0, 1e-12,
+                   "requested setpoint must stay at schedule value");
+        expectTrue(b.aircon_control_state == AirconControlState::CapacityLimited,
+                   "over-capacity should mark CapacityLimited");
     }
 
     {
@@ -325,7 +335,7 @@ int main() {
         in.current_t = 30.0;
         b.current_t = 22.0;
         b.current_mode = "COOLING";
-        b.current_pre_temp = 24.0;
+        setRequestedAndEffective(b, 24.0);
         b.on = true;
         b.ac_spec = makeAcSpecWithMax(0.5, 5.4);
         b.initializeAirconSpec();
@@ -340,6 +350,8 @@ int main() {
         expectTrue(adjusted, "cooling over-capacity should trigger adjustment");
         expectTrue(b.current_pre_temp > 24.0, "cooling setpoint should increase");
         expectTrue(b.current_pre_temp < 30.0, "cooling setpoint should stay below inlet temp");
+        expectNear(b.current_requested_pre_temp, 24.0, 1e-12,
+                   "cooling requested setpoint must stay at schedule value");
     }
 
     {
@@ -348,7 +360,7 @@ int main() {
         in.current_t = 18.0;
         b.current_t = 24.0;
         b.current_mode = "HEATING";
-        b.current_pre_temp = 26.0;
+        setRequestedAndEffective(b, 26.0);
         b.on = true;
         b.ac_spec = nlohmann::json{
             {"Q", {{"cooling", {{"rtd", 2.2}}}, {"heating", {{"rtd", 2.5}}}}},
@@ -373,7 +385,7 @@ int main() {
         in.current_t = 18.0;
         b.current_t = 24.0;
         b.current_mode = "HEATING";
-        b.current_pre_temp = 26.0;
+        setRequestedAndEffective(b, 26.0);
         b.on = true;
         b.ac_spec = nlohmann::json{
             {"Q", {{"cooling", {{"mid", 2.0}}}, {"heating", {{"mid", 0.5}}}}},  // kW; mid only
@@ -389,6 +401,8 @@ int main() {
 
         expectTrue(adjusted, "Q.mid only (no max) should still apply capacity limit");
         expectTrue(b.current_pre_temp < 26.0, "heating setpoint should decrease when over mid capacity");
+        expectTrue(logs.str().find("Q.heating.mid") != std::string::npos,
+                   "source label should indicate mid fallback");
     }
 
     // 処理熱量: 暖房で出口<=入口なら0、冷房で入口<=出口なら0
@@ -413,7 +427,7 @@ int main() {
         in.current_t = 25.0;
         b.current_t = 30.0;
         b.current_mode = "HEATING";
-        b.current_pre_temp = 20.0;
+        setRequestedAndEffective(b, 20.0);
         b.on = true;
         b.ac_spec = makeAcSpecWithMax(3.3, 0.5);  // 500W
         b.initializeAirconSpec();
@@ -435,6 +449,29 @@ int main() {
         expectTrue(adjusted2, "second call: under capacity with bracket should request recalc");
         expectTrue(b.current_pre_temp > setpointAfter1,
                    "under capacity: setpoint should increase toward max capacity");
+        // 設定温度が動いた反復では必ず recompute 要求（capacityConverged でも同様）
+        expectTrue(adjusted2 || std::abs(b.current_pre_temp - setpointAfter1) <= 1e-9,
+                   "setpoint change must imply adjustmentMade");
+    }
+
+    // ON/OFF は要求設定温度を参照し、能力補正後の実効設定には引きずられない
+    {
+        thermal.addNode(makeNode("ROOM", "normal", 21.0));
+        auto& room = thermal.getNode("ROOM");
+        auto& ac = thermal.getNode("B");
+        ac.set_node = "ROOM";
+        ac.current_mode = "HEATING";
+        ac.on = true;
+        ac.current_requested_pre_temp = 26.0;
+        ac.current_pre_temp = 22.0;  // 能力制限後の実効値を模擬
+        ac.aircon_control_state = AirconControlState::CapacityLimited;
+        room.current_t = 21.0;
+        std::ostringstream logs;
+        (void)controller.controlAllAircons(thermal, 0.5, logs);
+        expectTrue(ac.on, "heating below requested setpoint should stay ON");
+        expectNear(ac.current_requested_pre_temp, 26.0, 1e-12, "requested unchanged by control");
+        // CapacityLimited 中は実効設定を維持
+        expectNear(ac.current_pre_temp, 22.0, 1e-12, "effective setpoint kept while CapacityLimited");
     }
 
     // DUCT_CENTRAL: 処理熱量に応じて風量を補正すること

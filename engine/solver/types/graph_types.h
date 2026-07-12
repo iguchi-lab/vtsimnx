@@ -9,6 +9,7 @@
 #include <nlohmann/json.hpp>
 
 #include "types/aircon_types.h"
+#include "types/aircon_control_state.h"
 
 // ノード（頂点）のプロパティ
 struct VertexProperties {
@@ -55,9 +56,12 @@ struct VertexProperties {
     double current_beta = 0.0;
     double heat_source = 0.0;
     std::vector<double> pre_temp;
+    // requested: スケジュール設定温度 / effective(current_pre_temp): 能力制限などを反映した拘束温度
+    double current_requested_pre_temp = 20.0;
     double current_pre_temp = 20.0;
     double v = 0.0;
     bool on = false;
+    AirconControlState aircon_control_state = AirconControlState::Off;
     // 空調除湿診断 [kg/s]（正=凝縮除去）。空気ノード湿気収支の airconCondensation に反映。
     double aircon_moisture_removal_kg_s = 0.0;
     std::optional<AirconSpec> aircon_spec;
@@ -85,7 +89,14 @@ struct VertexProperties {
             current_beta = beta[timestep];
         }
         if (!pre_temp.empty() && static_cast<size_t>(timestep) < pre_temp.size()) {
-            current_pre_temp = pre_temp[timestep];
+            current_requested_pre_temp = pre_temp[timestep];
+            // タイムステップ先頭で実効設定を要求値へ戻す（能力制限は当該 step 内で再適用）
+            current_pre_temp = current_requested_pre_temp;
+            if (on) {
+                aircon_control_state = AirconControlState::SetpointControlled;
+            } else {
+                aircon_control_state = AirconControlState::Off;
+            }
         }
         if (!mode.empty() && static_cast<size_t>(timestep) < mode.size()) {
             current_mode = mode[timestep];
