@@ -2,6 +2,7 @@
 
 #include "vtsim_solver.h"
 #include "aircon/aircon_operation_mode.h"
+#include "aircon/aircon_capacity.h"
 #include "types/aircon_control_state.h"
 #include <cstdint>
 #include <vector>
@@ -64,8 +65,7 @@ private:
     mutable std::vector<std::string> airconKeysOrdered_;
 
     // 能力超過時 nullopt 用の二分探索 bracket（タイムステップごとにクリア）
-    // first=T_low, second=T_high。暖房時は setpoint を下げるので T_high を更新、冷房時は T_low を更新。
-    mutable std::unordered_map<std::string, std::pair<double, double>> capacityLimitBracket_;
+    mutable aircon::capacity::CapacityBracketMap capacityLimitBracket_;
 
     // 外側連成の forceMinTwo 判定用（ON/OFF・mode 署名）。initializeModels でクリア。
     std::uint64_t prevAirconStateSig_ = 0;

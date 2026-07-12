@@ -470,8 +470,8 @@ int main() {
         node.aircon_control_state = AirconControlState::CapacityLimited;
 
         // 冷房: bracket 幅は大きいが、現在能力は max±tol 内（tol = 500*0.001+1 = 1.5W）
-        std::unordered_map<std::string, std::pair<double, double>> brackets;
-        brackets["AC1"] = {24.0, 34.0};
+        aircon::capacity::CapacityBracketMap brackets;
+        brackets["AC1"] = aircon::capacity::CapacityBracket{24.0, 34.0, false};
         bool adjustmentMade = false;
         std::ostringstream oss;
         // inlet≈setpoint にして公式補正を nullopt にし、bracket 経路へ
@@ -509,8 +509,8 @@ int main() {
         node.current_pre_temp = 24.0;
         node.aircon_control_state = AirconControlState::SetpointControlled;
 
-        std::unordered_map<std::string, std::pair<double, double>> brackets;
-        brackets["AC2"] = {24.0, 34.0};
+        aircon::capacity::CapacityBracketMap brackets;
+        brackets["AC2"] = aircon::capacity::CapacityBracket{24.0, 34.0, false};
         bool adjustmentMade = false;
         std::ostringstream oss;
         aircon::capacity::applyExceededCapacityAdjustment(
@@ -530,8 +530,98 @@ int main() {
                    "cooling over capacity should move to bracket midpoint");
         expectTrue(brackets.find("AC2") != brackets.end(),
                    "non-converged step must keep bracket for next iteration");
-        expectNear(brackets["AC2"].first, 24.0, 1e-12, "cooling: tLow becomes current");
-        expectNear(brackets["AC2"].second, 34.0, 1e-12, "cooling: tHigh unchanged when over");
+        expectNear(brackets["AC2"].tLow, 24.0, 1e-12, "cooling: tLow becomes current");
+        expectNear(brackets["AC2"].tHigh, 34.0, 1e-12, "cooling: tHigh unchanged when over");
+        expectTrue(!brackets["AC2"].finalVerificationPending,
+                   "midpoint step should not arm final verification");
+    }
+
+    // bracket 幅だけ収束: 最終検証1回のあと、能力未達でも外側ループを止められること
+    {
+        VertexProperties node;
+        node.key = "AC3";
+        node.on = true;
+        node.current_mode = "COOLING";
+        node.current_requested_pre_temp = 24.0;
+        node.current_pre_temp = 24.0;
+        node.aircon_control_state = AirconControlState::CapacityLimited;
+
+        // 既に幅が tol 以下の bracket（冷房: 超過側=low, 非超過側=high）
+        aircon::capacity::CapacityBracketMap brackets;
+        brackets["AC3"] = aircon::capacity::CapacityBracket{24.0000, 24.0005, false};
+
+        bool adjustmentMade = false;
+        std::ostringstream oss1;
+        aircon::capacity::applyExceededCapacityAdjustment(
+            "AC3", node, OperationMode::Cooling, 24.0, 0.1, 500.0,
+            /*currentTotal=*/900.0, brackets, oss1, adjustmentMade);
+
+        expectTrue(adjustmentMade, "bracket-width converge should request final verification");
+        expectTrue(brackets.find("AC3") != brackets.end(), "bracket kept until final verification");
+        expectTrue(brackets["AC3"].finalVerificationPending, "finalVerificationPending armed");
+        // 冷房の可行端は tHigh
+        expectNear(node.current_pre_temp, 24.0005, 1e-9, "feasible endpoint adopted");
+
+        // 最終検証: 能力誤差はまだ大きいが、pending 消化で終了（拡張不能なら打ち切り）
+        adjustmentMade = false;
+        std::ostringstream oss2;
+        aircon::capacity::applyExceededCapacityAdjustment(
+            "AC3", node, OperationMode::Cooling, 24.0, 0.1, 500.0,
+            /*currentTotal=*/900.0, brackets, oss2, adjustmentMade);
+
+        // inlet≈setpoint だと推定能力0なので拡張は「可行」と判定されうるが、
+        // いずれにせよ最終検証後に無限ループへ入らないこと
+        if (brackets.find("AC3") != brackets.end()) {
+            // 拡張して継続する場合は再計算要求があり、pending は落ちている
+            expectTrue(adjustmentMade, "expanded search should request recompute");
+            expectTrue(!brackets["AC3"].finalVerificationPending,
+                       "pending cleared after final verification handling");
+            // 2回目の最終検証相当をシミュレート: 再び幅収束→pending→検証で終了させる
+            brackets["AC3"].tLow = node.current_pre_temp;
+            brackets["AC3"].tHigh = node.current_pre_temp + 5e-4;
+            brackets["AC3"].finalVerificationPending = false;
+            adjustmentMade = false;
+            std::ostringstream oss3;
+            aircon::capacity::applyExceededCapacityAdjustment(
+                "AC3", node, OperationMode::Cooling, 24.0, 0.1, 500.0, 900.0,
+                brackets, oss3, adjustmentMade);
+            expectTrue(brackets["AC3"].finalVerificationPending, "re-arm pending on width converge");
+            adjustmentMade = false;
+            // 天井まで拡張済みに見せるため tHigh を天井に固定して拡張失敗→終了
+            brackets["AC3"].tLow = 49.999;
+            brackets["AC3"].tHigh = 50.0;
+            brackets["AC3"].finalVerificationPending = true;
+            node.current_pre_temp = 50.0;
+            std::ostringstream oss4;
+            aircon::capacity::applyExceededCapacityAdjustment(
+                "AC3", node, OperationMode::Cooling, 24.0, 0.1, 500.0, 900.0,
+                brackets, oss4, adjustmentMade);
+            expectTrue(brackets.find("AC3") == brackets.end(),
+                       "give up after final verify when bracket cannot expand");
+            expectTrue(!adjustmentMade, "give-up must not keep requesting recompute");
+        } else {
+            expectTrue(!adjustmentMade || oss2.str().find("最終検証") != std::string::npos,
+                       "final verification should end or log verification");
+        }
+    }
+
+    // 最終検証で能力が上限以内なら bracket を消して再計算しない
+    {
+        VertexProperties node;
+        node.key = "AC4";
+        node.on = true;
+        node.current_pre_temp = 28.0;
+        node.aircon_control_state = AirconControlState::CapacityLimited;
+        aircon::capacity::CapacityBracketMap brackets;
+        brackets["AC4"] = aircon::capacity::CapacityBracket{24.0, 28.0, true};
+        bool adjustmentMade = false;
+        std::ostringstream oss;
+        aircon::capacity::applyExceededCapacityAdjustment(
+            "AC4", node, OperationMode::Cooling, 24.0, 0.1, 500.0,
+            /*currentTotal=*/499.0, brackets, oss, adjustmentMade);
+        expectTrue(brackets.find("AC4") == brackets.end(), "final OK erases bracket");
+        expectTrue(!adjustmentMade, "final OK should not request another recompute");
+        expectNear(node.current_pre_temp, 28.0, 1e-12, "final OK keeps verified setpoint");
     }
 
     // AirconStateProposal: ON/OFF 変化で OnOffChanged が立つ
