@@ -1078,6 +1078,88 @@ int main() {
             const double q = net.getNode("AC0").required_heat_w;
             expectTrue(std::isfinite(q) && std::abs(q) < 5.0, "no-load case: required_heat_w ≈ 0");
         }
+        // 遠隔 set: set=LDK, in/out=階間（AC↔set 直結なし）。階間→LDK の伝導で間接制御。
+        {
+            ThermalNetwork net;
+            VertexProperties out{};
+            out.key = "OUT_R";
+            out.type = "normal";
+            out.calc_t = false;
+            out.current_t = 0.0;
+            VertexProperties ldk{};
+            ldk.key = "LDK";
+            ldk.type = "normal";
+            ldk.calc_t = true;
+            ldk.current_t = 20.0;
+            VertexProperties zone{};
+            zone.key = "ZONE";
+            zone.type = "normal";
+            zone.calc_t = true;
+            zone.current_t = 20.0;
+            VertexProperties ac{};
+            ac.key = "AC_R";
+            ac.type = "aircon";
+            ac.calc_t = true;
+            ac.on = true;
+            ac.set_node = "LDK";
+            ac.in_node = "ZONE";
+            ac.current_pre_temp = 20.0;
+            ac.current_requested_pre_temp = 20.0;
+            ac.current_t = 20.0;
+            ac.current_mode = "HEATING";
+            net.addNode(ldk);
+            net.addNode(zone);
+            net.addNode(ac);
+            net.addNode(out);
+
+            EdgeProperties loss{};
+            loss.key = "loss_ldk";
+            loss.unique_id = loss.key;
+            loss.type = "conductance";
+            loss.subtype = "conduction";
+            loss.source = "LDK";
+            loss.target = "OUT_R";
+            loss.conductance = 50.0;
+            net.addEdge(loss);
+
+            EdgeProperties couple{};
+            couple.key = "zone_ldk";
+            couple.unique_id = couple.key;
+            couple.type = "conductance";
+            couple.subtype = "conduction";
+            couple.source = "ZONE";
+            couple.target = "LDK";
+            couple.conductance = 200.0;
+            net.addEdge(couple);
+
+            EdgeProperties ret{};
+            ret.key = "ret_remote";
+            ret.unique_id = ret.key;
+            ret.type = "advection";
+            ret.source = "ZONE";
+            ret.target = "AC_R";
+            ret.flow_rate = 0.2;
+            ret.is_aircon_inflow = true;
+            net.addEdge(ret);
+
+            EdgeProperties sup{};
+            sup.key = "sup_remote";
+            sup.unique_id = sup.key;
+            sup.type = "advection";
+            sup.source = "AC_R";
+            sup.target = "ZONE";
+            sup.flow_rate = 0.2;
+            net.addEdge(sup);
+
+            std::ostringstream logs;
+            ThermalSolverLinearDirect::resetDirectTSolverContext();
+            ThermalSolverLinearDirect::solveTemperaturesLinearDirect(net, makeSolveConstants(), logs);
+            const double q = net.getNode("AC_R").required_heat_w;
+            expectTrue(std::isfinite(q) && q > 100.0,
+                       "remote-set heating: required_heat_w > 0 (coil fallback)");
+            expectNear(net.getNode("LDK").current_t, 20.0, 1e-3,
+                       "remote-set heating: LDK held at setpoint");
+        }
     }
 
     if (g_failures == 0) {

@@ -130,7 +130,11 @@ result = vt.run_calc("http://127.0.0.1:8000", input_data)
 - `surfaces` の実務ガイド: `surface_usage.md`
 - スケジュール作成: `schedule_usage.md`
 
-### 空調を使う場合の注意（DUCT_CENTRAL）
+### 空調を使う場合
+
+**遠隔 set（特徴）**: `set`（制御対象室）と `in`/`out`（吸込・吹出）は分けられます。例: エアコンは階間、温度制御は LDK。階間→LDK の換気などがあれば未設置室も制御できます。詳細は `../engine/docs/aircon_control_overview.md` 冒頭。
+
+#### DUCT_CENTRAL の注意
 
 - DUCT_CENTRAL モデルでは、solver が処理熱量に応じて送風量を再評価します。
 - 目安は `Q=0 -> V=0`, `Q=Q.rtd -> V=V_inner.dsgn`（中間は線形）です。

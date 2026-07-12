@@ -1,5 +1,6 @@
 #include "core/thermal/thermal_direct_internal.h"
 #include "core/thermal/thermal_edge_physics.h"
+#include "core/thermal/thermal_moist_air.h"
 
 namespace ThermalSolverLinearDirect::detail {
 namespace {
@@ -28,6 +29,48 @@ bool edgeTouchesVertex(const Graph& graph, Edge e, Vertex v) {
     return boost::source(e, graph) == v || boost::target(e, graph) == v;
 }
 
+// set と AC が直接移流結合していないとき用: 還気→吹出の符号付きコイル処理熱量 [W]
+double coilSignedProcessedHeatW(const Graph& graph,
+                                const ThermalNetwork& network,
+                                Vertex acV,
+                                bool moistEnthalpy) {
+    const auto& ac = graph[acV];
+    if (ac.in_node.empty()) {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    const auto& keyToVertex = network.getKeyToVertex();
+    auto it = keyToVertex.find(ac.in_node);
+    if (it == keyToVertex.end()) {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+    const Vertex inV = it->second;
+
+    // Graph は directedS のため in_edges は使えない。AC↔in の双方の out_edges を見る。
+    double flowAbs = 0.0;
+    for (auto e : boost::make_iterator_range(boost::out_edges(acV, graph))) {
+        const auto& ep = graph[e];
+        if (ep.getTypeCode() != EdgeProperties::TypeCode::Advection) continue;
+        if (boost::target(e, graph) == inV) {
+            flowAbs = std::max(flowAbs, std::abs(ep.flow_rate));
+        }
+    }
+    for (auto e : boost::make_iterator_range(boost::out_edges(inV, graph))) {
+        const auto& ep = graph[e];
+        if (ep.getTypeCode() != EdgeProperties::TypeCode::Advection) continue;
+        if (boost::target(e, graph) == acV) {
+            flowAbs = std::max(flowAbs, std::abs(ep.flow_rate));
+        }
+    }
+
+    return thermal_moist_air::signedProcessedHeatW(
+        graph[inV].current_t,
+        graph[inV].current_x,
+        graph[acV].current_t,
+        graph[acV].current_x,
+        flowAbs,
+        moistEnthalpy);
+}
+
 } // namespace
 
 void postprocessAndReport(ThermalNetwork& network,
@@ -53,8 +96,10 @@ void postprocessAndReport(ThermalNetwork& network,
         }
     }
 
-    // 2パス目: 設定温度維持に必要な符号付き負荷（AC 以外の set_node 熱収支の符号反転）
-    // dual-row 解のコイル熱 ρcpV(Tsup-Tret) は、解が病的なときに符号が狂い得るため使わない。
+    // 2パス目: 設定温度維持に必要な符号付き負荷
+    // - 還気/吹出が set_node に直結: set 熱収支から AC 寄与を除いた符号反転（正本）
+    // - set と AC が非直結（例: set=LDK, in/out=階間）: dual-row 後の set 収支は ≈0 になり
+    //   常に Qreq≈0 となるため、コイル処理熱量で代替する
     for (Vertex acV : topo.airconVertices) {
         const size_t i = static_cast<size_t>(acV);
         if (!graph[i].on) continue;
@@ -64,13 +109,21 @@ void postprocessAndReport(ThermalNetwork& network,
 
         const size_t setIdx = static_cast<size_t>(setV);
         double qAcIntoSet = 0.0;
+        bool hasDirectAcSetEdge = false;
         for (auto e : topo.incidentEdges[setIdx]) {
             if (!edgeTouchesVertex(graph, e, acV)) continue;
+            hasDirectAcSetEdge = true;
             qAcIntoSet += edgeHeatIntoVertex(graph, e, setV);
         }
-        const double qOther = heatBalance[setIdx] - qAcIntoSet;
-        // qOther>0 = AC以外が室を加熱 → 設定維持には除熱が必要 → Qrequired<0
-        graph[i].required_heat_w = -qOther;
+
+        if (hasDirectAcSetEdge) {
+            const double qOther = heatBalance[setIdx] - qAcIntoSet;
+            // qOther>0 = AC以外が室を加熱 → 設定維持には除熱が必要 → Qrequired<0
+            graph[i].required_heat_w = -qOther;
+        } else {
+            graph[i].required_heat_w = coilSignedProcessedHeatW(
+                graph, network, acV, topo.moist.enabled);
+        }
 
         // RMSE 用: 固定温度行の残差は空調側へ移す（必要負荷とは別）
         heatBalance[i] = heatBalance[setIdx];

@@ -40,7 +40,7 @@ engine 実装の厳密仕様は [`../engine/docs/README.md`](../engine/docs/READ
 | HTTP API 契約 | [`../engine/docs/api_reference.md`](../engine/docs/api_reference.md) |
 | builder 入力 JSON（厳密） | [`../engine/docs/builder_json.md`](../engine/docs/builder_json.md) |
 | 計算フロー全体 | [`../engine/docs/simulation_overview.md`](../engine/docs/simulation_overview.md) |
-| 空調制御 | [`../engine/docs/aircon_control_overview.md`](../engine/docs/aircon_control_overview.md) |
+| 空調制御（遠隔 set＝未設置室の温度制御を含む） | [`../engine/docs/aircon_control_overview.md`](../engine/docs/aircon_control_overview.md) |
 | 湿気 Phase1 | [`../engine/docs/moisture_network_phase1.md`](../engine/docs/moisture_network_phase1.md) |
 
 ## 関連入口

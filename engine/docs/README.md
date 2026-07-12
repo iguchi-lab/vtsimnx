@@ -35,9 +35,11 @@ Python クライアント利用者向けガイドは [`../../docs/README.md`](..
 
 ## 空調
 
+特徴: **エアコンの吸込・吹出空間と、温度制御対象（`set`）を分離できる**（遠隔 set）。階間空調などで LDK など未設置室を制御する構成が中核機能です。詳細は [`aircon_control_overview.md`](aircon_control_overview.md) 冒頭。
+
 | 文書 | 役割 |
 |---|---|
-| [`aircon_control_overview.md`](aircon_control_overview.md) | solver 側制御ロジック |
+| [`aircon_control_overview.md`](aircon_control_overview.md) | solver 側制御ロジック（遠隔 set 含む） |
 | [`acmodel_overview.md`](acmodel_overview.md) | COP / 電力モデル |
 | [`aircon_spec_reference.md`](aircon_spec_reference.md) | `ac_spec` キー一覧 |
 | [`duct_central_model_validation.md`](duct_central_model_validation.md) | DUCT_CENTRAL 検証観点 |

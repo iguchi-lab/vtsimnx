@@ -80,6 +80,8 @@ flowchart TD
 
 ## 4. 外側ループ（空調制御ループ）
 
+空調の特徴として、`set_node`（制御対象）と吸込・吹出空間を分離した**遠隔 set**（エアコン未設置室の温度制御）をサポートします。詳細は [`aircon_control_overview.md`](aircon_control_overview.md) 冒頭。
+
 上限: `effectiveMaxAirconControlIterations`（未指定時は連成上限と同系のフォールバック）。
 
 ```mermaid
@@ -201,6 +203,9 @@ flowchart LR
 
 ON 中かつ `set_node` が実効設定近傍にあるときだけ `required_heat_w` を使います。  
 室温が大きく外れている解では温度バンドへフォールバックし、ON/OFF 振動を防ぎます。能力探索が最終検証後も上限を満たせない場合は Accept せず例外終了します。
+
+`required_heat_w` は通常、set 熱収支から空調寄与を除いて求めます。  
+`set ≠ in/out`（遠隔 set）では dual-row 後に set 収支が ≈0 となるため、コイル処理熱量へフォールバックします。
 
 ---
 

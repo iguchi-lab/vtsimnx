@@ -18,6 +18,34 @@
 
 ---
 
+### 特徴: エアコン未設置空間の温度制御（遠隔 set）
+
+VTSimNX の空調制御の大きな特徴は、**エアコンの吸込・吹出がある空間と、温度制御の対象空間を分離できる**ことです。
+
+- `set`（`set_node`）: 設定温度で拘束・制御する室（例: LDK）
+- `in` / `out`（`in_node` / 吹出先）: 実機の還気・吹出がある空間（例: 階間）
+
+エアコン本体は階間などに置き、階間→LDK などの**別換気・伝導**で空気や熱が伝われば、LDK 側の温度を制御できます。  
+床下空調・階間空調・ダクト経由の間接制御など、実建物でよくある構成をそのままモデル化するための設計です。
+
+```mermaid
+flowchart LR
+    subgraph remote["遠隔 set（特徴的な構成）"]
+        IN2["in/out = 階間"] --> AC2["aircon"]
+        AC2 --> IN2
+        IN2 -->|"別換気・伝導"| SET2["set = LDK<br/>温度制御対象"]
+    end
+    subgraph local["通常の再循環"]
+        R["in/out/set = 同一室"] --> AC1["aircon"]
+        AC1 --> R
+    end
+```
+
+入力例（builder）: `set: "LDK"`, `in`/`out: "階間"`。省略時の `in`/`out` は `set` と同じ（再循環）です。  
+負荷推定（`required_heat_w`）が遠隔 set でも破綻しないことは §3 を参照してください。
+
+---
+
 ### 1. エアコンノードの役割
 
 builder で `aircon` を与えると、solver 形式では `type="aircon"` のノードと、送風を表す換気ブランチが追加されます。
@@ -25,8 +53,8 @@ builder で `aircon` を与えると、solver 形式では `type="aircon"` の�
 主な項目:
 
 - `key`: エアコンノード名
-- `in_node`: 還気側（室内側）
-- `set_node`: 設定温度をかける対象室
+- `in_node`: 還気側（実機の吸込空間）
+- `set_node`: **設定温度をかける対象室**（吸込空間と異なってよい）
 - `outside_node`: 外気条件参照先
 - `mode`: `OFF` / `HEATING` / `COOLING` / `AUTO` の時系列
 - `pre_temp`: 設定温度の時系列
@@ -37,7 +65,9 @@ builder で `aircon` を与えると、solver 形式では `type="aircon"` の�
 ```mermaid
 flowchart LR
     IN["in_node<br/>還気"] --> AC["aircon ノード"]
-    AC --> SET["set_node<br/>室温拘束対象"]
+    AC --> BLOW["吹出先<br/>（多くは in と同空間）"]
+    SET["set_node<br/>室温拘束・制御対象"]
+    BLOW -.->|"直結または別換気"| SET
     OUT["outside_node"] -.-> AC
     PRE["pre_temp スケジュール"] --> REQ["requested"]
     REQ --> EFF["effective<br/>current_pre_temp"]
@@ -102,13 +132,18 @@ flowchart TD
 
 符号付き必要負荷（暖房正・冷房負）は、fixed-row 解の後に **設定温度を維持するために空調が担うべき負荷**です。
 
+還気・吹出が `set_node` に直結しているとき（通常の再循環）:
+
 ```text
 qOther = set_node 熱収支のうち空調ブランチ以外
 required_heat_w = -qOther
 ```
 
-コイルの `ρ·cp·|V|·(Tsupply−Treturn)` は dual-row 解が健全なときはこれと一致しますが、  
-吹出温度が病的なときは符号が狂い得るため、ON/OFF 判定の正本には使いません。
+`set_node` と吸込・吹出が別室のとき（**遠隔 set**。冒頭の特徴節を参照。例: set=LDK、in/out=階間）は、
+dual-row 後の `set_node` 熱収支が ≈0 になり上記式は常に `Qreq≈0` になるため、
+還気→吹出のコイル処理熱量 `ρ·cp·|V|·(Tsupply−Treturn)`（湿り時はエンタルピー差）で代替します。
+
+直結ケースではコイル熱を ON/OFF 正本に使いません（吹出温度が病的なときに符号が狂い得るため）。
 固定後の室温は常に設定付近なので、温度比較だけでは「暖房不要なのに ON 維持」を検出できません。
 
 ```mermaid

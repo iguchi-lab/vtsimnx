@@ -434,17 +434,20 @@ RC/CTFの詳細は以下:
 
 `aircon` を書くと、builder が aircon ノードと換気ブランチ（2本）を生成して `nodes/ventilation_branches` に追加します。
 
+**特徴（遠隔 set）**: `set` と `in`/`out` は同一空間である必要はありません。  
+エアコンが設置されていない室（例: LDK）を `set` にし、実機の吸込・吹出を別空間（例: 階間）に置く構成をサポートします。階間→LDK などの別換気・熱結合があれば、遠隔空間の温度を制御できます。詳細は [`aircon_control_overview.md`](aircon_control_overview.md) 冒頭を参照。
+
 代表フィールド（概略）:
 
 - `key`（必須）: airconノード名として使われる
-- `set`（必須）: 制御対象ノード
+- `set`（必須）: **温度制御の対象ノード**（設定温度で拘束する室）
 - `outside`（必須）: 外気ノード
 - `pre_temp`（必須）: 目標温度（スカラー/配列）
 - `model`（任意）: エアコンモデル種別。`CRIEPI` / `RAC` / `DUCT_CENTRAL` / `LATENT_EVALUATE`。**未指定時は RAC**
 - `mode`（必須）: 運転モード（時系列）
 - `ac_spec`（任意）: 能力・電力・風量などの仕様JSON。モデル別の形は `docs/aircon_spec_reference.md` を参照
 - `vol`（任意）: 風量（未指定時は既定値）
-- `in/out`（任意）: 吸込/吹出ノード（省略時は `set`）
+- `in`/`out`（任意）: 吸込/吹出ノード（省略時は `set`）。`set` と異なってよい（遠隔 set）
 
 ---
 
