@@ -10,19 +10,26 @@
 
 namespace simulation {
 
-// 方針B: 除湿潜熱は熱ネットワークへフィードバックしない。
+// 方針B既定: Disabled。SimulationConstants::latentCouplingMode と対応。
 enum class LatentCouplingMode {
-    Disabled,
-    FeedbackToThermal,
+    Disabled = 0,
+    FeedbackToThermal = 1,
 };
 
-// Disabled は 0、FeedbackToThermal は未実装のため logic_error。
-inline double resolveLatentAppliedThisIter(LatentCouplingMode mode) {
+inline LatentCouplingMode latentCouplingModeFromConstants(const SimulationConstants& c) {
+    return (c.latentCouplingMode == static_cast<int>(LatentCouplingMode::FeedbackToThermal))
+               ? LatentCouplingMode::FeedbackToThermal
+               : LatentCouplingMode::Disabled;
+}
+
+// Disabled は 0。FeedbackToThermal は適用量の集計用（実装は apply 側）。
+inline double resolveLatentAppliedThisIter(LatentCouplingMode mode,
+                                          double appliedW = 0.0) {
     switch (mode) {
     case LatentCouplingMode::Disabled:
         return 0.0;
     case LatentCouplingMode::FeedbackToThermal:
-        throw std::logic_error("latent feedback is not implemented");
+        return appliedW;
     }
     throw std::logic_error("unknown LatentCouplingMode");
 }
@@ -32,7 +39,9 @@ void runInnerCoupling(InnerCouplingContext& ctx,
                       std::size_t outerIteration,
                       const detail::TimestepInitialState& initial,
                       CoupledStepData& step,
-                      int& totalIterations);
+                      int& totalIterations,
+                      detail::SeparatedHeatSources& heatSources,
+                      bool forceMinTwoCouplingIters);
 
 // moistureCouplingEnabled=false 時: 外側ループごとに1回だけ湿気を更新する。
 void runDecoupledHumidityStep(InnerCouplingContext& ctx,

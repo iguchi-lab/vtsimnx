@@ -17,12 +17,16 @@ PressureSolver::Impl::StageBSolveResult PressureSolver::Impl::solveStageBFull(
     std::vector<double>& pressuresFBB = result.setup.pressures;
 
     for (const auto& nodeName : nodeNamesFBB) {
+        auto it = network_.getKeyToVertex().find(nodeName);
+        if (it == network_.getKeyToVertex().end()) {
+            continue;
+        }
         ceres::CostFunction* costFunction = PressureConstraints::createFlowBalanceConstraint(
-            nodeName,
+            it->second,
             g,
-            network_.getKeyToVertex(),
             result.setup.vertexToParamIndexVec,
             partition.incidentEdgesByVertex,
+            network_.densityCache(),
             pressuresFBB.size(),
             logFile_
         );

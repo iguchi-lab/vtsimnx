@@ -1,13 +1,14 @@
 #include "core/humidity/humidity_coupling.h"
 
+#include "core/thermal/thermal_linear_utils.h"
+
 #include <cmath>
 #include <limits>
+#include <memory>
 #include <unordered_map>
 #include <vector>
 
 #include <boost/range/iterator_range.hpp>
-#include <Eigen/Sparse>
-#include <Eigen/SparseLU>
 
 namespace core::humidity {
 
@@ -16,7 +17,40 @@ inline size_t idxOf(Vertex v) { return static_cast<size_t>(v); }
 
 // 絶対湿度の許容下限。これ未満は非物理として不合格、[-eps,0) は 0 に丸める。
 constexpr double kHumidityNegEpsilon = 1e-12;
+
+using thermal_linear_utils::fnv1a64_update;
+using thermal_linear_utils::hashDoubleBits;
+
+void failSolve(SolveStats& stats) {
+    stats.converged = false;
+    stats.iterations = 0;
+    stats.finalRelativeResidual = std::numeric_limits<double>::infinity();
+}
+
+std::uint64_t hashRhsVector(const Eigen::VectorXd& b) {
+    std::uint64_t h = 0;
+    for (Eigen::Index i = 0; i < b.size(); ++i) {
+        h = hashDoubleBits(h, b[i]);
+    }
+    return h;
+}
 } // namespace
+
+void HumiditySolverContext::invalidate() {
+    updateVertices.clear();
+    rowByVertex.clear();
+    matrix.resize(0, 0);
+    solver.reset();
+    rhs.resize(0);
+    solution.resize(0);
+    patternSignature = 0;
+    coefficientSignature = 0;
+    rhsSignature = 0;
+    analyzed = false;
+    factorized = false;
+    lastRelativeResidual = 0.0;
+    // 累積メトリクスは診断用に保持する
+}
 
 void initializeHumidityState(const Graph& tGraph,
                              std::vector<double>& xOld,
@@ -35,39 +69,40 @@ SolveStats solveHumidityImplicitStep(const Graph& tGraph,
                                      const HumidityNetworkTerms& terms,
                                      double dt,
                                      double tolerance,
-                                     std::vector<double>& xNew,
-                                     const std::vector<double>& xOld) {
+                                     HumiditySolverContext& ctx) {
     constexpr double rho = PhysicalConstants::DENSITY_DRY_AIR; // [kg/m3]
     const double tol = (tolerance > 0.0) ? tolerance : 1e-9;
     SolveStats stats{};
     const int n = static_cast<int>(terms.updateVertices.size());
     if (n <= 0) return stats;
 
+    if (ctx.xN.size() < static_cast<size_t>(boost::num_vertices(tGraph)) ||
+        ctx.xIterate.size() < static_cast<size_t>(boost::num_vertices(tGraph))) {
+        failSolve(stats);
+        return stats;
+    }
+
+    // --- row map / signatures -------------------------------------------------
     std::unordered_map<Vertex, int> rowByVertex;
     rowByVertex.reserve(static_cast<size_t>(n) * 2);
     for (int r = 0; r < n; ++r) {
         rowByVertex[terms.updateVertices[static_cast<size_t>(r)]] = r;
     }
 
-    using Triplet = Eigen::Triplet<double>;
-    std::vector<Triplet> trips;
-    trips.reserve(static_cast<size_t>(n) * 8);
-    Eigen::VectorXd b(n);
-    b.setZero();
-
-    auto addCoeff = [&](int row, Vertex colV, double coeff, double& rhsKnown) {
-        if (std::abs(coeff) <= 0.0) return;
-        auto itRow = rowByVertex.find(colV);
-        if (itRow != rowByVertex.end()) {
-            trips.emplace_back(row, itRow->second, coeff);
-        } else {
-            rhsKnown -= coeff * xOld[idxOf(colV)];
-        }
-    };
+    std::uint64_t patternSig = 0;
+    std::uint64_t coeffSig = 0;
+    patternSig = fnv1a64_update(patternSig, static_cast<std::uint64_t>(n));
+    coeffSig = hashDoubleBits(coeffSig, dt);
 
     for (int r = 0; r < n; ++r) {
         const Vertex v = terms.updateVertices[static_cast<size_t>(r)];
         const size_t i = idxOf(v);
+        patternSig = fnv1a64_update(patternSig, static_cast<std::uint64_t>(v));
+        // 対角は常に存在
+        patternSig = fnv1a64_update(
+            patternSig,
+            (static_cast<std::uint64_t>(r) << 32) ^ static_cast<std::uint64_t>(r));
+
         const double V = tGraph[v].v;
         const double cap = (tGraph[v].moisture_capacity > 0.0)
                                ? tGraph[v].moisture_capacity
@@ -75,98 +110,242 @@ SolveStats solveHumidityImplicitStep(const Graph& tGraph,
         const auto itG = terms.genByVertex.find(v);
         const double g = (itG == terms.genByVertex.end()) ? 0.0 : itG->second;
 
-        double rhs = 0.0;
-        if (cap > 0.0) {
-            // (1 + dt*(out+sum(k))/cap) * x_i
-            // - dt*(md/cap)*x_src - dt*(k/cap)*x_nb = x_old + dt*g/cap
-            double diag = 1.0 + dt * terms.outSum[i] / cap;
-            rhs = xOld[i] + dt * (g / cap);
+        coeffSig = hashDoubleBits(coeffSig, cap);
+        coeffSig = hashDoubleBits(coeffSig, terms.outSum[i]);
+        coeffSig = fnv1a64_update(coeffSig, (cap > 0.0) ? 1u : 0u);
 
-            for (const auto& in : terms.inflow[i]) {
-                const Vertex sv = in.first;
-                const double md = in.second;
-                addCoeff(r, sv, -dt * (md / cap), rhs);
+        for (const auto& in : terms.inflow[i]) {
+            const Vertex sv = in.first;
+            const double md = in.second;
+            coeffSig = fnv1a64_update(coeffSig, static_cast<std::uint64_t>(sv));
+            coeffSig = hashDoubleBits(coeffSig, md);
+            auto itCol = rowByVertex.find(sv);
+            if (itCol != rowByVertex.end()) {
+                patternSig = fnv1a64_update(
+                    patternSig,
+                    (static_cast<std::uint64_t>(r) << 32) ^
+                        static_cast<std::uint64_t>(itCol->second));
             }
-            for (const auto& lk : terms.moistureLinks[i]) {
-                const Vertex ov = lk.first;
-                const double k = lk.second;
-                diag += dt * (k / cap);
-                addCoeff(r, ov, -dt * (k / cap), rhs);
+        }
+        for (const auto& lk : terms.moistureLinks[i]) {
+            const Vertex ov = lk.first;
+            const double k = lk.second;
+            coeffSig = fnv1a64_update(coeffSig, static_cast<std::uint64_t>(ov));
+            coeffSig = hashDoubleBits(coeffSig, k);
+            auto itCol = rowByVertex.find(ov);
+            if (itCol != rowByVertex.end()) {
+                patternSig = fnv1a64_update(
+                    patternSig,
+                    (static_cast<std::uint64_t>(r) << 32) ^
+                        static_cast<std::uint64_t>(itCol->second));
             }
-            trips.emplace_back(r, r, diag);
-            b[r] = rhs;
-        } else {
-            // 容量なしノードの定常収支:
-            // (outSum + Σk) x_i - Σ(m_in x_src) - Σ(k x_neighbor) = generation
+        }
+
+        if (!(cap > 0.0)) {
+            // ゼロ容量の identity 保持パスは g の有無で行列係数が変わる
             const bool hasFlow = (terms.outSum[i] > 0.0) || !terms.inflow[i].empty();
             const bool hasLinks = !terms.moistureLinks[i].empty();
-            if (!hasFlow && !hasLinks && g == 0.0) {
-                // 移流・湿気リンク・発湿がすべてなければ現状態を保持
-                trips.emplace_back(r, r, 1.0);
-                b[r] = xOld[i];
+            const bool holdIdentity = !hasFlow && !hasLinks && g == 0.0;
+            coeffSig = fnv1a64_update(coeffSig, holdIdentity ? 1u : 0u);
+            coeffSig = hashDoubleBits(coeffSig, g);
+        }
+    }
+
+    const bool patternSame =
+        ctx.analyzed &&
+        ctx.solver &&
+        ctx.patternSignature == patternSig &&
+        static_cast<int>(ctx.updateVertices.size()) == n;
+    const bool coeffsSame =
+        patternSame &&
+        ctx.factorized &&
+        ctx.coefficientSignature == coeffSig;
+
+    using Triplet = Eigen::Triplet<double>;
+    auto buildMatrixAndRhs = [&](std::vector<Triplet>* tripsOut, Eigen::VectorXd& bOut) {
+        if (tripsOut) {
+            tripsOut->clear();
+            tripsOut->reserve(static_cast<size_t>(n) * 8);
+        }
+        bOut.resize(n);
+        bOut.setZero();
+
+        auto addCoeff = [&](int row, Vertex colV, double coeff, double& rhsKnown) {
+            if (std::abs(coeff) <= 0.0) return;
+            auto itRow = rowByVertex.find(colV);
+            if (itRow != rowByVertex.end()) {
+                if (tripsOut) tripsOut->emplace_back(row, itRow->second, coeff);
             } else {
-                // 発湿のみ（流出なし）も diag=0,b=g の特異系として未収束へ回す
-                double diag = terms.outSum[i];
-                rhs = g;
+                // 境界・既知ノードは連成反復値 x_k
+                rhsKnown -= coeff * ctx.xIterate[idxOf(colV)];
+            }
+        };
+
+        for (int r = 0; r < n; ++r) {
+            const Vertex v = terms.updateVertices[static_cast<size_t>(r)];
+            const size_t i = idxOf(v);
+            const double V = tGraph[v].v;
+            const double cap = (tGraph[v].moisture_capacity > 0.0)
+                                   ? tGraph[v].moisture_capacity
+                                   : (rho * V);
+            const auto itG = terms.genByVertex.find(v);
+            const double g = (itG == terms.genByVertex.end()) ? 0.0 : itG->second;
+
+            double rhs = 0.0;
+            if (cap > 0.0) {
+                // 時間離散化 RHS は x_n（タイムステップ初期値）を使う
+                double diag = 1.0 + dt * terms.outSum[i] / cap;
+                rhs = ctx.xN[i] + dt * (g / cap);
+
                 for (const auto& in : terms.inflow[i]) {
-                    addCoeff(r, in.first, -in.second, rhs);
+                    const Vertex sv = in.first;
+                    const double md = in.second;
+                    addCoeff(r, sv, -dt * (md / cap), rhs);
                 }
                 for (const auto& lk : terms.moistureLinks[i]) {
+                    const Vertex ov = lk.first;
                     const double k = lk.second;
-                    diag += k;
-                    addCoeff(r, lk.first, -k, rhs);
+                    diag += dt * (k / cap);
+                    addCoeff(r, ov, -dt * (k / cap), rhs);
                 }
-                // diag==0 は特異（流入のみ・流出なし・発湿のみ等）。解不能として失敗側へ回すため 0 のまま置く。
-                trips.emplace_back(r, r, diag);
-                b[r] = rhs;
+                if (tripsOut) tripsOut->emplace_back(r, r, diag);
+                bOut[r] = rhs;
+            } else {
+                const bool hasFlow = (terms.outSum[i] > 0.0) || !terms.inflow[i].empty();
+                const bool hasLinks = !terms.moistureLinks[i].empty();
+                if (!hasFlow && !hasLinks && g == 0.0) {
+                    if (tripsOut) tripsOut->emplace_back(r, r, 1.0);
+                    // 現状態保持は連成反復値
+                    bOut[r] = ctx.xIterate[i];
+                } else {
+                    double diag = terms.outSum[i];
+                    rhs = g;
+                    for (const auto& in : terms.inflow[i]) {
+                        addCoeff(r, in.first, -in.second, rhs);
+                    }
+                    for (const auto& lk : terms.moistureLinks[i]) {
+                        const double k = lk.second;
+                        diag += k;
+                        addCoeff(r, lk.first, -k, rhs);
+                    }
+                    if (tripsOut) tripsOut->emplace_back(r, r, diag);
+                    bOut[r] = rhs;
+                }
             }
         }
-    }
+    };
 
-    Eigen::SparseMatrix<double> A(n, n);
-    A.setFromTriplets(trips.begin(), trips.end());
+    auto applySolutionToXSolved = [&](const Eigen::VectorXd& x) -> bool {
+        if (ctx.xSolved.size() < static_cast<size_t>(boost::num_vertices(tGraph))) {
+            ctx.xSolved.resize(static_cast<size_t>(boost::num_vertices(tGraph)));
+        }
+        for (int r = 0; r < n; ++r) {
+            const double xi = x[r];
+            if (!std::isfinite(xi) || xi < -kHumidityNegEpsilon) {
+                return false;
+            }
+            const Vertex v = terms.updateVertices[static_cast<size_t>(r)];
+            ctx.xSolved[idxOf(v)] = (xi < 0.0) ? 0.0 : xi;
+        }
+        return true;
+    };
 
-    Eigen::SparseLU<Eigen::SparseMatrix<double>> solver;
-    solver.analyzePattern(A);
-    solver.factorize(A);
-    if (solver.info() != Eigen::Success) {
-        stats.converged = false;
-        stats.iterations = 0;
-        stats.finalRelativeResidual = std::numeric_limits<double>::infinity();
-        return stats;
-    }
-
-    Eigen::VectorXd x = solver.solve(b);
-    stats.iterations = 1;
-    stats.converged = (solver.info() == Eigen::Success);
-
-    if (!stats.converged || x.size() != n) {
-        stats.converged = false;
-        stats.finalRelativeResidual = std::numeric_limits<double>::infinity();
-        return stats;
-    }
-
-    // 直接法でも診断値として相対残差 ||Ax-b||/||b|| を保持
-    const Eigen::VectorXd residual = A * x - b;
-    const double bNorm = b.norm();
-    const double relResidual = (bNorm > 0.0) ? (residual.norm() / bNorm) : residual.norm();
-    stats.finalRelativeResidual = relResidual;
-    if (!(relResidual <= tol) || !std::isfinite(relResidual)) {
-        stats.converged = false;
-        return stats;
-    }
-
-    for (int r = 0; r < n; ++r) {
-        const double xi = x[r];
-        if (!std::isfinite(xi) || xi < -kHumidityNegEpsilon) {
+    auto finalizeResidual = [&](const Eigen::VectorXd& x) -> bool {
+        const Eigen::VectorXd residual = ctx.matrix * x - ctx.rhs;
+        const double bNorm = ctx.rhs.norm();
+        const double relResidual = (bNorm > 0.0) ? (residual.norm() / bNorm) : residual.norm();
+        stats.finalRelativeResidual = relResidual;
+        ctx.lastRelativeResidual = relResidual;
+        if (!(relResidual <= tol) || !std::isfinite(relResidual)) {
             stats.converged = false;
-            stats.finalRelativeResidual = std::numeric_limits<double>::infinity();
+            return false;
+        }
+        return true;
+    };
+
+    // --- Level 3: coeffs unchanged → RHS only (or solution reuse) ------------
+    if (coeffsSame) {
+        buildMatrixAndRhs(nullptr, ctx.rhs);
+        const std::uint64_t rhsSig = hashRhsVector(ctx.rhs);
+        if (ctx.rhsSignature == rhsSig &&
+            ctx.solution.size() == n) {
+            ++ctx.solutionReuse;
+            stats.solutionReuse = 1;
+            stats.iterations = 1;
+            stats.converged = true;
+            stats.finalRelativeResidual = ctx.lastRelativeResidual;
+            if (!applySolutionToXSolved(ctx.solution)) {
+                failSolve(stats);
+                ctx.factorized = false;
+                return stats;
+            }
             return stats;
         }
-        const Vertex v = terms.updateVertices[static_cast<size_t>(r)];
-        // 微小な負値のみ 0 に丸める
-        xNew[idxOf(v)] = (xi < 0.0) ? 0.0 : xi;
+
+        ++ctx.rhsOnlySolves;
+        stats.rhsOnlySolves = 1;
+        ctx.solution = ctx.solver->solve(ctx.rhs);
+        stats.iterations = 1;
+        stats.converged = (ctx.solver->info() == Eigen::Success);
+        if (!stats.converged || ctx.solution.size() != n) {
+            failSolve(stats);
+            return stats;
+        }
+        if (!finalizeResidual(ctx.solution)) return stats;
+        if (!applySolutionToXSolved(ctx.solution)) {
+            failSolve(stats);
+            return stats;
+        }
+        ctx.rhsSignature = rhsSig;
+        return stats;
     }
+
+    // --- Rebuild matrix (pattern and/or coefficients changed) ----------------
+    std::vector<Triplet> trips;
+    buildMatrixAndRhs(&trips, ctx.rhs);
+
+    ctx.matrix.resize(n, n);
+    ctx.matrix.setFromTriplets(trips.begin(), trips.end());
+    ctx.matrix.makeCompressed();
+
+    ctx.updateVertices = terms.updateVertices;
+    ctx.rowByVertex = std::move(rowByVertex);
+    ctx.patternSignature = patternSig;
+    ctx.coefficientSignature = coeffSig;
+    ctx.rhsSignature = 0; // invalidate until successful solve
+
+    // 行列を作り直したら SparseLU も新規に analyze（Eigen の symbolic 再利用制約を避ける）
+    // NOTE: この Eigen 版では m_isInitialized は factorize 後に立つため、analyze 直後に info() を呼ばない。
+    ctx.solver = std::make_unique<Eigen::SparseLU<Eigen::SparseMatrix<double>>>();
+    ctx.solver->analyzePattern(ctx.matrix);
+    ++ctx.patternAnalyzes;
+    stats.patternAnalyzes = 1;
+
+    ctx.solver->factorize(ctx.matrix);
+    if (ctx.solver->info() != Eigen::Success) {
+        ctx.analyzed = false;
+        ctx.factorized = false;
+        failSolve(stats);
+        return stats;
+    }
+    ctx.analyzed = true;
+    ctx.factorized = true;
+    ++ctx.factorizes;
+    stats.factorizes = 1;
+
+    ctx.solution = ctx.solver->solve(ctx.rhs);
+    stats.iterations = 1;
+    stats.converged = (ctx.solver->info() == Eigen::Success);
+    if (!stats.converged || ctx.solution.size() != n) {
+        failSolve(stats);
+        return stats;
+    }
+    if (!finalizeResidual(ctx.solution)) return stats;
+    if (!applySolutionToXSolved(ctx.solution)) {
+        failSolve(stats);
+        return stats;
+    }
+    ctx.rhsSignature = hashRhsVector(ctx.rhs);
     return stats;
 }
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "simulation_metrics.h"
 #include "vtsim_solver.h"
 #include "vtsimnx_solver_timing.h"
 
@@ -21,6 +22,5 @@ void runSimulation(VentilationNetwork& ventNetwork,
                    TimestepResult& timestepResultOut,
                    std::ostream& logs,
                    TimingList& timings,
-                   const std::string& meta);
-
-
+                   const std::string& meta,
+                   simulation::TimestepSolveMetrics* metrics = nullptr);

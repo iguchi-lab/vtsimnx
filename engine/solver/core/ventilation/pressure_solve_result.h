@@ -14,8 +14,11 @@ struct PressureSolveResult {
     FlowBalanceMap balances;
     bool accepted = false;
     ventilation::BalanceMetrics metrics{};
-    // "primary" / "fallback_warmstart" / ""（未収束など）
+    // "primary" / "fallback_warmstart" / "fixed_pressure" / ""（未収束など）
     std::string method;
+    // 計測用（Ceres の成功ステップ合計、フォールバック経路を使ったか）
+    int ceresIterations = 0;
+    bool usedFallback = false;
 
     using TupleType = std::tuple<PressureMap, FlowRateMap, FlowBalanceMap>;
 
@@ -37,7 +40,9 @@ inline PressureSolveResult makePressureSolveResult(
         FlowBalanceMap balances,
         bool accepted = false,
         ventilation::BalanceMetrics metrics = {},
-        std::string method = {}) {
+        std::string method = {},
+        int ceresIterations = 0,
+        bool usedFallback = false) {
     PressureSolveResult r;
     r.pressures = std::move(pressures);
     r.flows = std::move(flows);
@@ -45,5 +50,7 @@ inline PressureSolveResult makePressureSolveResult(
     r.accepted = accepted;
     r.metrics = metrics;
     r.method = std::move(method);
+    r.ceresIterations = ceresIterations;
+    r.usedFallback = usedFallback;
     return r;
 }

@@ -12,8 +12,23 @@
 #include <sstream>
 #include <algorithm>
 #include <cstdint>
+#include <functional>
 
 #include <boost/graph/adjacency_list.hpp>
+#include <boost/range/iterator_range.hpp>
+
+VentilationNetwork::VentilationNetwork() = default;
+VentilationNetwork::~VentilationNetwork() = default;
+VentilationNetwork::VentilationNetwork(VentilationNetwork&&) noexcept = default;
+VentilationNetwork& VentilationNetwork::operator=(VentilationNetwork&&) noexcept = default;
+
+namespace {
+
+inline void hashCombine(std::uint64_t& seed, std::uint64_t v) {
+    seed ^= v + 0x9e3779b97f4a7c15ULL + (seed << 6) + (seed >> 2);
+}
+
+} // namespace
 
 // ノードを追加
 Vertex VentilationNetwork::addNode(const VertexProperties& node) {
@@ -72,6 +87,48 @@ void VentilationNetwork::invalidateCaches() {
     flowRateEdgesOrdered.clear();
     flowRateKeysOrdered.clear();
     invalidateSupernodeCache();
+    invalidatePressureSolverContext();
+}
+
+const std::vector<double>* VentilationNetwork::densityCache() const {
+    if (densityByVertex_.empty()) {
+        return nullptr;
+    }
+    return &densityByVertex_;
+}
+
+void VentilationNetwork::refreshDensityCache() {
+    const size_t n = static_cast<size_t>(boost::num_vertices(graph));
+    densityByVertex_.resize(n);
+    for (size_t i = 0; i < n; ++i) {
+        densityByVertex_[i] = calculateDensity(graph[static_cast<Vertex>(i)].current_t);
+    }
+}
+
+std::uint64_t VentilationNetwork::pressureStructureSignature() const {
+    std::uint64_t h = 0;
+    hashCombine(h, static_cast<std::uint64_t>(boost::num_vertices(graph)));
+    hashCombine(h, static_cast<std::uint64_t>(boost::num_edges(graph)));
+
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        hashCombine(h, graph[v].calc_p ? 1ULL : 0ULL);
+    }
+
+    for (auto e : boost::make_iterator_range(boost::edges(graph))) {
+        const auto& ep = graph[e];
+        hashCombine(h, ep.current_enabled ? 1ULL : 0ULL);
+        hashCombine(h, static_cast<std::uint64_t>(std::hash<std::string>{}(ep.type)));
+        hashCombine(h, static_cast<std::uint64_t>(boost::source(e, graph)));
+        hashCombine(h, static_cast<std::uint64_t>(boost::target(e, graph)));
+    }
+    return h;
+}
+
+void VentilationNetwork::invalidatePressureSolverContext() {
+    pressureStructureValid_ = false;
+    pressureStructureSig_ = 0;
+    densityByVertex_.clear();
+    pressureSolver_.reset();
 }
 
 // データから換気回路網を構築
@@ -177,8 +234,14 @@ void VentilationNetwork::syncTemperaturesFromThermalNetwork(const ThermalNetwork
 // 圧力計算
 PressureSolveResult VentilationNetwork::solvePressureDetailed(const SimulationConstants& constants,
                                                               std::ostream& logs) {
-    PressureSolver solver(*this, logs);
-    return solver.solveDetailed(constants);
+    refreshDensityCache();
+    const auto sig = pressureStructureSignature();
+    if (!pressureSolver_ || sig != pressureStructureSig_) {
+        pressureSolver_ = std::make_unique<PressureSolver>(*this, logs);
+        pressureStructureSig_ = sig;
+        pressureStructureValid_ = true;
+    }
+    return pressureSolver_->solveDetailed(constants);
 }
 
 std::tuple<PressureMap, std::map<std::pair<std::string, std::string>, double>, FlowBalanceMap>

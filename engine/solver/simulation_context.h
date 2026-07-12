@@ -1,5 +1,6 @@
 #pragma once
 
+#include "simulation_metrics.h"
 #include "vtsim_solver.h"
 #include "vtsimnx_solver_timing.h"
 
@@ -26,6 +27,7 @@ struct Context {
     std::ostream& logs;
     TimingList& timings;
     std::string_view meta;
+    TimestepSolveMetrics* metrics = nullptr;
 };
 
 struct InnerCouplingContext {
@@ -36,6 +38,7 @@ struct InnerCouplingContext {
     std::ostream& logs;
     TimingList& timings;
     std::string_view meta;
+    TimestepSolveMetrics* metrics = nullptr;
 };
 
 struct AirconIterationContext {
@@ -46,6 +49,7 @@ struct AirconIterationContext {
     std::ostream& logs;
     TimingList& timings;
     std::string_view meta;
+    TimestepSolveMetrics* metrics = nullptr;
 };
 
 inline int toLogIndex1Based(std::size_t zeroBased) noexcept {
@@ -64,6 +68,7 @@ inline InnerCouplingContext makeInnerCouplingContext(Context& ctx) {
         ctx.logs,
         ctx.timings,
         ctx.meta,
+        ctx.metrics,
     };
 }
 
@@ -76,6 +81,7 @@ inline AirconIterationContext makeAirconIterationContext(Context& ctx, std::stri
         ctx.logs,
         ctx.timings,
         meta,
+        ctx.metrics,
     };
 }
 

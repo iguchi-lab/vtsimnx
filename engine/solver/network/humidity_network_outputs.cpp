@@ -1,4 +1,5 @@
 #include "network/humidity_network.h"
+#include "core/humidity/humidity_coupling.h"
 
 #include <algorithm>
 #include <string>
@@ -57,5 +58,8 @@ void HumidityNetwork::invalidateCaches() {
     outputCacheInitialized = false;
     outputVerticesOrdered.clear();
     outputKeysOrdered.clear();
+    if (humiditySolverContext_) {
+        humiditySolverContext_->invalidate();
+    }
 }
 

@@ -1,10 +1,22 @@
 #include "network/humidity_network.h"
 #include "network/ventilation_network.h"
+#include "core/humidity/humidity_coupling.h"
 #include "types/common_types.h"
 
 #include <algorithm>
 
 #include <boost/range/iterator_range.hpp>
+
+HumidityNetwork::HumidityNetwork()
+    : humiditySolverContext_(std::make_unique<core::humidity::HumiditySolverContext>()) {}
+
+HumidityNetwork::~HumidityNetwork() = default;
+HumidityNetwork::HumidityNetwork(HumidityNetwork&&) noexcept = default;
+HumidityNetwork& HumidityNetwork::operator=(HumidityNetwork&&) noexcept = default;
+
+core::humidity::HumiditySolverContext& HumidityNetwork::humiditySolverContext() {
+    return *humiditySolverContext_;
+}
 
 void HumidityNetwork::buildTerms(ConstNodeStateView nodeState,
                                  const VentilationNetwork& ventNetwork,

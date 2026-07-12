@@ -123,13 +123,19 @@ bool PressureSolver::Impl::initializeSolverSetup(SolverSetup& setup) {
 }
 
 void PressureSolver::Impl::addFlowBalanceConstraints(const SolverSetup& setup, ceres::Problem& problem) {
+    const auto* density = network_.densityCache();
+    const auto& keyToVertex = network_.getKeyToVertex();
     for (const std::string& nodeName : setup.nodeNames) {
+        auto it = keyToVertex.find(nodeName);
+        if (it == keyToVertex.end()) {
+            continue;
+        }
         ceres::CostFunction* costFunction = PressureConstraints::createFlowBalanceConstraint(
-            nodeName,
+            it->second,
             network_.getGraph(),
-            network_.getKeyToVertex(),
             setup.vertexToParameterIndexVec,
             setup.incidentEdgesByVertex,
+            density,
             setup.pressures.size(),
             logFile_);
 
@@ -472,7 +478,8 @@ std::optional<PressureSolver::Impl::SolverResult> PressureSolver::Impl::tryPrima
     network_.setLastPressureConverged(true);
     return makePressureSolveResult(
         pressureMap, eval.flows, eval.allNodeBalances,
-        /*accepted=*/true, eval.solvedNodeMetrics, "fallback_warmstart");
+        /*accepted=*/true, eval.solvedNodeMetrics, "fallback_warmstart",
+        static_cast<int>(summary.num_successful_steps), /*usedFallback=*/true);
 }
 
 std::optional<std::map<std::string, double>> PressureSolver::Impl::calculateIndividualFlowRates(
@@ -574,7 +581,8 @@ PressureSolver::Impl::SolverResult PressureSolver::Impl::solvePressures(
                      " | tol=" + std::to_string(tols.massBalanceMaxAbs));
         return makePressureSolveResult(
             pressureMap, eval.flows, eval.allNodeBalances,
-            /*accepted=*/true, metrics, "primary");
+            /*accepted=*/true, metrics, "primary",
+            static_cast<int>(summary.num_successful_steps), /*usedFallback=*/false);
     }
 
     auto fallbackResult = runFallbackLoop(constants, setup, summary);

@@ -1,6 +1,7 @@
 #include "simulation_runner.h"
 
 #include "aircon/aircon_controller.h"
+#include "core/thermal/thermal_linear_utils.h"
 #include "network/contaminant_network.h"
 #include "network/humidity_network.h"
 #include "network/thermal_network.h"
@@ -11,17 +12,39 @@
 #include "simulation_coupling_control.h"
 #include "simulation_error.h"
 #include "simulation_inner_coupling.h"
+#include "simulation_metrics.h"
 #include "simulation_runner_helpers.h"
 #include "simulation_timestep_result.h"
 #include "simulation_timestep_state.h"
 #include "transport/concentration_solver.h"
 #include "utils/utils.h"
 
+#include <boost/range/iterator_range.hpp>
 #include <cstddef>
+#include <cstdint>
 #include <string>
+#include <vector>
 
 namespace {
 using namespace simulation::detail;
+
+// 空調ノードの ON/OFF・mode 署名（外側ウォームスタート無効化判定）
+std::uint64_t airconStateSignature(const ThermalNetwork& thermal) {
+    using thermal_linear_utils::fnv1a64_update;
+    std::uint64_t h = 0;
+    const auto& g = thermal.getGraph();
+    for (auto v : boost::make_iterator_range(boost::vertices(g))) {
+        const auto& n = g[v];
+        if (n.getTypeCode() != VertexProperties::TypeCode::Aircon) continue;
+        h = fnv1a64_update(h, static_cast<std::uint64_t>(static_cast<std::uint32_t>(v)));
+        h = fnv1a64_update(h, n.on ? 1u : 0u);
+        // mode 文字列の簡易ハッシュ
+        for (unsigned char c : n.current_mode) {
+            h = fnv1a64_update(h, static_cast<std::uint64_t>(c));
+        }
+    }
+    return h;
+}
 } // namespace
 
 void runSimulation(VentilationNetwork& ventNetwork,
@@ -33,7 +56,12 @@ void runSimulation(VentilationNetwork& ventNetwork,
                    TimestepResult& timestepResultOut,
                    std::ostream& logs,
                    TimingList& timings,
-                   const std::string& meta) {
+                   const std::string& meta,
+                   simulation::TimestepSolveMetrics* metricsIn) {
+    simulation::TimestepSolveMetrics localMetrics;
+    simulation::TimestepSolveMetrics* metrics = metricsIn ? metricsIn : &localMetrics;
+    metrics->reset();
+
     simulation::Context ctx{
         ventNetwork,
         thermalNetwork,
@@ -44,26 +72,43 @@ void runSimulation(VentilationNetwork& ventNetwork,
         logs,
         timings,
         meta,
+        metrics,
     };
 
     const bool logEnabled = (ctx.constants.logVerbosity > 0);
-    // 内側連成の累積回数（空調容量調整 API 互換のため int のまま保持）
     int totalIterations = 0;
     CoupledStepData step;
 
     const TimestepInitialState initial =
         captureTimestepInitialState(ctx.thermal, ctx.constants.humidityCalc);
 
+    SeparatedHeatSources heatSources;
+    ensureHeatSourceVectors(heatSources,
+                            static_cast<size_t>(boost::num_vertices(ctx.thermal.getGraph())));
+    // タイムステップ開始時の heat_source を scheduled として保持
+    captureScheduledHeatSources(ctx.thermal.getGraph(), heatSources);
+
     auto innerCtx = simulation::makeInnerCouplingContext(ctx);
+
+    const std::uint64_t airconSigBefore = airconStateSignature(ctx.thermal);
+    static thread_local std::uint64_t s_prevAirconSig = 0;
+    static thread_local bool s_havePrevAirconSig = false;
+    const bool airconChanged =
+        s_havePrevAirconSig && (airconSigBefore != s_prevAirconSig);
+    const bool forceMinTwo = !s_havePrevAirconSig || airconChanged;
+    // ウォームスタート: 署名が同じなら bracket をクリアしない
+    const bool warmStartAircon = s_havePrevAirconSig && !airconChanged;
 
     const std::size_t maxOuter = effectiveMaxAirconControlIterations(ctx.constants);
     bool outerLoopConverged = false;
     for (std::size_t iteration = 0; iteration < maxOuter; ++iteration) {
-        if (iteration == 0) {
+        if (metrics) metrics->outerIterations = iteration + 1;
+        if (iteration == 0 && !warmStartAircon) {
             ctx.aircon.clearCapacityLimitBracket();
         }
-        // 外側反復開始時: 前反復の空調 heat_source をクリアしてから連成を始める。
-        resetNodeHeatSources(ctx.thermal.getGraph());
+        // 外側反復開始時: 空調顕熱をクリア（scheduled / latent は維持）
+        std::fill(heatSources.airconSensible.begin(), heatSources.airconSensible.end(), 0.0);
+        composeHeatSourcesIntoGraph(ctx.thermal.getGraph(), heatSources);
 
         const int loopIndex1Based = simulation::toLogIndex1Based(iteration);
         const std::string loopLabel =
@@ -71,9 +116,9 @@ void runSimulation(VentilationNetwork& ventNetwork,
         {
             ScopedLogSection coupledScope(ctx.logs, loopLabel);
 
-            runInnerCoupling(innerCtx, logEnabled, iteration, initial, step, totalIterations);
+            runInnerCoupling(innerCtx, logEnabled, iteration, initial, step, totalIterations,
+                             heatSources, forceMinTwo && iteration == 0);
 
-            // pressureCalc=false でも aircon が流量を参照できるよう FlowRateMap を同期
             if (!ctx.constants.pressureCalc) {
                 step.flowRates = ctx.ventilation.collectFlowRateMap();
             }
@@ -81,7 +126,7 @@ void runSimulation(VentilationNetwork& ventNetwork,
             runDecoupledHumidityStep(innerCtx, initial, step, iteration);
 
             const std::string airconMeta =
-                std::string(ctx.meta) + ",iteration=" + std::to_string(loopIndex1Based);
+                simulation::appendLoopMeta(ctx.meta, loopIndex1Based);
             auto airconCtx = simulation::makeAirconIterationContext(ctx, airconMeta);
             const auto airconAction =
                 runAirconIteration(airconCtx, step.flowRates, totalIterations);
@@ -111,12 +156,13 @@ void runSimulation(VentilationNetwork& ventNetwork,
 
     ensureOuterAirconLoopConverged(outerLoopConverged);
 
-    // 応答係数履歴はタイムステップ受理後に一度だけ進める（内側連成・空調反復では進めない）
+    s_prevAirconSig = airconStateSignature(ctx.thermal);
+    s_havePrevAirconSig = true;
+
     if (ctx.constants.temperatureCalc) {
         ctx.thermal.commitResponseConductionHistory();
     }
 
-    // 濃度（c）更新：外側空調ループ収束後のみ（エアコン制御には影響しない想定）
     const auto sharedNodeState = makeSharedNodeStateArgs(ctx.thermal);
     const auto concStats = transport::updateConcentrationIfEnabled(ctx.constants,
                                             ctx.ventilation,

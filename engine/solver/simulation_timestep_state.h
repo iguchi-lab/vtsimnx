@@ -18,7 +18,8 @@ struct CouplingSnapshot {
     std::vector<double> pressure;
     std::vector<double> temperature;
     std::vector<double> humidity;
-    std::vector<double> heatSource; // baseHeatSource
+    std::vector<double> heatSource;       // scheduled (+ sensible) base for restore
+    std::vector<double> latentHeatSource; // humidity latent [W] by vertex
 };
 
 struct SharedNodeStateArgs {

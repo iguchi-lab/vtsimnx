@@ -25,12 +25,15 @@ struct InnerCouplingEval {
     double pressureTol = 0.0;
     double temperatureTol = 0.0;
     double humidityTol = 0.0;
+    double latentTol = 0.0;
 };
 
-// 内側連成の収束・打ち切り判定（ログは書かない）
+// minCouplingIterations: 通常1、モード切替等では2。
 InnerCouplingEval evaluateInnerCoupling(const SimulationConstants& constants,
                                         bool humidityActive,
+                                        bool latentActive,
                                         std::size_t coupledIter,
+                                        std::size_t minCouplingIterations,
                                         const CoupledDelta& delta,
                                         bool pressureConvergedAfterFirstSolve);
 

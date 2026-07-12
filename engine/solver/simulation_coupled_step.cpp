@@ -1,10 +1,13 @@
 #include "simulation_coupled_step.h"
 
+#include "core/thermal/thermal_solver_linear_direct.h"
 #include "network/thermal_network.h"
 #include "network/ventilation_network.h"
 #include "simulation_error.h"
 #include "utils/utils.h"
 
+#include <algorithm>
+#include <chrono>
 #include <memory>
 
 CoupledStepData performCoupledStepCalculation(VentilationNetwork& ventNetwork,
@@ -12,7 +15,8 @@ CoupledStepData performCoupledStepCalculation(VentilationNetwork& ventNetwork,
                                               const SimulationConstants& constants,
                                               std::ostream& logs,
                                               TimingList& timings,
-                                              const std::string& meta) {
+                                              const std::string& meta,
+                                              simulation::TimestepSolveMetrics* metrics) {
     const bool logEnabled = (constants.logVerbosity > 0);
     CoupledStepData step;
 
@@ -23,7 +27,17 @@ CoupledStepData performCoupledStepCalculation(VentilationNetwork& ventNetwork,
         PressureSolveResult pressureResult;
         {
             ScopedTimer timer(timings, "pressure_solve_iteration", meta);
+            const auto t0 = std::chrono::steady_clock::now();
             pressureResult = ventNetwork.solvePressureDetailed(constants, logs);
+            if (metrics) {
+                const auto t1 = std::chrono::steady_clock::now();
+                metrics->pressureMs +=
+                    std::chrono::duration<double, std::milli>(t1 - t0).count();
+                ++metrics->pressureSolveCalls;
+                metrics->pressureCeresIterations +=
+                    static_cast<std::size_t>(std::max(0, pressureResult.ceresIterations));
+                if (pressureResult.usedFallback) ++metrics->pressureFallbackCount;
+            }
         }
         step.pressureMap = std::move(pressureResult.pressures);
         step.flowRates = std::move(pressureResult.flows);
@@ -48,7 +62,21 @@ CoupledStepData performCoupledStepCalculation(VentilationNetwork& ventNetwork,
         if (logEnabled) thermalScope = std::make_unique<ScopedLogSection>(logs, "熱計算");
         {
             ScopedTimer timer(timings, "thermal_solve_iteration", meta);
+            const auto statsBefore =
+                ThermalSolverLinearDirect::getDirectTCacheStats(thermalNetwork.directTContext());
+            const auto t0 = std::chrono::steady_clock::now();
             thermalNetwork.solveTemperature(constants, logs);
+            if (metrics) {
+                const auto t1 = std::chrono::steady_clock::now();
+                metrics->thermalMs +=
+                    std::chrono::duration<double, std::milli>(t1 - t0).count();
+                const auto statsAfter =
+                    ThermalSolverLinearDirect::getDirectTCacheStats(thermalNetwork.directTContext());
+                metrics->thermalRhsOnlyBuilds +=
+                    static_cast<std::size_t>(statsAfter.rhsOnlyBuild - statsBefore.rhsOnlyBuild);
+                metrics->thermalFullBuilds +=
+                    static_cast<std::size_t>(statsAfter.fullBuild - statsBefore.fullBuild);
+            }
         }
         // 内側連成を古い温度で続けないよう、熱ソルバ失敗/未収束はここで打ち切る。
         if (!thermalNetwork.getLastThermalConverged()) {

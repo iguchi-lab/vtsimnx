@@ -3,6 +3,8 @@
 #include "core/ventilation/pressure_solve_result.h"
 #include "network/node_state_view.h"
 #include "vtsim_solver.h"
+#include <cstdint>
+#include <memory>
 #include <vector>
 #include <fstream>
 #include <ostream>
@@ -14,6 +16,14 @@
 using json = nlohmann::json;
 
 class ThermalNetwork; // forward declaration
+class PressureSolver;
+
+// 圧力ソルバ再利用用コンテキスト（密度キャッシュ + 構造シグネチャ）
+struct PressureSolverContext {
+    std::uint64_t structureSignature = 0;
+    std::vector<double> densityByVertex;
+    bool valid = false;
+};
 
 // 換気回路網クラス
 class VentilationNetwork {
@@ -38,7 +48,19 @@ private:
     // 直近の圧力計算が収束したかどうか
     bool lastPressureConverged = false;
 
+    // 圧力ソルバ: 密度キャッシュ + 構造シグネチャ（構造不変時はソルバ再利用）
+    mutable std::vector<double> densityByVertex_;
+    mutable std::uint64_t pressureStructureSig_ = 0;
+    mutable bool pressureStructureValid_ = false;
+    std::unique_ptr<PressureSolver> pressureSolver_;
+
 public:
+    VentilationNetwork();
+    ~VentilationNetwork();
+    VentilationNetwork(const VentilationNetwork&) = delete;
+    VentilationNetwork& operator=(const VentilationNetwork&) = delete;
+    VentilationNetwork(VentilationNetwork&&) noexcept;
+    VentilationNetwork& operator=(VentilationNetwork&&) noexcept;
     // 1) Node/Graph access
     const Graph& getGraph() const { return graph; }
     Graph& getGraph() { return graph; }
@@ -103,6 +125,12 @@ public:
     bool hasSupernodeCache() const { return supernodeCacheValid; }
     const std::map<Vertex, int>& getSupernodeGroupCache() const { return supernodeGroupCache; }
     void setSupernodeGroupCache(const std::map<Vertex, int>& cache) { supernodeGroupCache = cache; supernodeCacheValid = true; }
+
+    // 圧力ソルバ密度キャッシュ / 構造シグネチャ
+    const std::vector<double>* densityCache() const;
+    void refreshDensityCache();
+    std::uint64_t pressureStructureSignature() const;
+    void invalidatePressureSolverContext();
 
 };
 

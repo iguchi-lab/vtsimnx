@@ -235,6 +235,42 @@ SimulationConstants parseSimulationConstants(const nlohmann::json& config,
             }
             outConstants.latentRelaxation = cp["latent_relaxation"];
         }
+        if (cp.contains("latent_coupling_mode")) {
+            if (cp["latent_coupling_mode"].is_string()) {
+                const std::string mode = cp["latent_coupling_mode"].get<std::string>();
+                if (mode == "disabled" || mode == "Disabled" || mode == "DISABLED") {
+                    outConstants.latentCouplingMode = 0;
+                } else if (mode == "feedback_to_thermal" || mode == "FeedbackToThermal") {
+                    outConstants.latentCouplingMode = 1;
+                } else {
+                    throw std::runtime_error(
+                        "Invalid 'simulation.coupling.latent_coupling_mode' (disabled|feedback_to_thermal)");
+                }
+            } else if (cp["latent_coupling_mode"].is_number_integer()) {
+                outConstants.latentCouplingMode = cp["latent_coupling_mode"].get<int>();
+                if (outConstants.latentCouplingMode != 0 && outConstants.latentCouplingMode != 1) {
+                    throw std::runtime_error(
+                        "Invalid 'simulation.coupling.latent_coupling_mode' (0|1)");
+                }
+            } else {
+                throw std::runtime_error(
+                    "Invalid 'simulation.coupling.latent_coupling_mode' (string|int)");
+            }
+        }
+        if (cp.contains("latent_absolute_tolerance_w")) {
+            if (!cp["latent_absolute_tolerance_w"].is_number()) {
+                throw std::runtime_error(
+                    "Invalid 'simulation.coupling.latent_absolute_tolerance_w' (number required)");
+            }
+            outConstants.couplingLatentAbsoluteToleranceW = cp["latent_absolute_tolerance_w"];
+        }
+        if (cp.contains("latent_relative_tolerance")) {
+            if (!cp["latent_relative_tolerance"].is_number()) {
+                throw std::runtime_error(
+                    "Invalid 'simulation.coupling.latent_relative_tolerance' (number required)");
+            }
+            outConstants.couplingLatentRelativeTolerance = cp["latent_relative_tolerance"];
+        }
         if (cp.contains("humidity_solver_max_iter")) {
             if (!cp["humidity_solver_max_iter"].is_number_integer()) {
                 throw std::runtime_error("Missing or invalid 'simulation.coupling.humidity_solver_max_iter' (integer required)");

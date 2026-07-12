@@ -138,6 +138,37 @@ void resetNodeHeatSources(Graph& graph) {
     }
 }
 
+void ensureHeatSourceVectors(SeparatedHeatSources& src, std::size_t nV) {
+    src.scheduled.assign(nV, 0.0);
+    src.airconSensible.assign(nV, 0.0);
+    src.humidityLatent.assign(nV, 0.0);
+}
+
+void captureScheduledHeatSources(const Graph& graph, SeparatedHeatSources& src) {
+    const size_t nV = static_cast<size_t>(boost::num_vertices(graph));
+    ensureHeatSourceVectors(src, nV);
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        src.scheduled[static_cast<size_t>(v)] = graph[v].heat_source;
+    }
+}
+
+void composeHeatSourcesIntoGraph(Graph& graph, const SeparatedHeatSources& src) {
+    const size_t nV = static_cast<size_t>(boost::num_vertices(graph));
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        const size_t i = static_cast<size_t>(v);
+        double total = 0.0;
+        if (i < src.scheduled.size()) total += src.scheduled[i];
+        if (i < src.airconSensible.size()) total += src.airconSensible[i];
+        if (i < src.humidityLatent.size()) total += src.humidityLatent[i];
+        graph[v].heat_source = total;
+        (void)nV;
+    }
+}
+
+double maxAbsLatentHeatChange(const std::vector<double>& prev, const std::vector<double>& curr) {
+    return calculateMaxAbsDiff(prev, curr);
+}
+
 void capturePrevTempsByVertex(const Graph& graph, std::vector<double>& prevTempsByVertex) {
     const size_t vCount = static_cast<size_t>(boost::num_vertices(graph));
     prevTempsByVertex.resize(vCount);

@@ -503,14 +503,16 @@ int main() {
                     thermal.getGraph()[thermal.getKeyToVertex().at("ROOM")].current_x;
 
                 simulation::InnerCouplingContext ctx{
-                    ventNet, thermal, humidity, c, logs, timings, "coupled-hum-fail"};
+                    ventNet, thermal, humidity, c, logs, timings, "coupled-hum-fail", nullptr};
                 const auto initial =
                     simulation::detail::captureTimestepInitialState(thermal, c.humidityCalc);
                 CoupledStepData step;
                 int totalIterations = 0;
+                simulation::detail::SeparatedHeatSources heatSources;
                 bool threw = false;
                 try {
-                    simulation::runInnerCoupling(ctx, true, 0, initial, step, totalIterations);
+                    simulation::runInnerCoupling(ctx, true, 0, initial, step, totalIterations,
+                                                 heatSources, /*forceMinTwo=*/true);
                 } catch (const simulation::Error& e) {
                     threw = true;
                     expectTrue(e.code() == simulation::ErrorCode::HumidityNotConverged,

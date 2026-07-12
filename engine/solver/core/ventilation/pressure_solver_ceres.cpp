@@ -431,15 +431,15 @@ void PressureSolver::Impl::setupStageAProblem(
     const std::vector<std::vector<Edge>>& incidentEdgesByVertex) {
     size_t parameterCount = pressuresFB.size();
     double* parameterData = pressuresFB.data();
-    const auto& nodeKeyToVertex = network_.getKeyToVertex();
+    const auto* density = network_.densityCache();
 
-    auto addNodeResidual = [&](const std::string& nodeName) {
+    auto addNodeResidual = [&](Vertex nodeVertex) {
         ceres::CostFunction* costFunction = PressureConstraints::createFlowBalanceConstraint(
-            nodeName,
+            nodeVertex,
             graph,
-            nodeKeyToVertex,
             mapping.vertexToParamIndexVec,
             incidentEdgesByVertex,
+            density,
             parameterCount,
             logFile_
         );
@@ -467,6 +467,7 @@ void PressureSolver::Impl::setupStageAProblem(
                 graph,
                 mapping.vertexToParamIndexVec,
                 incidentEdgesByVertex,
+                density,
                 parameterCount,
                 logFile_
             );
@@ -476,7 +477,7 @@ void PressureSolver::Impl::setupStageAProblem(
         for (auto v : nonGroupVertices) {
             const auto& node = graph[v];
             if (!node.calc_p) continue;
-            addNodeResidual(node.key);
+            addNodeResidual(v);
         }
 
         // 前回平均圧への弱い正則化（ゲージ固定とは別。流量収支を支配しない重み）。
@@ -505,8 +506,13 @@ void PressureSolver::Impl::setupStageAProblem(
                 parameterData);
         }
     } else {
+        const auto& keyToVertex = network_.getKeyToVertex();
         for (const auto& nodeName : mapping.nodeNames) {
-            addNodeResidual(nodeName);
+            auto it = keyToVertex.find(nodeName);
+            if (it == keyToVertex.end()) {
+                continue;
+            }
+            addNodeResidual(it->second);
         }
     }
 

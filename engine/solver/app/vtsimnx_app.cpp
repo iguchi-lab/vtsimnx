@@ -29,6 +29,7 @@ using json = nlohmann::json;
 #include "network/thermal_network.h"
 #include "network/contaminant_network.h"
 #include "aircon/aircon_controller.h"
+#include "simulation_metrics.h"
 #include "simulation_runner.h"
 #include "simulation_error.h"
 #include "utils/utils.h"
@@ -206,7 +207,8 @@ static bool runSimulationLoop(const InputData& inputData,
                               const std::filesystem::path& schemaPath,
                               std::string& err,
                               std::string& errorCode,
-                              TimingList& timings) {
+                              TimingList& timings,
+                              simulation::TimestepSolveMetrics& runMetricsOut) {
     try {
         ScopedTimer loopTimer(timings, "runSimulationLoop");
         // 設定ファイルを解析（ログも蓄積）
@@ -223,6 +225,7 @@ static bool runSimulationLoop(const InputData& inputData,
         const bool enableDetailedTimings =
             (simConstants.logVerbosity >= 2) || (std::getenv("VTSIMNX_TIMINGS") != nullptr);
         setTimingsEnabled(enableDetailedTimings);
+        simulation::TimestepSolveMetrics runMetrics;
 
         // lengthがタイムステップの回数、timestepが1タイムステップの秒数
         writeLog(logs, "タイムステップループ開始: length=" +
@@ -354,7 +357,27 @@ static bool runSimulationLoop(const InputData& inputData,
             TimestepResult timestepResult;
             if (simConstants.pressureCalc || simConstants.temperatureCalc || simConstants.humidityCalc || simConstants.concentrationCalc) {
                 ScopedTimer timer(timings, "runSimulation", stepMeta);
-                runSimulation(ventNetwork, thermalNetwork, humidityNetwork, contaminantNetwork, airconController, simConstants, timestepResult, logs, timings, stepMeta);
+                simulation::TimestepSolveMetrics stepMetrics;
+                runSimulation(ventNetwork, thermalNetwork, humidityNetwork, contaminantNetwork, airconController, simConstants, timestepResult, logs, timings, stepMeta, &stepMetrics);
+                // ラン全体に加算
+                runMetrics.outerIterations += stepMetrics.outerIterations;
+                runMetrics.coupledIterations += stepMetrics.coupledIterations;
+                runMetrics.pressureSolveCalls += stepMetrics.pressureSolveCalls;
+                runMetrics.pressureCeresIterations += stepMetrics.pressureCeresIterations;
+                runMetrics.pressureFallbackCount += stepMetrics.pressureFallbackCount;
+                runMetrics.thermalRhsOnlyBuilds += stepMetrics.thermalRhsOnlyBuilds;
+                runMetrics.thermalFullBuilds += stepMetrics.thermalFullBuilds;
+                runMetrics.humidityPatternAnalyzes += stepMetrics.humidityPatternAnalyzes;
+                runMetrics.humidityFactorizes += stepMetrics.humidityFactorizes;
+                runMetrics.humidityRhsOnlySolves += stepMetrics.humidityRhsOnlySolves;
+                runMetrics.humiditySolutionReuse += stepMetrics.humiditySolutionReuse;
+                runMetrics.airconFlowAdjustRecalc += stepMetrics.airconFlowAdjustRecalc;
+                runMetrics.airconOnOffRecalc += stepMetrics.airconOnOffRecalc;
+                runMetrics.airconCapacityRecalc += stepMetrics.airconCapacityRecalc;
+                runMetrics.pressureMs += stepMetrics.pressureMs;
+                runMetrics.thermalMs += stepMetrics.thermalMs;
+                runMetrics.humidityMs += stepMetrics.humidityMs;
+                runMetrics.airconMs += stepMetrics.airconMs;
             }
 
             if (simConstants.temperatureCalc) {
@@ -469,6 +492,7 @@ static bool runSimulationLoop(const InputData& inputData,
 
         clearLogTimestepMeta(logs);
         writeLog(logs, "タイムステップループ終了");
+        runMetricsOut = runMetrics;
         return true;
     } catch (const simulation::Error& e) {
         err = std::string("シミュレーション実行中にエラーが発生しました: ") + e.what();
@@ -491,6 +515,7 @@ static bool writeOutputData(const char* outputPath,
                             const json& inputJson,
                             const std::string& inputContent,
                             const TimingList& timings,
+                            const simulation::TimestepSolveMetrics& runMetrics,
                             std::string& err) {
     json out;
     out["status"] = "ok";
@@ -535,6 +560,7 @@ static bool writeOutputData(const char* outputPath,
         }
         out["timings"] = timingArray;
     }
+    out["metrics"] = runMetrics.toJson();
 
     if (!ArtifactIO::writeJsonToFile(outputPath, out, err)) {
         return false;
@@ -881,6 +907,7 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
 
     auto simStart = std::chrono::steady_clock::now();
     std::string errorCode;
+    simulation::TimestepSolveMetrics runMetrics;
     bool simulationSuccess = runSimulationLoop(
         inputData,
         logs,
@@ -888,7 +915,8 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
         schemaPath,
         err,
         errorCode,
-        timings);
+        timings,
+        runMetrics);
     auto simEnd = std::chrono::steady_clock::now();
     double simMs = std::chrono::duration_cast<std::chrono::duration<double, std::milli>>(simEnd - simStart).count();
     timings.push_back({"simulation_total", simMs, ""});
@@ -941,7 +969,7 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
             {"aircon_power", airconPowerBinName},
             {"aircon_cop", airconCOPBinName},
         };
-        if (!writeOutputData(outputPath, artifactDirName, logFileName, resultFiles, inputData.inputJson, inputData.inputContent, timings, err)) {
+        if (!writeOutputData(outputPath, artifactDirName, logFileName, resultFiles, inputData.inputJson, inputData.inputContent, timings, runMetrics, err)) {
             std::cerr << err << "\n";
             return 1;
         }

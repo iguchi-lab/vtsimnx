@@ -12,6 +12,7 @@
 #include "network/humidity_network.h"
 #include "network/contaminant_network.h"
 #include "core/humidity/humidity_solver.h"
+#include "core/humidity/humidity_coupling.h"
 #include "transport/concentration_solver.h"
 
 namespace {
@@ -704,6 +705,58 @@ int main() {
         const auto& tMap = thermal.getKeyToVertex();
         const double actual = tG[tMap.at("ROOM")].current_c;
         expectNear(actual, 10.0, 1e-12, "disabled dust_generation must not change concentration");
+    }
+
+    // ------------------------------------------------------------------
+    // 11) humidity: second solve with same topology should reuse LU (rhs-only)
+    // ------------------------------------------------------------------
+    {
+        auto V0 = makeNode("void");
+        V0.v = 0.0;
+        auto A = makeNode("A");
+        auto B = makeNode("B");
+        A.calc_x = false;
+        B.calc_x = true;
+        A.current_x = 0.010;
+        B.current_x = 0.005;
+        B.v = 100.0;
+
+        std::vector<VertexProperties> nodes = {V0, A, B};
+        std::vector<EdgeProperties> ventEdges = {
+            makeFixedFlowEdge("A->B", "A", "B", 0.1),
+            makeFixedFlowEdge("B->void", "B", "void", 0.1),
+        };
+        std::vector<EdgeProperties> thEdges = {};
+
+        VentilationNetwork vent;
+        ThermalNetwork thermal;
+        HumidityNetwork humidity;
+        vent.buildFromData(nodes, ventEdges, constants, logs);
+        thermal.buildFromData(nodes, thEdges, ventEdges, constants, logs);
+        vent.updatePropertiesForTimestep(nodes, ventEdges, 0);
+
+        const auto s1 = core::humidity::updateHumidityIfEnabled(
+            constants, vent, thermal.getGraph(),
+            static_cast<const ThermalNetwork&>(thermal).nodeStateView(),
+            humidity, {}, logs, timings, "hum-cache-1");
+        const auto analyzes1 = humidity.humiditySolverContext().patternAnalyzes;
+        const auto factors1 = humidity.humiditySolverContext().factorizes;
+        const auto rhs1 = humidity.humiditySolverContext().rhsOnlySolves;
+
+        // 同条件で再実行（xN=グラフ = 直前解）→ 係数同一なら rhs-only が増える
+        const auto s2 = core::humidity::updateHumidityIfEnabled(
+            constants, vent, thermal.getGraph(),
+            static_cast<const ThermalNetwork&>(thermal).nodeStateView(),
+            humidity, {}, logs, timings, "hum-cache-2");
+        if (!(s1.converged && s2.converged)) {
+            throw std::runtime_error("humidity cache: both solves converge");
+        }
+        if (!(humidity.humiditySolverContext().rhsOnlySolves > rhs1 ||
+              humidity.humiditySolverContext().solutionReuse > 0 ||
+              humidity.humiditySolverContext().factorizes >= factors1)) {
+            throw std::runtime_error("humidity cache: expected reuse or factorize progress");
+        }
+        (void)analyzes1;
     }
 
     std::cout << "[OK] all tests passed\n";

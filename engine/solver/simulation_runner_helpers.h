@@ -25,6 +25,19 @@ std::size_t effectiveMaxAirconControlIterations(const SimulationConstants& const
 
 void resetNodeHeatSources(Graph& graph);
 
+// 熱源の内部分離（合成は composeHeatSourcesIntoGraph）
+struct SeparatedHeatSources {
+    std::vector<double> scheduled;       // 入力スケジュール等
+    std::vector<double> airconSensible;  // 空調顕熱
+    std::vector<double> humidityLatent;  // 湿気潜熱フィードバック
+};
+
+void ensureHeatSourceVectors(SeparatedHeatSources& src, std::size_t nV);
+void captureScheduledHeatSources(const Graph& graph, SeparatedHeatSources& src);
+void composeHeatSourcesIntoGraph(Graph& graph, const SeparatedHeatSources& src);
+double maxAbsLatentHeatChange(const std::vector<double>& prev,
+                              const std::vector<double>& curr);
+
 void capturePrevTempsByVertex(const Graph& graph, std::vector<double>& prevTempsByVertex);
 void captureXPrevByVertex(const Graph& graph, std::vector<double>& xPrev);
 void captureWPrevByVertex(const Graph& graph, std::vector<double>& wPrev);
@@ -43,6 +56,8 @@ struct CoupledDelta {
     double pressureChange = 0.0;     // [Pa]
     double temperatureChange = 0.0;  // [K]
     double humidityChange = 0.0;     // [kg/kg(DA)]
+    double latentHeatChange = 0.0;   // |ΔQ| [W]
+    double latentHeatScale = 0.0;    // max(|Qold|,|Qnew|) [W]
 };
 
 } // namespace detail

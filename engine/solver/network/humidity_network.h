@@ -5,11 +5,16 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <memory>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
 class VentilationNetwork;
+
+namespace core::humidity {
+struct HumiditySolverContext;
+}
 
 using WeightedVertexLinks = std::vector<std::vector<std::pair<Vertex, double>>>;
 
@@ -25,6 +30,13 @@ struct HumidityNetworkTerms {
 // ノード状態は呼び出し元（現状: ThermalNetwork）が保持し、ここでは参照のみ行う。
 class HumidityNetwork {
 public:
+    HumidityNetwork();
+    ~HumidityNetwork();
+    HumidityNetwork(const HumidityNetwork&) = delete;
+    HumidityNetwork& operator=(const HumidityNetwork&) = delete;
+    HumidityNetwork(HumidityNetwork&&) noexcept;
+    HumidityNetwork& operator=(HumidityNetwork&&) noexcept;
+
     // 2) Build / Update / Sync
     void buildTerms(ConstNodeStateView nodeState,
                     const VentilationNetwork& ventNetwork,
@@ -36,6 +48,8 @@ public:
 
     // 5) Diagnostics / cache controls
     void invalidateCaches();
+
+    core::humidity::HumiditySolverContext& humiditySolverContext();
 
 private:
     void ensureNodeIndex(ConstNodeStateView nodeState) const;
@@ -49,5 +63,6 @@ private:
     mutable bool outputCacheInitialized = false;
     mutable std::vector<Vertex> outputVerticesOrdered;
     mutable std::vector<std::string> outputKeysOrdered;
-};
 
+    std::unique_ptr<core::humidity::HumiditySolverContext> humiditySolverContext_;
+};

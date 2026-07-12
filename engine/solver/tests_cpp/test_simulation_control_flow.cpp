@@ -96,25 +96,32 @@ void testInnerCouplingBreakNoNeed() {
     c.pressureCalc = true;
     c.temperatureCalc = false;
     c.humidityCalc = false;
-    const auto eval = evaluateInnerCoupling(c, false, 1, largeDelta(), true);
+    const auto eval = evaluateInnerCoupling(c, false, false, 1, 2, largeDelta(), true);
     expectEqAction(eval.action, InnerCouplingAction::BreakNoNeed, "inner: no-need exits after first iter");
 }
 
 void testInnerCouplingConvergedOnSecond() {
     auto c = baseConstants();
-    const auto eval = evaluateInnerCoupling(c, false, 2, tinyDelta(), true);
+    const auto eval = evaluateInnerCoupling(c, false, false, 2, 2, tinyDelta(), true);
     expectEqAction(eval.action, InnerCouplingAction::BreakConverged, "inner: converge on second iter");
 }
 
 void testInnerCouplingContinueOnFirst() {
     auto c = baseConstants();
-    const auto eval = evaluateInnerCoupling(c, false, 1, largeDelta(), true);
+    // min=2 のとき1回目は Continue
+    const auto eval = evaluateInnerCoupling(c, false, false, 1, 2, largeDelta(), true);
     expectEqAction(eval.action, InnerCouplingAction::Continue, "inner: first coupled iter continues");
+}
+
+void testInnerCouplingAllowFirstWhenMinOne() {
+    auto c = baseConstants();
+    const auto eval = evaluateInnerCoupling(c, false, false, 1, 1, tinyDelta(), true);
+    expectEqAction(eval.action, InnerCouplingAction::BreakConverged, "inner: min=1 allows first-iter converge");
 }
 
 void testInnerCouplingPressureFirstFail() {
     auto c = baseConstants();
-    const auto eval = evaluateInnerCoupling(c, false, 1, largeDelta(), false);
+    const auto eval = evaluateInnerCoupling(c, false, false, 1, 2, largeDelta(), false);
     expectEqAction(eval.action, InnerCouplingAction::ThrowPressureNonConvergence,
                    "inner: pressure non-convergence on first iter");
 }
@@ -122,7 +129,7 @@ void testInnerCouplingPressureFirstFail() {
 void testInnerCouplingMaxIterations() {
     auto c = baseConstants();
     c.maxCouplingIterations = 2;
-    const auto eval = evaluateInnerCoupling(c, false, 2, largeDelta(), true);
+    const auto eval = evaluateInnerCoupling(c, false, false, 2, 2, largeDelta(), true);
     expectEqAction(eval.action, InnerCouplingAction::ThrowMaxIteration, "inner: max coupling iterations");
 }
 
@@ -186,13 +193,8 @@ void testOuterAcceptDoesNotThrow() {
 void testLatentModeResolve() {
     expectTrue(resolveLatentAppliedThisIter(LatentCouplingMode::Disabled) == 0.0,
                "latent: Disabled returns 0");
-    bool threw = false;
-    try {
-        (void)resolveLatentAppliedThisIter(LatentCouplingMode::FeedbackToThermal);
-    } catch (const std::logic_error&) {
-        threw = true;
-    }
-    expectTrue(threw, "latent: FeedbackToThermal must throw logic_error");
+    expectNear(resolveLatentAppliedThisIter(LatentCouplingMode::FeedbackToThermal, 12.5), 12.5, 0.0,
+               "latent: Feedback returns applied W");
 }
 
 void testEffectiveIterationFallback() {
@@ -278,6 +280,7 @@ int main() {
     testInnerCouplingBreakNoNeed();
     testInnerCouplingConvergedOnSecond();
     testInnerCouplingContinueOnFirst();
+    testInnerCouplingAllowFirstWhenMinOne();
     testInnerCouplingPressureFirstFail();
     testInnerCouplingMaxIterations();
     testHumidityCouplingFlags();

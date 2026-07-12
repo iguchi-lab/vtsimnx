@@ -14,7 +14,9 @@ namespace detail {
 
 InnerCouplingEval evaluateInnerCoupling(const SimulationConstants& constants,
                                         bool humidityActive,
+                                        bool latentActive,
                                         std::size_t coupledIter,
+                                        std::size_t minCouplingIterations,
                                         const CoupledDelta& delta,
                                         bool pressureConvergedAfterFirstSolve) {
     InnerCouplingEval eval;
@@ -22,6 +24,9 @@ InnerCouplingEval evaluateInnerCoupling(const SimulationConstants& constants,
     eval.pressureTol = couplingPressureTol(constants);
     eval.temperatureTol = couplingTemperatureTol(constants);
     eval.humidityTol = couplingHumidityTol(constants);
+    const double absLat = std::max(0.0, constants.couplingLatentAbsoluteToleranceW);
+    const double relLat = std::max(0.0, constants.couplingLatentRelativeTolerance);
+    eval.latentTol = absLat; // ログ用の絶対項
 
     // 1回目で pressure が未収束なら停止（従来と同じ）
     if (constants.pressureCalc && coupledIter == 1 && !pressureConvergedAfterFirstSolve) {
@@ -35,12 +40,20 @@ InnerCouplingEval evaluateInnerCoupling(const SimulationConstants& constants,
         return eval;
     }
 
-    // 収束判定（2回目以降）
-    if (coupledIter > 1) {
+    const std::size_t minIters = std::max<std::size_t>(1, minCouplingIterations);
+    const auto latentOk = [&]() -> bool {
+        if (!latentActive) return true;
+        const double tol = absLat + relLat * std::max(0.0, delta.latentHeatScale);
+        return delta.latentHeatChange <= tol;
+    };
+
+    // 収束判定（minIters 回目以降）
+    if (coupledIter >= minIters) {
         const bool pOk = !constants.pressureCalc || (delta.pressureChange < eval.pressureTol);
         const bool tOk = !constants.temperatureCalc || (delta.temperatureChange < eval.temperatureTol);
         const bool xOk = !humidityActive || (delta.humidityChange < eval.humidityTol);
-        if (pOk && tOk && xOk) {
+        const bool qOk = latentOk();
+        if (pOk && tOk && xOk && qOk) {
             eval.action = InnerCouplingAction::BreakConverged;
             return eval;
         }
@@ -53,20 +66,21 @@ InnerCouplingEval evaluateInnerCoupling(const SimulationConstants& constants,
         const double tRatio =
             constants.temperatureCalc ? (delta.temperatureChange / std::max(1e-30, eval.temperatureTol)) : 0.0;
         const double xRatio = humidityActive ? (delta.humidityChange / std::max(1e-30, eval.humidityTol)) : 0.0;
+        const double qRatio = latentActive ? (delta.latentHeatChange / std::max(1e-30, std::max(absLat, 1e-30))) : 0.0;
 
         std::string dominant = "none";
         double domRatio = -1.0;
-        if (constants.pressureCalc && pRatio > domRatio) {
-            domRatio = pRatio;
-            dominant = "pressure";
-        }
-        if (constants.temperatureCalc && tRatio > domRatio) {
-            domRatio = tRatio;
-            dominant = "temperature";
-        }
-        if (humidityActive && xRatio > domRatio) {
-            dominant = "humidity";
-        }
+        auto consider = [&](const char* name, double ratio, bool active) {
+            if (!active) return;
+            if (ratio > domRatio) {
+                domRatio = ratio;
+                dominant = name;
+            }
+        };
+        consider("pressure", pRatio, constants.pressureCalc);
+        consider("temperature", tRatio, constants.temperatureCalc);
+        consider("humidity", xRatio, humidityActive);
+        consider("latent", qRatio, latentActive);
         eval.dominant = dominant;
         eval.action = InnerCouplingAction::ThrowMaxIteration;
         return eval;
@@ -108,7 +122,8 @@ void logInnerCouplingDelta(std::ostream& logs,
         "圧力変化量: " + std::to_string(delta.pressureChange) +
             " Pa, 温度変化量: " + std::to_string(delta.temperatureChange) +
             " K, 湿気変化量: " + std::to_string(delta.humidityChange) +
-            " kg/kg(DA), 潜熱反映: " + std::to_string(latentAppliedW) +
+            " kg/kg(DA), 潜熱変化量: " + std::to_string(delta.latentHeatChange) +
+            " W, 潜熱反映: " + std::to_string(latentAppliedW) +
             " W, 湿気反復: " + std::to_string(humidityStats.iterations) +
             ", 湿気相対残差: " + std::to_string(humidityStats.finalRelativeResidual));
 }

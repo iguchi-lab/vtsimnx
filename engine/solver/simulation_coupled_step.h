@@ -1,5 +1,6 @@
 #pragma once
 
+#include "simulation_metrics.h"
 #include "vtsim_solver.h"
 #include "vtsimnx_solver_timing.h"
 
@@ -22,4 +23,5 @@ CoupledStepData performCoupledStepCalculation(VentilationNetwork& ventNetwork,
                                               const SimulationConstants& constants,
                                               std::ostream& logs,
                                               TimingList& timings,
-                                              const std::string& meta);
+                                              const std::string& meta,
+                                              simulation::TimestepSolveMetrics* metrics = nullptr);

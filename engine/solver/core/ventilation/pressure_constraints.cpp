@@ -19,18 +19,18 @@ namespace {
 class FlowBalanceConstraintImpl : public ceres::CostFunction {
 public:
     FlowBalanceConstraintImpl(
-        const std::string& nodeName,
+        Vertex nodeVertex,
         const Graph& graph,
-        const std::unordered_map<std::string, Vertex>& nodeKeyToVertex,
         const std::vector<int>& vertexToParameterIndexVec,
         const std::vector<std::vector<Edge>>& incidentEdgesByVertex,
+        const std::vector<double>* densityByVertex,
         size_t numParameters,
         std::ostream& logFile)
-        : nodeName_(nodeName),
+        : nodeVertex_(nodeVertex),
           graph_(graph),
-          nodeKeyToVertex_(nodeKeyToVertex),
           vertexToParameterIndexVec_(vertexToParameterIndexVec),
           incidentEdgesByVertex_(incidentEdgesByVertex),
+          densityByVertex_(densityByVertex),
           numParameters_(numParameters),
           logFile_(logFile) {
         set_num_residuals(1);
@@ -40,29 +40,23 @@ public:
     bool Evaluate(double const* const* parameters,
                   double* residuals,
                   double** jacobians) const override {
-        auto nodeIt = nodeKeyToVertex_.find(nodeName_);
-        if (nodeIt == nodeKeyToVertex_.end()) {
-            residuals[0] = 0.0;
-            if (jacobians && jacobians[0]) {
-                std::fill(jacobians[0], jacobians[0] + static_cast<int>(numParameters_), 0.0);
-            }
-            return true;
-        }
-
         const double* pressures = parameters[0];
-        Vertex nodeVertex = nodeIt->second;
         double inflow = 0.0;
         double outflow = 0.0;
-        std::vector<double> grad(numParameters_, 0.0);
 
-        const auto& inc = incidentEdgesByVertex_[static_cast<size_t>(nodeVertex)];
+        const bool wantJac = (jacobians != nullptr && jacobians[0] != nullptr);
+        if (wantJac) {
+            std::fill(jacobians[0], jacobians[0] + static_cast<int>(numParameters_), 0.0);
+        }
+
+        const auto& inc = incidentEdgesByVertex_[static_cast<size_t>(nodeVertex_)];
         for (auto edge : inc) {
             auto sourceVertex = boost::source(edge, graph_);
             auto targetVertex = boost::target(edge, graph_);
             const auto& edgeData = graph_[edge];
 
-            bool isOutEdge = (sourceVertex == nodeVertex);
-            bool isInEdge  = (targetVertex == nodeVertex);
+            bool isOutEdge = (sourceVertex == nodeVertex_);
+            bool isInEdge  = (targetVertex == nodeVertex_);
             if (!isOutEdge && !isInEdge) continue;
 
             const int sIdx = vertexToParameterIndexVec_[static_cast<size_t>(sourceVertex)];
@@ -74,10 +68,8 @@ public:
             double sourcePressure = getNodePressure(sourceVertex, pressures);
             double targetPressure = getNodePressure(targetVertex, pressures);
 
-            const auto& sourceNode = graph_[sourceVertex];
-            const auto& targetNode = graph_[targetVertex];
-            double rho_source = calculateDensity(sourceNode.current_t);
-            double rho_target = calculateDensity(targetNode.current_t);
+            double rho_source = densityAt(sourceVertex);
+            double rho_target = densityAt(targetVertex);
 
             double source_total_pressure = sourcePressure - rho_source * archenv::GRAVITY * edgeData.h_from;
             double target_total_pressure = targetPressure - rho_target * archenv::GRAVITY * edgeData.h_to;
@@ -85,19 +77,18 @@ public:
 
             double flow = FlowCalculation::calculateUnifiedFlow(dp, edgeData);
 
-            // ヤコビアン計算
-            if (jacobians && jacobians[0]) {
+            if (wantJac) {
                 double dQdp = FlowJacobianCommon::calculateJacobian(dp, edgeData);
 
                 if (isOutEdge) {
                     outflow += flow;
-                    if (sIdx >= 0) grad[static_cast<size_t>(sIdx)] -= dQdp;
-                    if (tIdx >= 0) grad[static_cast<size_t>(tIdx)] += dQdp;
+                    if (sIdx >= 0) jacobians[0][static_cast<size_t>(sIdx)] -= dQdp;
+                    if (tIdx >= 0) jacobians[0][static_cast<size_t>(tIdx)] += dQdp;
                 }
                 if (isInEdge) {
                     inflow += flow;
-                    if (sIdx >= 0) grad[static_cast<size_t>(sIdx)] += dQdp;
-                    if (tIdx >= 0) grad[static_cast<size_t>(tIdx)] -= dQdp;
+                    if (sIdx >= 0) jacobians[0][static_cast<size_t>(sIdx)] += dQdp;
+                    if (tIdx >= 0) jacobians[0][static_cast<size_t>(tIdx)] -= dQdp;
                 }
             } else {
                 if (isOutEdge) outflow += flow;
@@ -106,19 +97,15 @@ public:
         }
 
         residuals[0] = inflow - outflow;
-
-        if (jacobians && jacobians[0]) {
-            std::copy(grad.begin(), grad.end(), jacobians[0]);
-        }
         return true;
     }
 
 private:
-    std::string nodeName_;
+    Vertex nodeVertex_;
     const Graph& graph_;
-    const std::unordered_map<std::string, Vertex>& nodeKeyToVertex_;
     const std::vector<int>& vertexToParameterIndexVec_;
     const std::vector<std::vector<Edge>>& incidentEdgesByVertex_;
+    const std::vector<double>* densityByVertex_;
     size_t numParameters_;
     std::ostream& logFile_;
 
@@ -126,6 +113,13 @@ private:
         const int idx = vertexToParameterIndexVec_[static_cast<size_t>(v)];
         if (idx >= 0) return pressures[idx];
         return graph_[v].current_p;
+    }
+
+    double densityAt(Vertex v) const {
+        if (densityByVertex_ != nullptr) {
+            return (*densityByVertex_)[static_cast<size_t>(v)];
+        }
+        return calculateDensity(graph_[v].current_t);
     }
 };
 
@@ -139,12 +133,14 @@ public:
         const Graph& graph,
         const std::vector<int>& vertexToParameterIndexVec,
         const std::vector<std::vector<Edge>>& incidentEdgesByVertex,
+        const std::vector<double>* densityByVertex,
         size_t numParameters,
         std::ostream& logFile)
         : groupVertices_(groupVertices),
           graph_(graph),
           vertexToParameterIndexVec_(vertexToParameterIndexVec),
           incidentEdgesByVertex_(incidentEdgesByVertex),
+          densityByVertex_(densityByVertex),
           numParameters_(numParameters),
           logFile_(logFile) {
         set_num_residuals(1);
@@ -159,7 +155,11 @@ public:
         const double* pressures = parameters[0];
         double inflow = 0.0;
         double outflow = 0.0;
-        std::vector<double> grad(numParameters_, 0.0);
+
+        const bool wantJac = (jacobians != nullptr && jacobians[0] != nullptr);
+        if (wantJac) {
+            std::fill(jacobians[0], jacobians[0] + static_cast<int>(numParameters_), 0.0);
+        }
 
         // group 内頂点の incident edges だけ走査（cross edge は必ず 1 回だけ現れる）
         for (auto vIn : groupVertices_) {
@@ -176,10 +176,8 @@ public:
                 double pS = getNodePressure(sv, pressures);
                 double pT = getNodePressure(tv, pressures);
 
-                const auto& sNode = graph_[sv];
-                const auto& tNode = graph_[tv];
-                double rhoS = calculateDensity(sNode.current_t);
-                double rhoT = calculateDensity(tNode.current_t);
+                double rhoS = densityAt(sv);
+                double rhoT = densityAt(tv);
 
                 double sTotal = pS - rhoS * archenv::GRAVITY * ep.h_from;
                 double tTotal = pT - rhoT * archenv::GRAVITY * ep.h_to;
@@ -187,7 +185,7 @@ public:
 
                 double q = FlowCalculation::calculateUnifiedFlow(dp, ep);
 
-                if (jacobians && jacobians[0]) {
+                if (wantJac) {
                     double dQdp = FlowJacobianCommon::calculateJacobian(dp, ep);
 
                     const int sIdx = vertexToParameterIndexVec_[static_cast<size_t>(sv)];
@@ -195,13 +193,13 @@ public:
 
                     if (sIn) {
                         outflow += q;
-                        if (sIdx >= 0) grad[static_cast<size_t>(sIdx)] -= dQdp;
-                        if (tIdx >= 0) grad[static_cast<size_t>(tIdx)] += dQdp;
+                        if (sIdx >= 0) jacobians[0][static_cast<size_t>(sIdx)] -= dQdp;
+                        if (tIdx >= 0) jacobians[0][static_cast<size_t>(tIdx)] += dQdp;
                     }
                     if (tIn) {
                         inflow += q;
-                        if (sIdx >= 0) grad[static_cast<size_t>(sIdx)] += dQdp;
-                        if (tIdx >= 0) grad[static_cast<size_t>(tIdx)] -= dQdp;
+                        if (sIdx >= 0) jacobians[0][static_cast<size_t>(sIdx)] += dQdp;
+                        if (tIdx >= 0) jacobians[0][static_cast<size_t>(tIdx)] -= dQdp;
                     }
                 } else {
                     if (sIn) outflow += q;
@@ -211,10 +209,6 @@ public:
         }
 
         residuals[0] = inflow - outflow;
-
-        if (jacobians && jacobians[0]) {
-            std::copy(grad.begin(), grad.end(), jacobians[0]);
-        }
         return true;
     }
 
@@ -223,6 +217,7 @@ private:
     const Graph& graph_;
     const std::vector<int>& vertexToParameterIndexVec_;
     const std::vector<std::vector<Edge>>& incidentEdgesByVertex_;
+    const std::vector<double>* densityByVertex_;
     size_t numParameters_;
     std::ostream& logFile_;
     std::unordered_set<Vertex> groupSet_;
@@ -231,6 +226,13 @@ private:
         const int idx = vertexToParameterIndexVec_[static_cast<size_t>(v)];
         if (idx >= 0) return pressures[idx];
         return graph_[v].current_p;
+    }
+
+    double densityAt(Vertex v) const {
+        if (densityByVertex_ != nullptr) {
+            return (*densityByVertex_)[static_cast<size_t>(v)];
+        }
+        return calculateDensity(graph_[v].current_t);
     }
 };
 
@@ -269,9 +271,49 @@ private:
     size_t numParameters_;
 };
 
+// 存在しないノード名向け（残差・ヤコビアンともゼロ）
+class ZeroResidualConstraintImpl : public ceres::CostFunction {
+public:
+    explicit ZeroResidualConstraintImpl(size_t numParameters)
+        : numParameters_(numParameters) {
+        set_num_residuals(1);
+        mutable_parameter_block_sizes()->push_back(static_cast<int>(numParameters));
+    }
+
+    bool Evaluate(double const* const* /*parameters*/,
+                  double* residuals,
+                  double** jacobians) const override {
+        residuals[0] = 0.0;
+        if (jacobians && jacobians[0]) {
+            std::fill(jacobians[0], jacobians[0] + static_cast<int>(numParameters_), 0.0);
+        }
+        return true;
+    }
+
+private:
+    size_t numParameters_;
+};
+
 } // namespace
 
 namespace PressureConstraints {
+
+ceres::CostFunction* createFlowBalanceConstraint(
+    Vertex nodeVertex,
+    const Graph& graph,
+    const std::vector<int>& vertexToParameterIndexVec,
+    const std::vector<std::vector<Edge>>& incidentEdgesByVertex,
+    const std::vector<double>* densityByVertex,
+    size_t numParameters,
+    std::ostream& logFile) {
+    return new FlowBalanceConstraintImpl(nodeVertex,
+                                        graph,
+                                        vertexToParameterIndexVec,
+                                        incidentEdgesByVertex,
+                                        densityByVertex,
+                                        numParameters,
+                                        logFile);
+}
 
 ceres::CostFunction* createFlowBalanceConstraint(
     const std::string& nodeName,
@@ -281,13 +323,34 @@ ceres::CostFunction* createFlowBalanceConstraint(
     const std::vector<std::vector<Edge>>& incidentEdgesByVertex,
     size_t numParameters,
     std::ostream& logFile) {
-    return new FlowBalanceConstraintImpl(nodeName,
-                                        graph,
-                                        nodeKeyToVertex,
-                                        vertexToParameterIndexVec,
-                                        incidentEdgesByVertex,
-                                        numParameters,
-                                        logFile);
+    auto it = nodeKeyToVertex.find(nodeName);
+    if (it == nodeKeyToVertex.end()) {
+        return new ZeroResidualConstraintImpl(numParameters);
+    }
+    return createFlowBalanceConstraint(it->second,
+                                       graph,
+                                       vertexToParameterIndexVec,
+                                       incidentEdgesByVertex,
+                                       /*densityByVertex=*/nullptr,
+                                       numParameters,
+                                       logFile);
+}
+
+ceres::CostFunction* createGroupFlowBalanceConstraint(
+    const std::vector<Vertex>& groupVertices,
+    const Graph& graph,
+    const std::vector<int>& vertexToParameterIndexVec,
+    const std::vector<std::vector<Edge>>& incidentEdgesByVertex,
+    const std::vector<double>* densityByVertex,
+    size_t numParameters,
+    std::ostream& logFile) {
+    return new GroupFlowBalanceConstraintImpl(groupVertices,
+                                             graph,
+                                             vertexToParameterIndexVec,
+                                             incidentEdgesByVertex,
+                                             densityByVertex,
+                                             numParameters,
+                                             logFile);
 }
 
 ceres::CostFunction* createGroupFlowBalanceConstraint(
@@ -297,12 +360,13 @@ ceres::CostFunction* createGroupFlowBalanceConstraint(
     const std::vector<std::vector<Edge>>& incidentEdgesByVertex,
     size_t numParameters,
     std::ostream& logFile) {
-    return new GroupFlowBalanceConstraintImpl(groupVertices,
-                                             graph,
-                                             vertexToParameterIndexVec,
-                                             incidentEdgesByVertex,
-                                             numParameters,
-                                             logFile);
+    return createGroupFlowBalanceConstraint(groupVertices,
+                                            graph,
+                                            vertexToParameterIndexVec,
+                                            incidentEdgesByVertex,
+                                            /*densityByVertex=*/nullptr,
+                                            numParameters,
+                                            logFile);
 }
 
 ceres::CostFunction* createSoftAnchorConstraint(
@@ -314,5 +378,3 @@ ceres::CostFunction* createSoftAnchorConstraint(
 }
 
 } // namespace PressureConstraints
-
-
