@@ -23,9 +23,9 @@ ConcentrationSolveStats updateConcentrationIfEnabled(const SimulationConstants& 
                                                      std::ostream& logs,
                                                      TimingList& timings,
                                                      const std::string& meta) {
-    (void)logs;
     ConcentrationSolveStats stats{};
     if (!constants.concentrationCalc) return stats;
+    const bool logEnabled = constants.logVerbosity >= 1;
 
     ScopedTimer timer(timings, "concentration_update", meta);
 
@@ -102,6 +102,10 @@ ConcentrationSolveStats updateConcentrationIfEnabled(const SimulationConstants& 
         if (!std::isfinite(ci) || ci < -kConcentrationNegEpsilon) {
             stats.converged = false;
             stats.updated = false;
+            if (logEnabled) {
+                writeDomainLog(logs, "濃度",
+                    "[ERROR] 更新失敗: 非有限または負の濃度 node=" + tGraph[v].key);
+            }
             return stats;
         }
     }
@@ -117,6 +121,10 @@ ConcentrationSolveStats updateConcentrationIfEnabled(const SimulationConstants& 
     }
     stats.converged = true;
     stats.updated = true;
+    if (logEnabled) {
+        writeDomainLog(logs, "濃度",
+            "更新完了: nodes=" + std::to_string(terms.updateVertices.size()));
+    }
     return stats;
 }
 

@@ -27,6 +27,7 @@ Python クライアント利用者向けガイドは [`../../docs/README.md`](..
 | [`simulation_loops.md`](simulation_loops.md) | 計算ループ構成（図多用） |
 | [`moisture_network_phase1.md`](moisture_network_phase1.md) | 湿気回路網 Phase1 |
 | [`physics_math_notes.md`](physics_math_notes.md) | 符号・単位・離散化の注意 |
+| [`solver_logging.md`](solver_logging.md) | solver.log の用語・タグ・重大度規約 |
 | [`constants_and_spec.md`](constants_and_spec.md) | 定数・材料テーブル対応 |
 | [`thermal_rc.md`](thermal_rc.md) | 壁モデル（RC） |
 | [`thermal_response_factor.md`](thermal_response_factor.md) | 壁モデル（応答係数/CTF） |

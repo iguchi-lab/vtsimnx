@@ -54,7 +54,7 @@ void AirconController::initializeModels(ThermalNetwork& thermalNetwork,
     // acmodel側のログ設定
     acmodel::setLogger([&logs](const std::string& message) {
         // acmodel::log 側で [acmodel] プレフィックスを付けるため、ここでは付けない
-        writeLog(logs, message);
+        writeDomainLog(logs, "空調", message);
     });
     acmodel::setLogVerbosity(logVerbosity_);
 
@@ -71,7 +71,7 @@ void AirconController::initializeModels(ThermalNetwork& thermalNetwork,
         airconKeysOrdered_.push_back(node.key);
 
         if (node.model == "IDEAL") {
-            writeLog(logs, "　エアコン IDEAL モード（モデルなし）: " + node.key);
+            writeDomainLog(logs, "空調", "IDEAL モード（モデルなし）: " + node.key);
             continue;
         }
         if (node.ac_spec.empty()) {
@@ -83,8 +83,8 @@ void AirconController::initializeModels(ThermalNetwork& thermalNetwork,
             auto model = acmodel::AirconModelFactory::createModel(node.model, node.ac_spec);
             airconModels[node.key] = std::move(model);
             ++initialized;
-            writeLog(logs,
-                     "　エアコンモデル初期化完了: " + node.key +
+            writeDomainLog(logs, "空調",
+                     "モデル初期化完了: " + node.key +
                          " (タイプ: " + node.model + ")");
             // verbosity=1 でも、初期化の「最終サマリ（係数等）」だけは出す
             // （詳細ログは acmodel::setLogVerbosity により verbosity>=2 のときのみ）
@@ -92,7 +92,7 @@ void AirconController::initializeModels(ThermalNetwork& thermalNetwork,
                 const std::string s = m->getInitializationSummary();
                 if (!s.empty()) {
                     // 初期化サマリは acmodel 側のログではないため、プレフィックスをここで付けて統一する
-                    writeLog(logs, std::string("　　[acmodel] ") + s);
+                    writeDomainLog(logs, "空調", std::string("　　[acmodel] ") + s);
                 }
             }
         } catch (const std::exception& e) {
@@ -121,7 +121,7 @@ void AirconController::initializeModels(ThermalNetwork& thermalNetwork,
         }
     }
 
-    writeLog(logs, "  エアコンモデル初期化総数: " + std::to_string(initialized) + "台");
+    writeDomainLog(logs, "空調", "モデル初期化総数: " + std::to_string(initialized) + "台");
 }
 
 void AirconController::registerModelForTesting(const std::string& airconKey,
@@ -311,7 +311,7 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
         auto result = controlAircon(nodeProps, currentTemp, targetTemp, tolerance, logFile,
                                     useRequiredHeat, nodeProps.required_heat_w,
                                     /*loadDeadbandW=*/1.0);
-        writeLog(logFile, result.logMessage);
+        writeDomainLog(logFile, "空調", result.logMessage);
         AirconRecomputeReason unitReasons = AirconRecomputeReason::None;
         if (result.stateChanged) {
             allControlled = false;
@@ -442,7 +442,7 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                 adjustmentMade = true;
                 unitReasons |= AirconRecomputeReason::CapacitySetpointChanged;
             }
-            writeLog(logs, oss.str());
+            writeDomainLog(logs, "空調", oss.str());
 
             if (outProposals) {
                 auto proposal = makeAirconStateProposalBase(airconKey, nodeProps);
@@ -529,7 +529,7 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
             << " DUCT_CENTRAL風量補正: 処理熱量=" << std::fixed << std::setprecision(2)
             << processedHeatW << "W"
             << ", 風量 " << context.airFlowRate << "→" << targetFlow << " m3/s, 再計算要求";
-        writeLog(logs, oss.str());
+        writeDomainLog(logs, "空調", oss.str());
 
         if (outProposals) {
             auto proposal = makeAirconStateProposalBase(airconKey, nodeProps);
@@ -636,7 +636,7 @@ std::pair<double, double> AirconController::estimatePowerAndCOPForAircon(
              << " [" << modeKey(context.operationMode) << "]";
         if (usedFallbackIn) warn << " in_node=" << nodeProps.in_node << " X_in=JIS";
         if (usedFallbackEx) warn << " outside_node=" << nodeProps.outside_node << " X_ex=JIS";
-        writeLog(logs, warn.str());
+        writeDomainLog(logs, "空調", warn.str());
     }
     if (logDetail && logVerbosity_ >= 1 && loads.usedRh95Fallback) {
         std::ostringstream warn;
@@ -645,12 +645,12 @@ std::pair<double, double> AirconController::estimatePowerAndCOPForAircon(
              << "% -> RH(out)=" << std::fixed << std::setprecision(2) << loads.supplyRhPercent
              << "% (Tout=" << context.validData.airconTemp << "°C, X_out=" << loads.supplyX
              << ", T_coil=" << loads.coilTemp << "°C, X_coil=" << loads.coilX << ")";
-        writeLog(logs, warn.str());
+        writeDomainLog(logs, "空調", warn.str());
     }
     auto result = model->estimateCOP(modeKey(context.operationMode), input);
     if (logVerbosity_ >= 2) {
         for (const auto& msg : result.logMessages) {
-            writeLog(logs, msg);
+            writeDomainLog(logs, "空調", msg);
         }
     }
     if (!result.valid) {
@@ -669,7 +669,7 @@ std::pair<double, double> AirconController::estimatePowerAndCOPForAircon(
                << " 室内=" << context.validData.indoorTemp << "°C"
                << " COP=" << result.COP
                << " 電力=" << powerW << "W";
-        writeLog(logs, detail.str());
+        writeDomainLog(logs, "空調", detail.str());
     }
     return {powerW, result.COP};
 }
@@ -692,7 +692,7 @@ std::vector<double> AirconController::calculatePowerOrCOPValues(ThermalNetwork& 
                                              returnPower /* power のみ詳細ログ */);
             values[i] = returnPower ? pair.first : pair.second;
         } catch (const std::exception& e) {
-            writeLog(logs, std::string("　　エラー: エアコン ") + airconKey + " - " + e.what());
+            writeDomainLog(logs, "空調", std::string("[ERROR] ") + airconKey + " - " + e.what());
         }
     }
     return values;
@@ -753,7 +753,7 @@ AirconController::applyLatentFeedbackToThermal(ThermalNetwork& thermalNetwork,
                     oss << "　潜熱フィードバック: " << airconKey
                         << " は setpoint 固定ノード(" << nodeProps.in_node
                         << ")への注入をスキップ";
-                    writeLog(logs, oss.str());
+                    writeDomainLog(logs, "空調", oss.str());
                 }
                 continue;
             }
@@ -770,10 +770,10 @@ AirconController::applyLatentFeedbackToThermal(ThermalNetwork& thermalNetwork,
                     << " latent=" << latentQ << "W"
                     << " alpha=" << alpha
                     << " applied=" << deltaQ << "W";
-                writeLog(logs, oss.str());
+                writeDomainLog(logs, "空調", oss.str());
             }
         } catch (const std::exception& e) {
-            writeLog(logs, std::string("　　エラー: 潜熱フィードバック ") + airconKey + " - " + e.what());
+            writeDomainLog(logs, "空調", std::string("[ERROR] 潜熱フィードバック ") + airconKey + " - " + e.what());
         }
     }
     return stats;
@@ -822,7 +822,7 @@ void AirconController::applyPreset(ThermalNetwork& thermalNetwork,
         }
         lastAppliedMode_[airconKey] = mode;
         std::string target = nodeProps.set_node.empty() ? nodeProps.key : nodeProps.set_node;
-        writeLog(logs,
+        writeDomainLog(logs, "空調",
                  std::string("　エアコン設定（初期化）: ") + target +
                      " ON/OFF=" + (nodeProps.on ? "ON" : "OFF"));
         if (!nodeProps.set_node.empty()) {

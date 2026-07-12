@@ -90,14 +90,17 @@ inline void configureLineSearchLbfgs(ceres::Solver::Options& o, const Simulation
 
 inline const std::vector<SolverTrialSpec>& primaryTrustRegionTrials() {
     static const std::vector<SolverTrialSpec> trials = {
-        {"----①標準設定でソルバーを実行します...", "----標準設定で収束しました",
+        {"[圧力] ①標準設定でソルバーを実行します...",
+         "[圧力] 標準設定: Ceres相対停止 (CONVERGENCE)。物理収支は別判定",
          configureStandardLmQr},
-        {"----②堅牢設定でソルバーを再実行します...", "----堅牢設定で収束しました",
+        {"[圧力] ②堅牢設定でソルバーを再実行します...",
+         "[圧力] 堅牢設定: Ceres相対停止 (CONVERGENCE)。物理収支は別判定",
          configureRobustDoglegQr},
-        {"----③DENSE_SCHUR設定でソルバーを再実行します...", "----DENSE_SCHUR設定で収束しました",
+        {"[圧力] ③DENSE_SCHUR設定でソルバーを再実行します...",
+         "[圧力] DENSE_SCHUR設定: Ceres相対停止 (CONVERGENCE)。物理収支は別判定",
          configureDoglegDenseSchur},
-        {"----④SPARSE_NORMAL_CHOLESKY設定でソルバーを再実行します...",
-         "----SPARSE_NORMAL_CHOLESKY設定で収束しました",
+        {"[圧力] ④SPARSE_NORMAL_CHOLESKY設定でソルバーを再実行します...",
+         "[圧力] SPARSE_NORMAL_CHOLESKY設定: Ceres相対停止 (CONVERGENCE)。物理収支は別判定",
          configureDoglegSparseCholesky},
     };
     return trials;

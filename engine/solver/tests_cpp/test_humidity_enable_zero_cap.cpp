@@ -524,7 +524,7 @@ int main() {
                 expectTrue(threw, "coupled: must throw");
                 expectNear(thermal.getGraph()[thermal.getKeyToVertex().at("ROOM")].current_x,
                            xBefore, 0.0, "coupled: graph unchanged");
-                expectTrue(logs.str().find("湿気ソルバ未収束(停止)") != std::string::npos,
+                expectTrue(logs.str().find("ソルバ未収束(停止)") != std::string::npos,
                            "coupled: stop log message");
             }
         }

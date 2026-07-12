@@ -228,9 +228,19 @@ void PressureSolver::Impl::runPrimarySolvers(const SimulationConstants& constant
         auto eval = evaluatePressureSolution(pressureMap, massBalanceMaxAbs);
         if (eval.flowOk && eval.accepted) {
             physicalAccepted = true;
-            writeLog(logFile_, "----物理収支合格のため試行を終了します (mass_maxAbs=" +
+            writeDomainLog(logFile_, "圧力", "物理収支合格のため試行を終了します (mass_maxAbs=" +
                                    std::to_string(eval.solvedNodeMetrics.maxAbs) + ")");
             return true;
+        }
+        if (eval.flowOk) {
+            std::ostringstream oss;
+            oss << std::scientific << std::setprecision(6);
+            oss << "物理収支未達: mass_maxAbs=" << eval.solvedNodeMetrics.maxAbs
+                << " > tol=" << massBalanceMaxAbs
+                << " → 次の手法へ";
+            writeDomainLog(logFile_, "圧力", oss.str());
+        } else {
+            writeDomainLog(logFile_, "圧力", "物理収支評価失敗: " + eval.detail + " → 次の手法へ");
         }
         return false;
     };
@@ -249,17 +259,17 @@ void PressureSolver::Impl::runPrimarySolvers(const SimulationConstants& constant
     }
 
     if (!physicalAccepted) {
-        writeLog(logFile_, "----⑤段階的緩和法でソルバーを再実行します...");
+        writeDomainLog(logFile_, "圧力", "⑤段階的緩和法でソルバーを再実行します...");
         TrialResult r = runTwoStageRelaxation(
             constants,
             problem,
             summary,
-            "----⑤段階的緩和法(段階1)",
-            "----⑤段階的緩和法(段階2)",
+            "[圧力] ⑤段階的緩和法(段階1)",
+            "[圧力] ⑤段階的緩和法(段階2)",
             [&](const ceres::Solver::Summary& s1) {
                 std::ostringstream oss;
                 oss << std::scientific << std::setprecision(6);
-                oss << "-----段階1完了: 残差=" << s1.final_cost
+                oss << "[圧力] 段階1完了: 残差=" << s1.final_cost
                     << ", 終了理由=";
                 switch(s1.termination_type) {
                     case ceres::CONVERGENCE: oss << "CONVERGENCE"; break;
@@ -269,15 +279,15 @@ void PressureSolver::Impl::runPrimarySolvers(const SimulationConstants& constant
                     default: oss << "UNKNOWN(" << static_cast<int>(s1.termination_type) << ")"; break;
                 }
                 oss << ", 反復回数=" << s1.num_successful_steps;
-                writeLog(logFile_, oss.str());
+                writeDomainLog(logFile_, "圧力", oss.str());
             });
         (void)r;
         if (checkPhysical()) {
-            writeLog(logFile_, "----段階的緩和法で物理収支が合格しました");
+            writeDomainLog(logFile_, "圧力", "段階的緩和法で物理収支が合格しました");
         } else {
             std::ostringstream oss;
             oss << std::scientific << std::setprecision(6);
-            oss << "-----段階2後も物理不合格: 終了理由=";
+            oss << "段階2後も物理未達: 終了理由=";
             switch(summary.termination_type) {
                 case ceres::CONVERGENCE: oss << "CONVERGENCE"; break;
                 case ceres::NO_CONVERGENCE: oss << "NO_CONVERGENCE (最大反復回数到達)"; break;
@@ -288,14 +298,14 @@ void PressureSolver::Impl::runPrimarySolvers(const SimulationConstants& constant
             oss << ", 最終残差=" << summary.final_cost
                 << ", 許容誤差=" << r.usedTolerance
                 << ", 反復回数=" << summary.num_successful_steps;
-            writeLog(logFile_, oss.str());
+            writeDomainLog(logFile_, "圧力", oss.str());
         }
     }
 
     if (!physicalAccepted) {
         (void)runSolverTrial(
-            "----⑥Line Search方式でソルバーを再実行します...",
-            "----Line Search方式で収束しました",
+            "[圧力] ⑥Line Search方式でソルバーを再実行します...",
+            "[圧力] Line Search方式: Ceres相対停止 (CONVERGENCE)。物理収支は別判定",
             problem,
             summary,
             constants.ventilationTolerance,
@@ -303,28 +313,28 @@ void PressureSolver::Impl::runPrimarySolvers(const SimulationConstants& constant
                 ventilation::configureLineSearchLbfgs(options, constants);
             });
         if (checkPhysical()) {
-            writeLog(logFile_, "----Line Search方式で物理収支が合格しました");
+            writeDomainLog(logFile_, "圧力", "Line Search方式で物理収支が合格しました");
         }
     }
 
     if (!physicalAccepted) {
-        writeLog(logFile_, "----⑦超精密設定で最終試行します...");
+        writeDomainLog(logFile_, "圧力", "⑦超精密設定で最終試行します...");
         const double refCost = summary.final_cost;
         TrialResult r = runUltraPreciseTrial(
             constants,
             problem,
             summary,
-            "----⑦超精密設定",
+            "[圧力] ⑦超精密設定",
             refCost,
             [&](double usedTol) {
-                writeLog(logFile_, "-----調整済み許容誤差: " + std::to_string(usedTol));
+                writeDomainLog(logFile_, "圧力", "調整済み許容誤差: " + std::to_string(usedTol));
             });
         if (checkPhysical()) {
-            writeLog(logFile_, "----超精密設定で物理収支が合格しました");
+            writeDomainLog(logFile_, "圧力", "超精密設定で物理収支が合格しました");
         } else {
             std::ostringstream oss;
             oss << std::scientific << std::setprecision(6);
-            oss << "-----超精密設定後も物理不合格: 終了理由=";
+            oss << "超精密設定後も物理未達: 終了理由=";
             switch(summary.termination_type) {
                 case ceres::CONVERGENCE: oss << "CONVERGENCE"; break;
                 case ceres::NO_CONVERGENCE: oss << "NO_CONVERGENCE (最大反復回数到達)"; break;
@@ -335,15 +345,19 @@ void PressureSolver::Impl::runPrimarySolvers(const SimulationConstants& constant
             oss << ", 最終残差=" << summary.final_cost
                 << ", 許容誤差=" << r.usedTolerance
                 << ", 反復回数=" << summary.num_successful_steps;
-            writeLog(logFile_, oss.str());
+            writeDomainLog(logFile_, "圧力", oss.str());
         }
     }
 
     if (!physicalAccepted) {
-        writeLog(logFile_, "----全てのソルバー手法で物理収支合格に至りませんでした");
-        writeLog(logFile_, "----最終残差: " + std::to_string(summary.final_cost) +
-                           " (Ceres function_tol 目標: " +
-                           std::to_string(constants.ventilationTolerance) + ")");
+        writeDomainLog(logFile_, "圧力", "全てのソルバー手法で物理収支合格に至りませんでした"
+                           "（Ceres相対停止と物理合否は別判定）");
+        std::ostringstream oss;
+        oss << std::scientific << std::setprecision(6);
+        oss << "最終 Ceres cost=" << summary.final_cost
+            << " | mass_tol(物理)=" << massBalanceMaxAbs
+            << " | 次へ: フォールバック";
+        writeDomainLog(logFile_, "圧力", oss.str());
     }
 }
 

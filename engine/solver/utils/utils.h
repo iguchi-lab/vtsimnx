@@ -37,6 +37,21 @@ inline void writeLog(std::ostream& logFile,
                      const std::string& message,
                      bool includeTimestepMeta);
 
+// ドメインタグ付きログ（規約: engine/docs/solver_logging.md）
+// 例: writeDomainLog(os, "圧力", "物理収支未達: ..."); → "[圧力] 物理収支未達: ..."
+inline void writeDomainLog(std::ostream& logFile,
+                           std::string_view domain,
+                           const std::string& message,
+                           bool includeTimestepMeta = false) {
+    std::string tagged;
+    tagged.reserve(domain.size() + message.size() + 4);
+    tagged.push_back('[');
+    tagged.append(domain.data(), domain.size());
+    tagged.append("] ");
+    tagged.append(message);
+    writeLog(logFile, tagged, includeTimestepMeta);
+}
+
 class ScopedLogIndent {
 public:
     ScopedLogIndent(std::ostream& os, int depth = 1)

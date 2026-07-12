@@ -47,25 +47,25 @@ bool shouldUseKluBackend(DirectTSolverContext& ctx, std::ostream& logFile) {
     const bool forceKlu = (requested == "klu" || requested == "KLU");
     if (forceLu) {
         ctx.luBackendState = 0;
-        writeLog(logFile, "--------疎直接法(DirectT): LU backend=Eigen::SparseLU (forced by env)");
+        writeDomainLog(logFile, "熱", "[INFO] DirectT: LU backend=Eigen::SparseLU (forced by env)");
         return false;
     }
 
 #if defined(VTSIMNX_USE_KLU) && (VTSIMNX_USE_KLU)
     if (!requested.empty() && !forceKlu) {
         ctx.luBackendState = 1;
-        writeLog(logFile, "--------疎直接法(DirectT): unknown LU backend env; use default KLU");
+        writeDomainLog(logFile, "熱", "[WARN] DirectT: 不明な LU backend env。既定 KLU を使用");
         return true;
     }
     ctx.luBackendState = 1;
-    writeLog(logFile, "--------疎直接法(DirectT): LU backend=KLU");
+    writeDomainLog(logFile, "熱", "[INFO] DirectT: LU backend=KLU");
     return true;
 #else
     ctx.luBackendState = 0;
     if (forceKlu) {
-        writeLog(logFile, "--------疎直接法(DirectT): KLU requested but unavailable, fallback to Eigen::SparseLU");
+        writeDomainLog(logFile, "熱", "[WARN] DirectT: KLU 不可のため Eigen::SparseLU へフォールバック");
     } else {
-        writeLog(logFile, "--------疎直接法(DirectT): LU backend=Eigen::SparseLU (KLU not available)");
+        writeDomainLog(logFile, "熱", "[INFO] DirectT: LU backend=Eigen::SparseLU (KLU なし)");
     }
     return false;
 #endif
@@ -85,7 +85,7 @@ bool ensureKluPattern(KluCache& klu, const Eigen::SparseMatrix<double>& A, int n
     klu.patternHash = patternHash;
     klu.symbolic = klu_analyze(n, const_cast<int*>(A.outerIndexPtr()), const_cast<int*>(A.innerIndexPtr()), &klu.common);
     if (klu.symbolic == nullptr) {
-        writeLog(logFile, "--------疎直接法(DirectT): KLU analyze failed");
+        writeDomainLog(logFile, "熱", "[ERROR] DirectT: KLU analyze に失敗");
         return false;
     }
     klu.analyzed = true;
@@ -103,7 +103,7 @@ bool factorizeWithKlu(KluCache& klu, const Eigen::SparseMatrix<double>& A, std::
                              klu.symbolic,
                              &klu.common);
     if (klu.numeric == nullptr) {
-        writeLog(logFile, "--------疎直接法(DirectT): KLU factorize failed (singular/ill-conditioned)");
+        writeDomainLog(logFile, "熱", "[ERROR] DirectT: KLU 因子分解に失敗（特異/悪条件）");
         return false;
     }
     klu.factorized = true;
@@ -116,7 +116,7 @@ bool solveWithKlu(KluCache& klu, const Eigen::VectorXd& b, Eigen::VectorXd& sol,
     sol = b;
     const int ok = klu_solve(klu.symbolic, klu.numeric, klu.n, 1, sol.data(), &klu.common);
     if (ok == 0) {
-        writeLog(logFile, "--------疎直接法(DirectT): KLU solve failed");
+        writeDomainLog(logFile, "熱", "[ERROR] DirectT: KLU solve に失敗");
         return false;
     }
     return true;
@@ -228,7 +228,7 @@ bool solveSparseDirect(DirectTSolverContext& ctx,
             }
         }
         if (!mappingOk) {
-            writeLog(logFile, "--------疎直接法(DirectT): valuePtrIndexByRow の構築に失敗（パターン不一致）。停止します。");
+            writeDomainLog(logFile, "熱", "[ERROR] DirectT: valuePtrIndexByRow の構築に失敗（パターン不一致）。停止します。");
             sparseLu.analyzed = false;
             sparseLu.factorized = false;
             sparseLu.valueHash = 0;
@@ -241,7 +241,7 @@ bool solveSparseDirect(DirectTSolverContext& ctx,
         if (useKluBackend) {
 #if defined(VTSIMNX_USE_KLU) && (VTSIMNX_USE_KLU)
             if (!ensureKluPattern(klu, sparseLu.A, static_cast<int>(n), nnz, patternHash, logFile)) {
-                writeLog(logFile, "--------疎直接法(DirectT): fallback to Eigen::SparseLU after KLU analyze failure");
+                writeDomainLog(logFile, "熱", "[WARN] DirectT: fallback to Eigen::SparseLU after KLU analyze failure");
                 useKluBackend = false;
             }
             if (useKluBackend) {
@@ -317,7 +317,7 @@ bool solveSparseDirect(DirectTSolverContext& ctx,
                     methodLabel = "LLT";
                 }
             } else {
-                writeLog(logFile, "--------疎直接法(DirectT): LLT factorize failed (matrix not SPD or ill-conditioned)");
+                writeDomainLog(logFile, "熱", "[ERROR] DirectT: LLT 因子分解に失敗（非SPD/悪条件）");
             }
             if (!solved) {
                 ++stats.cholFactorize;
@@ -331,7 +331,7 @@ bool solveSparseDirect(DirectTSolverContext& ctx,
                         methodLabel = "LDLT";
                     }
                 } else {
-                    writeLog(logFile, "--------疎直接法(DirectT): LDLT factorize failed (matrix not SPD / indefinite / ill-conditioned)");
+                    writeDomainLog(logFile, "熱", "[ERROR] DirectT: LDLT 因子分解に失敗（非SPD/不定/悪条件）");
                 }
             }
             if (!solved) {
@@ -359,7 +359,7 @@ bool solveSparseDirect(DirectTSolverContext& ctx,
 #if defined(VTSIMNX_USE_KLU) && (VTSIMNX_USE_KLU)
             if (useKluBackend) {
                 if (!factorizeWithKlu(klu, sparseLu.A, sparseLu.valueHash, logFile)) {
-                    writeLog(logFile, "--------疎直接法(DirectT): fallback to Eigen::SparseLU after KLU factorize failure");
+                    writeDomainLog(logFile, "熱", "[WARN] DirectT: fallback to Eigen::SparseLU after KLU factorize failure");
                     useKluBackend = false;
                 }
             }
@@ -368,7 +368,7 @@ bool solveSparseDirect(DirectTSolverContext& ctx,
             {
                 sparseLu.solver.factorize(sparseLu.A);
                 if (sparseLu.solver.info() != Eigen::Success) {
-                    writeLog(logFile, "--------疎直接法(DirectT): LU factorize failed (singular/ill-conditioned)");
+                    writeDomainLog(logFile, "熱", "[ERROR] DirectT: LU 因子分解に失敗（特異/悪条件）");
                     return false;
                 }
             }
@@ -379,7 +379,7 @@ bool solveSparseDirect(DirectTSolverContext& ctx,
             if (solveWithKlu(klu, b, sol, logFile)) {
                 methodLabel = "KLU";
             } else {
-                writeLog(logFile, "--------疎直接法(DirectT): fallback to Eigen::SparseLU after KLU solve failure");
+                writeDomainLog(logFile, "熱", "[WARN] DirectT: fallback to Eigen::SparseLU after KLU solve failure");
                 useKluBackend = false;
                 sparseLu.factorized = false;
             }
@@ -391,14 +391,14 @@ bool solveSparseDirect(DirectTSolverContext& ctx,
                 ++stats.luFactorize;
                 sparseLu.solver.factorize(sparseLu.A);
                 if (sparseLu.solver.info() != Eigen::Success) {
-                    writeLog(logFile, "--------疎直接法(DirectT): LU factorize failed (fallback path)");
+                    writeDomainLog(logFile, "熱", "[ERROR] DirectT: LU 因子分解に失敗（フォールバック経路）");
                     return false;
                 }
                 sparseLu.factorized = true;
             }
             sol = sparseLu.solver.solve(b);
             if (sparseLu.solver.info() != Eigen::Success) {
-                writeLog(logFile, "--------疎直接法(DirectT): LU solve failed");
+                writeDomainLog(logFile, "熱", "[ERROR] DirectT: LU solve に失敗");
                 return false;
             }
             methodLabel = "LU";
@@ -413,7 +413,7 @@ bool solveSparseDirect(DirectTSolverContext& ctx,
     Eigen::VectorXd r = sparseLu.A * sol - b;
     const double maxResidual = (r.size() > 0) ? r.cwiseAbs().maxCoeff() : 0.0;
     if (!std::isfinite(maxResidual)) {
-        writeLog(logFile, "--------疎直接法(DirectT): residual is not finite");
+        writeDomainLog(logFile, "熱", "[ERROR] DirectT: 残差が非有限");
         return false;
     }
     const double bScale = (b.size() > 0) ? b.cwiseAbs().maxCoeff() : 0.0;
@@ -432,7 +432,7 @@ bool solveSparseDirect(DirectTSolverContext& ctx,
 #if defined(VTSIMNX_USE_KLU) && (VTSIMNX_USE_KLU)
                 if (useKluBackend) {
                     if (!factorizeWithKlu(klu, sparseLu.A, sparseLu.valueHash, logFile)) {
-                        writeLog(logFile, "--------疎直接法(DirectT): fallback to Eigen::SparseLU after KLU factorize retry failure");
+                        writeDomainLog(logFile, "熱", "[WARN] DirectT: fallback to Eigen::SparseLU after KLU factorize retry failure");
                         useKluBackend = false;
                     }
                 }
@@ -441,7 +441,7 @@ bool solveSparseDirect(DirectTSolverContext& ctx,
                 {
                     sparseLu.solver.factorize(sparseLu.A);
                     if (sparseLu.solver.info() != Eigen::Success) {
-                        writeLog(logFile, "--------疎直接法(DirectT): LU factorize failed on retry");
+                        writeDomainLog(logFile, "熱", "[ERROR] DirectT: LU 因子分解に失敗（再試行）");
                         return false;
                     }
                 }
@@ -450,7 +450,7 @@ bool solveSparseDirect(DirectTSolverContext& ctx,
 #if defined(VTSIMNX_USE_KLU) && (VTSIMNX_USE_KLU)
             if (useKluBackend) {
                 if (!solveWithKlu(klu, b, sol2, logFile)) {
-                    writeLog(logFile, "--------疎直接法(DirectT): fallback to Eigen::SparseLU after KLU solve retry failure");
+                    writeDomainLog(logFile, "熱", "[WARN] DirectT: fallback to Eigen::SparseLU after KLU solve retry failure");
                     useKluBackend = false;
                     sparseLu.factorized = false;
                 }
@@ -462,21 +462,21 @@ bool solveSparseDirect(DirectTSolverContext& ctx,
                     ++stats.luFactorize;
                     sparseLu.solver.factorize(sparseLu.A);
                     if (sparseLu.solver.info() != Eigen::Success) {
-                        writeLog(logFile, "--------疎直接法(DirectT): LU factorize failed on retry fallback");
+                        writeDomainLog(logFile, "熱", "[ERROR] DirectT: LU 因子分解に失敗（再試行フォールバック）");
                         return false;
                     }
                     sparseLu.factorized = true;
                 }
                 sol2 = sparseLu.solver.solve(b);
                 if (sparseLu.solver.info() != Eigen::Success) {
-                    writeLog(logFile, "--------疎直接法(DirectT): LU solve failed on retry");
+                    writeDomainLog(logFile, "熱", "[ERROR] DirectT: LU solve に失敗（再試行）");
                     return false;
                 }
             }
             Eigen::VectorXd r2 = sparseLu.A * sol2 - b;
             const double maxResidual2 = (r2.size() > 0) ? r2.cwiseAbs().maxCoeff() : 0.0;
             if (!std::isfinite(maxResidual2)) {
-                writeLog(logFile, "--------疎直接法(DirectT): LU retry residual is not finite");
+                writeDomainLog(logFile, "熱", "[ERROR] DirectT: LU 再試行残差が非有限");
                 return false;
             }
             if (maxResidual2 > scaledTol) {
@@ -484,7 +484,7 @@ bool solveSparseDirect(DirectTSolverContext& ctx,
                 oss2 << "--------疎直接法(DirectT): LU retry residual still large: max|Ax-b|="
                      << std::scientific << std::setprecision(6) << maxResidual2
                      << " > tol=" << scaledTol;
-                writeLog(logFile, oss2.str());
+                writeDomainLog(logFile, "熱", oss2.str());
                 return false;
             }
             ioSol = std::move(sol2);
@@ -493,18 +493,18 @@ bool solveSparseDirect(DirectTSolverContext& ctx,
         };
 
         if (usedCholesky) {
-            writeLog(logFile, "--------疎直接法(DirectT): retry with LU due to large residual after Cholesky");
+            writeDomainLog(logFile, "熱", "[WARN] DirectT: retry with LU due to large residual after Cholesky");
             (void)tryLuFallback(sol, methodLabel);
         }
 
         std::ostringstream oss;
-        oss << "--------疎直接法(DirectT): residual too large: max|Ax-b|="
+        oss << "[ERROR] DirectT: residual too large: max|Ax-b|="
             << std::scientific << std::setprecision(6) << maxResidual
             << " > tol=" << scaledTol
             << " (thermalLinearResidualRelativeTolerance=" << tolerance
             << ", bScale=" << bScale
             << ", method=" << methodLabel << ")";
-        writeLog(logFile, oss.str());
+        writeDomainLog(logFile, "熱", oss.str());
         // LU fallback で methodLabel が置き換わっていれば成功しているので継続
         if (methodLabel == "LU(fallback)" || methodLabel == "KLU(fallback)") {
             // ok
@@ -516,7 +516,7 @@ bool solveSparseDirect(DirectTSolverContext& ctx,
     for (size_t i = 0; i < n; ++i) {
         const double v = sol[static_cast<int>(i)];
         if (!std::isfinite(v)) {
-            writeLog(logFile, "--------疎直接法(DirectT): solution contains NaN/Inf");
+            writeDomainLog(logFile, "熱", "[ERROR] DirectT: 解に NaN/Inf を含む");
             return false;
         }
         x[i] = v;
@@ -564,7 +564,7 @@ bool solveWithCachedFactorization(DirectTSolverContext& ctx,
             if (ok) {
                 methodLabel = "KLU(cached)";
             } else {
-                writeLog(logFile, "--------疎直接法(DirectT cached): fallback to Eigen::SparseLU after KLU(cached) solve failure");
+                writeDomainLog(logFile, "熱", "[WARN] DirectT cached: fallback to Eigen::SparseLU after KLU(cached) solve failure");
                 useKluBackend = false;
                 sparseLu.factorized = false;
             }
@@ -576,7 +576,7 @@ bool solveWithCachedFactorization(DirectTSolverContext& ctx,
                 ++stats.luFactorize;
                 sparseLu.solver.factorize(sparseLu.A);
                 if (sparseLu.solver.info() != Eigen::Success) {
-                    writeLog(logFile, "--------疎直接法(DirectT cached): LU factorize failed on fallback");
+                    writeDomainLog(logFile, "熱", "[WARN] DirectT cached: LU factorize failed on fallback");
                     return false;
                 }
                 sparseLu.factorized = true;
@@ -602,7 +602,7 @@ bool solveWithCachedFactorization(DirectTSolverContext& ctx,
         Eigen::VectorXd r = sparseLu.A * sol - b;
         const double maxResidual = (r.size() > 0) ? r.cwiseAbs().maxCoeff() : 0.0;
         if (!std::isfinite(maxResidual)) {
-            writeLog(logFile, "--------疎直接法(DirectT cached): residual is not finite");
+            writeDomainLog(logFile, "熱", "[WARN] DirectT cached: residual is not finite");
             return false;
         }
         const double bScale = (b.size() > 0) ? b.cwiseAbs().maxCoeff() : 0.0;
@@ -614,7 +614,7 @@ bool solveWithCachedFactorization(DirectTSolverContext& ctx,
 #if defined(VTSIMNX_USE_KLU) && (VTSIMNX_USE_KLU)
                 if (useKluBackend) {
                     if (!solveWithKlu(klu, b, sol2, logFile)) {
-                        writeLog(logFile, "--------疎直接法(DirectT cached): fallback to Eigen::SparseLU after KLU(cached) retry failure");
+                        writeDomainLog(logFile, "熱", "[WARN] DirectT cached: fallback to Eigen::SparseLU after KLU(cached) retry failure");
                         useKluBackend = false;
                         sparseLu.factorized = false;
                     }
@@ -626,21 +626,21 @@ bool solveWithCachedFactorization(DirectTSolverContext& ctx,
                         ++stats.luFactorize;
                         sparseLu.solver.factorize(sparseLu.A);
                         if (sparseLu.solver.info() != Eigen::Success) {
-                            writeLog(logFile, "--------疎直接法(DirectT cached): LU factorize failed on retry fallback");
+                            writeDomainLog(logFile, "熱", "[WARN] DirectT cached: LU factorize failed on retry fallback");
                             return false;
                         }
                         sparseLu.factorized = true;
                     }
                     sol2 = sparseLu.solver.solve(b);
                     if (sparseLu.solver.info() != Eigen::Success) {
-                        writeLog(logFile, "--------疎直接法(DirectT cached): LU(cached) solve failed on retry");
+                        writeDomainLog(logFile, "熱", "[WARN] DirectT cached: LU(cached) solve failed on retry");
                         return false;
                     }
                 }
                 Eigen::VectorXd r2 = sparseLu.A * sol2 - b;
                 const double maxResidual2 = (r2.size() > 0) ? r2.cwiseAbs().maxCoeff() : 0.0;
                 if (!std::isfinite(maxResidual2)) {
-                    writeLog(logFile, "--------疎直接法(DirectT cached): LU(cached) retry residual is not finite");
+                    writeDomainLog(logFile, "熱", "[WARN] DirectT cached: LU(cached) retry residual is not finite");
                     return false;
                 }
                 if (maxResidual2 > scaledTol) {
@@ -648,7 +648,7 @@ bool solveWithCachedFactorization(DirectTSolverContext& ctx,
                     oss2 << "--------疎直接法(DirectT cached): LU(cached) retry residual still large: max|Ax-b|="
                          << std::scientific << std::setprecision(6) << maxResidual2
                          << " > tol=" << scaledTol;
-                    writeLog(logFile, oss2.str());
+                    writeDomainLog(logFile, "熱", oss2.str());
                     return false;
                 }
                 ioSol = std::move(sol2);
@@ -657,18 +657,18 @@ bool solveWithCachedFactorization(DirectTSolverContext& ctx,
             };
 
             if (usedCholesky) {
-                writeLog(logFile, "--------疎直接法(DirectT cached): retry with LU(cached) due to large residual after Cholesky");
+                writeDomainLog(logFile, "熱", "[WARN] DirectT cached: retry with LU(cached) due to large residual after Cholesky");
                 (void)tryLuCachedFallback(sol, methodLabel);
             }
 
             std::ostringstream oss;
-            oss << "--------疎直接法(DirectT cached): residual too large: max|Ax-b|="
+            oss << "[ERROR] DirectT cached: residual too large: max|Ax-b|="
                 << std::scientific << std::setprecision(6) << maxResidual
                 << " > tol=" << scaledTol
                 << " (thermalLinearResidualRelativeTolerance=" << tolerance
                 << ", bScale=" << bScale
                 << ", method=" << methodLabel << ")";
-            writeLog(logFile, oss.str());
+            writeDomainLog(logFile, "熱", oss.str());
             if (methodLabel == "LU(cached-fallback)" || methodLabel == "KLU(cached-fallback)") {
                 // ok
             } else {
@@ -680,7 +680,7 @@ bool solveWithCachedFactorization(DirectTSolverContext& ctx,
     for (size_t i = 0; i < n; ++i) {
         const double v = sol[static_cast<int>(i)];
         if (!std::isfinite(v)) {
-            writeLog(logFile, "--------疎直接法(DirectT cached): solution contains NaN/Inf");
+            writeDomainLog(logFile, "熱", "[WARN] DirectT cached: solution contains NaN/Inf");
             return false;
         }
         x[i] = v;

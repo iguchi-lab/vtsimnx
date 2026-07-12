@@ -55,6 +55,7 @@ flowchart LR
   - `ventilation_branches[].vol`（`fixed_flow` / `has_prescribed_vol`）も solver 入力時点では \([m^3/s]\)
   - `FlowRateMap` / `FlowBalanceMap` / `ventilationTolerance` も **体積流量収支 [m³/s]**（質量収支ではない）
   - Ceres の `function/parameter/gradient_tolerance` は相対停止条件であり、`ventilationTolerance` とは別物
+  - ログの「Ceres相対停止 (CONVERGENCE)」は最適化の停止であり、物理合否ではない。物理合否は `mass_maxAbs ≤ ventilationTolerance`。未達なら次手法→フォールバックへ進む（最終的に合格すれば計算自体は成功）。ログ規約の正本は [`solver_logging.md`](solver_logging.md)
   - `enable=false` および `fixed_flow` / `vol` 指定枝は、Ceres 残差・最終 `flow_rate` とも同一規則で扱う
 - 熱の移流では \(\rho c_p \dot V\) を使って \([W]\) に変換します
 - 湿度（絶対湿度 \(x\)）の移流では、\(\rho \dot V\) により **質量流量 \([kg/s]\)** に変換して扱います（\(\rho\) は乾燥空気密度の近似）

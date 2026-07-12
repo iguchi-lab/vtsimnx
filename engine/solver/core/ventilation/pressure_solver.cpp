@@ -70,8 +70,10 @@ std::optional<double> PressureSolver::Impl::calculatePressureDifference(
 void PressureSolver::Impl::setInitialPressures(std::vector<double>& pressures, 
                                         const std::vector<std::string>& nodeNames) {
     if (pressures.size() != nodeNames.size()) {
-        writeLog(logFile_, "--警告: 圧力配列とノード名配列のサイズが一致しません (" + 
-                 std::to_string(pressures.size()) + " vs " + std::to_string(nodeNames.size()) + ")");
+        writeDomainLog(logFile_, "圧力",
+                       "[WARN] 圧力配列とノード名配列のサイズが一致しません (" +
+                           std::to_string(pressures.size()) + " vs " +
+                           std::to_string(nodeNames.size()) + ")");
         return;
     }
     
@@ -105,7 +107,7 @@ bool PressureSolver::Impl::initializeSolverSetup(SolverSetup& setup) {
     }
 
     if (setup.nodeNames.empty()) {
-        writeLog(logFile_, "--警告: 圧力計算対象のノードがありません");
+        writeDomainLog(logFile_, "圧力", "[WARN] 圧力計算対象のノードがありません");
         return false;
     }
 
@@ -277,8 +279,8 @@ void PressureSolver::Impl::addPressureGaugeAnchors(
         }
         if (!info.hasPressureCoupling) {
             if (info.fixedFlowBalanceAbsMax > 1e-12) {
-                writeLog(logFile_,
-                         "--警告: 固定流量のみの成分で体積流量収支が不整合 | maxAbs=" +
+                writeDomainLog(logFile_, "圧力",
+                         "[WARN] 固定流量のみの成分で体積流量収支が不整合 | maxAbs=" +
                              std::to_string(info.fixedFlowBalanceAbsMax));
             }
             continue;
@@ -295,13 +297,13 @@ void PressureSolver::Impl::addPressureGaugeAnchors(
             nullptr,
             const_cast<double*>(pressures.data()));
         ++anchorsAdded;
-        writeLog(logFile_,
-                 "--圧力ゲージ固定: 成分に固定圧境界がないため soft anchor を追加 | node=" +
+        writeDomainLog(logFile_, "圧力",
+                 "[INFO] 圧力ゲージ固定: 成分に固定圧境界がないため soft anchor を追加 | node=" +
                      info.anchorKey + " | target_p=" + std::to_string(info.anchorTarget));
     }
     if (anchorsAdded > 0) {
-        writeLog(logFile_,
-                 "--圧力ゲージ固定: soft anchor 数=" + std::to_string(anchorsAdded));
+        writeDomainLog(logFile_, "圧力",
+                 "[INFO] 圧力ゲージ固定: soft anchor 数=" + std::to_string(anchorsAdded));
     }
 }
 
@@ -388,7 +390,7 @@ PressureSolver::Impl::FlowComputationResult PressureSolver::Impl::calculateFlowR
         if (!flowOpt) {
             result.ok = false;
             result.detail = "missing_or_nonfinite_flow:" + sourceNode.key + "->" + targetNode.key;
-            writeLog(logFile_, "--エラー: 風量評価失敗（圧力欠落または非有限） - " +
+            writeDomainLog(logFile_, "圧力", "[ERROR] 風量評価失敗（圧力欠落または非有限） - " +
                      sourceNode.key + " → " + targetNode.key);
             result.flows.clear();
             return result;
@@ -479,7 +481,7 @@ std::optional<PressureSolver::Impl::SolverResult> PressureSolver::Impl::tryPrima
             << " | mass_tol=" << massBalanceMaxAbs
             << " | flow_ok=" << (eval.flowOk ? 1 : 0)
             << " | accepted=" << (eval.accepted ? 1 : 0);
-        writeLog(logFile_, oss.str());
+        writeDomainLog(logFile_, "圧力", oss.str());
     }
     if (!eval.flowOk || !eval.accepted) {
         return std::nullopt;
@@ -504,7 +506,7 @@ std::optional<std::map<std::string, double>> PressureSolver::Impl::calculateIndi
         if (!flowOpt) {
             auto sourceVertex = boost::source(edge, graph);
             auto targetVertex = boost::target(edge, graph);
-            writeLog(logFile_, "--エラー: 個別風量評価失敗 - " + edgeData.unique_id +
+            writeDomainLog(logFile_, "圧力", "[ERROR] 個別風量評価失敗 - " + edgeData.unique_id +
                      " (" + graph[sourceVertex].key + " → " + graph[targetVertex].key + ")");
             return std::nullopt;
         }
@@ -540,7 +542,7 @@ PressureSolver::Impl::SolverResult PressureSolver::Impl::solvePressures(
 
     if (!ensurePrimaryProblemCached()) {
         // calc_p ノードなし = 全圧既知。流量のみ評価して自明解として受理する。
-        writeLog(logFile_, "--情報: 圧力未知ノードがないため固定圧ネットワークとして流量評価します");
+        writeDomainLog(logFile_, "圧力", "[INFO] 圧力未知ノードがないため固定圧ネットワークとして流量評価します");
         PressureMap pressureMap;
         const auto& graph = network_.getGraph();
         for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
@@ -549,11 +551,11 @@ PressureSolver::Impl::SolverResult PressureSolver::Impl::solvePressures(
         auto eval = evaluatePressureSolution(pressureMap, tols.massBalanceMaxAbs);
         if (!eval.flowOk) {
             network_.setLastPressureConverged(false);
-            writeLog(logFile_, "--警告: 固定圧ネットワークの風量評価に失敗: " + eval.detail);
+            writeDomainLog(logFile_, "圧力", "[WARN] 固定圧ネットワークの風量評価に失敗: " + eval.detail);
             return makePressureSolveResult(pressureMap, {}, {}, /*accepted=*/false, {}, "fixed_pressure");
         }
         network_.setLastPressureConverged(true);
-        writeLog(logFile_, "---固定圧ネットワーク: 流量評価完了（圧力求解スキップ）");
+        writeDomainLog(logFile_, "圧力", "固定圧ネットワーク: 流量評価完了（圧力求解スキップ）");
         return makePressureSolveResult(
             pressureMap, eval.flows, eval.allNodeBalances,
             /*accepted=*/true, eval.solvedNodeMetrics, "fixed_pressure");
@@ -571,7 +573,7 @@ PressureSolver::Impl::SolverResult PressureSolver::Impl::solvePressures(
     PressureMap pressureMap = extractPressures(pressures, nodeNames);
     auto eval = evaluatePressureSolution(pressureMap, tols.massBalanceMaxAbs);
     if (!eval.flowOk) {
-        writeLog(logFile_, "--警告: primary 解の風量評価に失敗。fallback を試行します。");
+        writeDomainLog(logFile_, "圧力", "[WARN] primary 解の風量評価に失敗。fallback を試行します。");
         network_.setLastPressureConverged(false);
         auto fallbackResult = runFallbackLoop(constants, setup, summary);
         if (fallbackResult) {
@@ -587,7 +589,7 @@ PressureSolver::Impl::SolverResult PressureSolver::Impl::solvePressures(
     {
         std::ostringstream oss;
         oss << std::scientific << std::setprecision(6);
-        oss << "---圧力計算評価 | ceres_term="
+        oss << "圧力計算評価 | ceres_term="
             << (ceresSaidConverged ? "CONVERGENCE" : "OTHER")
             << " | ceres_cost=" << summary.final_cost
             << " | mass_maxAbs=" << metrics.maxAbs
@@ -595,15 +597,15 @@ PressureSolver::Impl::SolverResult PressureSolver::Impl::solvePressures(
             << " | solved_nodes=" << metrics.nodeCount
             << " | physical_accepted=" << (massAccepted ? 1 : 0)
             << " | iter=" << summary.iterations.size();
-        writeLog(logFile_, oss.str());
+        writeDomainLog(logFile_, "圧力", oss.str());
     }
 
     if (massAccepted) {
         network_.setLastPressureConverged(true);
         std::ostringstream oss;
         oss << std::scientific << std::setprecision(6) << metrics.maxAbs;
-        writeLog(logFile_,
-                 "---圧力計算収束 | mass_maxAbs=" + oss.str() +
+        writeDomainLog(logFile_, "圧力",
+                 "物理収支合格 | mass_maxAbs=" + oss.str() +
                      " | tol=" + std::to_string(tols.massBalanceMaxAbs));
         return makePressureSolveResult(
             pressureMap, eval.flows, eval.allNodeBalances,

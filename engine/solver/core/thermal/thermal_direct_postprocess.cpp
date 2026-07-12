@@ -143,13 +143,13 @@ void postprocessAndReport(ThermalNetwork& network,
 
     const double balanceTolW = effectiveThermalBalanceToleranceW(constants);
     std::ostringstream oss;
-    oss << "--------熱計算(線形): "
+    oss << "熱計算(線形): "
         << (rmseB <= balanceTolW ? "収束" : "未収束")
         << " (method=" << method
         << ", RMSE=" << std::scientific << std::setprecision(6) << rmseB
         << ", maxBalance=" << maxB
         << ", time=" << std::fixed << std::setprecision(3) << durMs << "ms)";
-    writeLog(logFile, oss.str());
+    writeDomainLog(logFile, "熱", oss.str());
     network.setLastThermalConvergence(rmseB <= balanceTolW, rmseB, maxB, method);
 
     constexpr std::uint64_t kStatsLogInterval = 500;
@@ -159,7 +159,7 @@ void postprocessAndReport(ThermalNetwork& network,
     const std::uint64_t statsInterval = timingsEnv ? 1 : kStatsLogInterval;
     if (stats.calls > 0 && (stats.calls % statsInterval) == 0) {
         std::ostringstream ss;
-        ss << "--------DirectT cache stats: calls=" << stats.calls
+        ss << "DirectT cache stats: calls=" << stats.calls
            << ", n=" << n
            << ", coeffSigChanged=" << stats.coeffSigChanged
            << ", coeffSigFlowChanged=" << stats.coeffSigFlowChanged
@@ -180,7 +180,7 @@ void postprocessAndReport(ThermalNetwork& network,
            << ", postprocessReuse=" << stats.postprocessReuse
            << ", cholFactorize=" << stats.cholFactorize
            << ", luFactorize=" << stats.luFactorize;
-        writeLog(logFile, ss.str());
+        writeDomainLog(logFile, "熱", ss.str());
     }
 }
 

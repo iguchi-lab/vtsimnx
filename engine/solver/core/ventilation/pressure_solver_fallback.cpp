@@ -24,7 +24,7 @@ std::optional<PressureSolveResult> PressureFallbackSolver::run(
     auto& nodeNames = setup.nodeNames;
     auto& pressures = setup.pressures;
 
-    writeLog(owner_.logFile_, "圧力計算フォールバック");
+    writeDomainLog(owner_.logFile_, "圧力", "フォールバック開始");
     PressureSolver::Impl::FallbackLogger fallbackLog = [&](int indent, const std::string& message) {
         std::string prefix;
         for (int i = 0; i < indent; ++i) {
@@ -39,7 +39,7 @@ std::optional<PressureSolveResult> PressureFallbackSolver::run(
     };
 
     owner_.network_.setLastPressureConverged(false);
-    fallbackLog(0, "エラー: 圧力計算が収束しませんでした");
+    fallbackLog(0, "[圧力] [INFO] プライマリは物理収支未達のためフォールバックへ移行");
 
     std::string terminationType;
     switch(summary.termination_type) {
@@ -48,7 +48,7 @@ std::optional<PressureSolveResult> PressureFallbackSolver::run(
             terminationType = "CONVERGENCE (Ceres相対停止・物理不合格でフォールバック)";
             break;
         case ceres::NO_CONVERGENCE:
-            terminationType = "NO_CONVERGENCE (最大反復回数到達)";
+            terminationType = "NO_CONVERGENCE (最終試行が最大反復到達・物理は別判定)";
             break;
         case ceres::FAILURE:
             terminationType = "FAILURE (計算失敗)";
@@ -59,14 +59,14 @@ std::optional<PressureSolveResult> PressureFallbackSolver::run(
         default:
             terminationType = "UNKNOWN (" + std::to_string(static_cast<int>(summary.termination_type)) + ")";
     }
-    fallbackLog(1, "終了理由: " + terminationType);
+    fallbackLog(1, "[圧力] 最終試行の終了理由: " + terminationType);
 
     PressureMap currentPressures = owner_.extractPressures(pressures, nodeNames);
     PressureSolver::Impl::FallbackOuterState state;
     state.prevPressureMapFB = currentPressures;
 
     if (constants.logVerbosity >= 1) {
-        fallbackLog(0, "[Fallback] スーパーノード化 + 外気ギャップ固定流量化を適用します");
+        fallbackLog(0, "[圧力] [Fallback] スーパーノード化 + 外気ギャップ固定流量化を適用します");
     }
 
     Graph& g = owner_.network_.getGraph();
@@ -92,7 +92,7 @@ std::optional<PressureSolveResult> PressureFallbackSolver::run(
         PressureSolver::Impl::StageASolveResult stageA = owner_.solveStageAReduced(
             constants, g, partition, state.prevPressureMapFB, fallbackLog);
         if (!ventilation::canProceedToFallbackStageB(stageA.ok, /*interfaceFreezeSkipped=*/false)) {
-            fallbackLog(0, "[Fallback] Stage A 未収束のため外部反復を打ち切り");
+            fallbackLog(0, "[圧力] [Fallback] Stage A 未収束のため外部反復を打ち切り");
             break;
         }
 
@@ -106,7 +106,7 @@ std::optional<PressureSolveResult> PressureFallbackSolver::run(
             outer,
             fallbackLog);
         if (!ventilation::canProceedToFallbackStageB(stageA.ok, freeze.skipped)) {
-            fallbackLog(0, "[Fallback] interface flow evaluation failed");
+            fallbackLog(0, "[圧力] [WARN] [Fallback] 界面流量評価に失敗");
             break;
         }
 
@@ -143,7 +143,7 @@ std::optional<PressureSolveResult> PressureFallbackSolver::run(
                            : state.prevPressureMapFB;
     if (seed.empty()) {
         owner_.network_.setLastPressureConverged(false);
-        fallbackLog(0, "[Fallback] warm-start 用の圧力シードがありません");
+        fallbackLog(0, "[圧力] [WARN] [Fallback] warm-start 用の圧力シードがありません");
         return std::nullopt;
     }
 
@@ -152,12 +152,12 @@ std::optional<PressureSolveResult> PressureFallbackSolver::run(
                        : "[Fallback] 最終圧力を初期値に通常ソルバーを再実行します");
     auto warm = owner_.tryPrimaryWarmStart(constants, setup, seed, tols.massBalanceMaxAbs);
     if (warm) {
-        fallbackLog(0, "[Fallback] warm-start primary 合格 | 採用");
+        fallbackLog(0, "[圧力] [Fallback] warm-start primary 物理収支合格 | 採用");
         return warm;
     }
 
     owner_.network_.setLastPressureConverged(false);
-    fallbackLog(0, "[Fallback] warm-start primary 不合格 | 非収束として報告");
+    fallbackLog(0, "[圧力] [Fallback] warm-start primary 物理収支未達 | 非収束として報告");
     return std::nullopt;
 }
 

@@ -81,11 +81,11 @@ PressureSolver::Impl::FallbackOuterAction PressureSolver::Impl::evaluateFallback
         std::ostringstream osfb2;
         osfb2 << std::scientific << std::setprecision(6) << stageB.summary.final_cost;
         if (stageB.ok) {
-            fallbackLog(0, "[Fallback] Stage B 仮ネットワーク物理合格 | cost=" + osfb2.str() +
+            fallbackLog(0, "[圧力] [Fallback] Stage B 仮ネットワーク物理合格 | cost=" + osfb2.str() +
                                " | 外部反復 " + std::to_string(outer) + "/" +
                                std::to_string(maxOuter));
         } else {
-            fallbackLog(0, "[Fallback] Stage B Ceres/仮物理未達 | cost=" + osfb2.str() +
+            fallbackLog(0, "[圧力] [Fallback] Stage B Ceres/仮物理未達 | cost=" + osfb2.str() +
                                " | 復元後評価へ続行");
         }
     }
@@ -172,7 +172,7 @@ PressureSolver::Impl::FallbackOuterAction PressureSolver::Impl::evaluateFallback
                   << evalFinal.solvedNodeMetrics.maxAbs;
             osiface << std::scientific << std::setprecision(6) << iface.maxAbs;
             oscost << std::scientific << std::setprecision(6) << restoredNetworkCost;
-            fallbackLog(1, "[Fallback] restored mass_maxAbs=" + osmax.str() +
+            fallbackLog(1, "[圧力] [Fallback] restored mass_maxAbs=" + osmax.str() +
                                " | mass_tol=" + std::to_string(massBalanceMaxAbs) +
                                " | iface_maxAbs=" + osiface.str() +
                                " | iface_tol=" + std::to_string(interfaceFlowMaxAbs) +
@@ -184,10 +184,10 @@ PressureSolver::Impl::FallbackOuterAction PressureSolver::Impl::evaluateFallback
             state.finalFlowRatesFB = std::move(evalFinal.flows);
             state.finalBalanceFB = std::move(evalFinal.allNodeBalances);
             state.finalHaveSolution = true;
-            fallbackLog(0, "[Fallback] 復元後候補合格 | warm-start へ進む | 外部反復 " +
+            fallbackLog(0, "[圧力] [Fallback] 復元後候補物理収支合格 | warm-start へ進む | 外部反復 " +
                                std::to_string(outer) + "/" + std::to_string(maxOuter));
         } else {
-            fallbackLog(0, std::string("[Fallback] 復元後不合格（継続）") +
+            fallbackLog(0, std::string("[圧力] [Fallback] 復元後物理収支未達（継続）") +
                                (!massOk ? " mass" : "") +
                                (!ifaceOk ? " iface" : ""));
         }

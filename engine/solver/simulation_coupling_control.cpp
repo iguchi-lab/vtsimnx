@@ -94,21 +94,22 @@ void logHumiditySolverNotConverged(std::ostream& logs,
                                    bool logEnabled,
                                    const core::humidity::HumiditySolveStats& stats) {
     if (!logEnabled || stats.converged) return;
-    writeLog(
+    writeDomainLog(
         logs,
-        "湿気ソルバ未収束(停止): iter=" + std::to_string(stats.iterations) +
+        "湿気",
+        "ソルバ未収束(停止): iter=" + std::to_string(stats.iterations) +
             ", relativeResidual=" + std::to_string(stats.finalRelativeResidual) +
             ", active=" + std::to_string(stats.activeVertices));
 }
 
 void logPressureFallbackStop(std::ostream& logs, bool logEnabled) {
     if (!logEnabled) return;
-    writeLog(logs, "エラー: フォールバック後も未収束のため停止します（最終通常解の再試行は無効化）");
+    writeDomainLog(logs, "連成", "[ERROR] フォールバック後も未収束のため停止します（最終通常解の再試行は無効化）");
 }
 
 void logInnerCouplingNotNeeded(std::ostream& logs, bool logEnabled) {
     if (!logEnabled) return;
-    writeLog(logs, "内側連成反復は不要です（有効状態量が1つ以下）");
+    writeDomainLog(logs, "連成", "内側連成反復は不要です（有効状態量が1つ以下）");
 }
 
 void logInnerCouplingDelta(std::ostream& logs,
@@ -117,8 +118,9 @@ void logInnerCouplingDelta(std::ostream& logs,
                            double latentAppliedW,
                            const core::humidity::HumiditySolveStats& humidityStats) {
     if (!logEnabled) return;
-    writeLog(
+    writeDomainLog(
         logs,
+        "連成",
         "圧力変化量: " + std::to_string(delta.pressureChange) +
             " Pa, 温度変化量: " + std::to_string(delta.temperatureChange) +
             " K, 湿気変化量: " + std::to_string(delta.humidityChange) +
@@ -130,7 +132,7 @@ void logInnerCouplingDelta(std::ostream& logs,
 
 void logInnerCouplingConverged(std::ostream& logs, bool logEnabled, std::size_t coupledIter) {
     if (!logEnabled) return;
-    writeLog(logs, "空気-熱-湿気 連成計算が収束しました (" + std::to_string(coupledIter) + "回)");
+    writeDomainLog(logs, "連成", "空気-熱-湿気 連成計算が収束しました (" + std::to_string(coupledIter) + "回)");
 }
 
 void logInnerCouplingMaxIteration(std::ostream& logs,
@@ -149,12 +151,12 @@ void logInnerCouplingMaxIteration(std::ostream& logs,
         << ", latentApplied=" << latentAppliedW << " W"
         << ", humidityIter=" << humidityStats.iterations
         << ", humidityRelativeResidual=" << humidityStats.finalRelativeResidual;
-    writeLog(logs, oss.str());
+    writeDomainLog(logs, "連成", oss.str());
 }
 
 void logAirconRecompute(std::ostream& logs, bool logEnabled) {
     if (!logEnabled) return;
-    writeLog(logs, "エアコン制御の修正が行われました。再計算を実行します。");
+    writeDomainLog(logs, "空調", "制御の修正が行われました。再計算を実行します。");
 }
 
 void logThermalNotConverged(std::ostream& logs,
@@ -165,25 +167,25 @@ void logThermalNotConverged(std::ostream& logs,
                             int loopIndex1Based) {
     if (!logEnabled) return;
     std::ostringstream oss;
-    oss << "　エラー: 熱計算が未収束のため停止します (method="
+    oss << "[ERROR] 熱計算が未収束のため停止します (method="
         << method
         << ", RMSE=" << std::scientific << std::setprecision(6) << rmseBalance
         << ", maxBalance=" << std::scientific << std::setprecision(6) << maxBalance
         << ", loop=" << loopIndex1Based
         << ")";
-    writeLog(logs, oss.str());
+    writeDomainLog(logs, "熱", oss.str());
 }
 
 void logOuterLoopConverged(std::ostream& logs, bool logEnabled, int loopIndex1Based) {
     if (!logEnabled) return;
-    writeLog(logs,
+    writeDomainLog(logs, "連成",
              "圧力-温度連成計算-エアコン制御ループ " +
                  std::to_string(loopIndex1Based) + " が収束しました。");
 }
 
 void logTimestepFinished(std::ostream& logs, bool logEnabled, int totalIterations) {
     if (!logEnabled) return;
-    writeLog(logs,
+    writeDomainLog(logs, "連成",
              "タイムステップ終了  総連成反復回数: " + std::to_string(totalIterations),
              true);
 }
