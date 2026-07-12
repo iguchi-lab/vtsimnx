@@ -2,11 +2,25 @@
 
 このドキュメントは、熱計算で **RCネットワーク（層分割）**を使うための入力 JSON の書き方と、builder が生成するノード/ブランチ、単位の約束、精度上の注意点をまとめたものです。
 
+比較: [`thermal_response_factor.md`](thermal_response_factor.md)（応答係数法）。物理背景: [`theory_basics.md`](theory_basics.md)。
+
 ---
 
 ### 1. RC法とは（何がネットワークに入るか）
 
 RC法では壁を層で表現し、builder は壁の内部状態を **「層ノード（熱容量）」**として熱回路網に明示的に追加します。
+
+```mermaid
+flowchart LR
+    ROOM["室"] --- CI["対流"]
+    CI --- SI["室内側表面"]
+    SI --- D1["伝導"]
+    D1 --- INT["内部層"]
+    INT --- D2["伝導"]
+    D2 --- SO["室外側表面"]
+    SO --- CO["対流"]
+    CO --- OUT["外部"]
+```
 
 - ノード: `type="layer"` の層ノード（表面/内部を含む）
 - ブランチ:

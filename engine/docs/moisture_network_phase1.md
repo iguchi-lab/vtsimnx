@@ -2,13 +2,22 @@
 
 Phase1 では、既存の移流ベース湿度計算に加えて、線形RC型の湿気回路網を導入します。
 
-> 方針: 現段階の完成範囲は「Phase1（線形RC）」までとし、非線形HAMは将来課題として扱います。
+> 方針: 現段階の完成範囲は「Phase1（線形RC）」までとし、非線形HAMは将来課題として扱います。  
+> 計算ループ上の位置づけは [`simulation_loops.md`](simulation_loops.md) を参照してください。
 
 ## 目的
 
 - 壁体/材料側の湿気容量を持つノードを追加できるようにする
 - ノード間の湿気伝達を `moisture_conductance` で表現する
 - 既存入力との後方互換を維持する（新フィールド未使用時は既存挙動）
+
+```mermaid
+flowchart LR
+    AIR["空気ノード x"] --- K["moisture_conductance"]
+    K --- MAT["材料ノード<br/>moisture_capacity"]
+    VENT["換気移流"] --> AIR
+    GEN["humidity_generation"] --> AIR
+```
 
 ## 入力フィールド（追加）
 
@@ -82,6 +91,16 @@ Phase1 では、既存の移流ベース湿度計算に加えて、線形RC型�
 
 求解後にノードごとの `[kg/s]` 内訳を評価します（ソルバ数値には影響しません）。
 
+```mermaid
+flowchart TB
+    ST["storage<br/>C Δx/Δt"] --- R["residual 検算"]
+    V["ventilationTransport"] --- R
+    G["vaporGeneration"] --- R
+    M["materialTransport"] --- R
+    PC["materialPhaseChange<br/>潜熱用"] -.-> LAT["from_phase_change"]
+    AC["airconCondensation<br/>診断のみ"] -.-> DIAG["残差に含めない"]
+```
+
 - `ventilationTransport`: 換気による正味水蒸気流入
 - `vaporGeneration`: `humidity_generation`
 - `materialTransport`: 全 `moistureLinks`（全 `moisture_transfer_type`）の正味水蒸気流入。湿度方程式と一致し、**残差検算に使用**
@@ -144,10 +163,23 @@ Phase1 では、既存の移流ベース湿度計算に加えて、線形RC型�
 
 Phase1 実装では、1タイムステップの内側反復で次のように連成します。
 
-- `air (pressure) -> thermal (temperature) -> moisture (humidity x)`
-- 収束判定には **圧力 + 温度 + 湿気 (x)** を同時に用いる
-- 潜熱（除湿に伴う熱のやり取り）は **熱ネットワークの heat_source には現在フィードバックしていません**（仕様B）
+```mermaid
+flowchart TD
+    P["圧力 p"] --> T["温度 T"]
+    T --> X["湿度 x"]
+    X --> L{"潜熱フィードバック<br/>latent_coupling_mode"}
+    L -->|from_phase_change 等| H["材料ノード heat_source"]
+    L -->|disabled| D["Δp / ΔT / Δx で収束判定"]
+    H --> D
+    D -->|未収束| P
+```
+
+- 順序: `air (pressure) → thermal (temperature) → moisture (humidity x)`
+- 収束判定: 有効フラグに応じ **圧力 + 温度 + 湿気 (x)**（潜熱 ON 時は潜熱変化も）
+- 潜熱: `latent_coupling_mode` が有効なとき、材料相変化などに応じて熱ネットワークの `heat_source` へ反映（詳細は上節）
 - 反復は有効状態量が2つ以上ある場合に有効化（例: `p+t`, `t+x`, `p+x`）
+
+ループ全体の図は [`simulation_loops.md`](simulation_loops.md) の「内側連成」を参照。
 
 ### 既定ON / 切替
 

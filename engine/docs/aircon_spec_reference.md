@@ -2,9 +2,9 @@
 
 このドキュメントは、エアコンモデル別の **ac_spec（仕様JSON）** の形と、solver が参照する **能力上限キー** を一覧にしたものです。
 
-- 制御の流れ・能力超過時の補正: `docs/aircon_control_overview.md`
-- 各モデルの式・入力出力: `docs/acmodel_overview.md`
-- builder 入力での空調設定: `docs/builder_json.md` の「aircon」節
+- 制御の流れ・能力超過時の補正: [`aircon_control_overview.md`](aircon_control_overview.md)
+- 各モデルの式・入力出力: [`acmodel_overview.md`](acmodel_overview.md)
+- builder 入力での空調設定: [`builder_json.md`](builder_json.md) の「aircon」節
 
 ---
 
@@ -23,6 +23,14 @@
 
 能力超過チェック（`checkAndAdjustCapacity`）で使う「最大処理熱量」は、次の優先順で取得します。
 
+```mermaid
+flowchart TD
+    A["Q.mode.max"] -->|あり・>0| USE["上限として使用 [kW→W]"]
+    A -->|なし| B["Q.mode.mid"]
+    B -->|あり・>0| USE
+    B -->|なし| N["能力制限なし"]
+```
+
 1. **`Q.<mode>.max`**（cooling / heating ごと） [kW]
 2. **`Q.<mode>.max` が無い場合** → **`Q.<mode>.mid`** [kW]
 
@@ -31,6 +39,14 @@
 ### 1.3 潜熱計算方式（`latent_method`）
 
 `ac_spec` では潜熱処理の方式を次で指定できます。
+
+```mermaid
+flowchart LR
+    LM["latent_method"] --> RH["rh95<br/>既定"]
+    LM --> BF["bf<br/>RH>100%→rh95"]
+    LM --> AO["coil_aoaf"]
+    LM --> NO["none<br/>QL=0"]
+```
 
 - `latent_method: "rh95"`（**デフォルト**）  
   吹出温度 `Tout` から吹出空気 RH を 95% として `supplyX` を決める

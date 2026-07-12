@@ -4,12 +4,23 @@
 
 builder は raw_config を **正規化/展開**して、C++ solver が読める形式（`simulation/nodes/ventilation_branches/thermal_branches`）へ変換します。
 
-シミュレーション全体の処理順（概略）は `docs/simulation_overview.md` を参照してください。  
-建築環境工学の背景（換気回路網/熱回路網/日射・放射/湿気・濃度）は `docs/theory_basics.md` に整理しています。
+- 計算順: [`simulation_overview.md`](simulation_overview.md)
+- ループ図解: [`simulation_loops.md`](simulation_loops.md)
+- 物理背景: [`theory_basics.md`](theory_basics.md)
 
 ---
 
 ### 1. 全体像（raw → solver用）
+
+```mermaid
+flowchart TD
+    RAW["raw_config"] --> P["parse_all"]
+    P --> S["process_surfaces<br/>壁・日射・放射"]
+    S --> A["process_aircons<br/>空調ノード・送風枝"]
+    A --> C["process_capacities<br/>thermal_mass → capacity"]
+    C --> V["validate_dict_with_warnings"]
+    V --> OUT["solver_config<br/>simulation / nodes / branches"]
+```
 
 処理の流れ（概念）:
 
@@ -31,6 +42,18 @@ builder は raw_config を **正規化/展開**して、C++ solver が読める�
 ### 2. トップレベル構造（raw_config）
 
 builder が期待するトップレベルは概ね以下です:
+
+```mermaid
+flowchart LR
+    B["builder"] --- SIM["simulation"]
+    SIM --- N["nodes"]
+    N --- VB["ventilation_branches"]
+    VB --- TB["thermal_branches"]
+    TB --- SF["surfaces?"]
+    SF --- AC["aircon?"]
+    AC --- HS["heat_source?"]
+    HS --- HU["humidity_source?"]
+```
 
 - `builder`（任意）: builderオプション
 - `simulation`（必須）: 時間刻み等

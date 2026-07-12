@@ -2,6 +2,16 @@
 
 このドキュメントは `acmodel::DuctCentralModel` の実装を、pyhees（主に 4_2_a / 4_2_b / 4_2）に合わせるための実装方針と、回帰テストの観点をまとめたものです。
 
+制御側の風量連動は [`aircon_control_overview.md`](aircon_control_overview.md) / [`acmodel_overview.md`](acmodel_overview.md) も参照してください。
+
+```mermaid
+flowchart LR
+    Q["処理熱量 Q"] --> R["ratio = clamp(Q/Qrtd,0,1)"]
+    R --> V["V = Vdsgn × ratio"]
+    V --> EDGE["fixed_flow 更新"]
+    EDGE --> OUT["外側ループ再計算"]
+```
+
 ## 1. 検証対象と単位
 
 - 実装: `engine/acmodel/duct_central_model.cpp`

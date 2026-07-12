@@ -32,7 +32,17 @@ builder で `aircon` を与えると、solver 形式では `type="aircon"` の�
 - `pre_temp`: 設定温度の時系列
 - `ac_spec`: 能力・消費電力・風量などの仕様
 
-`pre_temp` は solver 側では `vector<double>` として保持し、各 timestep で `current_pre_temp` に展開されます。
+`pre_temp` は solver 側では `vector<double>` として保持し、各 timestep で要求設定へ展開されます（実効設定は能力制限で動き得ます。§9.1）。
+
+```mermaid
+flowchart LR
+    IN["in_node<br/>還気"] --> AC["aircon ノード"]
+    AC --> SET["set_node<br/>室温拘束対象"]
+    OUT["outside_node"] -.-> AC
+    PRE["pre_temp スケジュール"] --> REQ["requested"]
+    REQ --> EFF["effective<br/>current_pre_temp"]
+    EFF --> SET
+```
 
 ---
 
@@ -60,7 +70,7 @@ flowchart TD
     updateConcentration --> writeResult
 ```
 
-入口は `solver/simulation_aircon_iteration.cpp` の `runAirconIteration()` です。
+入口は `solver/simulation_aircon_iteration.cpp` の `runAirconIteration()` です。ループ全体の位置づけは [`simulation_loops.md`](simulation_loops.md) を参照してください。
 
 1. `checkAndAdjustDuctCentralAirflow()` で DUCT_CENTRAL の風量補正を先に確認する
 2. `controlAllAircons()` で ON/OFF を決める
@@ -87,14 +97,21 @@ flowchart TD
 
 `controlAllAircons()` は、`set_node` の現在温度と **要求設定** `current_requested_pre_temp` を比べて ON/OFF を決めます（能力制限後の実効設定には引きずられない）。
 
-- 暖房:
-  - 室温が要求設定より低ければ ON
-  - 高ければ OFF
-- 冷房:
-  - 室温が要求設定より高ければ ON
-  - 低ければ OFF
-- `AUTO`:
-  - 許容帯の外なら ON、許容帯内では現状態を維持
+```mermaid
+flowchart TD
+    M{"mode"} -->|OFF| Z["強制 OFF"]
+    M -->|HEATING| H{"Troom < Trequested − tol?"}
+    H -->|Yes| ON1["ON"]
+    H -->|No / deadband| KEEP1["現状維持 or OFF"]
+    M -->|COOLING| C{"Troom > Trequested + tol?"}
+    C -->|Yes| ON2["ON"]
+    C -->|No / deadband| KEEP2["現状維持 or OFF"]
+    M -->|AUTO| A["許容帯外なら ON<br/>帯内は現状維持"]
+```
+
+- 暖房: 室温が要求設定より低ければ ON、高ければ OFF
+- 冷房: 室温が要求設定より高ければ ON、低ければ OFF
+- `AUTO`: 許容帯の外なら ON、許容帯内では現状態を維持
 
 収束性を落とさないため、許容誤差帯の中では即座に反転せず deadband を持たせています（fixed-row で設定一致直後のチャタリング防止）。
 
@@ -254,6 +271,16 @@ Q = \dot m\,|h_\mathrm{in}-h_\mathrm{out}|
 - ON/OFF は次の outer loop で再判定してよい
 
 補正方法（2段階）:
+
+```mermaid
+flowchart TD
+    OVER["全熱 > Qmax"] --> F["公式 findCapacityLimitedSetpoint"]
+    F -->|有効| APPLY["effectiveSetpoint 更新<br/>再計算要求"]
+    F -->|無効| BR["bracket 二分探索"]
+    BR --> CH{"setpoint 変化?"}
+    CH -->|Yes| APPLY
+    CH -->|No・収束| DONE["bracket 消去 / Accept 候補"]
+```
 
 1. **公式による補正**  
    `findCapacityLimitedSetpoint(...)` で、入口温度・風量・運転モードを固定した近似のもと、`heatCapacity <= maxHeatCapacity` となる setpoint を算出。有効な setpoint が得られればそれを適用。

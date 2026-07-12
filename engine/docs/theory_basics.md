@@ -2,21 +2,30 @@
 
 このドキュメントは、VTSimNX で扱う主要な物理現象を、建築環境工学の観点から「実装につながる粒度」で整理したものです。  
 利用者向けの背景説明は [`../../docs/building_environment_engineering_basics.md`](../../docs/building_environment_engineering_basics.md) を先に読んでください。  
-実装仕様そのものは [`builder_json.md`](builder_json.md)、計算順は [`simulation_overview.md`](simulation_overview.md) を参照してください。
+実装仕様は [`builder_json.md`](builder_json.md)、計算順は [`simulation_overview.md`](simulation_overview.md)、ループ図解は [`simulation_loops.md`](simulation_loops.md) を参照してください。
 
 ---
 
 ### 1. 全体像：何を連成しているか
 
-建築環境の時系列計算では、主に以下を扱います。
+建築環境の時系列計算では、主に次を扱います。
 
-- 換気（圧力差で空気が流れる）
-- 温熱（伝導・対流・放射で熱が移る）
-- 湿気（水蒸気が移流・生成される）
-- 濃度（粒子やガスが移流・生成・除去される）
+```mermaid
+flowchart LR
+    P["換気<br/>圧力 p → 流量"] --> T["温熱<br/>温度 T"]
+    P --> X["湿気<br/>絶対湿度 x"]
+    P --> C["濃度<br/>c"]
+    T -.->|"潜熱・湿り空気<br/>（条件付き）"| X
+```
 
-VTSimNX では、まず圧力と温度を反復して収束させ、その確定流量で湿度と濃度を更新する構成です。  
-この順序の概要は [`simulation_overview.md`](simulation_overview.md) に記載しています。
+| 現象 | 未知数の例 | 主な駆動 |
+|---|---|---|
+| 換気 | 圧力 \(p\) | 圧力差・ファン・固定流量 |
+| 温熱 | 温度 \(T\) | 伝導・対流・放射・発熱・移流 |
+| 湿気 | 絶対湿度 \(x\) | 移流・発湿・湿気コンダクタンス |
+| 濃度 | 濃度 \(c\) | 移流・発塵・除去・沈着 |
+
+VTSimNX の典型順は「内側で圧力・熱（＋湿気）を収束 → 空調判定 → 濃度」です。詳細は [`simulation_loops.md`](simulation_loops.md)。
 
 ---
 
@@ -24,17 +33,20 @@ VTSimNX では、まず圧力と温度を反復して収束させ、その確定
 
 #### 2.1 基本の考え方
 
-- ノード: 室や外気などの「圧力を持つ点」
-- ブランチ: ノード間の流路（隙間、開口、ファン、固定流量など）
-- 連続の式: 各ノードで「流入 - 流出 + 生成 = 0」を満たすように圧力を解く
+```mermaid
+flowchart LR
+    N1["ノード<br/>室・外気<br/>圧力をもつ"] --- B["ブランチ<br/>隙間 / 開口 / ファン / fixed_flow"]
+    B --- N2["ノード"]
+```
 
-圧力差が流量を決め、流量は温度・湿度・濃度の移流項に影響します。
+- 連続の式: 各ノードで「流入 − 流出 + 生成 = 0」になるよう圧力を解く
+- 圧力差が流量を決め、流量は温度・湿度・濃度の移流項に効く
 
 #### 2.2 実装上の対応
 
-- 入力は `ventilation_branches` に定義
-- 代表モデルは `fixed_flow` / `simple_opening` / `gap` / `fan`
-- 詳細な入力形式は [`builder_json.md`](builder_json.md) を参照
+- 入力: `ventilation_branches`
+- 代表モデル: `fixed_flow` / `simple_opening` / `gap` / `fan`
+- 詳細: [`builder_json.md`](builder_json.md)
 
 ---
 
@@ -42,44 +54,49 @@ VTSimNX では、まず圧力と温度を反復して収束させ、その確定
 
 #### 3.1 基本の考え方
 
-熱回路網では、温度を電位、熱流を電流に対応させて扱います。
+熱回路網では、温度を電位、熱流を電流に対応させます。
 
-- ノード: 温度を未知数として持つ点
-- ブランチ: 熱コンダクタンス \([W/K]\) や熱源 \([W]\) を持つ伝熱経路
-- ノード熱収支: 「流入熱 - 流出熱 + 発熱 = 蓄熱変化」
+```mermaid
+flowchart TB
+    AIR["空気ノード T"] --- CONV["対流 G"]
+    CONV --- SURF["表面ノード"]
+    SURF --- COND["伝導 G"]
+    COND --- OUT["外気 / 隣室"]
+    SRC["heat_generation"] --> AIR
+    ADV["換気移流 ρcpV̇"] --> AIR
+```
+
+- ノード熱収支: 「流入熱 − 流出熱 + 発熱 = 蓄熱変化」
+- ブランチ: コンダクタンス \([W/K]\)、熱源 \([W]\)
 
 #### 3.2 伝熱モード
 
-- 伝導: 壁体内部の熱移動
-- 対流: 空気と表面間の熱移動（表面熱伝達率）
-- 放射: 表面間の長波放射交換（室内）や天空への放射損失（夜間放射）
+| モード | 意味 |
+|---|---|
+| 伝導 | 壁体内部の熱移動 |
+| 対流 | 空気と表面（表面熱伝達率） |
+| 放射 | 室内表面間の長波、夜間放射など |
 
 #### 3.3 実装上の対応
 
-- `thermal_branches` が熱回路の基本入力
-- `surfaces` から RC法または応答係数法の壁モデルを builder が展開
-- 詳細は [`thermal_rc.md`](thermal_rc.md) / [`thermal_response_factor.md`](thermal_response_factor.md)
+- `thermal_branches` が基本入力
+- `surfaces` から RC または応答係数法の壁モデルを builder が展開
+- 詳細: [`thermal_rc.md`](thermal_rc.md) / [`thermal_response_factor.md`](thermal_response_factor.md)
 
 ---
 
 ### 4. 日射・放射の基礎
 
-#### 4.1 短波（日射）
+```mermaid
+flowchart TB
+    SW["短波（日射）"] -->|"面積 × η × 日射"| ABS["表面吸収熱 [W]"]
+    LW["長波（夜間放射）"] -->|"天空への損失"| LOSS["外表面熱損失"]
+    IR["室内放射"] -->|"面積配分"| EX["表面間熱交換"]
+```
 
-- 外壁等の日射取得は、受照面に入射する短波放射の吸収として扱います
-- 吸収率（短波）`eta` を掛けると、吸収熱流 \([W]\) は概ね  
-  `面積 × eta × 日射強度` で評価されます
-
-#### 4.2 長波（熱放射）
-
-- 夜間放射は、外表面から外界へ向かう熱損失として扱います
-- 室内放射は、同一室内の表面間で面積配分により熱交換を表現します
-- 長波側では放射率/吸収率（`epsilon` など）が効きます
-
-#### 4.3 実装上の対応
-
-- `surfaces` の `solar` / `nocturnal` / `night_radiation` と builder オプションで制御
-- 室内放射対象にガラスを含めるかは `add_surface_radiation_exclude_glass` で切替可能
+- 短波: `eta`（吸収率）が効く
+- 長波: `epsilon` など。室内放射はガラス除外オプションあり
+- 実装: `surfaces` の `solar` / `nocturnal` / `night_radiation` と builder オプション
 
 ---
 
@@ -87,33 +104,39 @@ VTSimNX では、まず圧力と温度を反復して収束させ、その確定
 
 #### 5.1 湿気（絶対湿度）
 
-- 換気流による移流で各室へ運ばれる
-- 加湿器・人体などの発湿は生成項として加算される
-- 基本単位は質量流束ベース（実装上は `humidity_generation` で与える）
+```mermaid
+flowchart LR
+    FLOW["換気移流 ρV̇"] --> ROOM["室 x"]
+    GEN["humidity_generation"] --> ROOM
+    MAT["moisture_conductance<br/>材料↔空気"] --> ROOM
+```
 
 #### 5.2 濃度（粒子/ガス）
 
-- 換気流による移流に加え、発塵・除去・沈着を扱う
-- フィルタ等の除去は効率 `eta`、室内沈着は `beta` などで表現する
+- 移流に加え、発塵・除去効率 `eta`・沈着 `beta`
+- 空調判定には使わず、外側 Accept 後に更新
+
+湿気回路網の詳細は [`moisture_network_phase1.md`](moisture_network_phase1.md)。
 
 ---
 
 ### 6. モデル化で誤差が出やすいポイント
 
-- 境界条件の定義差（外気温、日射データ、夜間放射の定義）
-- 物性値の差（熱伝導率、比熱、放射率、日射吸収率）
+- 境界条件（外気温、日射、夜間放射の定義差）
+- 物性値（λ、比熱、放射率、日射吸収率）
 - U値の定義差（表面熱伝達率の内包有無）
-- 放射配分の差（ガラスを含めるか、面積配分ルール）
-- 時系列入力の整列（時刻の意味、配列長不足時の扱い）
+- 放射配分（ガラスの扱い、面積配分）
+- 時系列入力の整列（時刻の意味、配列長）
 
 ---
 
 ### 7. 関連ドキュメント
 
-- 実装と入力仕様: [`builder_json.md`](builder_json.md)
-- 計算順と連成フロー: [`simulation_overview.md`](simulation_overview.md)
-- RC法: [`thermal_rc.md`](thermal_rc.md)
-- 応答係数法: [`thermal_response_factor.md`](thermal_response_factor.md)
-- 実装上の数学メモ: [`physics_math_notes.md`](physics_math_notes.md)
-- 利用者向け背景: [`../../docs/building_environment_engineering_basics.md`](../../docs/building_environment_engineering_basics.md)
-
+| 文書 | 内容 |
+|---|---|
+| [`builder_json.md`](builder_json.md) | 入力仕様 |
+| [`simulation_overview.md`](simulation_overview.md) | 計算順 |
+| [`simulation_loops.md`](simulation_loops.md) | ループ図解 |
+| [`thermal_rc.md`](thermal_rc.md) / [`thermal_response_factor.md`](thermal_response_factor.md) | 壁モデル |
+| [`physics_math_notes.md`](physics_math_notes.md) | 符号・単位・離散化 |
+| [`../../docs/building_environment_engineering_basics.md`](../../docs/building_environment_engineering_basics.md) | 利用者向け背景 |

@@ -2,11 +2,21 @@
 
 このドキュメントは、VTSimNX の **熱・換気の計算が何を解いているか**、および改修時に壊れやすい **符号/単位/離散化/安定性**のポイントをまとめたものです。
 
+計算ループの位置づけは [`simulation_loops.md`](simulation_loops.md)、壁モデル詳細は [`thermal_rc.md`](thermal_rc.md) / [`thermal_response_factor.md`](thermal_response_factor.md) を参照してください。
+
 ---
 
 ### 1. 基本：ネットワークの熱収支
 
-熱ネットワークはノード温度 \(T\) を未知数とし、各ノードで「流入熱量の和 = 0」を満たすように組み立てます（内部は \([W]\) ベース）。
+熱ネットワークはノード温度 \(T\) を未知数とし、各ノードで熱収支を組み立てます（内部は \([W]\) ベース）。
+
+```mermaid
+flowchart TB
+    G["伝導・対流<br/>q = G (Ts − Tt)"] --> BAL["ノード熱収支"]
+    Q["heat_generation [W]"] --> BAL
+    ADV["移流 ρ cp |V̇| (Tup − Tdown)"] --> BAL
+    BAL --> SOL["A T = b"]
+```
 
 - **伝熱（conductance）**: \(q = G\,(T_s - T_t)\)（\(G\): \([W/K]\)）
 - **発熱（heat_generation）**: \(q\) を外力として加える（\([W]\)、スカラー/時系列）
@@ -29,6 +39,15 @@
   - solver側で温度項に **面積 \(A\)** を掛けて \([W]\) に変換する（よって `area` 必須）
 
 換気（風量）の単位について（重要）:
+
+```mermaid
+flowchart LR
+    IN["入力 vol / q_max<br/>m³/s"] --> B["builder<br/>換算しない"]
+    B --> S["solver FlowRateMap<br/>m³/s"]
+    S --> T["熱移流 ρcpV̇ → W"]
+    S --> X["湿気移流 ρV̇ → kg/s"]
+    S --> C["濃度移流 V̇ ベース"]
+```
 
 - 入力の `vol` / fan の `q_max` / `q1` は **m3/s**（正本: [`../../docs/units.md`](../../docs/units.md)）
 - builder は風量を **換算しない**（そのまま solver JSON へ渡す）

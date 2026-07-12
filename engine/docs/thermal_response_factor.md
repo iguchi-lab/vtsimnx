@@ -2,17 +2,27 @@
 
 このドキュメントは、熱計算で **応答係数法（CTF: Conduction Transfer Function / Response Factor）**を使うための入力 JSON の書き方と、係数の単位・符号の約束をまとめたものです。
 
+RC法との対比は下図、RC入力は [`thermal_rc.md`](thermal_rc.md)、数学メモは [`physics_math_notes.md`](physics_math_notes.md)。
+
 ---
 
 ### 1. 何が変わるか（RCとの違い）
 
+```mermaid
+flowchart TB
+    subgraph RC["RC法"]
+        R1["室"] --- R2["表面"] --- R3["内部層…"] --- R4["表面"] --- R5["外"]
+    end
+    subgraph CTF["応答係数法"]
+        C1["室"] --- C2["表面"]
+        C2 --- B["response_conduction<br/>係数＋履歴"]
+        B --- C3["表面"] --- C4["外"]
+    end
+```
+
 - **RC法**: 壁を層ノードに分割して、内部層ノード（熱容量）をネットワークに持つ。
 - **応答係数法（CTF）**: 壁内部の状態は「係数＋履歴」で表現し、ネットワーク上は **両端表面ノード2つ＋`response_conduction`ブランチ1本**のみ。
   - 壁体内の蓄熱を持つため、**両面の熱流は一般に一致しません**（表面別に `q_src`, `q_tgt` を扱う）。
-
-RC法の入力仕様は以下にまとめています:
-
-- `docs/thermal_rc.md`
 
 ---
 

@@ -6,13 +6,16 @@ Python クライアント利用者向けガイドは [`../../docs/README.md`](..
 > このディレクトリ内の相対パス `docs/foo.md` は **本ディレクトリ**（`engine/docs/`）を指します。  
 > リポジトリ直下の利用者 doc は `../../docs/foo.md` と書いてください。
 
+図（mermaid）を多用した入口は [`simulation_loops.md`](simulation_loops.md) です。他文書も同形式で概要図を入れています。
+
 ## まず読む
 
 | 順序 | 文書 | 内容 |
 |---|---|---|
 | 1 | [`theory_basics.md`](theory_basics.md) | 実装につながる物理の全体像 |
 | 2 | [`simulation_overview.md`](simulation_overview.md) | builder → solver の計算順 |
-| 3 | [`builder_json.md`](builder_json.md) | raw_config の厳密仕様（入力正本） |
+| 3 | [`simulation_loops.md`](simulation_loops.md) | 外側/内側/空調ループの図解 |
+| 4 | [`builder_json.md`](builder_json.md) | raw_config の厳密仕様（入力正本） |
 
 ## API / 入力 / 物理
 
@@ -21,6 +24,7 @@ Python クライアント利用者向けガイドは [`../../docs/README.md`](..
 | [`api_reference.md`](api_reference.md) | HTTP エンドポイント契約 |
 | [`builder_json.md`](builder_json.md) | builder 入力 JSON 正本 |
 | [`simulation_overview.md`](simulation_overview.md) | 連成・タイムステップ概略 |
+| [`simulation_loops.md`](simulation_loops.md) | 計算ループ構成（図多用） |
 | [`moisture_network_phase1.md`](moisture_network_phase1.md) | 湿気回路網 Phase1 |
 | [`physics_math_notes.md`](physics_math_notes.md) | 符号・単位・離散化の注意 |
 | [`constants_and_spec.md`](constants_and_spec.md) | 定数・材料テーブル対応 |

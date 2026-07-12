@@ -2,6 +2,15 @@
 
 ワークスペース統合時に、**builder** と **core（vtsimnx）** で揃えておく定数・単位・仕様を一覧にしたものです。片方だけ変更すると挙動がずれるため、変更時は両方を確認してください。
 
+単位の利用者向け正本は [`../../docs/units.md`](../../docs/units.md) です。
+
+```mermaid
+flowchart LR
+    B["builder<br/>surfaces.py 定数"] --> J["solver JSON"]
+    C["archenv / materials"] --> S["C++ / Python 計算"]
+    J --> S
+```
+
 ---
 
 ## 1. API（builder）で使用する定数

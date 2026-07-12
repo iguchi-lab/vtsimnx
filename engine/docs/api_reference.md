@@ -2,6 +2,17 @@
 
 このドキュメントは `app/main.py` の FastAPI エンドポイント仕様をまとめたものです。
 
+```mermaid
+flowchart LR
+    CLI["client / SDK"] --> API["FastAPI"]
+    API --> JOB["/runs 非同期"]
+    API --> SYNC["/run 同期"]
+    JOB --> SOL["C++ solver"]
+    SYNC --> SOL
+    SOL --> ART["artifacts"]
+    ART --> DL["/artifacts/.../download"]
+```
+
 ## Base URL
 
 - 例: `https://api.example.com`（**公開運用は TLS 終端を前提**）

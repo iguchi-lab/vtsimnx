@@ -2,11 +2,25 @@
 
 このドキュメントは、C++ の `acmodel`（`/acmodel`）が提供する **エアコンCOP/電力推定モデル**について、入力（`ac_spec` / 運転点入力）と出力、solver との接続をまとめたものです。
 
+- 制御ループ: [`aircon_control_overview.md`](aircon_control_overview.md)
+- `ac_spec` キー一覧: [`aircon_spec_reference.md`](aircon_spec_reference.md)
+
 ---
 
 ### 1. モデルの種類と選択
 
 `acmodel::AirconModelFactory::createModel(typeStr, spec)` で選択します。
+
+```mermaid
+flowchart LR
+    SPEC["ac_spec + model"] --> F["AirconModelFactory"]
+    F --> CR["CRIEPI"]
+    F --> RAC["RAC<br/>既定"]
+    F --> DC["DUCT_CENTRAL"]
+    F --> LE["LATENT_EVALUATE"]
+    IN["InputData<br/>T,X,Q,V…"] --> M["選択モデル"]
+    M --> OUT["COP / 電力"]
+```
 
 - `CRIEPI`（`CRIEPIModel`）: CRIEPI系の係数モデル（カタログから係数同定、風量必須）
 - `RAC`（`RACModel`）: ルームエアコンモデル（顕熱/潜熱、着霜補正等、BECC 4-3節準拠）
@@ -17,7 +31,7 @@
 - builder 入力の `aircon.model`（未指定時は **`RAC`** がデフォルト）
 - solver 入力の `nodes[].model`（未指定時は parser が **`RAC`** をデフォルト適用）
 
-能力上限の参照（solver 側）: `Q.<mode>.max` を優先し、無い場合は `Q.<mode>.mid` を使用。詳細は `docs/aircon_control_overview.md` および `docs/aircon_spec_reference.md` を参照。
+能力上限の参照（solver 側）: `Q.<mode>.max` を優先し、無い場合は `Q.<mode>.mid` を使用。詳細は [`aircon_control_overview.md`](aircon_control_overview.md) および [`aircon_spec_reference.md`](aircon_spec_reference.md) を参照。
 
 ---
 
