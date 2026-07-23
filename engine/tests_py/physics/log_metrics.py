@@ -10,17 +10,25 @@ from typing import Any
 _RE_THERMAL = re.compile(
     r"熱計算\(線形\):\s*(収束|未収束).*?RMSE=([0-9eE.+-]+).*?maxBalance=([0-9eE.+-]+)"
 )
+# 新語彙「物理収支合格」と旧「圧力計算収束」/ Fallback 残差行の両方を拾う
 _RE_PRESSURE = re.compile(
-    r"(?:圧力計算収束|\[Fallback\] 収束).*?residual=([0-9eE.+-]+)"
+    r"(?:圧力計算収束|物理収支合格|\[Fallback\]\s*(?:収束|物理収支合格))"
+    r".*?(?:residual|mass_maxAbs)=([0-9eE.+-]+)"
 )
-_RE_PRESSURE_FAIL = re.compile(r"(?:圧力計算未収束|\[Fallback\] 未収束)")
+_RE_PRESSURE_FAIL = re.compile(
+    r"(?:圧力計算未収束|物理収支未達|\[Fallback\]\s*(?:未収束|物理収支未達))"
+)
 _RE_COUPLED_ITERS = re.compile(r"総連成反復回数:\s*(\d+)")
 _RE_AIRCON_RECOMPUTE = re.compile(r"再計算を実行します")
 _RE_AIRCON_LOOP_OK = re.compile(r"エアコン制御ループ\s+\d+\s+が収束しました")
 _RE_DIRECTT_STATS = re.compile(
     r"DirectT cache stats:.*?topoRebuild=(\d+).*?patternRebuild=(\d+).*?luFactorize=(\d+)"
 )
-_RE_NAN = re.compile(r"NaN|Inf|not finite", re.IGNORECASE)
+# `[INFO]` に含まれる Inf を誤検出しない（単語境界で Inf/NaN のみ）
+_RE_NAN = re.compile(
+    r"(?<![A-Za-z])(?:NaN|\+?-?Inf(?:inity)?|not finite)(?![A-Za-z])",
+    re.IGNORECASE,
+)
 
 
 @dataclass
