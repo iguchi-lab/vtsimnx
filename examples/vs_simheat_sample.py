@@ -2,6 +2,8 @@
 !pip install git+https://github.com/iguchi-lab/vtsimnx/
 import vtsimnx as vt
 
+import os
+
 import pandas as pd
 
 """#準備
@@ -9,7 +11,11 @@ import pandas as pd
 ##外部ファイルの読み込み
 """
 
-df_i       = vt.read_hasp('3639999.has')                                 #通常の気象データ
+# 気象データは同梱しません。利用条件を確認したHASPファイルを別途用意してください。
+weather_file = os.environ.get("VTSIMNX_WEATHER_FILE")
+if not weather_file:
+    raise ValueError("VTSIMNX_WEATHER_FILE にHASP気象ファイルのパスを設定してください。")
+df_i = vt.read_hasp(weather_file)
 
 """##日射・夜間放射"""
 
