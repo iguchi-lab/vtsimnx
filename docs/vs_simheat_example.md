@@ -6,7 +6,7 @@
 対応するサンプルファイルは次です。
 
 - `../examples/vs_simheat_sample.py`
-- 気象データ: `../examples/3639999.has`
+- 気象データ: 利用条件を確認したHASP形式のデータを利用者が別途用意（同梱なし）
 
 ここでは、「どの情報をどう組み合わせて builder 入力を作っているか」に絞って説明します。
 
@@ -16,8 +16,10 @@
 
 ### 1. 気象データの読み込み
 
-1. `vt.read_hasp("<weather>.has")` で気象データを読み込む。
+1. 環境変数 `VTSIMNX_WEATHER_FILE` に用意したHASPファイルのパスを設定し、`vt.read_hasp(...)` で読み込む。
    - 列: 外気温・地下温度・水平面日射・夜間放射など。
+   - Colabでは読込み前のセルで `import os` と `os.environ["VTSIMNX_WEATHER_FILE"] = "/content/drive/MyDrive/weather.has"` を設定する（実際のパスに置き換える）。
+   - SimHeatとの比較では、同一の気象データを両方に使用する。
 
 ---
 

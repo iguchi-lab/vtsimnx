@@ -10,8 +10,6 @@
   - 湿気計算（`calc_x`）と壁材の吸放出（`moisture_capacity` + `moisture_conductance`）の最小サンプルです。
 - `vs_simheat_sample.py`
   - SimHeat 比較ケースの入力作成〜`vt.run_calc` 実行〜結果比較までを含む大規模サンプルです。
-- `3639999.has`
-  - 上記サンプルで利用する気象データ（HASP）です。
 
 ## 置き方の目安
 
@@ -38,6 +36,7 @@ python examples/run_calc_humidity_moisture_minimal.py
 大規模サンプルを使う場合:
 
 ```bash
+export VTSIMNX_WEATHER_FILE=/path/to/weather.has
 python examples/vs_simheat_sample.py
 ```
 
@@ -50,4 +49,6 @@ python examples/vs_simheat_sample.py
 
 - このファイルは Colab 由来のコードを含むため、`!pip ...` や `google.colab` 依存部分は、
   ローカル環境で実行する場合に調整が必要です。
-- 気象ファイルパスは、リポジトリ内の `examples/3639999.has` を使うように置き換えると再現しやすくなります。
+- 気象データは同梱していません。利用条件を確認したHASP形式のデータを別途用意し、`VTSIMNX_WEATHER_FILE` にファイルパスを設定してください。
+- Colabでは読込み前のセルで `import os` と `os.environ["VTSIMNX_WEATHER_FILE"] = "/content/drive/MyDrive/weather.has"` を設定します。パスは用意したファイルに合わせてください。
+- SimHeatとの比較には、両方の計算で同じ気象データを使用してください。
