@@ -127,6 +127,29 @@ def test_decode_f32_series_attaches_units():
     assert df.attrs["series"] == "vent_flow_rate"
 
 
+def test_decode_f32_series_empty_keys_is_zero_columns():
+    """エンジンは対象なし系列を keys=[]・bin 0 バイトで出す。1 列扱いにしない。"""
+    schema = {
+        "dtype": "f32le",
+        "layout": "timestep-major",
+        "length": 3,
+        "series": {"humidity_x": {"keys": []}},
+    }
+    df = decode_f32_series(
+        b"",
+        schema,
+        "humidity_x",
+        index_spec={
+            "start": "2025-01-01 00:00:00",
+            "timestep": 3600,
+            "length": 3,
+        },
+    )
+    assert list(df.columns) == []
+    assert df.shape == (3, 0)
+    assert df.index.name == "time"
+
+
 def test_decode_f32_series_raises_artifact_decode_error():
     schema = {
         "dtype": "f32le",

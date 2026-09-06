@@ -19,7 +19,7 @@ def test_tools_artifacts_to_csv_smoke(tmp_path: Path) -> None:
         "length": 3,
         "series": {
             "vent_flow_rate": {"keys": ["a", "b"]},  # N=2
-            "vent_pressure": {"keys": []},  # scalar N=1
+            "vent_pressure": {"keys": []},  # 対象なし N=0（エンジンは 0 バイト）
         },
     }
     (artifacts_dir / "schema.json").write_text(json.dumps(schema), encoding="utf-8")
@@ -38,7 +38,7 @@ def test_tools_artifacts_to_csv_smoke(tmp_path: Path) -> None:
 
     # binaries
     np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], dtype="<f4").tofile(artifacts_dir / "vent.flow_rate.f32.bin")  # (3,2)
-    np.array([10.0, 11.0, 12.0], dtype="<f4").tofile(artifacts_dir / "vent.pressure.f32.bin")  # (3,1)
+    (artifacts_dir / "vent.pressure.f32.bin").write_bytes(b"")  # (3,0)
 
     # run main()
     from vtsimnx.tools.artifacts_to_csv import main
@@ -61,8 +61,8 @@ def test_tools_artifacts_to_csv_smoke(tmp_path: Path) -> None:
     assert text[0] == "a,b"
     assert text[1].startswith("1.0,2.0")
 
-    text2 = (artifacts_dir / "vent.pressure.csv").read_text(encoding="utf-8").splitlines()
-    assert text2[0] == "vent_pressure"
-    assert text2[1].startswith("10.0")
+    # 列数 0 の系列は空 CSV（ヘッダ行も列なし）になる
+    text2 = (artifacts_dir / "vent.pressure.csv").read_text(encoding="utf-8")
+    assert text2.strip() == ""
 
 

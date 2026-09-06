@@ -101,7 +101,7 @@ def series_columns(schema: Dict[str, Any], series_name: str) -> List[str]:
     """
     schema.json から指定 series の列名配列を取り出す。
 
-    - series.<name>.keys が [] の場合はスカラー扱いで [series_name] を返す
+    - series.<name>.keys が [] の場合は対象なし（列数 0）。エンジンは bin も 0 バイトで出す。
     """
     series = schema.get("series")
     if not isinstance(series, dict) or series_name not in series:
@@ -117,9 +117,6 @@ def series_columns(schema: Dict[str, Any], series_name: str) -> List[str]:
 
     if not isinstance(keys, list):
         raise ArtifactDecodeError(f"schema.json の series.{series_name}.keys が配列ではありません")
-
-    if len(keys) == 0:
-        return [series_name]
 
     cols: List[str] = []
     for k in keys:
