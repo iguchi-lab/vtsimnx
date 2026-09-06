@@ -262,6 +262,26 @@ AirconController::RuntimeContext AirconController::prepareRuntimeContext(
     return context;
 }
 
+void AirconController::syncHumidityBoundariesBeforeSolve(ThermalNetwork& thermalNetwork) const {
+    // 戻り値（再計算要求）は捨てる。ここは湿度ソルバ用の境界整備のみ。
+    constexpr double kNoRecomputeTol = 1e30;
+    // 未初期化判定床: 極小の正値（過乾燥の残留）を supplyX として残さない
+    constexpr double kUninitializedHumidityFloor = 1e-4; // kg/kg(DA)
+    for (const auto& airconKey : getAirconKeys()) {
+        const auto& nodeProps = thermalNetwork.getNode(airconKey);
+        const bool scheduleOff = (nodeProps.current_mode == "OFF");
+        // 冷房以外は除湿しない。吸込へパススルーする。
+        const bool nonCooling = (nodeProps.current_mode != "COOLING");
+        const bool uninitialized =
+            !std::isfinite(nodeProps.current_x) ||
+            !(nodeProps.current_x > kUninitializedHumidityFloor);
+        if (!nodeProps.on || scheduleOff || nonCooling || uninitialized) {
+            (void)aircon::latent::applyPassthroughHumidityToAirconNode(
+                thermalNetwork, airconKey, kNoRecomputeTol);
+        }
+    }
+}
+
 bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
                                          double tolerance,
                                          std::ostream& logFile,

@@ -165,11 +165,14 @@ SolveStats solveHumidityImplicitStep(const Graph& tGraph,
         ctx.coefficientSignature == coeffSig;
 
     using Triplet = Eigen::Triplet<double>;
+    // 同一 source への複数換気枝（連鎖展開の重複キー等）は合算する。
+    // 先頭だけ返すと outSum 側の大流量だけが残り、室内が過乾燥する。
     auto inflowFrom = [&](size_t i, Vertex sv) -> double {
+        double sum = 0.0;
         for (const auto& in : terms.inflow[i]) {
-            if (in.first == sv) return in.second;
+            if (in.first == sv) sum += in.second;
         }
-        return 0.0;
+        return sum;
     };
 
     auto buildMatrixAndRhs = [&](std::vector<Triplet>* tripsOut, Eigen::VectorXd& bOut) {

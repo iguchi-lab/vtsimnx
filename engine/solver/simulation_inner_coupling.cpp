@@ -101,8 +101,10 @@ void runDecoupledHumidityStep(InnerCouplingContext& ctx,
         return;
     }
     const auto sharedNodeState = makeSharedNodeStateArgs(ctx.thermal);
-    // 非連成: グラフを x_n に戻してから解く（xN=nullptr → ソルバが現グラフを x_n に採用）
-    detail::restoreXPrevToGraph(sharedNodeState.nodeGraph, ctx.ventilation, initial.humidityX);
+    // 非連成: 未知ノードだけを x_n に戻してから解く（xN=nullptr → ソルバが現グラフを x_n に採用）。
+    // calc_x=false の固定境界（空調吹出 supplyX など）は外側反復の更新を保持する。
+    detail::restoreUnknownHumidityStateToGraph(
+        sharedNodeState.nodeGraph, ctx.ventilation, initial.humidityX);
     restoreWPrevToGraph(sharedNodeState.nodeGraph, initial.moistureW);
     const int outerLog = toLogIndex1Based(outerIteration);
     const std::string humMeta = appendLoopMeta(ctx.meta, outerLog);

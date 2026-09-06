@@ -4,8 +4,36 @@
 #include "types/common_types.h"
 
 #include <algorithm>
+#include <cmath>
+#include <unordered_map>
 
 #include <boost/range/iterator_range.hpp>
+
+namespace {
+// 空調の還気循環を湿度移流から除外するか。
+// - OFF: 除外（大風量 BC で室内が過乾燥するのを防ぐ）
+// - 非 COOLING（暖房等）: 除外（除湿しない運転で古い低湿度 supplyX が残ると過乾燥する）
+// - COOLING ON: 含める（吹出絶対湿度を固定境界として除湿を反映）
+bool airconEdgeIsHumidityPassthrough(const VertexProperties& ac) {
+    if (ac.type != "aircon") return false;
+    if (!ac.on || ac.current_mode == "OFF") return true;
+    if (ac.current_mode != "COOLING") return true;
+    return false;
+}
+
+bool shouldSkipHumidityVentEdge(const Graph& tGraph,
+                                const std::unordered_map<std::string, Vertex>& /*tKeyToV*/,
+                                Vertex a,
+                                Vertex b) {
+    if (tGraph[a].type == "aircon" && airconEdgeIsHumidityPassthrough(tGraph[a])) {
+        return true;
+    }
+    if (tGraph[b].type == "aircon" && airconEdgeIsHumidityPassthrough(tGraph[b])) {
+        return true;
+    }
+    return false;
+}
+} // namespace
 
 HumidityNetwork::HumidityNetwork()
     : humiditySolverContext_(std::make_unique<core::humidity::HumiditySolverContext>()) {}
@@ -76,6 +104,11 @@ void HumidityNetwork::buildTerms(ConstNodeStateView nodeState,
         auto itTT = tKeyToV.find(kT);
         if (itTS == tKeyToV.end() || itTT == tKeyToV.end()) continue;
 
+        // パススルー相当の空調還気は湿度移流から除外（熱・換気の流量自体は維持）
+        if (shouldSkipHumidityVentEdge(tGraph, tKeyToV, itTS->second, itTT->second)) {
+            continue;
+        }
+
         addVentNeighbor(itTS->second, itTT->second);
 
         const double f = ep.flow_rate; // [m3/s]
@@ -90,7 +123,19 @@ void HumidityNetwork::buildTerms(ConstNodeStateView nodeState,
         }
 
         terms.outSum[idxOf(src)] += mDot;
-        terms.inflow[idxOf(dst)].push_back({src, mDot});
+        // 同一 source→dst の複数枝は合算（連鎖展開の重複キー対策）
+        auto& ins = terms.inflow[idxOf(dst)];
+        bool merged = false;
+        for (auto& in : ins) {
+            if (in.first == src) {
+                in.second += mDot;
+                merged = true;
+                break;
+            }
+        }
+        if (!merged) {
+            ins.push_back({src, mDot});
+        }
     }
 
     // 湿気回路網（双方向）
@@ -113,9 +158,12 @@ void HumidityNetwork::buildTerms(ConstNodeStateView nodeState,
         }
     }
 
-    // 更新対象を決定
+    // 更新対象を決定。空調ノードは supplyX / パススルー湿度の固定境界のため除外する
+    // （入力や builder が calc_x=true を付けても、上書き→外側ループ振動を防ぐ）。
     for (auto v : boost::make_iterator_range(boost::vertices(tGraph))) {
-        if (tGraph[v].calc_x) terms.updateVertices.push_back(v);
+        if (!tGraph[v].calc_x) continue;
+        if (tGraph[v].type == "aircon") continue;
+        terms.updateVertices.push_back(v);
     }
     std::sort(terms.updateVertices.begin(), terms.updateVertices.end(), [&](Vertex a, Vertex b) {
         return tGraph[a].key < tGraph[b].key;

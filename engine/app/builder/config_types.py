@@ -95,6 +95,7 @@ class NodeType(TypedDict):
     x: Optional[np.ndarray]
     c: Optional[np.ndarray]
     pre_temp: Optional[float]
+    pre_rh: Optional[float]  # 理想除湿の設定相対湿度 [%]
     model: Optional[str]
     mode: Optional[str]
     ac_spec: Optional[dict]

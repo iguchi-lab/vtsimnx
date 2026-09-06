@@ -650,7 +650,7 @@ def validate_node_config(
         elif "t" in node:
             del node["t"]
 
-        # エアコン特有の pre_temp
+        # エアコン特有の pre_temp / pre_rh
         if node.get("type") == NodeTypeEnum.AIRCON:
             sim_length = int(sim_config["index"]["length"])
             pre = node.get("pre_temp")
@@ -677,8 +677,37 @@ def validate_node_config(
                             "mode が OFF 以外の時刻では数値が必要です。"
                         )
                 node["pre_temp"] = pre_series
-        elif "pre_temp" in node:
-            del node["pre_temp"]
+
+            pre_rh = node.get("pre_rh")
+            if pre_rh is None:
+                node.pop("pre_rh", None)
+            elif isinstance(pre_rh, (int, float, list, np.ndarray)):
+                try:
+                    rh_series = ensure_timeseries(pre_rh, sim_length)
+                except ValueError as e:
+                    errors.append(f"ノード {node['key']} の pre_rh: {e}")
+                    continue
+                for idx, val in enumerate(rh_series):
+                    if _is_nan_like(val):
+                        # 当該時刻は理想除湿オフ（従来 latent_method）
+                        continue
+                    try:
+                        rh_f = float(val)
+                    except (TypeError, ValueError):
+                        errors.append(f"ノード {node['key']} の pre_rh[{idx}] が数値ではありません。")
+                        continue
+                    if not (0.0 < rh_f <= 100.0):
+                        errors.append(
+                            f"ノード {node['key']} の pre_rh[{idx}]={rh_f} は (0, 100] % である必要があります。"
+                        )
+                node["pre_rh"] = rh_series
+            else:
+                errors.append(f"ノード {node['key']} の pre_rh は数値または配列である必要があります")
+        else:
+            if "pre_temp" in node:
+                del node["pre_temp"]
+            if "pre_rh" in node:
+                del node["pre_rh"]
 
         # x / c / beta / w の時系列長
         _normalize_node_series_fields(node, int(sim_config["index"]["length"]), errors)

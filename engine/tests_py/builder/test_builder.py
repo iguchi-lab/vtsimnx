@@ -45,8 +45,8 @@ def test_builder_surface_layer_method_argument_overrides_json_builder_option():
     assert not any(b.get("type") == "response_conduction" for b in out.get("thermal_branches", []))
 
 
-def test_moisture_capacity_propagates_calc_x_to_aircon_before_expansion():
-    """発湿源なし・湿気容量ありの部屋でも空調ノードへ calc_x が伝播する。"""
+def test_moisture_capacity_does_not_force_calc_x_on_aircon():
+    """湿気容量で室の calc_x は立つが、空調は supplyX 固定境界のため calc_x=false。"""
     raw = {
         "simulation": {
             "index": {"start": "2025-01-01T00:00:00Z", "end": "2025-01-01T01:00:00Z", "timestep": 60, "length": 1},
@@ -75,7 +75,7 @@ def test_moisture_capacity_propagates_calc_x_to_aircon_before_expansion():
     room = next(n for n in out["nodes"] if n["key"] == "室1")
     ac = next(n for n in out["nodes"] if n["key"] == "AC1")
     assert room.get("calc_x") is True
-    assert ac.get("calc_x") is True
+    assert ac.get("calc_x") is not True
     assert any(n["key"] == "室1_mx" for n in out["nodes"])
     assert out["simulation"]["calc_flag"]["x"] is True
 

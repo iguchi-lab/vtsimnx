@@ -81,14 +81,11 @@ def _build_output_json(raw: Dict[str, Any], *, options: BuildOptions) -> Dict[st
         strip_moisture_capacity_fields(node_config)
 
     if aircon_config and options.add_aircon:
-        # 設定ノード(set)で calc_x/c=true の場合、aircon ノードにもフラグを引き継ぐ。
-        # これをしないと aircon ノードの current_x/current_c が 0 固定になり、
-        # 室内循環時に湿度・濃度が不自然に低下しうる。
-        calc_x_node_keys = {
-            str(node.get("key", ""))
-            for node in node_config
-            if isinstance(node, dict) and bool(node.get("calc_x", False))
-        }
+        # 濃度: set が calc_c なら aircon にも引き継ぐ（濃度ソルバの未知数）。
+        # 湿度: aircon は常に calc_x=false。吹出絶対湿度 supplyX（運転中）/
+        # 吸込パススルー（OFF）を固定境界として current_x に書くため。
+        # 以前の calc_x 伝播は湿度ソルバが supplyX を上書きし、外側ループが
+        # SupplyHumidityChanged で振動する原因になった。
         calc_c_node_keys = {
             str(node.get("key", ""))
             for node in node_config
@@ -99,7 +96,7 @@ def _build_output_json(raw: Dict[str, Any], *, options: BuildOptions) -> Dict[st
                 continue
             set_node = ac.get("set", ac.get("in"))
             key = str(set_node)
-            ac["calc_x"] = key in calc_x_node_keys
+            ac["calc_x"] = False
             ac["calc_c"] = key in calc_c_node_keys
 
         add_nodes, add_ventilation_branches = process_aircons(aircon_config)

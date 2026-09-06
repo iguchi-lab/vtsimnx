@@ -685,6 +685,7 @@ void testCoolingSupplyHumiditySameTimestepPropagation() {
     AC.calc_x = false;
     AC.type = "aircon";
     AC.on = true;
+    AC.current_mode = "COOLING";
 
     ThermalNetwork thermal;
     thermal.addNode(ROOM);
@@ -792,6 +793,12 @@ void testPassthroughHumidityOnOffClearsDrySupply() {
     expectTrue(simulation::decideAirconIterationAction(false, true, false, true) ==
                    simulation::AirconIterationAction::RecomputeForSupplyHumidity,
                "OFF supply reset triggers outer recompute");
+
+    thermal.getNode("IN").current_x = 0.012 + 5e-5;
+    expectTrue(!aircon::latent::applyPassthroughHumidityToAirconNode(thermal, "AC", 1e-9),
+               "sub-floor passthrough drift must not request recompute");
+    expectNear(thermal.getNode("AC").current_x, 0.012 + 5e-5, 1e-15,
+               "passthrough still updates current_x under floor");
 }
 
 void testAirconProcessedEnthalpyHelper() {

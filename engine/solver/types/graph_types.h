@@ -60,6 +60,9 @@ struct VertexProperties {
     // requested: スケジュール設定温度 / effective(current_pre_temp): 能力制限などを反映した拘束温度
     double current_requested_pre_temp = 20.0;
     double current_pre_temp = 20.0;
+    // 理想除湿（A）: 設定相対湿度 [%]。未指定は NaN（従来 latent_method のみ）。
+    std::vector<double> pre_rh;
+    double current_pre_rh = std::numeric_limits<double>::quiet_NaN();
     double v = 0.0;
     bool on = false;
     AirconControlState aircon_control_state = AirconControlState::Off;
@@ -101,6 +104,9 @@ struct VertexProperties {
             } else {
                 aircon_control_state = AirconControlState::Off;
             }
+        }
+        if (!pre_rh.empty() && static_cast<size_t>(timestep) < pre_rh.size()) {
+            current_pre_rh = pre_rh[timestep];
         }
         if (!mode.empty() && static_cast<size_t>(timestep) < mode.size()) {
             current_mode = mode[timestep];

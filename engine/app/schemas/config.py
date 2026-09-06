@@ -154,6 +154,11 @@ class NodeModel(_StrictExtraBase):
         description="エアコン設定温度",
         json_schema_extra=field_extra(TEMPERATURE_C),
     )
+    pre_rh: Optional[ScalarOrSeries] = Field(
+        default=None,
+        description="理想除湿の設定相対湿度（%）。未指定時は従来の latent_method のみ",
+        json_schema_extra=field_extra("%"),
+    )
     model: Optional[str] = None
     mode: Optional[ScalarOrSeries] = None
     ac_spec: Optional[Dict[str, Any]] = None
@@ -339,6 +344,11 @@ class AirconModel(_StrictExtraBase):
         default=None,
         description="設定温度",
         json_schema_extra=field_extra(TEMPERATURE_C),
+    )
+    pre_rh: Optional[ScalarOrSeries] = Field(
+        default=None,
+        description="理想除湿の設定相対湿度（%）",
+        json_schema_extra=field_extra("%"),
     )
     mode: Optional[ScalarOrSeries] = None
     model: Optional[str] = None

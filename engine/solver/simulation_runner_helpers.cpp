@@ -323,20 +323,27 @@ void relaxHumidityByVertex(Graph& graph,
     }
 }
 
-void restoreXPrevToGraph(Graph& graph, VentilationNetwork& ventNetwork, const std::vector<double>& xPrev) {
+void restoreUnknownHumidityStateToGraph(Graph& graph,
+                                        VentilationNetwork& ventNetwork,
+                                        const std::vector<double>& xPrev) {
     const auto& vKeyToV = ventNetwork.getKeyToVertex();
     auto& vGraph = ventNetwork.getGraph();
     for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        // 固定境界（空調吹出 supplyX / 外気 / 設定湿度など）は外側反復の更新を保持する
+        if (!graph[v].calc_x) continue;
         const size_t i = static_cast<size_t>(v);
-        if (i < xPrev.size()) {
-            graph[v].current_x = xPrev[i];
-            // vent 側にも反映（humidity_solver が vGraph も更新するため）
-            const auto itV = vKeyToV.find(graph[v].key);
-            if (itV != vKeyToV.end()) {
-                vGraph[itV->second].current_x = xPrev[i];
-            }
+        if (i >= xPrev.size()) continue;
+        graph[v].current_x = xPrev[i];
+        // vent 側にも反映（humidity_solver が vGraph も更新するため）
+        const auto itV = vKeyToV.find(graph[v].key);
+        if (itV != vKeyToV.end()) {
+            vGraph[itV->second].current_x = xPrev[i];
         }
     }
+}
+
+void restoreXPrevToGraph(Graph& graph, VentilationNetwork& ventNetwork, const std::vector<double>& xPrev) {
+    restoreUnknownHumidityStateToGraph(graph, ventNetwork, xPrev);
 }
 
 void restoreWPrevToGraph(Graph& graph, const std::vector<double>& wPrev) {

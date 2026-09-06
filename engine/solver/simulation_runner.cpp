@@ -125,6 +125,9 @@ void runSimulation(VentilationNetwork& ventNetwork,
         {
             ScopedLogSection coupledScope(ctx.logs, loopLabel);
 
+            // 湿度連成の前に空調吹出境界を整える（current_x=0 固定境界による室内乾燥を防ぐ）
+            ctx.aircon.syncHumidityBoundariesBeforeSolve(ctx.thermal);
+
             runInnerCoupling(innerCtx, logEnabled, iteration, initial, step, totalIterations,
                              heatSources, forceMinTwo && iteration == 0);
 

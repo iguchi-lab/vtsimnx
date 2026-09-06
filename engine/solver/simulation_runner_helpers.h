@@ -62,6 +62,12 @@ void relaxHumidityByVertex(Graph& graph,
                            VentilationNetwork& ventNetwork,
                            const std::vector<double>& prevHumidityByVertex,
                            double relaxation);
+// 湿気未知ノード（calc_x=true）だけ x を xPrev に戻す。
+// 空調吹出・外気など calc_x=false の固定境界は触らない（外側反復で更新した supplyX を保持する）。
+void restoreUnknownHumidityStateToGraph(Graph& graph,
+                                        VentilationNetwork& ventNetwork,
+                                        const std::vector<double>& xPrev);
+// 互換エイリアス（挙動は restoreUnknownHumidityStateToGraph と同じ）
 void restoreXPrevToGraph(Graph& graph, VentilationNetwork& ventNetwork, const std::vector<double>& xPrev);
 void restoreWPrevToGraph(Graph& graph, const std::vector<double>& wPrev);
 

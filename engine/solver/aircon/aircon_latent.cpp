@@ -135,6 +135,38 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
     const double tIn = validData.indoorTemp;
     const double tOut = validData.airconTemp;
     const double xIn = std::max(0.0, validData.indoorX);
+
+    // 理想除湿（A）: pre_rh 指定かつ室が目標絶対湿度超 → supplyX を目標値に固定（能力無視）
+    const double preRh = nodeProps.current_pre_rh;
+    if (std::isfinite(preRh) && preRh > 0.0 && preRh <= 100.0) {
+        const double xSp = std::max(0.0, archenv::absolute_humidity(tIn, preRh));
+        if (xIn > xSp) {
+            result.supplyX = xSp;
+            result.condensationRateKgPerS =
+                kAirDensity * std::abs(airFlowRate) * (xIn - result.supplyX);
+            result.latentHeatCapacity =
+                std::max(0.0,
+                         kAirDensity * std::abs(airFlowRate) *
+                             archenv::vapor_latent_heat(tOut) * (xIn - result.supplyX));
+            const double xSatOut = std::max(0.0, archenv::absolute_humidity(tOut, 100.0));
+            if (xSatOut > std::numeric_limits<double>::epsilon()) {
+                result.supplyRhPercent = 100.0 * result.supplyX / xSatOut;
+            }
+            if (moistEnthalpyEnabled) {
+                const double qTotal = thermal_moist_air::processedEnthalpyHeatW(
+                    tIn, xIn, tOut, result.supplyX, airFlowRate, /*heating=*/false);
+                const double cpEff = 0.5 * (thermal_moist_air::moistAirCp(xIn) +
+                                           thermal_moist_air::moistAirCp(result.supplyX));
+                const double qSens = std::min(
+                    qTotal,
+                    kAirDensity * std::abs(airFlowRate) * cpEff * std::max(0.0, tIn - tOut));
+                result.sensibleHeatCapacity = qSens;
+                result.latentHeatCapacity = std::max(0.0, qTotal - qSens);
+            }
+            return result;
+        }
+    }
+
     if (!(tIn > tOut)) {
         result.supplyX = xIn;
         result.condensationRateKgPerS = 0.0;
@@ -285,14 +317,22 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
     return result;
 }
 
+namespace {
+double supplyHumidityRecomputeTol(double humidityAbsTol) {
+    const double requested = (humidityAbsTol > 0.0) ? humidityAbsTol : 1e-9;
+    return std::max(requested, kSupplyHumidityRecomputeFloor);
+}
+} // namespace
+
 bool applySupplyHumidityToAirconNode(ThermalNetwork& thermalNetwork,
                                      const std::string& airconKey,
                                      const LatentProcessResult& loads,
                                      double humidityAbsTol) {
     auto& node = thermalNetwork.getNode(airconKey);
     const double newRemoval = std::max(0.0, loads.condensationRateKgPerS);
-    const double tol = (humidityAbsTol > 0.0) ? humidityAbsTol : 1e-9;
+    const double tol = supplyHumidityRecomputeTol(humidityAbsTol);
     // 再計算判定は方程式境界に効く supplyX のみ（除湿量は診断値）
+    // current_x 自体は常に最新 supplyX へ更新する（微小変化でも境界は追従）。
     const bool changed = std::abs(node.current_x - loads.supplyX) > tol;
     node.current_x = loads.supplyX;
     node.aircon_moisture_removal_kg_s = newRemoval;
@@ -305,7 +345,7 @@ bool applyPassthroughHumidityToAirconNode(ThermalNetwork& thermalNetwork,
     auto& node = thermalNetwork.getNode(airconKey);
     const double inletX =
         aircon::network_utils::getAbsoluteHumidityFromNode(thermalNetwork, node.in_node);
-    const double tol = (humidityAbsTol > 0.0) ? humidityAbsTol : 1e-9;
+    const double tol = supplyHumidityRecomputeTol(humidityAbsTol);
     const bool changed = std::abs(node.current_x - inletX) > tol;
     node.current_x = inletX;
     node.aircon_moisture_removal_kg_s = 0.0;

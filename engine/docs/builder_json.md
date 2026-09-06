@@ -149,8 +149,8 @@ flowchart LR
 - `add_aircon`: `aircon` の展開を行うか
 - `add_capacity`: `thermal_mass` から熱容量ノード/ブランチを生成するか
 - `add_moisture_capacity`: `moisture_capacity` から材料側湿気容量ノード（`<key>_mx`）を生成するか
-  - `true`（既定）: 展開前に当該ノードへ `calc_x=True` を立て、空調ノードへも伝播したうえで `<key>_mx` を生成
-  - `false`: 湿気容量を**無効化**する（`moisture_capacity` / `moisture_capacity_unit` のどちらか一方でもあれば両方除去し、室ノードへ直接載せた別モデルにもしない）
+  - `true`（既定）: 展開前に当該ノードへ `calc_x=True` を立てたうえで `<key>_mx` を生成。空調ノードは `supplyX` 固定境界のため `calc_x` は付けない
+  - `false`: 湿気容量を**無効化**する（`moisture_capacity` / `moisture_capacity_unit` のどちらか一方でもあれば両方除去し、`calc_x` 強制も `_mx` 展開もしない。室ノードへ直接載せた別モデルにもしない）
 
 詳細は [`moisture_network_phase1.md`](moisture_network_phase1.md)。
 

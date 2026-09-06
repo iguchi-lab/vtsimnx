@@ -174,9 +174,13 @@ public:
             }
             detail << "Qreq=" << requiredHeatW << "W";
         } else {
-            // OFF 中（室温が自由）または負荷未評価: 従来の温度バンド
+            // OFF 中（室温が自由）または負荷未評価: 温度バンド
+            // thermal/空調の数値 tol が 1e-6 など極小だと、Qreq≈0 で OFF した直後に
+            // T が設定+0.003℃へ僅かに浮いただけでも再 ON し、外側ループが振動する。
+            // nearSetpoint と同じく最低 0.5K のヒステリシスを使う。
+            const double tempBandK = std::max(tolerance, 0.5);
             const double diff = currentTemp - targetTemp;
-            const bool withinBand = (std::abs(diff) <= tolerance);
+            const bool withinBand = (std::abs(diff) <= tempBandK);
             if (nodeProps.current_mode == "HEATING") {
                 if (withinBand) shouldBeOn = nodeProps.on;
                 else shouldBeOn = (diff < 0.0);
@@ -218,6 +222,11 @@ public:
                            bool* supplyHumidityChanged = nullptr,
                            double humidityAbsTol = 1e-9,
                            std::vector<AirconStateProposal>* outProposals = nullptr) const;
+
+    // 湿度ソルバ実行前に空調ノードの吹出湿度境界を整える（外側再計算は要求しない）。
+    // calc_x=false の空調を current_x=0 のまま解くと還気循環が室内を乾燥させるため、
+    // OFF / 未初期化時は吸込湿度へ同期する。ON で既に supplyX がある場合は維持する。
+    void syncHumidityBoundariesBeforeSolve(ThermalNetwork& thermalNetwork) const;
 
     bool checkAndAdjustCapacity(ThermalNetwork& thermalNetwork, VentilationNetwork& ventNetwork,
                                 const SimulationConstants& constants,

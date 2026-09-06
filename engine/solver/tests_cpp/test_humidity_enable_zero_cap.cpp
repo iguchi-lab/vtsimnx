@@ -15,6 +15,7 @@
 #include "simulation_coupled_step.h"
 #include "simulation_error.h"
 #include "simulation_inner_coupling.h"
+#include "simulation_runner_helpers.h"
 #include "simulation_timestep_state.h"
 #include "types/common_types.h"
 
@@ -527,6 +528,245 @@ int main() {
                 expectTrue(logs.str().find("ソルバ未収束(停止)") != std::string::npos,
                            "coupled: stop log message");
             }
+        }
+
+        // ------------------------------------------------------------------
+        // restoreUnknownHumidityStateToGraph: calc_x=false の空調吹出は戻さない
+        // ------------------------------------------------------------------
+        {
+            auto room = makeNode("ROOM", true, 50.0, 0.010);
+            auto ac = makeNode("AC", false, 0.0, 0.010);
+            ac.type = "aircon";
+            std::vector<VertexProperties> nodes = {room, ac};
+            std::vector<EdgeProperties> vent = {
+                makeVent("ROOM->AC", "ROOM", "AC", 0.10),
+                makeVent("AC->ROOM", "AC", "ROOM", 0.10),
+            };
+            std::vector<EdgeProperties> th;
+
+            VentilationNetwork ventNet;
+            ThermalNetwork thermal;
+            ventNet.buildFromData(nodes, vent, constants, logs);
+            thermal.buildFromData(nodes, th, vent, constants, logs);
+
+            auto& tG = thermal.getGraph();
+            const auto vRoom = thermal.getKeyToVertex().at("ROOM");
+            const auto vAc = thermal.getKeyToVertex().at("AC");
+            const size_t nV = static_cast<size_t>(boost::num_vertices(tG));
+            std::vector<double> xPrev(nV, 0.0);
+            xPrev[static_cast<size_t>(vRoom)] = 0.010;
+            xPrev[static_cast<size_t>(vAc)] = 0.010;
+
+            // 外側反復で空調が新しい吹出湿度を設定した想定
+            tG[vRoom].current_x = 0.011;
+            tG[vAc].current_x = 0.006;
+            ventNet.getGraph()[ventNet.getKeyToVertex().at("AC")].current_x = 0.006;
+
+            simulation::detail::restoreUnknownHumidityStateToGraph(tG, ventNet, xPrev);
+
+            expectNear(tG[vRoom].current_x, 0.010, 0.0,
+                       "unknown room x restored to timestep initial");
+            expectNear(tG[vAc].current_x, 0.006, 0.0,
+                       "aircon supplyX boundary must NOT be restored");
+            expectNear(ventNet.getGraph()[ventNet.getKeyToVertex().at("AC")].current_x, 0.006, 0.0,
+                       "vent-side aircon supplyX must NOT be restored");
+        }
+
+        // パススルー空調の大風量還気は湿度移流から除外し、外気湿度を薄めない
+        {
+            auto room = makeNode("ROOM", true, 50.0, 0.005);
+            auto out = makeNode("OUT", false, 0.0, 0.015);
+            auto ac = makeNode("AC", false, 0.0, 0.0);
+            ac.type = "aircon";
+            ac.on = false;
+            ac.current_mode = "OFF";
+            ac.in_node = "ROOM";
+            std::vector<VertexProperties> nodes = {room, out, ac};
+            std::vector<EdgeProperties> vent = {
+                makeVent("OUT->ROOM", "OUT", "ROOM", 0.01),
+                makeVent("ROOM->AC", "ROOM", "AC", 0.30),
+                makeVent("AC->ROOM", "AC", "ROOM", 0.30),
+            };
+            std::vector<EdgeProperties> th;
+            SimulationConstants c = constants;
+
+            VentilationNetwork ventNet;
+            ThermalNetwork thermal;
+            HumidityNetwork humidity;
+            ventNet.buildFromData(nodes, vent, c, logs);
+            thermal.buildFromData(nodes, th, vent, c, logs);
+            humidity.invalidateCaches();
+
+            const auto stats = core::humidity::updateHumidityIfEnabled(
+                c, ventNet, thermal.getGraph(),
+                static_cast<const ThermalNetwork&>(thermal).nodeStateView(), humidity, {}, logs,
+                timings, "passthrough-ac");
+            expectTrue(stats.converged && stats.updated, "passthrough-ac humidity converged");
+            const double xRoom =
+                thermal.getGraph()[thermal.getKeyToVertex().at("ROOM")].current_x;
+            // 還気を載せると AC(x=0) で薄まり x→0。除外後は外気側へ上昇する。
+            // 容量・流量・1ステップでは外気へ漸近（微小な数値誤差を許容）
+            if (!(xRoom > 0.008) || !(xRoom < 0.015 + 1e-3)) {
+                std::ostringstream oss;
+                oss << "passthrough AC humidity lock check failed: xRoom=" << xRoom;
+                throw std::runtime_error(oss.str());
+            }
+        }
+
+        // 除湿中（supplyX << inlet）の空調枝は湿度境界として残す
+        {
+            auto room = makeNode("ROOM", true, 50.0, 0.012);
+            auto ac = makeNode("AC", false, 0.0, 0.004);
+            ac.type = "aircon";
+            ac.on = true;
+            ac.current_mode = "COOLING";
+            ac.in_node = "ROOM";
+            std::vector<VertexProperties> nodes = {room, ac};
+            std::vector<EdgeProperties> vent = {
+                makeVent("ROOM->AC", "ROOM", "AC", 0.20),
+                makeVent("AC->ROOM", "AC", "ROOM", 0.20),
+            };
+            std::vector<EdgeProperties> th;
+            SimulationConstants c = constants;
+
+            VentilationNetwork ventNet;
+            ThermalNetwork thermal;
+            HumidityNetwork humidity;
+            ventNet.buildFromData(nodes, vent, c, logs);
+            thermal.buildFromData(nodes, th, vent, c, logs);
+            humidity.invalidateCaches();
+
+            const auto stats = core::humidity::updateHumidityIfEnabled(
+                c, ventNet, thermal.getGraph(),
+                static_cast<const ThermalNetwork&>(thermal).nodeStateView(), humidity, {}, logs,
+                timings, "dehumid-ac");
+            expectTrue(stats.converged && stats.updated, "dehumid-ac humidity converged");
+            const double xRoom =
+                thermal.getGraph()[thermal.getKeyToVertex().at("ROOM")].current_x;
+            expectTrue(xRoom < 0.012 - 1e-4, "active supplyX BC still dehumidifies room");
+            expectTrue(xRoom > 0.004 - 1e-6, "room stays above supplyX");
+        }
+
+        // ------------------------------------------------------------------
+        // HEATING ON は還気を湿度から除外（過乾燥しない）／COOLING ON は除湿 BC
+        // ------------------------------------------------------------------
+        {
+            auto room = makeNode("ROOM", true, 50.0, 0.010);
+            auto out = makeNode("OUT", false, 0.0, 0.015);
+            auto ac = makeNode("AC", false, 0.0, 0.00005); // 残留した極小 supplyX
+            ac.type = "aircon";
+            ac.on = true;
+            ac.current_mode = "HEATING";
+            ac.in_node = "ROOM";
+            std::vector<VertexProperties> nodes = {room, out, ac};
+            std::vector<EdgeProperties> vent = {
+                makeVent("OUT->ROOM", "OUT", "ROOM", 0.05),
+                makeVent("ROOM->AC", "ROOM", "AC", 0.30),
+                makeVent("AC->ROOM", "AC", "ROOM", 0.30),
+            };
+            std::vector<EdgeProperties> th;
+            SimulationConstants c = constants;
+
+            VentilationNetwork ventNet;
+            ThermalNetwork thermal;
+            HumidityNetwork humidity;
+            ventNet.buildFromData(nodes, vent, c, logs);
+            thermal.buildFromData(nodes, th, vent, c, logs);
+            humidity.invalidateCaches();
+
+            const auto vRoom = thermal.getKeyToVertex().at("ROOM");
+            std::vector<double> xN(static_cast<size_t>(boost::num_vertices(thermal.getGraph())), 0.0);
+            for (auto v : boost::make_iterator_range(boost::vertices(thermal.getGraph()))) {
+                xN[static_cast<size_t>(v)] = thermal.getGraph()[v].current_x;
+            }
+
+            const auto s1 = core::humidity::updateHumidityIfEnabled(
+                c, ventNet, thermal.getGraph(),
+                static_cast<const ThermalNetwork&>(thermal).nodeStateView(), humidity, {}, logs,
+                timings, "heating-no-dry", &xN);
+            expectTrue(s1.converged && s1.updated, "heating humidity solve");
+            const double xRoom = thermal.getGraph()[vRoom].current_x;
+            expectTrue(std::isfinite(xRoom), "HEATING humidity finite");
+            // 回帰: 残留 supplyX≈0 の還気で室内が過乾燥しないこと
+            expectTrue(xRoom > 0.0105, "HEATING must not dry room via stale supplyX");
+        }
+
+        {
+            auto room = makeNode("ROOM", true, 50.0, 0.012);
+            auto ac = makeNode("AC", false, 0.0, 0.004);
+            ac.type = "aircon";
+            ac.on = true;
+            ac.current_mode = "COOLING";
+            ac.in_node = "ROOM";
+            std::vector<VertexProperties> nodes = {room, ac};
+            std::vector<EdgeProperties> vent = {
+                makeVent("ROOM->AC", "ROOM", "AC", 0.20),
+                makeVent("AC->ROOM", "AC", "ROOM", 0.20),
+            };
+            std::vector<EdgeProperties> th;
+            SimulationConstants c = constants;
+            VentilationNetwork ventNet;
+            ThermalNetwork thermal;
+            HumidityNetwork humidity;
+            ventNet.buildFromData(nodes, vent, c, logs);
+            thermal.buildFromData(nodes, th, vent, c, logs);
+            humidity.invalidateCaches();
+            const auto stats = core::humidity::updateHumidityIfEnabled(
+                c, ventNet, thermal.getGraph(),
+                static_cast<const ThermalNetwork&>(thermal).nodeStateView(), humidity, {}, logs,
+                timings, "cooling-dehumid");
+            expectTrue(stats.converged && stats.updated, "cooling dehumid humidity converged");
+            const double xRoom =
+                thermal.getGraph()[thermal.getKeyToVertex().at("ROOM")].current_x;
+            expectTrue(xRoom < 0.012 - 1e-4, "COOLING supplyX BC still dehumidifies room");
+        }
+
+        // ------------------------------------------------------------------
+        // 同一 source→target の複数換気枝は inflow を合算する
+        // （連鎖展開で 台所→LD が小流量+大流量の2本になるケース。先頭だけ拾うと
+        //  LD→台所 の大流量流出だけが残り、LD/外 ≈ Qout/(Qout+Qrecirc) にロックする）
+        // ------------------------------------------------------------------
+        {
+            auto ld = makeNode("LD", true, 80.0, 0.0);
+            auto kit = makeNode("KIT", true, 40.0, 0.0);
+            auto out = makeNode("OUT", false, 0.0, 0.010);
+            std::vector<VertexProperties> nodes = {ld, kit, out};
+            std::vector<EdgeProperties> vent = {
+                makeVent("OUT->LD", "OUT", "LD", 0.011111),
+                makeVent("OUT->KIT", "OUT", "KIT", 0.005556),
+                makeVent("LD->KIT", "LD", "KIT", 1.388889),
+                makeVent("KIT->LD(01)", "KIT", "LD", 0.005556),
+                makeVent("KIT->LD(02)", "KIT", "LD", 1.388889),
+                makeVent("LD->HALL", "LD", "OUT", 0.016667), // 簡易排気先=外気
+            };
+            std::vector<EdgeProperties> th;
+            SimulationConstants c = constants;
+
+            VentilationNetwork ventNet;
+            ThermalNetwork thermal;
+            HumidityNetwork humidity;
+            ventNet.buildFromData(nodes, vent, c, logs);
+            thermal.buildFromData(nodes, th, vent, c, logs);
+            humidity.invalidateCaches();
+
+            const auto vLd = thermal.getKeyToVertex().at("LD");
+            double xLd = 0.0;
+            for (int step = 0; step < 48; ++step) {
+                std::vector<double> xN(static_cast<size_t>(boost::num_vertices(thermal.getGraph())), 0.0);
+                for (auto v : boost::make_iterator_range(boost::vertices(thermal.getGraph()))) {
+                    xN[static_cast<size_t>(v)] = thermal.getGraph()[v].current_x;
+                }
+                const auto stats = core::humidity::updateHumidityIfEnabled(
+                    c, ventNet, thermal.getGraph(),
+                    static_cast<const ThermalNetwork&>(thermal).nodeStateView(), humidity, {}, logs,
+                    timings, "parallel-inflow", &xN);
+                expectTrue(stats.converged && stats.updated, "parallel-inflow humidity solve");
+                xLd = thermal.getGraph()[vLd].current_x;
+            }
+            // バグ時は ≈0.008*x_out。合算後は外気近傍へ回復する。
+            expectTrue(xLd > 0.008, "parallel KIT->LD inflows must not lock LD near dry dilution");
+            expectTrue(xLd > 0.007, "LD humidity should approach outdoor scale");
+            expectNear(xLd, 0.010, 0.003, "LD near outdoor after parallel-inflow fix");
         }
 
         std::cout << "[OK] all tests passed\n";

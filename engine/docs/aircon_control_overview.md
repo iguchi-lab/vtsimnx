@@ -167,6 +167,7 @@ flowchart TD
 - 実際の固定温度化は熱ソルバ側の fixed-row ロジックで行います（値は実効設定 `current_pre_temp`）
 - 同一 `set_node` を複数空調が制御する入力は `initializeModels()` で拒否します
 - 能力 bracket の最終検証でも上限を満たせず拡張できない場合は `CapacityConstraintUnresolved` で例外終了します（超過のまま Accept しない）
+- 温度バンド幅は `max(空調温度許容誤差, 0.5K)`。入力 tol が `1e-6` など極小でも、Qreq≈0 で OFF した直後のわずかな温度浮きで再 ON しない
 - **能力制限中**（`CapacityLimited`、または実効設定が要求から離れている）は `required_heat_w` で OFF しません。実効設定を下げた拘束では Qreq が符号反転し、OFF↔ON 振動するためです。このときは要求設定との温度バンドで判定します。
 ---
 
@@ -224,6 +225,15 @@ Q = \dot m\,|h_\mathrm{in}-h_\mathrm{out}|
 
 冷房時の吹出絶対湿度 `supplyX` と潜熱は、`ac_spec.latent_method` で方式を切り替えます。
 
+#### 6.0 理想相対湿度制御（`pre_rh`）
+
+`aircon.pre_rh`（または空調ノードの `pre_rh`）に設定相対湿度 [%] を与えると、**冷房運転中**かつ室絶対湿度が目標を超える場合に、コイルモデルより優先して理想除湿します。
+
+- 目標絶対湿度: `x_sp = absolute_humidity(T_in, pre_rh)`
+- 条件: `x_in > x_sp` のとき `supplyX = x_sp`（能力上限・機種特性は見ない）
+- `pre_rh` 未指定、または目標以下のときは従来どおり `latent_method` を使用
+- 暖房 / OFF では無効（既存のパススルー／除外ロジックのまま）
+
 **方式一覧（冷房時のみ有効）**
 
 - `rh95`（**デフォルト**）  
@@ -248,7 +258,11 @@ Q = \dot m\,|h_\mathrm{in}-h_\mathrm{out}|
 いずれの方式でも、計算された `supplyX` は aircon ノードの `current_x` に反映され、  
 次ステップおよび `humidity_x` 出力の初期値として利用されます。  
 あわせて除湿量 \(\dot m(x_\mathrm{in}-x_\mathrm{supply})\) をノードの `aircon_moisture_removal_kg_s` に保持し、湿気収支診断の `airconCondensation` に載せます。  
-吹出側の湿気移流は空調ノードの `current_x`（= supplyX）を境界として使うため、能力計算・湿気状態・熱移流の湿度が一致します。
+吹出側の湿気移流は空調ノードの `current_x`（= supplyX）を**固定境界**として使うため、能力計算・湿気状態・熱移流の湿度が一致します。  
+そのため空調ノードは常に `calc_x=false` です（湿度ソルバの未知数にしない）。`calc_x=true` だと supplyX 適用後に湿度解が上書きし、外側ループが `SupplyHumidityChanged` で振動します。  
+外側再計算の判定床は `1e-4 kg/kg(DA)`（連成湿度 tol との大きい方）。境界値 `current_x` は常に更新し、床未満の変化では再計算しません。  
+また各外側ループの湿度連成前に、OFF / `current_x` 未初期化の空調は吸込湿度へ同期します（`current_x=0` 固定境界で室内が乾燥するのを防ぐ）。  
+パススルー相当の還気循環は湿度移流から除外します。対象は OFF、および `COOLING` 以外の運転（暖房など）です。大風量還気を乾き／古い低湿度 BC のまま載せると外気湿度が薄まり、室湿度がほぼ 0 で固定されるためです。冷房 ON のみ還気枝＋吹出境界を残して除湿を反映します。
 
 ---
 

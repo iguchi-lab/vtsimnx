@@ -178,6 +178,9 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
                 readSeries("pre_temp", node.pre_temp, node.current_requested_pre_temp);
             node.current_pre_temp = node.current_requested_pre_temp;
         }
+        if (nodeJson.contains("pre_rh")) {
+            node.current_pre_rh = readSeries("pre_rh", node.pre_rh, node.current_pre_rh);
+        }
 
         // モード（配列/単一値の両対応）
         if (nodeJson.contains("mode")) {
@@ -230,6 +233,17 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
             node.calc_t = true;
             if (verbosity >= 1) {
                 writeLog(logs, "  [INFO] aircon node: calc_t が未指定のため true をデフォルト適用しました: key=" + node.key);
+            }
+        }
+
+        // 吹出絶対湿度 supplyX は固定境界（current_x）。calc_x=true だと湿度ソルバが
+        // 上書きし、外側ループが SupplyHumidityChanged で無限再計算する。
+        if (node.type == "aircon" && node.calc_x) {
+            node.calc_x = false;
+            if (verbosity >= 1) {
+                writeLog(logs,
+                         "  [INFO] aircon node: calc_x=true は吹出湿度境界と衝突するため false に強制しました: key=" +
+                             node.key);
             }
         }
 

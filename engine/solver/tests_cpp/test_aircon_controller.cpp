@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cmath>
+#include <limits>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -7,8 +8,10 @@
 
 #include "aircon/aircon_controller.h"
 #include "aircon/aircon_capacity.h"
+#include "aircon/aircon_latent.h"
 #include "aircon/aircon_network_utils.h"
 #include "aircon/aircon_operation_mode.h"
+#include "archenv/include/archenv.h"
 #include "core/thermal/thermal_moist_air.h"
 #include "core/thermal/thermal_solver_linear_direct.h"
 #include "network/thermal_network.h"
@@ -292,6 +295,76 @@ int main() {
         (void)controller.controlAllAircons(thermal, 0.5, std::cout, &supplyChanged, 1e-9);
         expectTrue(supplyChanged, "OFF continues tracking inlet x");
         expectNear(b.current_x, 0.018, 1e-15, "OFF tracks updated inlet");
+        // 床未満の入口ドリフトでは current_x は追従するが外側再計算は要求しない
+        in.current_x = 0.018 + 5e-5;
+        supplyChanged = false;
+        (void)controller.controlAllAircons(thermal, 0.5, std::cout, &supplyChanged, 1e-9);
+        expectTrue(!supplyChanged, "sub-floor inlet drift must not recompute");
+        expectNear(b.current_x, 0.018 + 5e-5, 1e-15, "OFF still tracks sub-floor inlet");
+    }
+
+    // 湿度ソルバ前同期: current_x=0 の空調を吸込へ戻す（外側再計算は起こさない）
+    {
+        auto& b = thermal.getNode("B");
+        auto& in = thermal.getNode("IN");
+        b.on = true;
+        b.current_mode = "COOLING";
+        b.in_node = "IN";
+        b.current_x = 0.0;
+        in.current_x = 0.015;
+        controller.syncHumidityBoundariesBeforeSolve(thermal);
+        expectNear(b.current_x, 0.015, 1e-15, "uninitialized ON warm-starts from inlet");
+        b.current_x = 0.009;
+        controller.syncHumidityBoundariesBeforeSolve(thermal);
+        expectNear(b.current_x, 0.009, 1e-15, "initialized COOLING supplyX is preserved");
+        // 暖房 ON は除湿しないので、残留した低湿度 supplyX を吸込へ戻す
+        b.current_mode = "HEATING";
+        b.current_x = 0.001;
+        in.current_x = 0.012;
+        controller.syncHumidityBoundariesBeforeSolve(thermal);
+        expectNear(b.current_x, 0.012, 1e-15, "HEATING ON passthrough clears stale supplyX");
+        b.on = false;
+        b.current_mode = "OFF";
+        b.current_x = 0.009;
+        in.current_x = 0.016;
+        controller.syncHumidityBoundariesBeforeSolve(thermal);
+        expectNear(b.current_x, 0.016, 1e-15, "OFF syncs to inlet before humidity solve");
+    }
+
+    // 理想除湿（A）: pre_rh 指定・過湿時は supplyX = absolute_humidity(T_in, pre_rh)
+    {
+        AirconValidationData vd{};
+        vd.indoorTemp = 26.0;
+        vd.indoorX = 0.016; // 過湿
+        vd.airconTemp = 14.0;
+        vd.outdoorTemp = 30.0;
+        vd.outdoorX = 0.018;
+        vd.setTemp = 24.0;
+
+        VertexProperties ac{};
+        ac.type = "aircon";
+        ac.current_pre_rh = 50.0;
+        ac.ac_spec = nlohmann::json{{"latent_method", "rh95"}};
+        const double xSp = archenv::absolute_humidity(26.0, 50.0);
+        expectTrue(vd.indoorX > xSp, "fixture is over RH setpoint");
+
+        const auto over = aircon::latent::estimateLatentProcess(
+            vd, OperationMode::Cooling, /*sensible=*/1000.0, /*flow=*/0.2, ac, false);
+        expectNear(over.supplyX, xSp, 1e-9, "ideal RH overrides supplyX when humid");
+        expectTrue(over.condensationRateKgPerS > 0.0, "ideal RH reports condensation");
+
+        vd.indoorX = xSp * 0.5; // 目標以下
+        const auto under = aircon::latent::estimateLatentProcess(
+            vd, OperationMode::Cooling, /*sensible=*/1000.0, /*flow=*/0.2, ac, false);
+        const double x95 = archenv::absolute_humidity(14.0, 95.0);
+        expectNear(under.supplyX, std::min(vd.indoorX, x95), 1e-9,
+                   "below setpoint keeps latent_method (rh95)");
+
+        ac.current_pre_rh = std::numeric_limits<double>::quiet_NaN();
+        vd.indoorX = 0.016;
+        const auto noPre = aircon::latent::estimateLatentProcess(
+            vd, OperationMode::Cooling, /*sensible=*/1000.0, /*flow=*/0.2, ac, false);
+        expectNear(noPre.supplyX, std::min(0.016, x95), 1e-9, "no pre_rh uses rh95");
     }
 
     // 潜熱フィードバック: 冷房時に in_node へ負の heat_source が入ること
@@ -672,6 +745,30 @@ int main() {
         auto r = controller.controlAircon(ac, /*currentTemp=*/18.0, /*targetTemp=*/20.0, 0.5, logs,
                                           /*useRequiredHeat=*/false, 0.0, 1.0);
         expectTrue(r.stateChanged && r.on, "cold free room should turn heating ON");
+    }
+    // 極小 thermal tol でも温度バンドは最低 0.5K（Qreq≈0 OFF 直後の再 ON 振動防止）
+    {
+        VertexProperties ac;
+        ac.key = "C_CHATTER";
+        ac.set_node = "ROOM";
+        ac.current_mode = "COOLING";
+        ac.on = false;
+        std::ostringstream logs;
+        auto r = controller.controlAircon(ac, /*currentTemp=*/27.003, /*targetTemp=*/27.0,
+                                          /*tolerance=*/1e-6, logs, false, 0.0, 1.0);
+        expectTrue(!r.stateChanged && !r.on,
+                   "cooling OFF must stay OFF for +0.003K drift when band floor is 0.5K");
+    }
+    {
+        VertexProperties ac;
+        ac.key = "C_NEED";
+        ac.set_node = "ROOM";
+        ac.current_mode = "COOLING";
+        ac.on = false;
+        std::ostringstream logs;
+        auto r = controller.controlAircon(ac, /*currentTemp=*/28.0, /*targetTemp=*/27.0,
+                                          /*tolerance=*/1e-6, logs, false, 0.0, 1.0);
+        expectTrue(r.stateChanged && r.on, "cooling OFF must turn ON when clearly above band");
     }
 
     // 同一 set_node を複数空調が制御すると fixed-row が頂点順依存になるため禁止する

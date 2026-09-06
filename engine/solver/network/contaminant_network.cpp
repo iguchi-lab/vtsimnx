@@ -65,7 +65,20 @@ void ContaminantNetwork::buildTerms(ConstNodeStateView nodeState,
         }
 
         terms.outSum[idxOf(src)] += q;
-        terms.inflow[idxOf(dst)].push_back({src, q * (1.0 - eta)});
+        // 同一 source→dst の複数枝は合算（湿度側と同様。連鎖展開の重複キー対策）
+        const double qEff = q * (1.0 - eta);
+        auto& ins = terms.inflow[idxOf(dst)];
+        bool merged = false;
+        for (auto& in : ins) {
+            if (in.first == src) {
+                in.second += qEff;
+                merged = true;
+                break;
+            }
+        }
+        if (!merged) {
+            ins.push_back({src, qEff});
+        }
     }
 
     // 更新対象（calc_c=true）の頂点を key でソートして決定性を確保
