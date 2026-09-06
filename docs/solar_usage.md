@@ -21,7 +21,7 @@
   - `0` = 水平上向き
   - `90` = 鉛直
 - 日射の基本量
-  - `ghi`（GHI）: ghi
+  - `ghi`（GHI）: 水平面全天日射照度 [W/m²]
   - `dni`（DNI）: 法線面直達日射量
   - `dhi`（DHI）: 水平面拡散日射量
 
@@ -51,9 +51,8 @@
 - 入力:
   - `lat`, `lon` は float（deg）でも DMS 文字列でも可
 - 出力（主な列）:
-  - `太陽高度 alt`
-  - `太陽方位角 az`（astropy由来）  
-    ※ `solar_gain_by_angles` 内では本モジュール系 `AZs` に変換されます
+  - `solar_altitude_deg`
+  - `solar_azimuth_deg`（南0°・東負・西正へ変換済み）
 
 ### `sep_direct_diffuse(s_ig, s_hs, min_sun_alt_deg=0.0)`（下位ユーティリティ）
 
@@ -76,7 +75,7 @@
 
 代表的な引数（主要部）:
 
-```python
+```text
 solar_gain_by_angles(
     *,
     azimuth_deg, tilt_deg, lat_deg=..., lon_deg=...,
@@ -91,7 +90,7 @@ solar_gain_by_angles(
   - 幾何: `azimuth_deg`, `tilt_deg`, `lat_deg`, `lon_deg`
   - 日射（次のいずれか）
     1. `ghi` のみ（内部で Erbs 分離）
-    2. `ghi + dni`（`Id` を復元）
+    2. `ghi + dni`（`dhi` を復元）
     3. `dni + dhi`（そのまま使用）
   - 入力分岐の判定ルール（実装準拠）
     - `dni` と `dhi` が両方ある場合: それらを優先して使用（Erbs は使わない）
@@ -114,7 +113,7 @@ solar_gain_by_angles(
 
 代表的な引数（主要部）:
 
-```python
+```text
 solar_gain_by_angles_with_shade(
     *,
     azimuth_deg, tilt_deg, window_width, window_height, shade_coords,
@@ -141,7 +140,7 @@ solar_gain_by_angles_with_shade(
   - `z`: 外向き法線方向正（窓面は `z=0`）
 - 挙動:
   - 拡散・反射は**変更しない**
-  - 直達のみ `sunlit_ratio` を掛ける（`η`: 被影率）
+  - 直達のみ `sunlit_ratio = 1 - shade_ratio` を掛ける（`shade_ratio`: 被影率）
   - 複数ポリゴンは重なりを二重計上しない（和集合面積）
 - 追加出力列:
   - 既定: `solar_gain` の `Series`
@@ -153,12 +152,12 @@ solar_gain_by_angles_with_shade(
 
 最初に用語だけ整理:
 
-- `ghi` (Global Horizontal Irradiance): ghi
+- `ghi` (Global Horizontal Irradiance): 水平面全天日射照度 [W/m²]
 - `dni` (Direct Normal Irradiance): 法線面直達日射量
 - `dhi` (Diffuse Horizontal Irradiance): 水平面拡散日射量
 
-HASP 等の気象データを使う場合は、典型的に  
-`ghi = df["ghi"]`、`dni = df["直達日射量"]`、`dhi = df["水平面拡散日射量"]`  
+HASP 等の気象データを使う場合は、典型的に
+`ghi = df["ghi"]`、`dni = df["直達日射量"]`、`dhi = df["水平面拡散日射量"]`
 のように対応付けて渡します（データに `ghi` がない場合は `dni + dhi` で使う運用でも可）。
 
 ### 3-1. 基本（DNI + DHI を直接与える）
@@ -167,7 +166,7 @@ HASP 等の気象データを使う場合は、典型的に
 import pandas as pd
 import vtsimnx as vt
 
-idx = pd.date_range("2026-06-21 12:00:00", periods=24, freq="1h")
+idx = pd.date_range("2026-06-21 09:00:00", periods=6, freq="1h")
 s_dni = pd.Series(800.0, index=idx)  # dni: 法線面直達日射量
 s_dhi = pd.Series(100.0, index=idx)  # dhi: 水平面拡散日射量
 
@@ -191,7 +190,7 @@ import pandas as pd
 import vtsimnx as vt
 
 idx = pd.date_range("2026-06-21 06:00:00", periods=12, freq="1h")
-s_ghi = pd.Series(300.0, index=idx)  # ghi: ghi
+s_ghi = pd.Series(300.0, index=idx)  # GHI [W/m²]
 
 out = vt.solar_gain_by_angles(
     azimuth_deg=-90.0,  # 東面
@@ -239,7 +238,15 @@ print(out[["shade_ratio", "sunlit_ratio"]].head())
 
 ---
 
-## 4. 実務上の注意
+## 4. 物理モデル・単位・時刻基準
+
+- `ghi`、`dni`、`dhi` と `solar_gain` は、このガイドでは W/m² の日射照度として扱う。面積を掛ける前の量である。Wh/m² の区間積算値は区間長 [h] で除してから入力する。
+- 天空拡散は等方天空、地面反射は `ground_albedo`（既定0.2）と天空・地面の形態係数による近似である。
+- `glass=False` は面への入射日射であり、壁の吸収日射そのものではない。`glass=True` は直達の入射角補正と拡散・反射の透過補正（`glass_tau_diffuse`、既定0.808）を施す。任意製品の窓性能を自動再現するものではない。builder 側の `SCR`、`SCC`、受熱面 `eta` との重複を避ける（[表面ガイド](surface_usage.md)）。
+- 簡易太陽位置式は標準子午線135°E、Astropy経路は入力時刻から9時間を引く実装である。日本標準時の timezone-naive な `DatetimeIndex` を用い、UTC・他地域時刻をそのまま渡さない。`sun_loc`/`astro_sun_loc` 単独の `td` 既定値は -0.5 h。一方、`solar_gain_by_angles` の既定 `time_alignment="timestamp"` は入力時刻で評価する。
+- `time_alignment="center"` は等間隔データの開始時刻なら半刻み加算、終了時刻なら半刻み減算して太陽位置を評価する。日射量自体の時間平均を再計算する機能ではない。
+
+## 5. 実務上の注意
 
 - `DatetimeIndex` は日射データと同じインデックスを使う
 - `ghi + dhi`（`dni` なし）は未対応。`ghi` のみ、`ghi + dni`、`dni + dhi` のいずれかを使う

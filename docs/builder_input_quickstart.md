@@ -1,6 +1,6 @@
 # `vt.run_calc` 入力JSONクイックスタート（ユーザー向け）
 
-このページは、`vtsimnx/vtsimnx` の利用者が  
+このページは、`vtsimnx` の利用者が
 **`vt.run_calc(base_url, input_data)` に渡す `input_data` をどう作るか**を最短で把握するためのガイドです。
 
 - 対象: Python から `vtsimnx` を呼ぶ利用者
@@ -34,10 +34,11 @@ input_data = {
     },
     "nodes": [
         {"key": "外部", "t": 5.0},
-        {"key": "室1", "calc_t": True, "v": 30.0},
+        {"key": "室1", "calc_t": True, "t": 20.0, "v": 30.0, "thermal_mass": 36216.0},
     ],
     "ventilation_branches": [
         {"key": "外部->室1", "source": "外部", "target": "室1", "type": "fixed_flow", "vol": 30.0 / 3600.0},  # m3/s
+        {"key": "室1->外部", "source": "室1", "target": "外部", "type": "fixed_flow", "vol": 30.0 / 3600.0},
     ],
     "thermal_branches": [
         {"key": "外部->室1", "source": "外部", "target": "室1", "type": "conductance", "conductance": 50.0},
@@ -48,6 +49,8 @@ result = vt.run_calc("http://127.0.0.1:8000", input_data)
 ```
 
 ---
+
+この例は給排気を各 30 m³/h とし、室の空気熱容量を `thermal_mass` に明示したものである。`v` の指定だけでは熱蓄積は追加されない。外気は既知温度境界で、室温の `t=20` は初期値である。固定流量を与えているため、圧力差から風量を解く例ではない。
 
 ## 3. よく使うキーの考え方（利用者目線）
 
@@ -71,18 +74,18 @@ result = vt.run_calc("http://127.0.0.1:8000", input_data)
 ## 4. 時系列の書き方
 
 - 多くの値は `number`（定数）または `number[]`（時系列）で指定可能です。
-- 時系列配列長は原則 `simulation.index.length` に合わせます。
+- 時系列配列長は原則 `simulation.index.length` に合わせます。スカラー・1要素配列は builder が展開します。`end = start + (length-1)*timestep` とし、開始・終了を含む点数を指定します。
 - `vt.run_calc` は `pandas.Series` / `DatetimeIndex` も受け取れるため、前処理で `DataFrame` を作る運用と相性が良いです。
 
 ---
 
 ## 5. まずはこの順で組み立てる
 
-1. `simulation.index` を固定する  
-2. `nodes` の `key` を確定する  
-3. `ventilation_branches` / `thermal_branches` の `source` / `target` を接続する  
-4. 必要なら `surfaces` を追加する  
-5. 最後に `aircon` / `heat_source` を追加する  
+1. `simulation.index` を固定する
+2. `nodes` の `key` を確定する
+3. `ventilation_branches` / `thermal_branches` の `source` / `target` を接続する
+4. 必要なら `surfaces` を追加する
+5. 最後に `aircon` / `heat_source` を追加する
 
 この順にすると、参照切れ（存在しないノード名）を早い段階で潰せます。
 
@@ -101,11 +104,11 @@ result = vt.run_calc("http://127.0.0.1:8000", input_data)
 
 ## 7. 実行手順（ローカル）
 
-1. APIサーバーを起動する（`engine/RUN_FASTAPI.md` 参照）  
-2. API URL を設定する  
+1. APIサーバーを起動する（`engine/RUN_FASTAPI.md` 参照）
+2. API URL を設定する
    - `export VTSIMNX_API_URL=http://127.0.0.1:8000`
-3. 最小サンプルを実行する  
-   - `python ../examples/run_calc_minimal.py`
+3. リポジトリのルートで最小サンプルを実行する
+   - `python examples/run_calc_minimal.py`
 
 ---
 
@@ -137,6 +140,6 @@ result = vt.run_calc("http://127.0.0.1:8000", input_data)
 #### DUCT_CENTRAL の注意
 
 - DUCT_CENTRAL モデルでは、solver が処理熱量に応じて送風量を再評価します。
-- 目安は `Q=0 -> V=0`, `Q=Q.rtd -> V=V_inner.dsgn`（中間は線形）です。
+- 正の `ac_spec.Q.<mode>.rtd` [kW] と `V_inner.<mode>.dsgn` [m³/s] が得られる場合、`V = V_dsgn * clip(Q_W/(1000*Q_rtd_kW), 0, 1)` です。定格以上は設計風量に制限し、仕様値がなければこの補正を行いません。
 - 送風量変更で換気・熱連成の解が変わるため、同じ timestep 内で再計算が走る場合があります。
 - 実装詳細は `../engine/docs/aircon_control_overview.md` と `../engine/docs/acmodel_overview.md` を参照してください。
