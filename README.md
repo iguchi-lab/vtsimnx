@@ -66,7 +66,7 @@ python examples/run_calc_minimal.py
 
 | 対象 | 入口 |
 |---|---|
-| 外部研究者向け計算モデル・実装フロー解説 | [`技術解説書 v2.8（PDF）`](docs/vtsimnx_calculation_model_and_implementation_flow_ja_v2.8.pdf) |
+| 外部研究者向け計算モデル・実装フロー解説 | [`技術解説書 v3.1（PDF）`](docs/vtsimnx_calculation_model_and_implementation_flow_ja_v3.1.pdf) / [`Word版`](docs/vtsimnx_calculation_model_and_implementation_flow_ja_v3.1.docx) |
 | 利用者（入力の書き方） | [`docs/README.md`](docs/README.md) |
 | engine 実装仕様 | [`engine/docs/README.md`](engine/docs/README.md) |
 | 単位の正本 | [`docs/units.md`](docs/units.md) |
