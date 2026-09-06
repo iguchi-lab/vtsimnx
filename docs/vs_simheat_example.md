@@ -17,7 +17,9 @@
 ### 1. 気象データの読み込み
 
 1. 環境変数 `VTSIMNX_WEATHER_FILE` に用意したHASPファイルのパスを設定し、`vt.read_hasp(...)` で読み込む。
-   - 列: 外気温・地下温度・水平面日射・夜間放射など。
+   - 読込列: `外気温`、`外気絶対湿度`、`直達日射量`、`水平面拡散日射量`、`夜間放射量`、`風向`、`風速`。地下温度は読込列ではなく後続の地盤計算で追加する。
+   - `外気絶対湿度` は g/kg' であり、節点の `x` へは1000で除して渡す。日射・夜間放射は W/m²。
+   - `read_hasp` は固定365日を読み、末尾1時間を先頭へ移して2026年1月1日0時～12月31日23時のindexを付ける。実年や時刻代表位置を自動判定するものではない。
    - Colabでは読込み前のセルで `import os` と `os.environ["VTSIMNX_WEATHER_FILE"] = "/content/drive/MyDrive/weather.has"` を設定する（実際のパスに置き換える）。
    - SimHeatとの比較では、同一の気象データを両方に使用する。
 
@@ -57,7 +59,7 @@ layers = {
 
 surface = {
     "E_外壁_一般部": {"part": "wall", "layers": layers["外壁_一般部"], "solar": solar["日射熱取得量（東面）"]},
-    "S_窓":          {"part": "glass", "u_value": 4.65, "eta": 0.90, "solar": solar["日射熱取得量（南面ガラス）"]},
+    # 窓の u_value / SCR / SCC は現行サンプルの部位別設定を参照
     # ...
 }
 ```
@@ -84,10 +86,10 @@ input_data = {
 ```python
 input_data["simulation"] = {
     "index": {
-        "start": "2026-01-01 01:00:00",
-        "end":   "2026-01-01 10:00:00",
+        "start": str(df_i.index[0]),
+        "end": str(df_i.index[-1]),
         "timestep": 3600,
-        "length":   10,
+        "length": len(df_i.index),
     },
     "tolerance": {
         "ventilation": 1e-6,
@@ -109,7 +111,7 @@ input_data["nodes"] = [
 ]
 ```
 
-- 室ノードには `thermal_mass` で空気＋内装の熱容量を与えています。
+- 室ノードには `thermal_mass` で空気＋内装等の総熱容量を与えています。上記は熱計算部分の抜粋であり、現行サンプルは `v`、`calc_x`、`moisture_capacity` と単位も指定します。付加湿気容量の既定単位は J/(kg/kg')で、kg/(kg/kg)とは異なります。
 - 温度を未知数とするノードは `calc_t: True`。
 
 #### 4.3 `ventilation_branches`
@@ -145,7 +147,7 @@ result = vt.run_calc(base_url, input_data)
 print(result.log)
 ```
 
-`result` からは `get_series_df(...)` で全 series を取得できます。  
+`result` からは `get_series_df(...)` で全 series を取得できます。
 現行サンプルでは、`schema` の全系列（`vent_*`, `thermal_*`, `humidity_*`, `concentration_*`, `aircon_*`）をまとめて取得しています。
 
 > `examples/vs_simheat_sample.py` は Colab 由来コード（`!pip`、`google.colab` 依存部分）を含むため、
@@ -164,15 +166,31 @@ print(result.log)
 
 ---
 
-### 6. 実行時の確認ポイント
+### 6. 比較前に補正・確認する点
+
+サンプルは検証済みの基準解ではない。参照実装では地盤の `solar_horizontal` に `DNI+DHI` を渡しているが、水平面への投影が必要である。例えば同じ太陽位置・時刻基準で次のように作る。
+
+```python
+ghi_ground = vt.solar_gain_by_angles(
+    azimuth_deg=0.0, tilt_deg=0.0,
+    lat_deg=lat_deg, lon_deg=lon_deg,
+    dni=dni, dhi=dhi, glass=False,
+)
+# 地盤計算の solar_horizontal=ghi_ground に指定する
+```
+
+また、表面の層順、`u_value` が表面抵抗を含むか、ガラスの `SCR/SCC` と受熱面吸収率、付加湿気容量の展開を両ソフトで合わせる。熱容量12.6 kJ/(m³·K)等はこの比較モデルの仮定であり、空気のみの物性値ではない。本レビューではサンプルの計算コード自体は変更していない。
+
+### 7. 実行時の確認ポイント
 
 - 最初に `request_output_path` を有効化して、送信JSONを保存する。
 - `result.log` を確認し、失敗時は `input_data` の参照関係（`nodes` と `source/target`）を点検する。
-- まず短い期間（例: 24時間）で通し、次に8760時間へ拡張する。
+- まず短い期間（例: 24時間）で通し、次に8760時間へ拡張する。期間を変える際は、気象・日射・発熱・空調等の全配列を同じ範囲に切り出す。
+- 気象、境界条件、初期値、助走、時間刻み、制御を統一してから、温湿度・ピーク時刻・期間電力量の差を評価する。他ソフトとの一致は実測妥当性の証明とは区別する。
 
 ---
 
-### 7. このドキュメントの対象範囲
+### 8. このドキュメントの対象範囲
 
 このドキュメントはあくまで「**大規模ケースの入力をどう組み立てているか**」を俯瞰するためのものです。
 

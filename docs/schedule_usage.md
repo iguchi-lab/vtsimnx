@@ -9,7 +9,7 @@
 - 潜熱由来の水分発生量 (`latent_moisture`)
 - 空調モード／設定温度／設定湿度 (`ac_mode`, `pre_tmp`, `pre_rh`)
 
-を一括生成してくれます。
+を生成する。既定の休日配列・生活プロファイルはモデル上の想定であり、指定年の祝日や実際の在室行動を自動取得するものではない。うるう年の8784時間や時間刻み変更には、日付対応と区間平均の扱いを利用者が別途整える。
 
 ---
 
@@ -81,7 +81,7 @@ ac_mode_8760 = make_8760_data(period_1, holiday, w_h, h_h, w_c, h_c, default=0)
 - `AC_MODE_COOLING = 2`
 - `AC_MODE_AUTO = 3`
 
-`ac_mode_profiles` は「部屋 × (暖房/冷房) × (平日/休日)」で 24 要素ずつ持ちます。  
+`ac_mode_profiles` は「部屋 × (暖房/冷房) × (平日/休日)」で 24 要素ずつ持ちます。
 これを `make_8760_data(period_x, holiday, ...)` で展開して 8760 要素の `ac_mode` にします。
 
 #### 3.2 設定温度・設定湿度
@@ -91,7 +91,7 @@ ac_mode_8760 = make_8760_data(period_1, holiday, w_h, h_h, w_c, h_c, default=0)
 - `pre_tmp`: 地域×部屋の設定温度 [℃]
 - `pre_rh`: 地域×部屋の設定相対湿度 [%]
 
-の 8760 シリーズを構成しています。
+の 8760要素のlistを構成しています。
 
 生成関数:
 
@@ -123,7 +123,7 @@ sch.vent_profiles["LD"]["休日"]   # LD の休日 24h プロファイル
 ```python
 from vtsimnx import schedule as sch
 
-vol_8760 = sch.build_vol_schedule()  # room → 8760 Series
+vol_8760 = sch.build_vol_schedule()  # room → 8760要素のlist
 # 互換性のため、モジュール import 時点で sch.vol も生成済み
 LD_vol = sch.vol["LD"]
 ```
@@ -153,14 +153,14 @@ sch.sensible_heat_profiles["LD"]["照明"]["休日"]   # LD・照明・休日 24
 from vtsimnx import schedule as sch
 
 sh_8760 = sch.build_sensible_heat_schedule()
-LD_heat_profiles = sh_8760["LD"]    # {用途名: 8760 Series} の dict
+LD_heat_profiles = sh_8760["LD"]    # {用途名: 8760要素のlist} の dict
 
 # 互換性のため、モジュール import 時点で sch.sensible_heat も生成済み
 LD_heat_legacy = sch.sensible_heat["LD"]
 ```
 
-`build_sensible_heat_schedule` は、`holiday` を見ながら 24h プロファイルを 8760h に展開し、  
-部屋ごとの「用途別発熱（人体 / 照明 / 機器など）」の 8760 シリーズを返します。
+`build_sensible_heat_schedule` は、`holiday` を見ながら 24h プロファイルを 8760h に展開し、
+部屋ごとの「用途別発熱（人体 / 照明 / 機器など）」の 8760要素のlistを返します。
 
 ---
 
@@ -193,17 +193,33 @@ sch.latent_moisture_profiles["台所"]["機器"]["休日"] # 台所・機器・�
 from vtsimnx import schedule as sch
 
 lm_8760 = sch.build_latent_moisture_schedule()
-LD_lm_profiles = lm_8760["LD"]        # {"人体": 8760 Series(kg/h)} の dict
+LD_lm_profiles = lm_8760["LD"]        # {"人体": 8760要素のlist(kg/h)} の dict
 KITCHEN_lm = lm_8760["台所"]["機器"]  # 台所機器からの 8760h 水分発生量 [kg/h]
 
 # 互換性のため、モジュール import 時点で sch.latent_moisture も生成済み
 LD_lm_legacy = sch.latent_moisture["LD"]
 ```
 
-`build_latent_moisture_schedule` は、`holiday` を見ながら 24h プロファイルを 8760h に展開し、  
-部屋ごとの「用途別水分発生（人体 / 機器など）」の 8760 シリーズを返します。
+`build_latent_moisture_schedule` は、`holiday` を見ながら 24h プロファイルを 8760h に展開し、
+部屋ごとの「用途別水分発生（人体 / 機器など）」の 8760要素のlistを返します。
 
 ---
+
+### 6.3 builder へ渡すときの単位換算
+
+`latent_moisture` は **kg/h**、`humidity_source.generation_rate` および `humidity_generation` は **kg/s** である。
+
+```python
+from vtsimnx import schedule as sch
+
+humidity_source = [{
+    "key": "LD_人体発湿",
+    "room": "LD",
+    "generation_rate": [v / 3600.0 for v in sch.latent_moisture["LD"]["人体"]],
+}]
+```
+
+同じ人体の潜熱を別の顕熱源にも加えると二重計上し得る。熱・湿気の連成設定と、発熱・発湿の配分を併記する。56 W/人、63 W/人等はこのプロファイルの仮定値であり、活動量によらない人体の普遍定数ではない。
 
 ### 7. カスタマイズの入り口
 

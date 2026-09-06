@@ -1,6 +1,6 @@
 # 公開 API の安定性
 
-`vtsimnx` ルートから再エクスポートする記号の安定性区分です。  
+`vtsimnx` ルートから再エクスポートする記号の安定性区分です。
 機械可読な一覧は `vtsimnx.api_stability`（`STABLE` / `EXPERIMENTAL` / `DEPRECATED`）です。
 
 ## 区分
@@ -54,12 +54,12 @@ print(vt.get_version())
 
 ## experimental
 
-日射・快適性・I/O・材料・スケジュールなど。トップレベル再エクスポートは互換のため残していますが、  
+日射・快適性・I/O・材料・スケジュールなど。トップレベル再エクスポートは互換のため残していますが、
 本番コードでは可能な限りサブモジュールから import してください。
 
 例: `from vtsimnx.archenv import solar_gain_by_angles`
 
-archenv の DataFrame 列名は英語キーが正本です（`vtsimnx.archenv.columns`）。  
+archenv の DataFrame 列名は英語キーが正本です（`vtsimnx.archenv.columns`）。
 `calc_R` / `calc_C` / `calc_RC` および `_alt_deg_from_sin` 等はパッケージ公開面から外しています（`vtsimnx.archenv.comfort` 内の `_calc_*` を参照）。
 
 ## deprecated（廃止予定）
@@ -83,7 +83,9 @@ from vtsimnx import make_8760_data
 from vtsimnx.schedule import make_8760_data
 ```
 
+この区分は API の互換性に関する方針であり、物理モデルの妥当性を認証するものではない。研究利用時はパッケージ版に加え、実行した engine の commit・設定と [検証範囲](validation_strategy.md) を記録する。
+
 ## 単位
 
-温度・圧力・流量・熱量などの単位は [`units.md`](units.md) および `vtsimnx.units` を参照してください。  
+温度・圧力・流量・熱流などの単位は [`units.md`](units.md) および `vtsimnx.units` を参照してください。
 OpenAPI / Pydantic スキーマでは `json_schema_extra.unit` に同じ表記を載せます。

@@ -21,10 +21,11 @@
   },
   "nodes": [
     { "key": "外部", "t": 5.0 },
-    { "key": "室1", "calc_t": true, "v": 30.0 }
+    { "key": "室1", "calc_t": true, "t": 20.0, "v": 30.0, "thermal_mass": 36216.0 }
   ],
   "ventilation_branches": [
-    { "key": "外部->室1", "source": "外部", "target": "室1", "type": "fixed_flow", "vol": 0.008333 }
+    { "key": "外部->室1", "source": "外部", "target": "室1", "type": "fixed_flow", "vol": 0.008333 },
+    { "key": "室1->外部", "source": "室1", "target": "外部", "type": "fixed_flow", "vol": 0.008333 }
   ],
   "thermal_branches": [
     { "key": "外部->室1", "source": "外部", "target": "室1", "type": "conductance", "conductance": 50.0 }
@@ -32,7 +33,7 @@
 }
 ```
 
-`vol` の単位は **m3/s** です（上例は約 30 m3/h）。単位正本: [`units.md`](units.md)。  
+`vol` の単位は **m3/s** です（上例は約 30 m3/h）。単位正本: [`units.md`](units.md)。
 `surfaces` / `aircon` / `heat_source` は、この最小形が動いてから追加するのが安全です。
 
 ## 共通ルール
@@ -67,7 +68,10 @@
 | `c` | 濃度 | number \| number[] | - |
 | `pre_temp` | エアコン設定温度 | number \| number[] | ℃ |
 | `v` | 気積 | number | m3 |
-| `beta` | 沈着係数 | number | 1/s |
+| `beta` | 沈着・一次減衰率 | number \| number[] | 1/s |
+| `thermal_mass` | builder が展開する総熱容量 | number | J/K、空気分を含めて指定 |
+| `moisture_capacity` | builder が展開する付加湿気容量 | number | 既定は J/(kg/kg')。下記参照 |
+| `moisture_capacity_unit` | 湿気容量の入力単位 | string | `"J/(kg/kg')"` または `"kg/(kg/kg)"` |
 
 ### Nodes: 例
 
@@ -75,7 +79,7 @@
 {
   "nodes": [
     { "key": "外部", "t": [5.0, 5.1, 5.2] },
-    { "key": "室1", "calc_t": true, "v": 30.0 }
+    { "key": "室1", "calc_t": true, "t": 20.0, "v": 30.0, "thermal_mass": 36216.0 }
   ]
 }
 ```
@@ -93,14 +97,14 @@
 | `target` | ターゲットノード | string | `nodes[].key` |
 | `type` | ブランチタイプ | string | 例: `simple_opening`, `gap`, `fan`, `fixed_flow`, `pressure_loss` |
 | `subtype` | サブタイプ | string | 任意（空文字など） |
-| `h_from` | 出発点高さ | number | m（仕様に合わせて運用） |
-| `h_to` | 到達点高さ | number | m（仕様に合わせて運用） |
+| `h_from` | 出発点高さ | number | m（各ノードの圧力基準面からの高さ。基準面を統一する） |
+| `h_to` | 到達点高さ | number | m（各ノードの圧力基準面からの高さ。基準面を統一する） |
 | `enable` | 有効フラグ | bool \| bool[] | 任意 |
 | `comment` | コメント | string | 任意 |
-| `alpha` | 有効開口率 | number | - |
+| `alpha` | 流量係数 | number | - |
 | `area` | 面積 | number | m2 |
-| `a` | 開口率 | number | - |
-| `n` | 隙間係数 | number | - |
+| `a` | 隙間流量係数 | number | m3/(s·Pa^(1/n)) |
+| `n` | 隙間の指数（式では逆数を使用） | number | - |
 | `p_max` | 最大静圧 | number | Pa |
 | `q_max` | 最大風量 | number | **m3/s**（単位正本: [`units.md`](units.md)） |
 | `p1` | 点の静圧 | number | Pa |
@@ -141,7 +145,7 @@
 | `enable` | 有効フラグ | bool \| bool[] | 任意 |
 | `comment` | コメント | string | 任意 |
 | `conductance` | コンダクタンス | number | W/K |
-| `u_value` | U値 | number | W/(m2・K) |
+| `u_value` | 面積当たり熱コンダクタンス | number | W/(m2・K)、`conductance = u_value * area` |
 | `area` | 面積 | number | m2 |
 | `heat_generation` | 発熱源 | number \| number[] | W |
 
@@ -154,6 +158,15 @@
   ]
 }
 ```
+
+## 物理的な意味と符号
+
+- 換気流量は `source → target` を正とする。負値では上流・下流が入れ替わる。`gap` は `Q = sign(Δp) * a * abs(Δp)**(1/n)` であり、`a` は開口率ではない。
+- 圧力計算は `calc_p=true` の節点で**体積流量**収支を解く。温度依存密度を用いた厳密な可変密度質量保存とは区別する。固定流量だけの室でも、利用者が給排気の収支をそろえる。
+- `v` だけでは熱容量 branch は生成されない。上例の `thermal_mass=36216` J/K は `1.2 * 1006 * 30` の空気熱容量である。家具等を含める場合は総量を指定する。
+- builder の `moisture_capacity` は材料側の追加節点へ展開される。既定単位の値は `2.5e6` J/kg で除して内部容量へ変換する。solver_config の同名フィールドは内部単位であり、raw 入力と混同しない（[単位系](units.md)）。
+- 伝導出力は `G*(T_source-T_target)`。移流出力は `ρ*cp*Q*(T_source-T_target)`（湿り空気モードではエンタルピー差）で、下流節点への温度差に基づく寄与である。伝導と同じ反対称の節点流入・流出として単純に加算しない。
+- `heat_generation` と `humidity_generation` は target への生成率。濃度 `c` は発生率と整合する濃度基準を選ぶ。
 
 ## よくあるミス
 

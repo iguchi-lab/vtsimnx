@@ -1,180 +1,132 @@
-## `surfaces` 入力の実装ガイド
+# `surfaces` 入力と表面熱収支
 
-このドキュメントでは、`vtsimnx` で使う **`surfaces` 入力** と、サンプル入力構築における表面定義の考え方をまとめます。
+`surfaces` は、二つの節点間にある壁・床・天井・窓を記述する builder 入力である。builder が表面・層境界の温度節点、伝導・対流・放射・容量・発熱の枝へ展開し、solver が熱収支を解く。入力全体は [クイックスタート](builder_input_quickstart.md)、単位は [units.md](units.md) を参照する。
 
-- 物理背景（外皮伝熱・窓の日射熱取得）は `building_environment_engineering_basics.md` を参照してください。
-- `vt.run_calc` 入力全体の組み立ては `builder_input_quickstart.md` を先に確認してください。
-- RC/応答係数法・builder 展開の実装詳細は `engine/docs/thermal_rc.md` / `engine/docs/thermal_response_factor.md` / `engine/docs/builder_json.md` を参照してください。
+## 1. 接続方向と層の順序
 
----
+`key="室A->室B||面ID"` の `室A`、`室B` は既存の `nodes[].key` と一致させる。`||` 以降は識別用コメントである。層は **室A側から室B側へ** 並べる。外壁を `室->外部` と書く場合、内装材が先、外装材が最後になる。
 
-### 1. `surfaces` の役割
+`part` は室A側の部位を表す。`floor` の反対側は `ceiling`、`ceiling` の反対側は `floor` として扱う。室間の同じ壁を両方向に二重定義しない。柱・断熱部を面積比で分ける方法は並列一次元伝熱の近似であり、二次元熱橋を直接解くものではない。
 
-`surfaces` は「2つのノードの間にある壁・床・窓などの**面要素**」を表します。
-
-- 入力 JSON では `surfaces: []` として与えます。
-- builder/API 側で RC/CTF などのネットワークに展開され、最終的には `thermal_branches` + 追加ノードに変換されます。
-
-入力構築時の最終イメージ:
-
-- `nodes`: 室や床下・屋根などの**空気ノード**
-- `surfaces`: `"<室A>-><室B>||<面ID>"` という `key` で、**どの室とどの室/外部を結ぶ面か**を指定
-
----
-
-### 2. 表面カタログと `surfaces` の関係
-
-一般的には、まず「表面カタログ」として `layers` / `surface` を定義し、その後で `surfaces` に面積と接続先を展開します。
-
-#### 2.1 材料テーブルと層定義
+## 2. 材料・中空層を定義する
 
 ```python
 import vtsimnx as vt
-materials = vt.materials  # 材料物性テーブル（熱伝導率 λ, 比熱 c, 密度 ρ など）
 
+materials = vt.materials
 layers = {
-    "外壁_一般部": [
-        {"key": "木片セメント板",                   **materials["木片セメント板"],                  "t": 0.015},
-        {"key": "合板",                             **materials["合板"],                            "t": 0.012},
-        {"key": "住宅用グラスウール断熱材16K相当",  **materials["住宅用グラスウール断熱材16K相当"], "t": 0.076},
-        {"key": "中空層",                           **materials["中空層(1cm以上)"],                 "t": 1.000},
-        {"key": "せっこうボード",                   **materials["せっこうボード"],                  "t": 0.0095},
-    ],
-    # ... 他の部位（基礎外壁・外皮床・天井・間仕切壁など）
+    "外壁_一般部": [  # 室内 → 外部
+        {"key": "せっこうボード", **materials["せっこうボード"], "t": 0.0095},
+        {"key": "中空層", "air_layer": True,
+         "thermal_resistance": 0.09, "t": 0.020},
+        {"key": "断熱材", **materials["住宅用グラスウール断熱材16K相当"], "t": 0.076},
+        {"key": "合板", **materials["合板"], "t": 0.012},
+        {"key": "木片セメント板", **materials["木片セメント板"], "t": 0.015},
+    ]
 }
 ```
 
-ここでは:
+上例の中空層厚さ・熱抵抗は説明用の仮定値であり、実際の構法に合わせて指定する。
 
-- `t`: 各層の厚さ [m]
-- `materials[...]`: 物性（`lambda`, `v_capa`）が Mapping で展開される
+| キー | 意味 | 単位 |
+|---|---|---|
+| `lambda` | 熱伝導率 | W/(m·K) |
+| `v_capa` | 体積熱容量 | J/(m³·K) |
+| `t` | 実際の層厚さ | m |
+| `air_layer` | 中空層として展開する指定 | bool |
+| `thermal_resistance` | 中空層の面積当たり熱抵抗 | m²·K/W |
 
-`vt.materials` の 1 要素は次の内容です（例: 合板）。
+通常層では `G=A*lambda/t`、`C=A*v_capa*t` とし、RC 展開では容量を層両端へ半分ずつ配分する。中空層は `G=A/thermal_resistance` とし、容量には実厚さと空気の体積熱容量（既定1298 J/(m³·K)）を用いる。熱抵抗を表すために仮想厚さ1 mを入れると容量の解釈を誤るため、`air_layer` による明示指定を用いる。
 
-```python
-import vtsimnx as vt
-
-name = "合板"
-print(name, dict(vt.materials[name]))
-# 合板 {'lambda': 0.16, 'v_capa': 715806.0}
-```
-
-公開キー:
-
-- `lambda`: 熱伝導率 [W/(m·K)]
-- `v_capa`: 体積熱容量 [J/(m³·K)]
-
-**カスタム材料を作りたい場合**:
+`vt.materials` は読み取り専用である。独自物性は可変コピーへ追加する。
 
 ```python
-import vtsimnx as vt
 from vtsimnx.materials import copy_materials, get_material
 
-# テーブル全体を可変コピーして追加する（推奨）
-materials = copy_materials()
-materials["自作断熱材"] = {
-    "lambda": 0.030,   # W/(m·K)
-    "v_capa": 42000.0, # J/(m³·K)
-}
-
-# 1材料だけコピーする場合
+materials_custom = copy_materials()
+materials_custom["自作断熱材"] = {"lambda": 0.030, "v_capa": 42000.0}
 gypsum = get_material("せっこうボード")
-
-layers["外壁_自作断熱"] = [
-    {"key": "自作断熱材", **materials["自作断熱材"], "t": 0.100},
-    {"key": "せっこうボード", **gypsum, "t": 0.0125},
-]
 ```
 
-- `vt.materials` は読み取り専用（`MappingProxyType`）です。直接の代入・書き換えはできません。
-- カスタム材料は `copy_materials()` / `get_material()` で可変コピーを取ってから編集してください。
-- 公開物性は `lambda` [W/(m·K)] と `v_capa` [J/(m³·K)] です。
-- 厚さ `t` の単位は常に **メートル [m]** で揃えてください（cm ではない点に注意）。 例: 12mm → `0.012`。
+材料テーブルの名称だけで、温湿度依存性や任意製品の性能が保証されるわけではない。研究計算では採用値と出典を記録する。
 
-#### 2.2 表面カタログ `surface`（部位ごとのテンプレート）
+## 3. 表面熱伝達率と `u_value`
+
+| キー | 現行実装での意味 | 既定値 |
+|---|---|---|
+| `alpha_i` | 室A空気と室A側表面を結ぶ係数 [W/(m²·K)] | 4.4 |
+| `alpha_o` | 室B側表面と室B空気を結ぶ係数 [W/(m²·K)] | 20.3 |
+| `u_value` | 層構成省略時の**表面間**コンダクタンス/面積 [W/(m²·K)] | 必要時に指定 |
+| `area` | 表面積 [m²] | 必須 |
+
+正しいキーは `alpha_i` / `alpha_o` である。ハイフン表記 `alpha-o` は対応していない。室間壁の室B側にも室内条件に応じた `alpha_o` を指定する。
+
+**現行の `surfaces.u_value` は、表面抵抗を含む部位全体の熱貫流率とは異なる。** `_process_surface_u_value` は `A*alpha_i`、`A*u_value`、`A*alpha_o` の3枝を直列に生成する。放射等の並列経路を除いた定常等価値は次式である。
+
+$$
+U_{\mathrm{eq}}=\left(\frac1{\alpha_i}+\frac1{u_{\mathrm{value}}}+\frac1{\alpha_o}\right)^{-1}
+$$
+
+例えば `u_value=0.5`、`alpha_i=4.4`、`alpha_o=20.3` なら `U_eq≈0.4393` W/(m²·K) となる。カタログU値をそのまま指定せず、そのU値に含まれる表面抵抗とモデルの放射経路を確認する。表面温度を不要とし、部位全体の `U*A` のみを表したい場合は、室間の `thermal_branches.conductance` として明示する方法がある。
+
+室内長波放射は既定で有効であり、同じ室に接する表面間に `G_ij=4.7*A_i*A_j/sum(A)` を加える。これは一定係数と面積配分による近似で、形状から求めた厳密な形態係数・T⁴の放射交換ではない。4.7には既定の放射率の効果が含まれる。室内側に総合熱伝達率を指定して放射経路も加える場合は、二重計上を確認する。
+
+## 4. 日射・夜間放射
+
+| キー | 用途・符号 |
+|---|---|
+| `solar` | 面の日射照度系列 [W/m²] |
+| `eta` | 不透明面の短波吸収率（既定0.8）。ガラスでは未指定 `SCR` の代替にも使われる |
+| `SCR`, `SCC` | ガラス日射の表面配分係数・室空気配分係数 |
+| `nocturnal` | 外表面からの放射損失を正とした系列 [W/m²] |
+| `night_radiation` | `nocturnal` の互換キー |
+| `epsilon` | 夜間放射に掛ける長波放射率（既定0.9） |
+
+`noctural` は誤記で、夜間放射枝を生成しない。`nocturnal` は係数ではなく放射照度である。外壁の発熱は `A*eta*solar`、夜間放射は `-A*epsilon*nocturnal` となり、いずれも室B側表面へ加える。入力が既に吸収率・放射率を含む場合は、再度掛けない設定にする。
+
+`solar_gain_by_angles(glass=False)` は壁への入射日射、`glass=True` はガラスの角度・透過補正後の値である。後者を `solar` に渡す場合、builder はさらに次の配分を行う。
+
+- `A*solar*SCR` の50%を床、50%を壁・天井へ、各群の面積比で配分する。
+- 受熱面ごとの `eta`（既定0.8）をさらに掛ける。
+- `A*solar*SCC` は室空気へ加える。
+
+この実装は短波の多重反射を追跡しない。床や壁・天井が存在しない群の配分は再配分されず、受熱面の未吸収分も追跡されない。窓の日射熱取得率一つだけで全処理を表すと考えず、各係数の基準と、生成された枝の合計熱流を確認する。
+
+## 5. `surfaces` への展開例
+
+以下は定数日射を用いた入力断片である。室・外部の節点と解析期間は [クイックスタート](builder_input_quickstart.md) に従って別途定義する。
 
 ```python
 surface = {
-    "E_外壁_一般部": {"part": "wall", "layers": layers["外壁_一般部"], "solar": solar["日射熱取得量（東面）"]},
-    "N_外壁_一般部": {"part": "wall", "layers": layers["外壁_一般部"], "solar": solar["日射熱取得量（北面）"]},
-    # ...
-    "外皮床_一般部": {"part": "floor", "layers": layers["外皮床_一般部"], "alpha-o": 4.4},
-    "間仕切壁":      {"part": "wall",  "layers": layers["間仕切壁"],     "alpha-o": 4.4},
-    "室内建具":      {"part": "wall",  "u_value": 2.33, "alpha-o": 4.4},
-    "S_窓":          {
-        "part": "glass",
-        "u_value": 4.65,
-        "eta": 0.90,
-        "solar": solar["日射熱取得量（南面ガラス）"],
-        "noctural": 10.0,
+    "外壁": {
+        "part": "wall", "layers": layers["外壁_一般部"],
+        "alpha_i": 4.4, "alpha_o": 20.3,
+        "solar": 200.0, "eta": 0.8,
+        "nocturnal": 40.0, "epsilon": 0.9,
+    },
+    "窓": {
+        "part": "glass", "u_value": 5.0,  # 表面間の係数。説明用の仮定値
+        "alpha_i": 4.4, "alpha_o": 20.3,
     },
 }
-```
 
-主なキー:
-
-- `part`: `"wall"`, `"floor"`, `"ceiling"`, `"glass"` など部位種別
-- `layers`: 壁・床など多層構造を持つ部位の層リスト
-- `u_value`: 単層扱い（窓・建具など）の熱貫流率 [W/m²K]
-- `eta`: 窓の日射熱取得率
-- `alpha-o`: 外気側総合熱伝達率
-- `solar`: 日射熱取得量の時系列（`solar_usage.md` で計算）
-- `noctural`: 夜間放射に対応する係数（必要に応じて使用）
-
----
-
-### 3. `surfaces` 配列への展開（部屋間・外部との接続）
-
-最終的な入力では、上記カタログを使って `surfaces` 配列を作ります。
-
-```python
-input_data = {
-    "simulation": {...},
-    "nodes": [...],
-    "ventilation_branches": [...],
-    "surfaces": [],
-}
-
-input_data["surfaces"] = [
-    # 室と外部の間の外壁
-    {"key": "和室->外部||N_外壁_一般部", **surface["N_外壁_一般部"], "area": 2.18 * 0.83},
-    {"key": "和室->外部||N_外壁_熱橋部", **surface["N_外壁_熱橋部"], "area": 2.18 * 0.17},
-    # 室と床下の間の床
-    {"key": "和室->床下||床_一般部",     **surface["外皮床_一般部"], "area": 16.56 * 0.83},
-    {"key": "和室->床下||床_熱橋部",     **surface["外皮床_熱橋部"], "area": 16.56 * 0.17},
-    # 室間の間仕切り
-    {"key": "和室->ホール||間仕切壁",    **surface["間仕切壁"],      "area": 3.28 - 1.422},
-    # 窓
-    {"key": "和室->外部||S_窓",          **surface["S_窓"],          "area": 4.59},
-    # ...
+surfaces = [
+    {"key": "室1->外部||外壁", **surface["外壁"], "area": 10.0},
+    {"key": "室1->外部||窓", **surface["窓"], "area": 2.0},
 ]
 ```
 
-`key` のルール:
+地盤温度関数の `solar_to_surface_temp_coeff` / `nocturnal_to_surface_temp_coeff` は、地表の相当外気温を作るための係数であり、`surfaces` の入力キーではない。同一の放射作用を相当外気温と表面発熱の両方に入れない。
 
-- 形式: `"<室A>-><室B>||<面ID>"`（`||` より右は自由な表面ID）
-- 左側の `<室A>`, `<室B>` は `nodes[].key` と一致させる
-- 面ID は `surface` カタログのキーと対応づけておくと管理しやすい
+## 6. 実装・理論への参照
 
-`area` は面積 [m²] です。熱橋部などを**比率で分割**しているのは、外皮の一部だけが柱・梁など高熱貫流部であることを表現するためです。
+- [表面層の実装](../engine/app/builder/surface_layers.py)
+- [日射・夜間放射の実装](../engine/app/builder/surface_solar.py)
+- [室内放射の実装](../engine/app/builder/surface_radiation.py)
+- [RC法](../engine/docs/thermal_rc.md)、[応答係数法](../engine/docs/thermal_response_factor.md)
+- [builder入力仕様](../engine/docs/builder_json.md)
 
----
+## 応答係数法を使う場合
 
-### 4. 利用者向けに押さえる境界
-
-このページは、`vtsimnx` 利用者が「**`input_data["surfaces"] をどう書くか**」に集中するためのガイドです。
-
-- 材料物性テーブル `vt.materials`
-- 日射取得 `vt.solar_gain_by_angles`（[`solar_usage.md`](solar_usage.md)）
-- 地盤・夜間放射の係数 `solar_to_surface_temp_coeff` / `nocturnal_to_surface_temp_coeff`（[`archenv_comfort_nocturnal_wind_usage.md`](archenv_comfort_nocturnal_wind_usage.md)）
-
-などと組み合わせて、`surfaces` を構成します。
-
-**builder → solver 展開の厳密仕様や RC/応答係数法の理論詳細** は、`engine/docs/` 側を参照してください。
-
-- surface 入力と RC 法: `engine/docs/thermal_rc.md`
-- 応答係数法（CTF）: `engine/docs/thermal_response_factor.md`
-- builder の `surfaces` 展開ルール: `engine/docs/builder_json.md`
-
-利用者視点では、まず本ページの書き方で `surfaces` を組み、必要時のみ engine 側の厳密仕様に遡る運用を推奨します。
-
+`layer_method="response"` の式、係数生成、RC法との違いと履歴初期化は
+[応答係数法ガイド](response_factor_method.md)を参照してください。
