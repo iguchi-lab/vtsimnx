@@ -67,4 +67,5 @@ LD_aircon.csv
 .vscode/
 .idea/
 
-
+# Previously bundled weather sample (redistribution terms unverified)
+/examples/3639999.has
