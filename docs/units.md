@@ -36,6 +36,7 @@ API 入力スキーマ: `engine/app/schemas/config.py` の `json_schema_extra={"
 | フィールド | 単位 |
 |---|---|
 | `t`, `pre_temp` | degC |
+| `pre_rh` | %（0より大きく100以下。0.5ではなく50が50%） |
 | `p` | Pa |
 | `v` | m3 |
 | `vol` | m3/s |

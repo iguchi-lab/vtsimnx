@@ -89,3 +89,10 @@ from vtsimnx.schedule import make_8760_data
 
 温度・圧力・流量・熱流などの単位は [`units.md`](units.md) および `vtsimnx.units` を参照してください。
 OpenAPI / Pydantic スキーマでは `json_schema_extra.unit` に同じ表記を載せます。
+
+## 成果物の空系列（v1.7.4）
+
+`schema.json` の `series.<name>.keys=[]` は対象キーがなく、列数0であることを表す。
+対応するfloat32 binは0バイトで、クライアントは形状 `(時刻数, 0)` のDataFrameとして復元する。
+スカラー1列や時刻数0として扱わない。独自の読込み処理でもschemaのキー数から列数を決める。
+実装は `vtsimnx/artifacts/_schema.py` と `_decode.py` を参照する。

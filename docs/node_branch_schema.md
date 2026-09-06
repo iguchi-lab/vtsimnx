@@ -60,18 +60,23 @@
 | `comment` | コメント | string | 任意 |
 | `calc_p` | 圧力を未知数として解く | bool | 任意 |
 | `calc_t` | 温度を未知数として解く | bool | 任意 |
-| `calc_x` | 絶対湿度を未知数として解く | bool | 任意 |
+| `calc_x` | 絶対湿度を未知数として解く | bool | 空調ノードは吹出湿度の固定境界としてfalse |
 | `calc_c` | 濃度を未知数として解く | bool | 任意 |
 | `p` | 圧力 | number \| number[] | Pa |
 | `t` | 温度 | number \| number[] | ℃ |
 | `x` | 絶対湿度 | number \| number[] | kg/kg' |
 | `c` | 濃度 | number \| number[] | - |
 | `pre_temp` | エアコン設定温度 | number \| number[] | ℃ |
+| `pre_rh` | 空調の理想除湿目標 | number \| number[] | %、0より大きく100以下。下記参照 |
 | `v` | 気積 | number | m3 |
 | `beta` | 沈着・一次減衰率 | number \| number[] | 1/s |
 | `thermal_mass` | builder が展開する総熱容量 | number | J/K、空気分を含めて指定 |
 | `moisture_capacity` | builder が展開する付加湿気容量 | number | 既定は J/(kg/kg')。下記参照 |
 | `moisture_capacity_unit` | 湿気容量の入力単位 | string | `"J/(kg/kg')"` または `"kg/(kg/kg)"` |
+
+`pre_rh` は `aircon[].pre_rh` でも指定できる。吸込温度から目標絶対湿度を求め、
+冷房時の吹出湿度へ適用する。室の相対湿度を直接固定する指定ではない。
+境界条件・能力判定との関係は[空調湿度ガイド](aircon_humidity_control.md)を参照する。
 
 ### Nodes: 例
 
