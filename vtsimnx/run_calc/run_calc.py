@@ -348,7 +348,7 @@ def run_calc(
     with_dataframes: Optional[bool] = None,
     raise_on_error: bool = False,
     compress_request: bool = True,
-    timeout: float = 900.0,
+    timeout: float = 1800.0,
     api_key: Optional[str] = None,
     request_output_path: Optional[Union[str, Path]] = None,
     use_legacy_run: bool = False,
@@ -366,6 +366,8 @@ def run_calc(
         ``as_result`` の旧別名（非推奨）。意味は as_result と同じ。
     raise_on_error:
         ``CalcRunResult`` 生成時に渡し、系列/ログ取得失敗を例外にする（既定は soft-fail）。
+    timeout:
+        ``/runs`` ポーリング打ち切り時間（秒）。既定は 1800（30分）。
     """
     return_result = _resolve_as_result(as_result=as_result, with_dataframes=with_dataframes)
 
