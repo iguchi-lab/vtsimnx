@@ -6,6 +6,7 @@ namespace {
 
 void resetSparseLuCache(SparseLUCache& cache) {
     cache.analyzed = false;
+    cache.eigenAnalyzed = false;
     cache.factorized = false;
     cache.n = 0;
     cache.nnz = 0;

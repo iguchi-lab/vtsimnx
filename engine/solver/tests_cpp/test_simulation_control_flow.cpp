@@ -146,12 +146,14 @@ void testHumidityCouplingFlags() {
 }
 
 void testAirconDecideActions() {
-    expectEqAircon(decideAirconIterationAction(true, true, true), AirconIterationAction::RecomputeForFlow,
-                   "aircon: flow wins");
+    expectEqAircon(decideAirconIterationAction(true, true, true), AirconIterationAction::RecomputeForCapacity,
+                   "aircon: capacity wins over flow");
     expectEqAircon(decideAirconIterationAction(false, false, true), AirconIterationAction::RecomputeForControl,
                    "aircon: control wins");
     expectEqAircon(decideAirconIterationAction(false, true, true), AirconIterationAction::RecomputeForCapacity,
                    "aircon: capacity");
+    expectEqAircon(decideAirconIterationAction(true, true, false), AirconIterationAction::RecomputeForFlow,
+                   "aircon: flow after capacity settled");
     expectEqAircon(decideAirconIterationAction(false, true, false, true),
                    AirconIterationAction::RecomputeForSupplyHumidity, "aircon: supply humidity");
     expectEqAircon(decideAirconIterationAction(false, true, false), AirconIterationAction::Accept,
@@ -161,21 +163,30 @@ void testAirconDecideActions() {
 
     using simulation::reasonsFromAirconFlags;
     using simulation::recordAirconRecomputeMetrics;
-    const auto flowReasons = reasonsFromAirconFlags(true, false, true, true);
-    expectEqAircon(decideAirconIterationAction(flowReasons), AirconIterationAction::RecomputeForFlow,
-                   "aircon reasons: flow wins");
-    expectTrue(hasReason(flowReasons, AirconRecomputeReason::AirflowChanged), "mask has airflow");
-    expectTrue(hasReason(flowReasons, AirconRecomputeReason::OnOffChanged), "mask has onoff");
-    expectTrue(hasReason(flowReasons, AirconRecomputeReason::CapacitySetpointChanged), "mask has capacity");
-    expectTrue(hasReason(flowReasons, AirconRecomputeReason::SupplyHumidityChanged), "mask has humidity");
+    const auto mixedReasons = reasonsFromAirconFlags(true, false, true, true);
+    expectEqAircon(decideAirconIterationAction(mixedReasons), AirconIterationAction::RecomputeForControl,
+                   "aircon reasons: onoff wins when present");
+    expectTrue(hasReason(mixedReasons, AirconRecomputeReason::AirflowChanged), "mask has airflow");
+    expectTrue(hasReason(mixedReasons, AirconRecomputeReason::OnOffChanged), "mask has onoff");
+    expectTrue(hasReason(mixedReasons, AirconRecomputeReason::CapacitySetpointChanged), "mask has capacity");
+    expectTrue(hasReason(mixedReasons, AirconRecomputeReason::SupplyHumidityChanged), "mask has humidity");
 
     simulation::TimestepSolveMetrics metrics;
-    recordAirconRecomputeMetrics(&metrics, flowReasons);
-    expectTrue(metrics.airconFlowAdjustRecalc == 1, "primary metric is flow");
-    expectTrue(metrics.airconOnOffRecalc == 0, "non-primary onoff not counted");
+    recordAirconRecomputeMetrics(&metrics, mixedReasons);
+    expectTrue(metrics.airconOnOffRecalc == 1, "primary metric is onoff");
+    expectTrue(metrics.airconFlowAdjustRecalc == 0, "non-primary flow not counted");
     expectTrue(metrics.airconCapacityRecalc == 0, "non-primary capacity not counted");
-    expectTrue(metrics.airconRecomputeReasonsMask == static_cast<std::uint32_t>(flowReasons),
+    expectTrue(metrics.airconRecomputeReasonsMask == static_cast<std::uint32_t>(mixedReasons),
                "reasons mask ORed");
+
+    const auto capacityFlowReasons = reasonsFromAirconFlags(true, true, true, false);
+    expectEqAircon(decideAirconIterationAction(capacityFlowReasons),
+                   AirconIterationAction::RecomputeForCapacity,
+                   "aircon reasons: capacity before flow");
+    simulation::TimestepSolveMetrics capacityMetrics;
+    recordAirconRecomputeMetrics(&capacityMetrics, capacityFlowReasons);
+    expectTrue(capacityMetrics.airconCapacityRecalc == 1, "primary metric is capacity over flow");
+    expectTrue(capacityMetrics.airconFlowAdjustRecalc == 0, "flow not primary when capacity set");
 
     AirconStateProposal p1;
     p1.reasons = AirconRecomputeReason::CapacitySetpointChanged;

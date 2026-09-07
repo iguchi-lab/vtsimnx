@@ -109,6 +109,8 @@ struct LinearSystem {
 
 struct SparseLUCache {
     bool analyzed = false;
+    /** Eigen::SparseLU に analyzePattern 済みか（KLU 専用 analyze とは別） */
+    bool eigenAnalyzed = false;
     int n = 0;
     size_t nnz = 0;
     std::uint64_t patternHash = 0;

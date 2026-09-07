@@ -5,6 +5,10 @@
 - 休日フラグ(holiday)
 - 8760生成関数(make_8760_data / make_8760_by_holiday)
 - 空調モード(ac_mode) / 設定温度(pre_tmp) / 設定湿度(pre_rh)
+
+プロファイル種別:
+- 個別間欠（LD / 寝室 / 子供室1 / 子供室2）: 省エネ基準系の在室間欠運転
+- 全館空調: 暖冷房期間中は平日・休日とも 24 時間連続運転（中間期は停止）
 """
 
 from __future__ import annotations
@@ -33,24 +37,33 @@ AC_MODE_HEATING = 1
 AC_MODE_COOLING = 2
 AC_MODE_AUTO = 3
 
+# 全館連続運転用のキー（DUCT_CENTRAL 等）
+WHOLE_HOUSE_KEY = "全館空調"
+
 ac_mode_profiles: Dict[str, Any] = {
     "LD": {
-        "暖房": {"平日": [], "休日": []}, 
-        "冷房": {"平日": [], "休日": []}
+        "暖房": {"平日": [], "休日": []},
+        "冷房": {"平日": [], "休日": []},
     },
     "寝室": {
-        "暖房": {"平日": [], "休日": []}, 
-        "冷房": {"平日": [], "休日": []}
+        "暖房": {"平日": [], "休日": []},
+        "冷房": {"平日": [], "休日": []},
     },
     "子供室1": {
-        "暖房": {"平日": [], "休日": []}, 
-        "冷房": {"平日": [], "休日": []}
+        "暖房": {"平日": [], "休日": []},
+        "冷房": {"平日": [], "休日": []},
     },
     "子供室2": {
-        "暖房": {"平日": [], "休日": []}, 
-        "冷房": {"平日": [], "休日": []}
-    }
+        "暖房": {"平日": [], "休日": []},
+        "冷房": {"平日": [], "休日": []},
+    },
+    WHOLE_HOUSE_KEY: {
+        "暖房": {"平日": [], "休日": []},
+        "冷房": {"平日": [], "休日": []},
+    },
 }
+
+# --- 個別間欠空調 ---
 
 # 主たる居室の暖冷房スケジュール
 ac_mode_profiles["LD"]["暖房"]["平日"] = [0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1]
@@ -80,11 +93,20 @@ ac_mode_profiles["子供室2"]["冷房"]["平日"] = [2, 2, 2, 2, 2, 2, 2, 0, 0,
 ac_mode_profiles["子供室2"]["冷房"]["休日"] = [2, 2, 2, 2, 2, 2, 2, 2, 0, 2, 2, 2, 2, 0, 0, 0, 0, 0, 0, 0, 2, 2, 2, 2]
 
 
+# --- 全館空調（暖冷房期間中 24 時間連続） ---
+# 中間期は make_8760_data の default(=STOP) になる。
+ac_mode_profiles[WHOLE_HOUSE_KEY]["暖房"]["平日"] = [AC_MODE_HEATING] * HOURS_PER_DAY
+ac_mode_profiles[WHOLE_HOUSE_KEY]["暖房"]["休日"] = [AC_MODE_HEATING] * HOURS_PER_DAY
+ac_mode_profiles[WHOLE_HOUSE_KEY]["冷房"]["平日"] = [AC_MODE_COOLING] * HOURS_PER_DAY
+ac_mode_profiles[WHOLE_HOUSE_KEY]["冷房"]["休日"] = [AC_MODE_COOLING] * HOURS_PER_DAY
+
+
 pre_tmp_profiles: Dict[str, Any] = {
     "LD": {"暖房": {"平日": [], "休日": []}, "冷房": {"平日": [], "休日": []}},
     "寝室": {"暖房": {"平日": [], "休日": []}, "冷房": {"平日": [], "休日": []}},
     "子供室1": {"暖房": {"平日": [], "休日": []}, "冷房": {"平日": [], "休日": []}},
     "子供室2": {"暖房": {"平日": [], "休日": []}, "冷房": {"平日": [], "休日": []}},
+    WHOLE_HOUSE_KEY: {"暖房": {"平日": [], "休日": []}, "冷房": {"平日": [], "休日": []}},
 }
 
 # 相対湿度の設定値[%]
@@ -94,6 +116,10 @@ rh_profiles = {
     "寝室": {"暖房": {"平日": [60.0] * 24, "休日": [60.0] * 24}, "冷房": {"平日": [60.0] * 24, "休日": [60.0] * 24}},
     "子供室1": {"暖房": {"平日": [60.0] * 24, "休日": [60.0] * 24}, "冷房": {"平日": [60.0] * 24, "休日": [60.0] * 24}},
     "子供室2": {"暖房": {"平日": [60.0] * 24, "休日": [60.0] * 24}, "冷房": {"平日": [60.0] * 24, "休日": [60.0] * 24}},
+    WHOLE_HOUSE_KEY: {
+        "暖房": {"平日": [60.0] * 24, "休日": [60.0] * 24},
+        "冷房": {"平日": [60.0] * 24, "休日": [60.0] * 24},
+    },
 }
 
 # 主たる居室の設定温度
@@ -124,6 +150,13 @@ pre_tmp_profiles["子供室2"]["冷房"]["平日"] = [28.0] * 8 + [27.0] * 15 + 
 pre_tmp_profiles["子供室2"]["冷房"]["休日"] = [28.0] * 8 + [27.0] * 15 + [28.0] * 1
 
 
+# 全館空調の設定温度（代表室 LD 相当: 暖房 20℃ / 冷房 27℃）
+pre_tmp_profiles[WHOLE_HOUSE_KEY]["暖房"]["平日"] = [20.0] * HOURS_PER_DAY
+pre_tmp_profiles[WHOLE_HOUSE_KEY]["暖房"]["休日"] = [20.0] * HOURS_PER_DAY
+pre_tmp_profiles[WHOLE_HOUSE_KEY]["冷房"]["平日"] = [27.0] * HOURS_PER_DAY
+pre_tmp_profiles[WHOLE_HOUSE_KEY]["冷房"]["休日"] = [27.0] * HOURS_PER_DAY
+
+
 _REGIONS = {
     "region1": period_1,
     "region2": period_2,
@@ -136,51 +169,32 @@ _REGIONS = {
 }
 
 
+def _profile_tuple(profiles: Dict[str, Any], key: str, default):
+    p = profiles[key]
+    return (
+        p["暖房"]["平日"],
+        p["暖房"]["休日"],
+        p["冷房"]["平日"],
+        p["冷房"]["休日"],
+        default,
+    )
+
+
 _AC_MODE_PROFILES = {
-    "LD": (
-        ac_mode_profiles["LD"]["暖房"]["平日"],
-        ac_mode_profiles["LD"]["暖房"]["休日"],
-        ac_mode_profiles["LD"]["冷房"]["平日"],
-        ac_mode_profiles["LD"]["冷房"]["休日"],
-        AC_MODE_STOP,
-    ),
-    "寝室": (
-        ac_mode_profiles["寝室"]["暖房"]["平日"],
-        ac_mode_profiles["寝室"]["暖房"]["休日"],
-        ac_mode_profiles["寝室"]["冷房"]["平日"],
-        ac_mode_profiles["寝室"]["冷房"]["休日"],
-        AC_MODE_STOP,
-    ),
-    "子供室1": (
-        ac_mode_profiles["子供室1"]["暖房"]["平日"],
-        ac_mode_profiles["子供室1"]["暖房"]["休日"],
-        ac_mode_profiles["子供室1"]["冷房"]["平日"],
-        ac_mode_profiles["子供室1"]["冷房"]["休日"],
-        AC_MODE_STOP,
-    ),
-    "子供室2": (
-        ac_mode_profiles["子供室2"]["暖房"]["平日"],
-        ac_mode_profiles["子供室2"]["暖房"]["休日"],
-        ac_mode_profiles["子供室2"]["冷房"]["平日"],
-        ac_mode_profiles["子供室2"]["冷房"]["休日"],
-        AC_MODE_STOP,
-    ),
+    key: _profile_tuple(ac_mode_profiles, key, AC_MODE_STOP)
+    for key in ac_mode_profiles
 }
 
 
 _PRE_TMP_PROFILES = {
-    "LD": (pre_tmp_profiles["LD"]["暖房"]["平日"], pre_tmp_profiles["LD"]["暖房"]["休日"], pre_tmp_profiles["LD"]["冷房"]["平日"], pre_tmp_profiles["LD"]["冷房"]["休日"], 20.0),
-    "寝室": (pre_tmp_profiles["寝室"]["暖房"]["平日"], pre_tmp_profiles["寝室"]["暖房"]["休日"], pre_tmp_profiles["寝室"]["冷房"]["平日"], pre_tmp_profiles["寝室"]["冷房"]["休日"], 20.0),
-    "子供室1": (pre_tmp_profiles["子供室1"]["暖房"]["平日"], pre_tmp_profiles["子供室1"]["暖房"]["休日"], pre_tmp_profiles["子供室1"]["冷房"]["平日"], pre_tmp_profiles["子供室1"]["冷房"]["休日"], 20.0),
-    "子供室2": (pre_tmp_profiles["子供室2"]["暖房"]["平日"], pre_tmp_profiles["子供室2"]["暖房"]["休日"], pre_tmp_profiles["子供室2"]["冷房"]["平日"], pre_tmp_profiles["子供室2"]["冷房"]["休日"], 20.0),
+    key: _profile_tuple(pre_tmp_profiles, key, 20.0)
+    for key in pre_tmp_profiles
 }
 
 
 _PRE_RH_PROFILES = {
-    "LD": (rh_profiles["LD"]["暖房"]["平日"], rh_profiles["LD"]["暖房"]["休日"], rh_profiles["LD"]["冷房"]["平日"], rh_profiles["LD"]["冷房"]["休日"], 60.0),
-    "寝室": (rh_profiles["寝室"]["暖房"]["平日"], rh_profiles["寝室"]["暖房"]["休日"], rh_profiles["寝室"]["冷房"]["平日"], rh_profiles["寝室"]["冷房"]["休日"], 60.0),
-    "子供室1": (rh_profiles["子供室1"]["暖房"]["平日"], rh_profiles["子供室1"]["暖房"]["休日"], rh_profiles["子供室1"]["冷房"]["平日"], rh_profiles["子供室1"]["冷房"]["休日"], 60.0),
-    "子供室2": (rh_profiles["子供室2"]["暖房"]["平日"], rh_profiles["子供室2"]["暖房"]["休日"], rh_profiles["子供室2"]["冷房"]["平日"], rh_profiles["子供室2"]["冷房"]["休日"], 60.0),
+    key: _profile_tuple(rh_profiles, key, 60.0)
+    for key in rh_profiles
 }
 
 
@@ -274,6 +288,11 @@ __all__ = [
     "AC_MODE_COOLING",
     "AC_MODE_STOP",
     "AC_MODE_AUTO",
+    "WHOLE_HOUSE_KEY",
+    # daily profiles
+    "ac_mode_profiles",
+    "pre_tmp_profiles",
+    "rh_profiles",
     # profiles
     "ac_mode",
     "pre_tmp",

@@ -326,10 +326,18 @@ std::optional<double> resolveMaxHeatCapacity(const VertexProperties& nodeProps,
                                              std::string& source) {
     const std::string mode = modeKey(operationMode);
     if (const auto* spec = nodeProps.getAirconSpec()) {
+        // 優先順: max → rtd → mid
+        // DUCT_CENTRAL では rtd が定格（最大級）で mid より大きいことが多い。
+        // mid を上限にすると定格未満で設定温度を下げ続け、外側ループが増える。
         auto maxV = spec->getCapacity(mode, "max");
         if (maxV && *maxV > 0) {
             source = "Q." + mode + ".max";
             return *maxV * 1000.0;
+        }
+        auto rtdV = spec->getCapacity(mode, "rtd");
+        if (rtdV && *rtdV > 0) {
+            source = "Q." + mode + ".rtd";
+            return *rtdV * 1000.0;
         }
         auto midV = spec->getCapacity(mode, "mid");
         if (midV && *midV > 0) {

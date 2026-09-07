@@ -177,8 +177,9 @@ public:
             // OFF 中（室温が自由）または負荷未評価: 温度バンド
             // thermal/空調の数値 tol が 1e-6 など極小だと、Qreq≈0 で OFF した直後に
             // T が設定+0.003℃へ僅かに浮いただけでも再 ON し、外側ループが振動する。
-            // nearSetpoint と同じく最低 0.5K のヒステリシスを使う。
-            const double tempBandK = std::max(tolerance, 0.5);
+            // 遠隔 set では OFF 後に室温が設定−0.7K 程度まで落ちることがあり、
+            // 0.5K 帯だと即再 ON するため最低 1.0K のヒステリシスを使う。
+            const double tempBandK = std::max(tolerance, 1.0);
             const double diff = currentTemp - targetTemp;
             const bool withinBand = (std::abs(diff) <= tempBandK);
             if (nodeProps.current_mode == "HEATING") {
@@ -221,7 +222,8 @@ public:
                            std::ostream& logFile,
                            bool* supplyHumidityChanged = nullptr,
                            double humidityAbsTol = 1e-9,
-                           std::vector<AirconStateProposal>* outProposals = nullptr) const;
+                           std::vector<AirconStateProposal>* outProposals = nullptr,
+                           const FlowRateMap* flowRates = nullptr) const;
 
     // 湿度ソルバ実行前に空調ノードの吹出湿度境界を整える（外側再計算は要求しない）。
     // calc_x=false の空調を current_x=0 のまま解くと還気循環が室内を乾燥させるため、
@@ -238,8 +240,10 @@ public:
                                 std::vector<AirconStateProposal>* outProposals = nullptr) const;
 
     // DUCT_CENTRAL 用: 処理熱量に応じて送風量を補正する。
-    // - 処理熱量=0 -> 風量=0
-    // - 処理熱量=Q.rtd -> 風量=V_inner.dsgn
+    // - 基準熱量=0 -> 風量=0
+    // - 基準熱量=Q.rtd -> 風量=V_inner.dsgn
+    // - 能力制限中、または要求設定未達時、または set_node 固定温度中は Q_max を基準
+    //   （fixed-row 中の V∝Q_meas∝V 縮小を防ぐ）
     // 変更が入った場合は true（外側ループで再計算要求）。
     bool checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalNetwork,
                                           VentilationNetwork& ventNetwork,

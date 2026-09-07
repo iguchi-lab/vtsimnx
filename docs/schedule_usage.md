@@ -81,8 +81,26 @@ ac_mode_8760 = make_8760_data(period_1, holiday, w_h, h_h, w_c, h_c, default=0)
 - `AC_MODE_COOLING = 2`
 - `AC_MODE_AUTO = 3`
 
-`ac_mode_profiles` は「部屋 × (暖房/冷房) × (平日/休日)」で 24 要素ずつ持ちます。
+`ac_mode_profiles` は「部屋（または全館） × (暖房/冷房) × (平日/休日)」で 24 要素ずつ持ちます。
 これを `make_8760_data(period_x, holiday, ...)` で展開して 8760 要素の `ac_mode` にします。
+
+含まれるキー:
+
+- 個別間欠: `LD` / `寝室` / `子供室1` / `子供室2`
+- 全館連続: `全館空調`（定数 `WHOLE_HOUSE_KEY`）
+  - 暖冷房期間中は平日・休日とも 24 時間 `HEATING`/`COOLING`
+  - 中間期は停止（`make_8760_data` の default）
+  - 設定温度は LD 相当（暖房 20℃ / 冷房 27℃）、湿度 60%
+
+例（DUCT_CENTRAL）:
+
+```python
+import vtsimnx as vt
+
+mode = vt.schedule.ac_mode["region6"]["全館空調"]
+pre_temp = vt.schedule.pre_tmp["region6"]["全館空調"]
+pre_rh = vt.schedule.pre_rh["region6"]["全館空調"]
+```
 
 #### 3.2 設定温度・設定湿度
 

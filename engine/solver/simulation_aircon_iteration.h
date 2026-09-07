@@ -26,16 +26,16 @@ struct AirconIterationResult {
     std::vector<AirconStateProposal> proposals;
 };
 
-/** ビットフラグから再計算アクションを決める（優先順位: Flow > ON/OFF > Capacity > Humidity）。 */
+/** ビットフラグから再計算アクションを決める（優先順位: ON/OFF > Capacity > Flow > Humidity）。 */
 inline AirconIterationAction decideAirconIterationAction(AirconRecomputeReason reasons) {
-    if (hasReason(reasons, AirconRecomputeReason::AirflowChanged)) {
-        return AirconIterationAction::RecomputeForFlow;
-    }
     if (hasReason(reasons, AirconRecomputeReason::OnOffChanged)) {
         return AirconIterationAction::RecomputeForControl;
     }
     if (hasReason(reasons, AirconRecomputeReason::CapacitySetpointChanged)) {
         return AirconIterationAction::RecomputeForCapacity;
+    }
+    if (hasReason(reasons, AirconRecomputeReason::AirflowChanged)) {
+        return AirconIterationAction::RecomputeForFlow;
     }
     if (hasReason(reasons, AirconRecomputeReason::SupplyHumidityChanged)) {
         return AirconIterationAction::RecomputeForSupplyHumidity;
@@ -79,12 +79,12 @@ inline void recordAirconRecomputeMetrics(TimestepSolveMetrics* metrics,
         return;
     }
     metrics->airconRecomputeReasonsMask |= static_cast<std::uint32_t>(reasons);
-    if (hasReason(reasons, AirconRecomputeReason::AirflowChanged)) {
-        ++metrics->airconFlowAdjustRecalc;
-    } else if (hasReason(reasons, AirconRecomputeReason::OnOffChanged)) {
+    if (hasReason(reasons, AirconRecomputeReason::OnOffChanged)) {
         ++metrics->airconOnOffRecalc;
     } else if (hasReason(reasons, AirconRecomputeReason::CapacitySetpointChanged)) {
         ++metrics->airconCapacityRecalc;
+    } else if (hasReason(reasons, AirconRecomputeReason::AirflowChanged)) {
+        ++metrics->airconFlowAdjustRecalc;
     } else if (hasReason(reasons, AirconRecomputeReason::SupplyHumidityChanged)) {
         ++metrics->airconSupplyHumidityRecalc;
     }

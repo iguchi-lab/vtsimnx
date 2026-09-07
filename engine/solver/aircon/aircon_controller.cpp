@@ -287,8 +287,10 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
                                          std::ostream& logFile,
                                          bool* supplyHumidityChanged,
                                          double humidityAbsTol,
-                                         std::vector<AirconStateProposal>* outProposals) const {
+                                         std::vector<AirconStateProposal>* outProposals,
+                                         const FlowRateMap* flowRates) const {
     bool allControlled = true;
+    constexpr double kMinMeaningfulProcessFlow = 1e-4; // [m3/s]
 
     // 順序を決定的にしてログ/挙動の再現性を上げる
     for (const auto& airconKey : getAirconKeys()) {
@@ -315,7 +317,10 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
         // 能力制限中（実効設定を要求からずらしている）も Qreq で OFF しない。
         // 暖房で実効設定を下げた直後は、自然室温より低い温度を拘束するため
         // Qreq が負になり、OFF→要求温度で再ONの振動になる。
-        const double setpointBandK = std::max(tolerance, 0.5);
+        //
+        // 処理風量がほぼ 0 のときも Qreq（コイル熱）は信頼しない。
+        // 固定温度行で室温だけ目標付近に見えて Qreq≈0→OFF→再ON の振動になる。
+        const double setpointBandK = std::max(tolerance, 1.0);
         const bool nearSetpoint =
             std::isfinite(nodeProps.current_pre_temp) &&
             std::abs(currentTemp - nodeProps.current_pre_temp) <= setpointBandK;
@@ -325,9 +330,15 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
             std::isfinite(nodeProps.current_pre_temp) &&
             std::isfinite(nodeProps.current_requested_pre_temp) &&
             std::abs(nodeProps.current_pre_temp - nodeProps.current_requested_pre_temp) > setpointBandK;
+        bool processFlowTooLow = false;
+        if (flowRates && !nodeProps.in_node.empty()) {
+            const double processFlow = std::abs(aircon::network_utils::getAirconProcessFlowRate(
+                *flowRates, nodeProps.in_node, nodeProps.key));
+            processFlowTooLow = !(processFlow > kMinMeaningfulProcessFlow);
+        }
         const bool useRequiredHeat =
             nodeProps.on && std::isfinite(nodeProps.required_heat_w) && nearSetpoint &&
-            !capacityLimited && !setpointDetuned;
+            !capacityLimited && !setpointDetuned && !processFlowTooLow;
         auto result = controlAircon(nodeProps, currentTemp, targetTemp, tolerance, logFile,
                                     useRequiredHeat, nodeProps.required_heat_w,
                                     /*loadDeadbandW=*/1.0);
@@ -509,21 +520,76 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
             if (supplyHumidityChanged) *supplyHumidityChanged = true;
             unitReasons |= AirconRecomputeReason::SupplyHumidityChanged;
         }
-        const double processedHeatW = aircon::latent::totalHeatCapacity(loads);
+        const double measuredHeatW = aircon::latent::totalHeatCapacity(loads);
+
+        // 風量比の基準熱量:
+        // - 能力制限中、要求設定に対する室温未達、または set_node 固定温度中は Q_max（外生）。
+        //   ON+fixed-row では set_node が設定に張り付くため「未達」温度判定が使えず、
+        //   計測コイル熱（Q∝V）で追従すると V∝Q_meas∝V で 0 へ縮小する。
+        // - set_node なし等で室温が自由なときだけ計測処理熱（≒負荷）。
+        double heatForFlowW = measuredHeatW;
+        const char* heatBasis = "計測処理熱";
+        const double unmetBandK = 0.5;
+        double controlledRoomTemp = context.validData.setTemp;
+        if (!nodeProps.set_node.empty()) {
+            (void)aircon::network_utils::tryGetTempFromThermalNetwork(
+                thermalNetwork, nodeProps.set_node, controlledRoomTemp);
+        }
+        const bool heatingUnmet =
+            isHeating(context.operationMode) &&
+            std::isfinite(nodeProps.current_requested_pre_temp) &&
+            (controlledRoomTemp < nodeProps.current_requested_pre_temp - unmetBandK);
+        const bool coolingUnmet =
+            !isHeating(context.operationMode) &&
+            std::isfinite(nodeProps.current_requested_pre_temp) &&
+            (controlledRoomTemp > nodeProps.current_requested_pre_temp + unmetBandK);
+        const bool setpointFixedRowActive = nodeProps.on && !nodeProps.set_node.empty();
+        const bool useCapacityForFlow =
+            nodeProps.aircon_control_state == AirconControlState::CapacityLimited ||
+            heatingUnmet || coolingUnmet || setpointFixedRowActive;
+        if (useCapacityForFlow) {
+            std::string maxSource;
+            if (auto qMax = aircon::capacity::resolveMaxHeatCapacity(
+                    nodeProps, context.operationMode, maxSource)) {
+                heatForFlowW = *qMax;
+                if (nodeProps.aircon_control_state == AirconControlState::CapacityLimited) {
+                    heatBasis = "能力上限";
+                } else if (setpointFixedRowActive) {
+                    heatBasis = "設定固定→能力上限";
+                } else {
+                    heatBasis = "未達→能力上限";
+                }
+            }
+        }
 
         const auto targetFlowOpt = aircon::airflow::computeTargetFlowFromProcessedHeat(
-            nodeProps, context.operationMode, processedHeatW);
+            nodeProps, context.operationMode, heatForFlowW);
         if (!targetFlowOpt) {
             continue;
         }
-        const double targetFlow = *targetFlowOpt;
-        const double flowTol = std::max(kMinFlowTol,
-                                        std::max(targetFlow, context.airFlowRate) * kRelativeFlowTol);
+        // 極小目標は 0 にスナップし、0.00→0.00 の再計算ループを防ぐ。
+        // flowRates 側に数値残差が残っても、実質ゼロ同士なら更新しない。
+        constexpr double kAbsFlowSnap = 1e-4;  // [m3/s]
+        constexpr double kAbsFlowMatch = 1e-3; // [m3/s] これ未満の差は無視
+        double targetFlow = *targetFlowOpt;
+        if (targetFlow < kAbsFlowSnap) {
+            targetFlow = 0.0;
+        }
+        const double currentFlow = std::isfinite(context.airFlowRate) ? std::abs(context.airFlowRate) : 0.0;
+        const double flowTol = std::max({kMinFlowTol, kAbsFlowMatch * 0.1,
+                                         std::max({targetFlow, currentFlow, kAbsFlowSnap}) * kRelativeFlowTol});
 
-        if (!std::isfinite(context.airFlowRate) || std::abs(context.airFlowRate - targetFlow) <= flowTol) {
+        if (!std::isfinite(context.airFlowRate) ||
+            std::abs(currentFlow - targetFlow) <= flowTol ||
+            (targetFlow <= 0.0 && currentFlow < kAbsFlowMatch) ||
+            (currentFlow < kAbsFlowSnap && targetFlow < kAbsFlowSnap)) {
             if (outProposals && unitReasons != AirconRecomputeReason::None) {
                 auto proposal = makeAirconStateProposalBase(airconKey, nodeProps);
-                proposal.processedHeatW = processedHeatW;
+                proposal.processedHeatW = measuredHeatW;
+                if (useCapacityForFlow) {
+                    proposal.maxCapacityW = heatForFlowW;
+                    proposal.hasMaxCapacity = true;
+                }
                 proposal.currentFlowRate = context.airFlowRate;
                 proposal.proposedFlowRate = targetFlow;
                 proposal.reasons = unitReasons;
@@ -546,14 +612,19 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
         unitReasons |= AirconRecomputeReason::AirflowChanged;
         std::ostringstream oss;
         oss << "　" << airconKey
-            << " DUCT_CENTRAL風量補正: 処理熱量=" << std::fixed << std::setprecision(2)
-            << processedHeatW << "W"
+            << " DUCT_CENTRAL風量補正: 基準熱量(" << heatBasis << ")="
+            << std::fixed << std::setprecision(2) << heatForFlowW << "W"
+            << " (計測=" << measuredHeatW << "W)"
             << ", 風量 " << context.airFlowRate << "→" << targetFlow << " m3/s, 再計算要求";
         writeDomainLog(logs, "空調", oss.str());
 
         if (outProposals) {
             auto proposal = makeAirconStateProposalBase(airconKey, nodeProps);
-            proposal.processedHeatW = processedHeatW;
+            proposal.processedHeatW = measuredHeatW;
+            if (useCapacityForFlow) {
+                proposal.maxCapacityW = heatForFlowW;
+                proposal.hasMaxCapacity = true;
+            }
             proposal.currentFlowRate = context.airFlowRate;
             proposal.proposedFlowRate = targetFlow;
             proposal.reasons = unitReasons;

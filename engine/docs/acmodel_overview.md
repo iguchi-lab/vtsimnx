@@ -31,7 +31,7 @@ flowchart LR
 - builder 入力の `aircon.model`（未指定時は **`RAC`** がデフォルト）
 - solver 入力の `nodes[].model`（未指定時は parser が **`RAC`** をデフォルト適用）
 
-能力上限の参照（solver 側）: `Q.<mode>.max` を優先し、無い場合は `Q.<mode>.mid` を使用。詳細は [`aircon_control_overview.md`](aircon_control_overview.md) および [`aircon_spec_reference.md`](aircon_spec_reference.md) を参照。
+能力上限の参照（solver 側）: `Q.<mode>.max` を優先し、無い場合は `Q.<mode>.rtd`、それも無い場合は `Q.<mode>.mid`。詳細は [`aircon_control_overview.md`](aircon_control_overview.md) および [`aircon_spec_reference.md`](aircon_spec_reference.md) を参照。
 
 ---
 
@@ -145,7 +145,7 @@ RAC は Python版互換の実装で、例えば以下のフラグを参照しま
 
 #### 3.4 DUCT_CENTRAL / LATENT_EVALUATE の仕様
 
-- **DUCT_CENTRAL**: `Q` / `P` に加え `P_fan`、`V_inner`（必要に応じ `V_outer`）を `cooling` / `heating` ごとに `rtd` / `mid` / `min` / `dsgn` 等で指定。能力上限は solver が `Q.<mode>.max` または `Q.<mode>.mid` を参照。
+- **DUCT_CENTRAL**: `Q` / `P` に加え `P_fan`、`V_inner`（必要に応じ `V_outer`）を `cooling` / `heating` ごとに `rtd` / `mid` / `min` / `dsgn` 等で指定。能力上限は solver が `Q.<mode>.max` → `rtd` → `mid` の順で参照。
 - **LATENT_EVALUATE**: 同様に `Q` / `P` / `P_fan` / `V_inner` 等。潜熱評価式用の熱交換器面積は定格能力から算出。
 
 DUCT_CENTRAL では、運転点入力として `InputData.V_vent`（換気分風量, [m3/s]）を扱います。`V_outer` とは独立です。既定は `0 m3/h` です。

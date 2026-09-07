@@ -112,6 +112,7 @@ void ThermalNetwork::invalidateDirectTSolveCache() {
     auto& ctx = directTContext();
     ctx.sparseLu.factorized = false;
     ctx.sparseLu.analyzed = false;
+    ctx.sparseLu.eigenAnalyzed = false;
     ctx.chol.factorized = false;
     ctx.chol.analyzed = false;
     ctx.solutionReuse = {};

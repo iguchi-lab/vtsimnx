@@ -26,15 +26,18 @@
 ```mermaid
 flowchart TD
     A["Q.mode.max"] -->|あり・>0| USE["上限として使用 [kW→W]"]
-    A -->|なし| B["Q.mode.mid"]
+    A -->|なし| R["Q.mode.rtd"]
+    R -->|あり・>0| USE
+    R -->|なし| B["Q.mode.mid"]
     B -->|あり・>0| USE
     B -->|なし| N["能力制限なし"]
 ```
 
 1. **`Q.<mode>.max`**（cooling / heating ごと） [kW]
-2. **`Q.<mode>.max` が無い場合** → **`Q.<mode>.mid`** [kW]
+2. **`Q.<mode>.max` が無い場合** → **`Q.<mode>.rtd`** [kW]（定格。DUCT_CENTRAL では通常いちばん大きい）
+3. **`rtd` も無い場合** → **`Q.<mode>.mid`** [kW]（最終フォールバック）
 
-どちらも無い機種は能力制限を掛けません（上限なし）。
+いずれも無い機種は能力制限を掛けません（上限なし）。
 
 ### 1.3 潜熱計算方式（`latent_method`）
 
@@ -100,9 +103,9 @@ flowchart LR
 - **必須**: `P_fan`, `V_inner`（必要に応じ `V_outer`）の cooling/heating × **rtd, mid, dsgn** 等
 - 単位: `Q` / `P` / `P_fan` は [kW]、風量は [m³/s]
 - 運転点入力 `InputData` では `V_vent`（換気分, [m³/s]）を使用可能。`V_outer` とは別入力で、既定は `0`。
-- solver 制御では `Q.<mode>.rtd` と `V_inner.<mode>.dsgn` を使って、処理熱量連動の送風量補正を行う（`Q=0 -> V=0`, `Q=Q_rtd -> V=V_dsgn`）。
+- solver 制御では `Q.<mode>.rtd` と `V_inner.<mode>.dsgn` を使って、処理熱量連動の送風量補正を行う（`Q=0 -> V=0`, `Q=Q_rtd -> V=V_dsgn`）。能力制限中の基準熱量は計測コイル熱ではなく `Q.max`/`rtd`/`mid`。
 
-能力上限: **`Q.<mode>.max`** があればそれを使用。無い場合は **`Q.<mode>.mid`** を能力上限として使用。
+能力上限: **`Q.<mode>.max`** があればそれを使用。無い場合は **`Q.<mode>.rtd`**。それも無い場合は **`Q.<mode>.mid`**。
 
 ---
 
@@ -122,8 +125,8 @@ flowchart LR
 |--------|--------------------|------|
 | CRIEPI | `max` | min/rtd/max を揃えて指定する想定 |
 | RAC | `max` | rtd + max が一般的 |
-| DUCT_CENTRAL | `max` または `mid` | mid のみの仕様でも制限がかかる |
-| LATENT_EVALUATE | `max` または `mid` | 同上 |
+| DUCT_CENTRAL | `max` → `rtd` → `mid` | 定格 `rtd` を優先（mid のみの仕様も可） |
+| LATENT_EVALUATE | `max` → `rtd` → `mid` | 同上 |
 
 ---
 

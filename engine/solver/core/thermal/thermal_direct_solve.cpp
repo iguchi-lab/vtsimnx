@@ -12,6 +12,13 @@ namespace {
 
 constexpr const char* kLuBackendEnv = "VTSIMNX_THERMAL_DIRECT_LU";
 
+/** KLU 経路では Eigen SparseLU の analyze を飛ばすため、フォールバック前に必須。 */
+inline void ensureEigenSparseLuAnalyzed(SparseLUCache& sparseLu) {
+    if (sparseLu.eigenAnalyzed) return;
+    sparseLu.solver.analyzePattern(sparseLu.A);
+    sparseLu.eigenAnalyzed = true;
+}
+
 #if defined(VTSIMNX_USE_KLU) && (VTSIMNX_USE_KLU)
 void clearKluNumeric(KluCache& klu) {
     if (klu.numeric != nullptr) {
@@ -169,6 +176,7 @@ bool solveSparseDirect(DirectTSolverContext& ctx,
     if (needRebuildPattern) {
         ++stats.patternRebuild;
         sparseLu.analyzed = false;
+        sparseLu.eigenAnalyzed = false;
         sparseLu.n = static_cast<int>(n);
         sparseLu.nnz = nnz;
         sparseLu.patternHash = patternHash;
@@ -230,6 +238,7 @@ bool solveSparseDirect(DirectTSolverContext& ctx,
         if (!mappingOk) {
             writeDomainLog(logFile, "熱", "[ERROR] DirectT: valuePtrIndexByRow の構築に失敗（パターン不一致）。停止します。");
             sparseLu.analyzed = false;
+            sparseLu.eigenAnalyzed = false;
             sparseLu.factorized = false;
             sparseLu.valueHash = 0;
             sparseLu.valuePtrIndexByRow.clear();
@@ -246,17 +255,21 @@ bool solveSparseDirect(DirectTSolverContext& ctx,
             }
             if (useKluBackend) {
                 sparseLu.analyzed = true;
+                sparseLu.eigenAnalyzed = false;
             } else {
                 sparseLu.solver.analyzePattern(sparseLu.A);
                 sparseLu.analyzed = true;
+                sparseLu.eigenAnalyzed = true;
             }
 #else
             sparseLu.analyzed = false;
+            sparseLu.eigenAnalyzed = false;
             return false;
 #endif
         } else {
             sparseLu.solver.analyzePattern(sparseLu.A);
             sparseLu.analyzed = true;
+            sparseLu.eigenAnalyzed = true;
         }
         sparseLu.valueHash = valueHash;
 
@@ -366,6 +379,7 @@ bool solveSparseDirect(DirectTSolverContext& ctx,
             if (!useKluBackend)
 #endif
             {
+                ensureEigenSparseLuAnalyzed(sparseLu);
                 sparseLu.solver.factorize(sparseLu.A);
                 if (sparseLu.solver.info() != Eigen::Success) {
                     writeDomainLog(logFile, "熱", "[ERROR] DirectT: LU 因子分解に失敗（特異/悪条件）");
@@ -389,6 +403,7 @@ bool solveSparseDirect(DirectTSolverContext& ctx,
         {
             if (!sparseLu.factorized) {
                 ++stats.luFactorize;
+                ensureEigenSparseLuAnalyzed(sparseLu);
                 sparseLu.solver.factorize(sparseLu.A);
                 if (sparseLu.solver.info() != Eigen::Success) {
                     writeDomainLog(logFile, "熱", "[ERROR] DirectT: LU 因子分解に失敗（フォールバック経路）");
@@ -439,6 +454,7 @@ bool solveSparseDirect(DirectTSolverContext& ctx,
                 if (!useKluBackend)
 #endif
                 {
+                    ensureEigenSparseLuAnalyzed(sparseLu);
                     sparseLu.solver.factorize(sparseLu.A);
                     if (sparseLu.solver.info() != Eigen::Success) {
                         writeDomainLog(logFile, "熱", "[ERROR] DirectT: LU 因子分解に失敗（再試行）");
@@ -460,6 +476,7 @@ bool solveSparseDirect(DirectTSolverContext& ctx,
             {
                 if (!sparseLu.factorized) {
                     ++stats.luFactorize;
+                    ensureEigenSparseLuAnalyzed(sparseLu);
                     sparseLu.solver.factorize(sparseLu.A);
                     if (sparseLu.solver.info() != Eigen::Success) {
                         writeDomainLog(logFile, "熱", "[ERROR] DirectT: LU 因子分解に失敗（再試行フォールバック）");
@@ -574,6 +591,7 @@ bool solveWithCachedFactorization(DirectTSolverContext& ctx,
         {
             if (!sparseLu.factorized) {
                 ++stats.luFactorize;
+                ensureEigenSparseLuAnalyzed(sparseLu);
                 sparseLu.solver.factorize(sparseLu.A);
                 if (sparseLu.solver.info() != Eigen::Success) {
                     writeDomainLog(logFile, "熱", "[WARN] DirectT cached: LU factorize failed on fallback");
@@ -624,6 +642,7 @@ bool solveWithCachedFactorization(DirectTSolverContext& ctx,
                 {
                     if (!sparseLu.factorized) {
                         ++stats.luFactorize;
+                        ensureEigenSparseLuAnalyzed(sparseLu);
                         sparseLu.solver.factorize(sparseLu.A);
                         if (sparseLu.solver.info() != Eigen::Success) {
                             writeDomainLog(logFile, "熱", "[WARN] DirectT cached: LU factorize failed on retry fallback");

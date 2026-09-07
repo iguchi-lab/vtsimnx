@@ -98,17 +98,17 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    F["AirflowChanged"] --> O["OnOffChanged"]
-    O --> C["CapacitySetpointChanged"]
-    C --> H["SupplyHumidityChanged"]
+    O["OnOffChanged"] --> C["CapacitySetpointChanged"]
+    C --> F["AirflowChanged"]
+    F --> H["SupplyHumidityChanged"]
     H --> A["Accept"]
 ```
 
 | アクション | 典型トリガ |
 |---|---|
-| `RecomputeForFlow` | DUCT_CENTRAL の `fixed_flow` 補正 |
 | `RecomputeForControl` | ON/OFF 変化 |
 | `RecomputeForCapacity` | 実効設定温度の能力制限補正 |
+| `RecomputeForFlow` | DUCT_CENTRAL の `fixed_flow` 補正（処理熱確定後） |
 | `RecomputeForSupplyHumidity` | 吹出絶対湿度のみ変化 |
 | `Accept` | 上記なし |
 
@@ -173,20 +173,23 @@ flowchart TD
 
 ## 6. 空調評価の 3 段階
 
-`runAirconIteration()` は早期 return します（後段を飛ばす）。
+`runAirconIteration()` は早期 return します（後段を飛ばす）。  
+処理熱（能力制限）を先に確定し、DUCT 風量補正は最後に行う（同時更新による振動を避ける）。  
+能力制限中・設定未達・ON+set_node 固定温度中の風量比は計測コイル熱ではなく `Q_max` 基準（`V∝Q_meas∝V` の 0 縮小を防ぐ）。
 
 ```mermaid
 flowchart TD
     A["1. controlAllAircons"] --> B{"ON/OFF 変化?"}
     B -->|Yes| R2["RecomputeForControl"]
-    B -->|No| C["2. checkAndAdjustDuctCentralAirflow"]
-    C --> D{"風量変更?"}
-    D -->|Yes| R1["RecomputeForFlow"]
-    D -->|No| E["3. checkAndAdjustCapacity"]
+    B -->|No| E["2. checkAndAdjustCapacity"]
     E --> F{"設定温度 or 吹出湿度?"}
     F -->|能力| R3["RecomputeForCapacity"]
-    F -->|湿度のみ| R4["RecomputeForSupplyHumidity"]
-    F -->|なし| OK["Accept"]
+    F -->|湿度のみ / なし| C["3. checkAndAdjustDuctCentralAirflow"]
+    C --> D{"風量変更?"}
+    D -->|Yes| R1["RecomputeForFlow"]
+    D -->|No| G{"吹出湿度のみ?"}
+    G -->|Yes| R4["RecomputeForSupplyHumidity"]
+    G -->|No| OK["Accept"]
 ```
 
 各段階は `AirconStateProposal` を積み上げ、理由を OR 集約します。

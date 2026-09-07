@@ -82,3 +82,29 @@ def test_schedule_aircon_match_legacy_make_8760_data():
         assert len(vt.schedule.pre_rh[region][room]) == 8760
 
 
+def test_whole_house_aircon_is_24h_in_season():
+    key = aircon_mod.WHOLE_HOUSE_KEY
+    for season, mode in (("暖房", aircon_mod.AC_MODE_HEATING), ("冷房", aircon_mod.AC_MODE_COOLING)):
+        for day_type in ("平日", "休日"):
+            prof = aircon_mod.ac_mode_profiles[key][season][day_type]
+            assert prof == [mode] * 24
+
+    # region6: 暖房日は全日 HEATING、冷房日は全日 COOLING、中間期は STOP
+    period = vt.schedule.period_6
+    series = vt.schedule.ac_mode["region6"][key]
+    assert len(series) == 8760
+    for day, season in enumerate(period):
+        day_vals = series[day * 24 : (day + 1) * 24]
+        if season == 1:
+            assert day_vals == [aircon_mod.AC_MODE_HEATING] * 24
+        elif season == -1:
+            assert day_vals == [aircon_mod.AC_MODE_COOLING] * 24
+        else:
+            assert day_vals == [aircon_mod.AC_MODE_STOP] * 24
+
+    assert vt.schedule.pre_tmp["region6"][key][0] == 20.0
+    # 冷房期の先頭日（period_6 で最初の -1）
+    cool_day = period.index(-1)
+    assert vt.schedule.pre_tmp["region6"][key][cool_day * 24] == 27.0
+
+

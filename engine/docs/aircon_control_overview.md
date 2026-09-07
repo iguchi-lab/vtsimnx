@@ -87,7 +87,7 @@ flowchart TD
     coupledSolve[圧力と熱を連成計算]
     updateHumidity[湿度 x 更新]
     airconControl[エアコン制御とsupplyX適用]
-    maybeRecompute{再計算が必要?<br/>風量/ON-OFF/能力/吹出湿度}
+    maybeRecompute{再計算が必要?<br/>ON-OFF/能力/風量/吹出湿度}
     updateConcentration[濃度 c 更新]
     writeResult[結果出力]
 
@@ -103,10 +103,12 @@ flowchart TD
 入口は `solver/simulation_aircon_iteration.cpp` の `runAirconIteration()` です。ループ全体の位置づけは [`simulation_loops.md`](simulation_loops.md) を参照してください。
 
 1. `controlAllAircons()` で ON/OFF を決める
-2. ON が安定していれば `checkAndAdjustDuctCentralAirflow()` で DUCT_CENTRAL の風量補正を確認する
-3. 全台の ON/OFF が安定していれば `checkAndAdjustCapacity()` で能力超過を確認する
+2. ON が安定していれば `checkAndAdjustCapacity()` で能力超過を確認する（処理熱を先に確定）
+3. 能力制限が安定していれば `checkAndAdjustDuctCentralAirflow()` で DUCT_CENTRAL の風量を合わせる（能力制限中は `Q_max` 基準）
 4. 各段階は `AirconStateProposal` を積み上げ、`AirconRecomputeReason` を OR 集約する
-5. 優先順位 ON/OFF > Flow > Capacity > SupplyHumidity で再計算 or Accept を決める
+5. 優先順位 ON/OFF > Capacity > Flow > SupplyHumidity で再計算 or Accept を決める
+
+能力探索中は風量を動かさない。風量は処理熱が決まったあとに一度合わせ、必要ならその結果で再計算する。能力制限中に計測コイル熱へ追従すると `V∝Q∝V` で 0 へ縮小するため、上限能力を風量比の基準にする。
 
 メトリクスには従来の種別カウンタに加え、次を記録します。
 
@@ -167,8 +169,13 @@ flowchart TD
 - 実際の固定温度化は熱ソルバ側の fixed-row ロジックで行います（値は実効設定 `current_pre_temp`）
 - 同一 `set_node` を複数空調が制御する入力は `initializeModels()` で拒否します
 - 能力 bracket の最終検証でも上限を満たせず拡張できない場合は `CapacityConstraintUnresolved` で例外終了します（超過のまま Accept しない）
+<<<<<<< HEAD
 - 温度バンドの片側幅は `max(空調温度許容誤差, 0.5K)`（最小の帯全体は設定値±0.5 K）。入力 tol が `1e-6` など極小でも、Qreq≈0 で OFF した直後のわずかな温度浮きで再 ON しない
+=======
+- 温度バンド幅は `max(空調温度許容誤差, 1.0K)`。入力 tol が `1e-6` など極小でも、Qreq≈0 で OFF した直後のわずかな温度浮きで再 ON しない。遠隔 set で OFF 後に室温が設定±0.7K 程度まで動いても再 ON しない（0.5K 帯だと即再 ON してチャタリングする）
+>>>>>>> b566169 (fix: stabilize DUCT_CENTRAL outer-loop control and add whole-house schedule)
 - **能力制限中**（`CapacityLimited`、または実効設定が要求から離れている）は `required_heat_w` で OFF しません。実効設定を下げた拘束では Qreq が符号反転し、OFF↔ON 振動するためです。このときは要求設定との温度バンドで判定します。
+- **処理風量がほぼ 0**（`< 1e-4 m3/s`）のときも Qreq を使いません。固定温度行で室温だけ目標付近に見え、Qreq≈0→OFF→再ON となるのを防ぎます。
 ---
 
 ### 4. 熱ソルバとの接続
@@ -280,10 +287,11 @@ Q = \dot m\,|h_\mathrm{in}-h_\mathrm{out}|
 参照する上限:
 
 - **`ac_spec.Q.<mode>.max`** を優先
-- **`max` が無い場合は `ac_spec.Q.<mode>.mid`** を使用（DUCT_CENTRAL / LATENT_EVALUATE など `mid` のみの仕様に対応）
-- 両方無い機種は能力制限を掛けません（上限なしとして扱う）
+- **`max` が無い場合は `ac_spec.Q.<mode>.rtd`**（定格。DUCT_CENTRAL では通常 mid より大きい）
+- **`rtd` も無い場合は `ac_spec.Q.<mode>.mid`**（最終フォールバック）
+- いずれも無い機種は能力制限を掛けません（上限なしとして扱う）
 
-`Q.rtd` や `max_heat_capacity` は、この制御では参照しません。
+以前は `max` 欠落時に `mid` へ直接フォールバックしていたため、DUCT_CENTRAL で定格 `rtd` 未満の中間能力に張り付き、設定温度補正ループが増えていました。
 
 ---
 
@@ -298,20 +306,26 @@ Q = \dot m\,|h_\mathrm{in}-h_\mathrm{out}|
 
 仕様:
 
-- 処理熱量が `0` のとき、目標風量は `0`
-- 処理熱量が `Q.<mode>.rtd` のとき、目標風量は `V_inner.<mode>.dsgn`
+- 基準熱量が `0` のとき、目標風量は `0`
+- 基準熱量が `Q.<mode>.rtd` のとき、目標風量は `V_inner.<mode>.dsgn`
 - その間は線形補間（上限は `dsgn`）
 
 式（mode は `heating` / `cooling`）:
 
-- `ratio = clamp(Q_processed / (Q.<mode>.rtd * 1000), 0, 1)`
+- `ratio = clamp(Q_basis / (Q.<mode>.rtd * 1000), 0, 1)`
 - `V_target = V_inner.<mode>.dsgn * ratio`
 
 ここで:
 
-- `Q_processed` は controller 内部の全熱（`Q_S + Q_L`, [W]）
+- **能力制限中** (`CapacityLimited`)、**set_node 室温が要求設定に未達**、または **ON かつ set_node 固定温度中**: `Q_basis = Q_max`（`Q.<mode>.max` → `rtd` → `mid`）
+- **それ以外**（`set_node` なし等で室温が自由）: `Q_basis =` 計測全熱（`Q_S + Q_L`, [W]）
 - `Q.<mode>.rtd` は `ac_spec` 上の [kW]
 - `V_inner.<mode>.dsgn` は [m3/s]
+- 目標風量が `1e-4 m3/s` 未満なら 0 にスナップし、極小差分では再計算しない
+
+能力制限後に計測コイル熱で追従すると、固定温度付近では `Q∝V` になり `V∝Q_meas` が 0 へ縮小します。  
+ON+fixed-row では `set_node` が設定に張り付くため温度の「未達」判定が使えません。このときは常に `Q_max` 基準とします。  
+タイムステップ先頭で `CapacityLimited` が落ちても、室温が要求に未達なら引き続き `Q_max` 基準とします。
 
 実装上は `in_node <-> aircon_node` の `fixed_flow` 換気枝を更新し、変更が入った場合は `shouldRecompute=true` を返します。
 
@@ -326,7 +340,7 @@ Q = \dot m\,|h_\mathrm{in}-h_\mathrm{out}|
 
 エアコンが ON で、かつ
 
-- `current totalCapacity > 最大能力（上記 max または mid）`
+- `current totalCapacity > 最大能力（上記 max → rtd → mid）`
 
 になった場合、`checkAndAdjustCapacity()` は**処理熱量が最大能力と等しくなる**設定温度を求め、`current_pre_temp` を補正します。
 
@@ -436,7 +450,7 @@ ac1 最大処理熱量=500.00W (Q.heating.max 基準), 現在処理熱量(全熱
 DUCT_CENTRAL 風量補正のログ例:
 
 ```text
-ac1 DUCT_CENTRAL風量補正: 処理熱量=3624.00W, Q.rtd=7200.00W, 比率=0.5033, 風量 0.3000→0.1007 m3/s, 再計算要求
+ac1 DUCT_CENTRAL風量補正: 基準熱量(能力上限)=3867.00W (計測=3866.27W), 風量 0.2800→0.1800 m3/s, 再計算要求
 ```
 
 ---

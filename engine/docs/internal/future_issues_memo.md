@@ -89,7 +89,7 @@
 
 - 二分探索収束時に setpoint が変わったら必ず再計算（P0）
 - `requested` / `effective` setpoint 分離と `AirconControlState`
-- `resolveMaxHeatCapacity` の max→mid フォールバック
+- `resolveMaxHeatCapacity` の max→rtd→mid フォールバック
 
 残り:
 
