@@ -3,6 +3,24 @@
 このページは「どう起動するか」「運用時に何を見るか」の実務メモです。  
 API 仕様（エンドポイント、入力、レスポンス、エラー）は `docs/api_reference.md` を参照してください。
 
+作業ディレクトリは **`engine/`** です（`app.main:app` を解決するため）。
+
+公開運用では、起動前に API キーを環境変数へ読み込みます。未設定だと認証なしになります。正本は `/etc/vtsimnx/engine.env`（`VTSIMNX_API_KEY` / `VTSIMNX_API_KEYS` / `VTSIMNX_API_KEYS_JSON`）。詳細は `docs/api_reference.md`。
+
+```bash
+cd /path/to/vtsimnx/engine
+set -a
+. /etc/vtsimnx/engine.env
+set +a
+```
+
+`engine.env` が root 専用（`chmod 600`）のときは `sudo` で読み込み、同じシェルから uvicorn を起動します。root で起動する場合、`fastapi` が `/home/ubuntu/.local` にある環境では次も必要です。
+
+```bash
+export HOME=/home/ubuntu
+export PYTHONPATH="/home/ubuntu/.local/lib/python3.10/site-packages${PYTHONPATH:+:$PYTHONPATH}"
+```
+
 ## 1. 最短起動
 
 ```bash
@@ -26,6 +44,13 @@ curl -sS http://127.0.0.1:8000/ping
 # {"status":"ok"}
 ```
 
+`/ping` は認証不要です。キーが有効かは、キーなしの保護エンドポイントが **401** になることで確認します。
+
+```bash
+curl -sS -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8000/runs
+# 401
+```
+
 公開運用では **TLS 終端（リバースプロキシ等）を前提**とし、`X-API-Key` を平文 HTTP で送らないでください。  
 成果物の TTL / 容量は `VTSIMNX_ARTIFACT_TTL_SEC` 等で制御します（詳細は `docs/api_reference.md`）。  
 ジョブレコードは `VTSIMNX_JOB_TTL_SEC`（既定 24h）と `VTSIMNX_MAX_JOB_RECORDS`（既定 1000）でメモリから prune されます。
@@ -38,9 +63,23 @@ python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 ## 2. 常駐起動（ログ付き）
 
+`engine/` で実行します。公開運用では先に `engine.env` を読み込みます（上記）。pid は `engine/.uvicorn.pid`、ログは `engine/.uvicorn.log` です。
+
 ```bash
+cd /path/to/vtsimnx/engine
+set -a
+. /etc/vtsimnx/engine.env
+set +a
 nohup python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 >> .uvicorn.log 2>&1 &
 echo $! > .uvicorn.pid
+```
+
+再起動（実行中ジョブは止まります）:
+
+```bash
+cd /path/to/vtsimnx/engine
+kill "$(cat .uvicorn.pid)"
+# 上と同じく env を読んでから nohup 起動
 ```
 
 ログ確認:
