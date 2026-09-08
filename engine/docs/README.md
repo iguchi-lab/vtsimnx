@@ -40,6 +40,7 @@ Python クライアント利用者向けガイドは [`../../docs/README.md`](..
 
 | 文書 | 役割 |
 |---|---|
+| [`aircon_control_principles.md`](aircon_control_principles.md) | 制御の考え方（ON/OFF・温度・処理熱・風量の揃え方） |
 | [`aircon_control_overview.md`](aircon_control_overview.md) | solver 側制御ロジック（遠隔 set 含む） |
 | [`acmodel_overview.md`](acmodel_overview.md) | COP / 電力モデル |
 | [`aircon_spec_reference.md`](aircon_spec_reference.md) | `ac_spec` キー一覧 |

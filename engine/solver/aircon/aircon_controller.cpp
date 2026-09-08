@@ -523,10 +523,10 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
         const double measuredHeatW = aircon::latent::totalHeatCapacity(loads);
 
         // 風量比の基準熱量:
-        // - 能力制限中、要求設定に対する室温未達、または set_node 固定温度中は Q_max（外生）。
-        //   ON+fixed-row では set_node が設定に張り付くため「未達」温度判定が使えず、
-        //   計測コイル熱（Q∝V）で追従すると V∝Q_meas∝V で 0 へ縮小する。
-        // - set_node なし等で室温が自由なときだけ計測処理熱（≒負荷）。
+        // - 能力制限中・要求設定未達: Q_max（追いつくまで設計風量側）
+        // - 設定を保持できている: |required_heat_w|（室負荷。コイル熱 Q∝V は使わない）
+        //   室負荷が無いときだけ Q_max に戻し、0 縮小を防ぐ
+        // - set_node なし等で室温が自由: 計測処理熱
         double heatForFlowW = measuredHeatW;
         const char* heatBasis = "計測処理熱";
         const double unmetBandK = 0.5;
@@ -543,22 +543,27 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
             !isHeating(context.operationMode) &&
             std::isfinite(nodeProps.current_requested_pre_temp) &&
             (controlledRoomTemp > nodeProps.current_requested_pre_temp + unmetBandK);
-        const bool setpointFixedRowActive = nodeProps.on && !nodeProps.set_node.empty();
-        const bool useCapacityForFlow =
-            nodeProps.aircon_control_state == AirconControlState::CapacityLimited ||
-            heatingUnmet || coolingUnmet || setpointFixedRowActive;
-        if (useCapacityForFlow) {
-            std::string maxSource;
-            if (auto qMax = aircon::capacity::resolveMaxHeatCapacity(
-                    nodeProps, context.operationMode, maxSource)) {
+        const bool capacityLimited =
+            nodeProps.aircon_control_state == AirconControlState::CapacityLimited;
+        const bool setpointHeld = nodeProps.on && !nodeProps.set_node.empty() &&
+                                   !capacityLimited && !heatingUnmet && !coolingUnmet;
+        const bool useExogenousHeatForFlow = capacityLimited || heatingUnmet || coolingUnmet || setpointHeld;
+        std::string maxSource;
+        const auto qMax = aircon::capacity::resolveMaxHeatCapacity(
+            nodeProps, context.operationMode, maxSource);
+        if (capacityLimited || heatingUnmet || coolingUnmet) {
+            if (qMax) {
                 heatForFlowW = *qMax;
-                if (nodeProps.aircon_control_state == AirconControlState::CapacityLimited) {
-                    heatBasis = "能力上限";
-                } else if (setpointFixedRowActive) {
-                    heatBasis = "設定固定→能力上限";
-                } else {
-                    heatBasis = "未達→能力上限";
-                }
+                heatBasis = capacityLimited ? "能力上限" : "未達→能力上限";
+            }
+        } else if (setpointHeld) {
+            if (std::isfinite(nodeProps.required_heat_w)) {
+                heatForFlowW = std::abs(nodeProps.required_heat_w);
+                if (qMax && heatForFlowW > *qMax) heatForFlowW = *qMax;
+                heatBasis = "設定維持負荷";
+            } else if (qMax) {
+                heatForFlowW = *qMax;
+                heatBasis = "設定固定→能力上限";
             }
         }
 
@@ -590,7 +595,7 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
             if (outProposals && unitReasons != AirconRecomputeReason::None) {
                 auto proposal = makeAirconStateProposalBase(airconKey, nodeProps);
                 proposal.processedHeatW = measuredHeatW;
-                if (useCapacityForFlow) {
+                if (useExogenousHeatForFlow) {
                     proposal.maxCapacityW = heatForFlowW;
                     proposal.hasMaxCapacity = true;
                 }
@@ -615,7 +620,7 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
         if (outProposals) {
             auto proposal = makeAirconStateProposalBase(airconKey, nodeProps);
             proposal.processedHeatW = measuredHeatW;
-            if (useCapacityForFlow) {
+            if (useExogenousHeatForFlow) {
                 proposal.maxCapacityW = heatForFlowW;
                 proposal.hasMaxCapacity = true;
             }

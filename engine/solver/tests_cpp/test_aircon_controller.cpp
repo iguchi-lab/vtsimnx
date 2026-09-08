@@ -1265,8 +1265,8 @@ int main() {
                    "unmet room should use Q_max-based duct flow");
     }
 
-    // ON+set_node 固定温度中は室温が設定に見えるが、計測熱追従すると V∝Q∝V で縮小する。
-    // このときは常に Q_max 基準にする。
+    // ON+set_node で設定を保持できているときは室負荷で風量を決める。
+    // 計測コイル熱で追従すると V∝Q∝V で縮小するので使わない。
     {
         auto& in = thermal.getNode("IN");
         auto& b = thermal.getNode("B");
@@ -1286,6 +1286,7 @@ int main() {
         b.aircon_control_state = AirconControlState::SetpointControlled;
         b.current_pre_temp = 20.0;
         b.current_requested_pre_temp = 20.0;
+        b.required_heat_w = 1800.0;  // 部分負荷。計測熱より大きく、Q_max より小さい
         b.ac_spec = nlohmann::json{
             {"Q", {{"heating", {{"rtd", 7.2}, {"max", 3.867}}}, {"cooling", {{"rtd", 7.2}, {"max", 3.867}}}}},
             {"V_inner", {{"heating", {{"dsgn", 0.28}}}, {"cooling", {{"dsgn", 0.28}}}}},
@@ -1310,7 +1311,7 @@ int main() {
         flows[{"IN", "B"}] = 0.28;
         std::ostringstream logs1;
         expectTrue(controller.checkAndAdjustDuctCentralAirflow(thermal, vent, flows, logs1),
-                   "setpoint-fixed duct flow should adjust once from Q_max");
+                   "setpoint-held duct flow should adjust from required heat");
         double flowAfterFirst = 0.0;
         for (auto edge : boost::make_iterator_range(boost::edges(vg))) {
             if (vg[boost::source(edge, vg)].key == "IN" && vg[boost::target(edge, vg)].key == "B") {
@@ -1318,15 +1319,161 @@ int main() {
                 break;
             }
         }
-        const double expectedFromQmax = 0.28 * std::clamp(3867.0 / 7200.0, 0.0, 1.0);
-        expectNear(flowAfterFirst, expectedFromQmax, 2e-4,
-                   "setpoint-fixed duct flow should follow Q_max/Q_rtd * V_dsgn");
+        const double expectedFromLoad = 0.28 * std::clamp(1800.0 / 7200.0, 0.0, 1.0);
+        expectNear(flowAfterFirst, expectedFromLoad, 2e-4,
+                   "setpoint-held duct flow should follow |Qreq|/Q_rtd * V_dsgn");
 
         flows[{"IN", "B"}] = flowAfterFirst;
         b.current_t = 20.0 + (21.0 - 20.0) * (flowAfterFirst / 0.28);
         std::ostringstream logs2;
         expectTrue(!controller.checkAndAdjustDuctCentralAirflow(thermal, vent, flows, logs2),
-                   "setpoint-fixed duct must not chase measured Q on second call");
+                   "setpoint-held duct must not chase measured Q on second call");
+    }
+
+    // 室負荷が無い設定固定は Q_max に戻し、計測熱では縮小しない
+    {
+        auto& in = thermal.getNode("IN");
+        auto& b = thermal.getNode("B");
+        thermal.addNode(makeNode("ROOM_FIXED_FALLBACK", "normal", 20.0));
+        in.current_t = 20.0;
+        b.current_t = 21.0;
+        b.current_mode = "HEATING";
+        b.on = true;
+        b.model = "DUCT_CENTRAL";
+        b.in_node = "IN";
+        b.set_node = "ROOM_FIXED_FALLBACK";
+        b.aircon_control_state = AirconControlState::SetpointControlled;
+        b.current_pre_temp = 20.0;
+        b.current_requested_pre_temp = 20.0;
+        b.required_heat_w = std::numeric_limits<double>::quiet_NaN();
+        b.ac_spec = nlohmann::json{
+            {"Q", {{"heating", {{"rtd", 7.2}, {"max", 3.867}}}, {"cooling", {{"rtd", 7.2}, {"max", 3.867}}}}},
+            {"V_inner", {{"heating", {{"dsgn", 0.28}}}, {"cooling", {{"dsgn", 0.28}}}}},
+        };
+        b.initializeAirconSpec();
+
+        VentilationNetwork vent;
+        auto& vg = vent.getGraph();
+        const auto vIn = boost::add_vertex(makeNode("IN", "normal", in.current_t), vg);
+        const auto vB = boost::add_vertex(makeNode("B", "aircon", b.current_t), vg);
+        EdgeProperties e{};
+        e.key = "vb_fixed_fb";
+        e.unique_id = "vb_fixed_fb";
+        e.type = "fixed_flow";
+        e.source = "IN";
+        e.target = "B";
+        e.current_vol = 0.28;
+        e.flow_rate = 0.28;
+        (void)boost::add_edge(vIn, vB, e, vg);
+
+        FlowRateMap flows;
+        flows[{"IN", "B"}] = 0.28;
+        std::ostringstream logs;
+        expectTrue(controller.checkAndAdjustDuctCentralAirflow(thermal, vent, flows, logs),
+                   "missing room load should fall back to Q_max");
+        double adjustedFlow = 0.0;
+        for (auto edge : boost::make_iterator_range(boost::edges(vg))) {
+            if (vg[boost::source(edge, vg)].key == "IN" && vg[boost::target(edge, vg)].key == "B") {
+                adjustedFlow = vg[edge].current_vol;
+                break;
+            }
+        }
+        const double expectedFromQmax = 0.28 * std::clamp(3867.0 / 7200.0, 0.0, 1.0);
+        expectNear(adjustedFlow, expectedFromQmax, 2e-4,
+                   "missing room load uses Q_max-based duct flow");
+    }
+
+    // 設定維持: 負荷0→風量0、定格以上→設計風量、冷房は絶対値、Q_max で頭打ち
+    {
+        auto& in = thermal.getNode("IN");
+        auto& b = thermal.getNode("B");
+        thermal.addNode(makeNode("ROOM_ENDS", "normal", 22.0));
+        auto& room = thermal.getNode("ROOM_ENDS");
+        in.current_t = 22.0;
+        b.current_t = 24.0;
+        room.current_t = 22.0;
+        b.current_mode = "COOLING";
+        b.on = true;
+        b.model = "DUCT_CENTRAL";
+        b.in_node = "IN";
+        b.set_node = "ROOM_ENDS";
+        b.aircon_control_state = AirconControlState::SetpointControlled;
+        b.current_pre_temp = 22.0;
+        b.current_requested_pre_temp = 22.0;
+        b.ac_spec = nlohmann::json{
+            {"Q", {{"heating", {{"rtd", 7.2}, {"max", 3.867}}}, {"cooling", {{"rtd", 7.2}, {"max", 3.867}}}}},
+            {"V_inner", {{"heating", {{"dsgn", 0.28}}}, {"cooling", {{"dsgn", 0.28}}}}},
+        };
+        b.initializeAirconSpec();
+
+        VentilationNetwork vent;
+        auto& vg = vent.getGraph();
+        const auto vIn = boost::add_vertex(makeNode("IN", "normal", in.current_t), vg);
+        const auto vB = boost::add_vertex(makeNode("B", "aircon", b.current_t), vg);
+        const auto vSupply = boost::add_vertex(makeNode("SUPPLY_ENDS", "normal", 18.0), vg);
+        auto addFixed = [&](const std::string& key, auto src, auto dst,
+                            const std::string& source, const std::string& target, double vol) {
+            EdgeProperties e{};
+            e.key = key;
+            e.unique_id = key;
+            e.type = "fixed_flow";
+            e.subtype = "aircon";
+            e.source = source;
+            e.target = target;
+            e.current_vol = vol;
+            e.flow_rate = vol;
+            (void)boost::add_edge(src, dst, e, vg);
+        };
+        addFixed("ends_in", vIn, vB, "IN", "B", 0.2);
+        addFixed("ends_out", vB, vSupply, "B", "SUPPLY_ENDS", 0.2);
+
+        auto readPair = [&](double& intake, double& supply) {
+            intake = 0.0;
+            supply = 0.0;
+            for (auto edge : boost::make_iterator_range(boost::edges(vg))) {
+                const auto src = vg[boost::source(edge, vg)].key;
+                const auto dst = vg[boost::target(edge, vg)].key;
+                if (src == "IN" && dst == "B") intake = vg[edge].current_vol;
+                if (src == "B" && dst == "SUPPLY_ENDS") supply = vg[edge].current_vol;
+            }
+        };
+
+        b.required_heat_w = 0.0;
+        FlowRateMap flows;
+        flows[{"IN", "B"}] = 0.2;
+        std::ostringstream logsZero;
+        expectTrue(controller.checkAndAdjustDuctCentralAirflow(thermal, vent, flows, logsZero),
+                   "zero room load should zero duct flow");
+        double intake = 0.0;
+        double supply = 0.0;
+        readPair(intake, supply);
+        expectNear(intake, 0.0, 1e-12, "zero load intake is 0");
+        expectNear(supply, 0.0, 1e-12, "zero load supply is 0");
+
+        // 冷房の負号負荷は絶対値。Q_max が定格以上なら、定格以上の負荷は設計風量。
+        b.ac_spec["Q"]["cooling"]["max"] = 9.0;
+        b.initializeAirconSpec();
+        b.required_heat_w = -9000.0;
+        flows[{"IN", "B"}] = 0.0;
+        std::ostringstream logsMax;
+        expectTrue(controller.checkAndAdjustDuctCentralAirflow(thermal, vent, flows, logsMax),
+                   "load at rating should raise duct flow to design");
+        readPair(intake, supply);
+        expectNear(intake, 0.28, 2e-4, "cooling |Qreq| at Q.rtd uses V_dsgn");
+        expectNear(supply, 0.28, 2e-4, "design flow is applied to supply too");
+
+        // Q_max が定格未満のとき、室負荷が上限を超えても Q_max/Q_rtd * V_dsgn で止める
+        b.ac_spec["Q"]["cooling"]["max"] = 3.867;
+        b.initializeAirconSpec();
+        b.required_heat_w = -5000.0;
+        flows[{"IN", "B"}] = 0.28;
+        std::ostringstream logsCap;
+        expectTrue(controller.checkAndAdjustDuctCentralAirflow(thermal, vent, flows, logsCap),
+                   "room load above Q_max should clamp duct flow");
+        readPair(intake, supply);
+        const double expectedClamp = 0.28 * std::clamp(3867.0 / 7200.0, 0.0, 1.0);
+        expectNear(intake, expectedClamp, 2e-4, "room load is clamped to Q_max");
+        expectNear(supply, expectedClamp, 2e-4, "clamped flow matches on supply");
     }
 
     // 極小風量同士の差では再計算しない（0.00→0.00 ループ防止）

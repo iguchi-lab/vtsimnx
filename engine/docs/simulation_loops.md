@@ -175,7 +175,7 @@ flowchart TD
 
 `runAirconIteration()` は早期 return します（後段を飛ばす）。  
 処理熱（能力制限）を先に確定し、DUCT 風量補正は最後に行う（同時更新による振動を避ける）。  
-能力制限中・設定未達・ON+set_node 固定温度中の風量比は計測コイル熱ではなく `Q_max` 基準（`V∝Q_meas∝V` の 0 縮小を防ぐ）。
+能力制限中・設定未達の風量比は `Q_max`、設定維持中は `|required_heat_w|`（無いときは `Q_max`）。計測コイル熱は使わない（`V∝Q_meas∝V` の 0 縮小を防ぐ）。
 
 ```mermaid
 flowchart TD

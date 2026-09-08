@@ -1,5 +1,7 @@
 ### エアコン制御の概要
 
+考え方（何を同時に揃えるか）は [`aircon_control_principles.md`](aircon_control_principles.md) を参照してください。
+
 このドキュメントは、solver 側のエアコン制御が
 
 - どのノード/ブランチを使うか
@@ -104,7 +106,7 @@ flowchart TD
 
 1. `controlAllAircons()` で ON/OFF を決める
 2. ON が安定していれば `checkAndAdjustCapacity()` で能力超過を確認する（処理熱を先に確定）
-3. 能力制限が安定していれば `checkAndAdjustDuctCentralAirflow()` で DUCT_CENTRAL の風量を合わせる（能力制限中は `Q_max` 基準）
+3. 能力制限が安定していれば `checkAndAdjustDuctCentralAirflow()` で DUCT_CENTRAL の風量を合わせる（能力制限・未達は `Q_max`、設定維持中は室負荷）
 4. 各段階は `AirconStateProposal` を積み上げ、`AirconRecomputeReason` を OR 集約する
 5. 優先順位 ON/OFF > Capacity > Flow > SupplyHumidity で再計算 or Accept を決める
 
@@ -313,14 +315,15 @@ Q = \dot m\,|h_\mathrm{in}-h_\mathrm{out}|
 
 ここで:
 
-- **能力制限中** (`CapacityLimited`)、**set_node 室温が要求設定に未達**、または **ON かつ set_node 固定温度中**: `Q_basis = Q_max`（`Q.<mode>.max` → `rtd` → `mid`）
+- **能力制限中** (`CapacityLimited`)、または **set_node 室温が要求設定に未達**: `Q_basis = Q_max`（`Q.<mode>.max` → `rtd` → `mid`）
+- **設定を保持できている**（ON かつ `set_node` 固定、未達でも能力制限でもない）: `Q_basis = |required_heat_w|`（上限は `Q_max`）。室負荷が非有限のときだけ `Q_max`
 - **それ以外**（`set_node` なし等で室温が自由）: `Q_basis =` 計測全熱（`Q_S + Q_L`, [W]）
 - `Q.<mode>.rtd` は `ac_spec` 上の [kW]
 - `V_inner.<mode>.dsgn` は [m3/s]
 - 目標風量が `1e-4 m3/s` 未満なら 0 にスナップし、極小差分では再計算しない
 
 能力制限後に計測コイル熱で追従すると、固定温度付近では `Q∝V` になり `V∝Q_meas` が 0 へ縮小します。  
-ON+fixed-row では `set_node` が設定に張り付くため温度の「未達」判定が使えません。このときは常に `Q_max` 基準とします。  
+設定を保持できているときは、風量にほぼ比例しない室負荷 `required_heat_w` を使います。無いときだけ `Q_max` に戻します。  
 タイムステップ先頭で `CapacityLimited` が落ちても、室温が要求に未達なら引き続き `Q_max` 基準とします。
 
 実装上は還気（`in_node` → 空調）と吹出（空調 → `out`）の `fixed_flow` を同じ風量に更新する。向きはどちらも枝の正方向（吸込は空調へ入り、吹出は空調から出る）。`in == out` のループでも吹出を逆符号にしない。いずれかが変わった場合は `shouldRecompute=true` を返す。
