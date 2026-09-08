@@ -153,6 +153,7 @@ DUCT_CENTRAL では、運転点入力として `InputData.V_vent`（換気分風
 また solver 連成では、`model="DUCT_CENTRAL"` のとき `InputData.V_inner` を固定値ではなく「処理熱量に応じた目標風量」に合わせて更新します。
 
 - `Q_processed=0` なら `V_inner=0`
+- `0 < Q_processed < Q.<mode>.min` なら `V_inner=V_inner.<mode>.dsgn * Q.min/Q.rtd`（最低風量。`Q.min` が無い機種は線形のまま）
 - `Q_processed=Q.<mode>.rtd` なら `V_inner=V_inner.<mode>.dsgn`
 - 中間は線形補間（`clamp(Q_processed / Q_rtd, 0..1)`）
 

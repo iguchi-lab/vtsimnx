@@ -339,9 +339,27 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
         const bool useRequiredHeat =
             nodeProps.on && std::isfinite(nodeProps.required_heat_w) && nearSetpoint &&
             !capacityLimited && !setpointDetuned && !processFlowTooLow;
+        // 設定を保持できているときだけ Q.min 未満で停止する。
+        // RAC / CRIEPI / DUCT_CENTRAL など機種は問わない。仕様に Q.min があれば適用する。
+        // 未達・能力制限中は温度側のまま運転を続ける。OFF 後の再開は温度バンドのみ。
+        double minProcessHeatW = 0.0;
+        if (useRequiredHeat) {
+            if (const auto* spec = nodeProps.getAirconSpec()) {
+                std::string mode = "heating";
+                if (nodeProps.current_mode == "COOLING") {
+                    mode = "cooling";
+                } else if (nodeProps.current_mode == "AUTO" &&
+                           nodeProps.required_heat_w < 0.0) {
+                    mode = "cooling";
+                }
+                if (const auto qMinKW = spec->getCapacity(mode, "min")) {
+                    if (*qMinKW > 0.0) minProcessHeatW = *qMinKW * 1000.0;
+                }
+            }
+        }
         auto result = controlAircon(nodeProps, currentTemp, targetTemp, tolerance, logFile,
                                     useRequiredHeat, nodeProps.required_heat_w,
-                                    /*loadDeadbandW=*/1.0);
+                                    /*loadDeadbandW=*/1.0, minProcessHeatW);
         writeDomainLog(logFile, "空調", result.logMessage);
         AirconRecomputeReason unitReasons = AirconRecomputeReason::None;
         if (result.stateChanged) {
@@ -567,8 +585,9 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
             }
         }
 
+        bool heldAtMinimumFlow = false;
         const auto targetFlowOpt = aircon::airflow::computeTargetFlowFromProcessedHeat(
-            nodeProps, context.operationMode, heatForFlowW);
+            nodeProps, context.operationMode, heatForFlowW, &heldAtMinimumFlow);
         if (!targetFlowOpt) {
             continue;
         }
@@ -614,7 +633,9 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
             << " DUCT_CENTRAL風量補正: 基準熱量(" << heatBasis << ")="
             << std::fixed << std::setprecision(2) << heatForFlowW << "W"
             << " (計測=" << measuredHeatW << "W)"
-            << ", 風量 " << context.airFlowRate << "→" << targetFlow << " m3/s, 再計算要求";
+            << ", 風量 " << context.airFlowRate << "→" << targetFlow << " m3/s"
+            << (heldAtMinimumFlow ? ", 最低風量維持" : "")
+            << ", 再計算要求";
         writeDomainLog(logs, "空調", oss.str());
 
         if (outProposals) {

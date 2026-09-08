@@ -83,6 +83,8 @@ flowchart LR
 
 能力上限: **`Q.<mode>.max`** を推奨（`mid` は CRIEPI では通常使わない）。
 
+設定維持中、室負荷が **`Q.<mode>.min`** 未満なら運転を止めて熱処理しません。再開は温度バンドのみです。
+
 最小形の例は `docs/acmodel_overview.md` の「CRIEPI向けの例」を参照。
 
 ---
@@ -95,6 +97,8 @@ flowchart LR
 
 能力上限: **`Q.<mode>.max`** を指定するのが一般的。
 
+`Q.<mode>.min` がある場合は、設定維持中の室負荷がそれ未満なら運転を止めて熱処理しません。無い機種は約 1 W の符号判定のままです。
+
 ---
 
 ### 2.3 DUCT_CENTRAL
@@ -103,7 +107,7 @@ flowchart LR
 - **必須**: `P_fan`, `V_inner`（必要に応じ `V_outer`）の cooling/heating × **rtd, mid, dsgn** 等
 - 単位: `Q` / `P` / `P_fan` は [kW]、風量は [m³/s]
 - 運転点入力 `InputData` では `V_vent`（換気分, [m³/s]）を使用可能。`V_outer` とは別入力で、既定は `0`。
-- solver 制御では `Q.<mode>.rtd` と `V_inner.<mode>.dsgn` を使って、処理熱量連動の送風量補正を行う（`Q=0 -> V=0`, `Q=Q_rtd -> V=V_dsgn`）。能力制限中・未達は `Q.max`/`rtd`/`mid`、設定維持中は室負荷 `|required_heat_w|`。
+- solver 制御では `Q.<mode>.rtd` と `V_inner.<mode>.dsgn` を使って、処理熱量連動の送風量補正を行う（`Q=0 -> V=0`, `0<Q<Q.min -> V=V_dsgn*Q.min/Q.rtd`, `Q=Q_rtd -> V=V_dsgn`）。能力制限中・未達は `Q.max`/`rtd`/`mid`、設定維持中は室負荷 `|required_heat_w|`。
 
 能力上限: **`Q.<mode>.max`** があればそれを使用。無い場合は **`Q.<mode>.rtd`**。それも無い場合は **`Q.<mode>.mid`**。
 

@@ -163,6 +163,7 @@ flowchart TD
 
 - 暖房: `Qreq > tol` なら ON。`Qreq ≤ tol`（冷房需要・ほぼゼロ含む）なら OFF
 - 冷房: `Qreq < -tol` なら ON。それ以外は OFF
+- `Q.<mode>.min` がある機種（RAC・CRIEPI・DUCT_CENTRAL を含む）は、設定維持中の `|Qreq|` が `Q.min` 未満なら OFF（最低能力より小さい熱処理はしない）。再開は温度バンドのみ
 - OFF 中の再起動は従来どおり温度バンド（帯内は現状維持）
 
 注意:
@@ -305,6 +306,7 @@ Q = \dot m\,|h_\mathrm{in}-h_\mathrm{out}|
 仕様:
 
 - 基準熱量が `0` のとき、目標風量は `0`
+- 基準熱量が正で `Q.<mode>.min` 未満のとき、目標風量は `V_inner.<mode>.dsgn * Q.min/Q.rtd`（最低風量。`Q.min` が無い機種は線形のまま）
 - 基準熱量が `Q.<mode>.rtd` のとき、目標風量は `V_inner.<mode>.dsgn`
 - その間は線形補間（上限は `dsgn`）
 

@@ -135,12 +135,15 @@ public:
                                         const FlowRateMap& flowRates) const;
 
     // === 制御関数 ===
+    // minProcessHeatW > 0 のとき、設定維持中の符号付き負荷がこの値未満なら OFF。
+    // 再開は温度バンド側（呼び出し側が useRequiredHeat=false）だけ。
     template<typename NodeType>
     AirconControlResult controlAircon(const NodeType& nodeProps, double currentTemp,
                                       double targetTemp, double tolerance, [[maybe_unused]] std::ostream& logs,
                                       bool useRequiredHeat = false,
                                       double requiredHeatW = 0.0,
-                                      double loadDeadbandW = 1.0) const {
+                                      double loadDeadbandW = 1.0,
+                                      double minProcessHeatW = 0.0) const {
         AirconControlResult result{false, nodeProps.on, ""};
         const std::string targetName = nodeProps.set_node.empty() ? nodeProps.key : nodeProps.set_node;
         if (nodeProps.current_mode == "OFF") {
@@ -163,16 +166,24 @@ public:
         // 符号: Qrequired>0 = 暖房需要、Qrequired<0 = 冷房需要
         if (useRequiredHeat && nodeProps.on && std::isfinite(requiredHeatW)) {
             const double qTol = std::max(0.0, loadDeadbandW);
+            // 最低能力未満は連続して熱処理できないので停止する。
+            // ちょうど Q.min は出せるので継続。Q.min が無い機種は従来の 1W 帯。
+            const bool useMinCapacity = std::isfinite(minProcessHeatW) && minProcessHeatW > qTol;
+            const double qOn = useMinCapacity ? minProcessHeatW : qTol;
             if (nodeProps.current_mode == "HEATING") {
-                shouldBeOn = (requiredHeatW > qTol);
+                shouldBeOn = useMinCapacity ? (requiredHeatW >= qOn) : (requiredHeatW > qOn);
             } else if (nodeProps.current_mode == "COOLING") {
-                shouldBeOn = (requiredHeatW < -qTol);
+                shouldBeOn = useMinCapacity ? (requiredHeatW <= -qOn) : (requiredHeatW < -qOn);
             } else if (nodeProps.current_mode == "AUTO") {
-                shouldBeOn = (std::abs(requiredHeatW) > qTol);
+                shouldBeOn = useMinCapacity ? (std::abs(requiredHeatW) >= qOn)
+                                            : (std::abs(requiredHeatW) > qOn);
             } else {
                 throw std::runtime_error("エアコンのモードが不正です: " + nodeProps.current_mode);
             }
             detail << "Qreq=" << requiredHeatW << "W";
+            if (useMinCapacity && !shouldBeOn) {
+                detail << " < Q.min=" << qOn << "W";
+            }
         } else {
             // OFF 中（室温が自由）または負荷未評価: 温度バンド
             // thermal/空調の数値 tol が 1e-6 など極小だと、Qreq≈0 で OFF した直後に
@@ -241,6 +252,7 @@ public:
 
     // DUCT_CENTRAL 用: 処理熱量に応じて送風量を補正する。
     // - 基準熱量=0 -> 風量=0
+    // - 0 < 基準熱量 < Q.min -> 風量=V_inner.dsgn * Q.min/Q.rtd
     // - 基準熱量=Q.rtd -> 風量=V_inner.dsgn
     // - 能力制限中・要求設定未達は Q_max
     // - 設定維持中は |required_heat_w|（無いときは Q_max。計測コイル熱では 0 へ縮小する）

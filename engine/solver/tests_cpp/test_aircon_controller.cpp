@@ -860,6 +860,102 @@ int main() {
         expectTrue(r.stateChanged && !r.on, "heating with Qreq≈0 must turn OFF");
     }
 
+    // 設定維持中、室負荷が Q.min 未満なら熱処理せず停止する。Q.min 以上は継続。
+    {
+        VertexProperties ac;
+        ac.key = "HMIN";
+        ac.set_node = "ROOM";
+        ac.current_mode = "HEATING";
+        ac.on = true;
+        ac.required_heat_w = 160.0;
+        std::ostringstream logs;
+        auto r = controller.controlAircon(ac, 20.0, 20.0, 0.5, logs, true, ac.required_heat_w, 1.0,
+                                          /*minProcessHeatW=*/2706.9);
+        expectTrue(r.stateChanged && !r.on, "heating below Q.min must turn OFF");
+        expectTrue(r.logMessage.find("Q.min=") != std::string::npos,
+                   "below-min OFF should cite Q.min");
+
+        ac.required_heat_w = 2800.0;
+        auto stay = controller.controlAircon(ac, 20.0, 20.0, 0.5, logs, true, ac.required_heat_w, 1.0,
+                                             2706.9);
+        expectTrue(!stay.stateChanged && stay.on, "heating at or above Q.min stays ON");
+    }
+    // RAC / CRIEPI も仕様の Q.min 未満なら停止する。Q.min が無い RAC は 1W 帯のまま。
+    {
+        auto runBelowMin = [&](const std::string& key, const std::string& model,
+                               const nlohmann::json& spec, double qReq, bool expectOff,
+                               const std::string& msg) {
+            ThermalNetwork net;
+            auto room = makeNode("ROOM", "normal", 20.0);
+            auto ac = makeNode(key, "aircon", 22.0);
+            ac.model = model;
+            ac.current_mode = "HEATING";
+            ac.on = true;
+            ac.set_node = "ROOM";
+            ac.in_node = "ROOM";
+            ac.current_pre_temp = 20.0;
+            ac.current_requested_pre_temp = 20.0;
+            ac.required_heat_w = qReq;
+            ac.ac_spec = spec;
+            ac.initializeAirconSpec();
+            net.addNode(room);
+            net.addNode(ac);
+            AirconController local;
+            std::ostringstream logs;
+            local.initializeModels(net, logs, 0);
+            FlowRateMap flows;
+            flows[{"ROOM", key}] = 0.1;
+            (void)local.controlAllAircons(net, 0.5, logs, nullptr, 1e-9, nullptr, &flows);
+            expectTrue(net.getNode(key).on == !expectOff, msg);
+            if (expectOff) {
+                expectTrue(logs.str().find("Q.min=") != std::string::npos, msg + " should cite Q.min");
+            }
+        };
+        const auto racWithMin = nlohmann::json{
+            {"Q", {{"heating", {{"min", 0.7}, {"rtd", 2.5}, {"max", 5.4}}},
+                   {"cooling", {{"min", 0.7}, {"rtd", 2.2}, {"max", 3.3}}}}},
+            {"P", {{"heating", {{"min", 0.095}, {"rtd", 0.39}, {"max", 1.36}}},
+                   {"cooling", {{"min", 0.095}, {"rtd", 0.395}, {"max", 0.78}}}}},
+        };
+        runBelowMin("RAC1", "RAC", racWithMin, 160.0, true,
+                    "RAC with Q.min must turn OFF below minimum capacity");
+        runBelowMin("RAC1B", "RAC", racWithMin, 800.0, false,
+                    "RAC with Q.min stays ON at or above minimum capacity");
+
+        const auto racNoMin = nlohmann::json{
+            {"Q", {{"heating", {{"rtd", 2.5}, {"max", 5.4}}},
+                   {"cooling", {{"rtd", 2.2}, {"max", 3.3}}}}},
+            {"P", {{"heating", {{"rtd", 0.39}}}, {"cooling", {{"rtd", 0.395}}}}},
+        };
+        runBelowMin("RAC2", "RAC", racNoMin, 160.0, false,
+                    "RAC without Q.min must not use the minimum-capacity stop");
+
+        const auto criepi = nlohmann::json{
+            {"Q", {{"heating", {{"min", 0.7}, {"rtd", 2.5}, {"max", 5.4}}},
+                   {"cooling", {{"min", 0.7}, {"rtd", 2.2}, {"max", 3.3}}}}},
+            {"P", {{"heating", {{"min", 0.095}, {"rtd", 0.39}, {"max", 1.36}}},
+                   {"cooling", {{"min", 0.095}, {"rtd", 0.395}, {"max", 0.78}}}}},
+            {"V_inner", {{"heating", {{"rtd", 0.2}}}, {"cooling", {{"rtd", 0.2}}}}},
+            {"V_outer", {{"heating", {{"rtd", 0.4}}}, {"cooling", {{"rtd", 0.4}}}}},
+        };
+        runBelowMin("CR1", "CRIEPI", criepi, 160.0, true,
+                    "CRIEPI must turn OFF below Q.min");
+        runBelowMin("CR1B", "CRIEPI", criepi, 700.0, false,
+                    "CRIEPI stays ON at Q.min");
+    }
+
+    // OFF 後は Qreq が残っていても温度バンド内なら再起動しない
+    {
+        VertexProperties ac;
+        ac.key = "HMIN_OFF";
+        ac.set_node = "ROOM";
+        ac.current_mode = "HEATING";
+        ac.on = false;
+        std::ostringstream logs;
+        auto r = controller.controlAircon(ac, 19.2, 20.0, 0.5, logs, false, 160.0, 1.0, 2706.9);
+        expectTrue(!r.stateChanged && !r.on, "below-min OFF must not restart inside 1K band");
+    }
+
     // AirconStateProposal: ON/OFF 変化で OnOffChanged が立つ
     {
         thermal.addNode(makeNode("ROOM2", "normal", 18.0));
@@ -1474,6 +1570,25 @@ int main() {
         const double expectedClamp = 0.28 * std::clamp(3867.0 / 7200.0, 0.0, 1.0);
         expectNear(intake, expectedClamp, 2e-4, "room load is clamped to Q_max");
         expectNear(supply, expectedClamp, 2e-4, "clamped flow matches on supply");
+
+        // 正の負荷が Q.min 未満なら線形より下げず、最低風量を維持する。負荷 0 は 0 のまま。
+        b.current_mode = "HEATING";
+        b.ac_spec = nlohmann::json{
+            {"Q", {{"heating", {{"min", 2.7}, {"rtd", 7.2}}}, {"cooling", {{"min", 2.7}, {"rtd", 7.2}}}}},
+            {"V_inner", {{"heating", {{"dsgn", 0.36}}}, {"cooling", {{"dsgn", 0.36}}}}},
+        };
+        b.initializeAirconSpec();
+        b.required_heat_w = 160.0;
+        flows[{"IN", "B"}] = 0.16;
+        std::ostringstream logsMin;
+        expectTrue(controller.checkAndAdjustDuctCentralAirflow(thermal, vent, flows, logsMin),
+                   "small positive load should hold minimum duct flow");
+        readPair(intake, supply);
+        const double expectedMin = 0.36 * (2.7 / 7.2);
+        expectNear(intake, expectedMin, 2e-4, "load below Q.min holds V_dsgn * Q.min/Q.rtd");
+        expectNear(supply, expectedMin, 2e-4, "minimum flow matches on supply");
+        expectTrue(logsMin.str().find("最低風量維持") != std::string::npos,
+                   "min-flow hold should be logged");
     }
 
     // 極小風量同士の差では再計算しない（0.00→0.00 ループ防止）

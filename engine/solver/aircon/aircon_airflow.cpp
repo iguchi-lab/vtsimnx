@@ -139,7 +139,9 @@ bool updateDuctCentralCircuitFixedFlows(VentilationNetwork& ventNetwork,
 
 std::optional<double> computeTargetFlowFromProcessedHeat(const VertexProperties& nodeProps,
                                                          OperationMode operationMode,
-                                                         double processedHeatW) {
+                                                         double processedHeatW,
+                                                         bool* heldAtMinimum) {
+    if (heldAtMinimum) *heldAtMinimum = false;
     const auto qRtdkW = readSpecPositive(nodeProps.ac_spec, "Q", modeKey(operationMode), "rtd");
     const auto vDsgn = readSpecPositive(nodeProps.ac_spec, "V_inner", modeKey(operationMode), "dsgn");
     if (!qRtdkW || !vDsgn) {
@@ -150,8 +152,22 @@ std::optional<double> computeTargetFlowFromProcessedHeat(const VertexProperties&
     if (!(qRtdW > 0.0)) {
         return std::nullopt;
     }
+    // 負荷 0 は風量 0。正でも Q.min 未満は最低風量に留める。
+    // 部分負荷を 0 近くまで落とすと、固定温度の移流が連成を壊す。
+    if (!(processedHeatW > 0.0)) {
+        return 0.0;
+    }
     const double ratio = std::clamp(processedHeatW / qRtdW, 0.0, 1.0);
-    return (*vDsgn) * ratio;
+    double usedRatio = ratio;
+    const auto qMinkW = readSpecPositive(nodeProps.ac_spec, "Q", modeKey(operationMode), "min");
+    if (qMinkW && *qMinkW < *qRtdkW) {
+        const double minRatio = *qMinkW / *qRtdkW;
+        if (ratio < minRatio) {
+            usedRatio = minRatio;
+            if (heldAtMinimum) *heldAtMinimum = true;
+        }
+    }
+    return (*vDsgn) * usedRatio;
 }
 
 } // namespace aircon::airflow

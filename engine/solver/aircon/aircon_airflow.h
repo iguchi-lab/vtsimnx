@@ -25,8 +25,14 @@ bool updateDuctCentralCircuitFixedFlows(VentilationNetwork& ventNetwork,
                                         double targetFlowM3s,
                                         double flowTolM3s);
 
+// 基準熱量から目標風量 [m3/s] を求める。
+// - 熱量 <= 0 → 0
+// - 0 < 熱量 < Q.min → V_dsgn * Q.min/Q.rtd（最低風量。Q.min が無い機種は線形のまま）
+// - それ以上は V_dsgn * clamp(熱量/Q.rtd, 0, 1)
+// heldAtMinimum が非 null なら、最低風量で頭打ちしたとき true。
 std::optional<double> computeTargetFlowFromProcessedHeat(const VertexProperties& nodeProps,
                                                          OperationMode operationMode,
-                                                         double processedHeatW);
+                                                         double processedHeatW,
+                                                         bool* heldAtMinimum = nullptr);
 
 } // namespace aircon::airflow
