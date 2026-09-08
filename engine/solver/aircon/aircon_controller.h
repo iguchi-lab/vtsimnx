@@ -244,6 +244,7 @@ public:
     // - 基準熱量=Q.rtd -> 風量=V_inner.dsgn
     // - 能力制限中、または要求設定未達時、または set_node 固定温度中は Q_max を基準
     //   （fixed-row 中の V∝Q_meas∝V 縮小を防ぐ）
+    // 還気と吹出の fixed_flow を同じ風量・同じ循環向きに更新する。
     // 変更が入った場合は true（外側ループで再計算要求）。
     bool checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalNetwork,
                                           VentilationNetwork& ventNetwork,

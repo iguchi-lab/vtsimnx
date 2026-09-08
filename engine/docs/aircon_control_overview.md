@@ -323,7 +323,7 @@ Q = \dot m\,|h_\mathrm{in}-h_\mathrm{out}|
 ON+fixed-row では `set_node` が設定に張り付くため温度の「未達」判定が使えません。このときは常に `Q_max` 基準とします。  
 タイムステップ先頭で `CapacityLimited` が落ちても、室温が要求に未達なら引き続き `Q_max` 基準とします。
 
-実装上は `in_node <-> aircon_node` の `fixed_flow` 換気枝を更新し、変更が入った場合は `shouldRecompute=true` を返します。
+実装上は還気（`in_node` → 空調）と吹出（空調 → `out`）の `fixed_flow` を同じ風量に更新する。向きはどちらも枝の正方向（吸込は空調へ入り、吹出は空調から出る）。`in == out` のループでも吹出を逆符号にしない。いずれかが変わった場合は `shouldRecompute=true` を返す。
 
 注意:
 

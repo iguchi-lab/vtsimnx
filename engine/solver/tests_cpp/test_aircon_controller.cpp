@@ -987,6 +987,152 @@ int main() {
         }
     }
 
+    // DUCT_CENTRAL: 吸込と吹出を同じ風量にする（in != out / in == out）
+    {
+        auto& in = thermal.getNode("IN");
+        auto& b = thermal.getNode("B");
+        in.current_t = 20.0;
+        b.current_t = 30.0;
+        b.current_mode = "HEATING";
+        b.on = true;
+        b.model = "DUCT_CENTRAL";
+        b.in_node = "IN";
+        b.set_node.clear();
+        b.aircon_control_state = AirconControlState::SetpointControlled;
+        b.current_requested_pre_temp = 20.0;
+        b.current_pre_temp = 20.0;
+        b.ac_spec = nlohmann::json{
+            {"Q", {{"heating", {{"rtd", 7.2}}}, {"cooling", {{"rtd", 7.2}}}}},
+            {"V_inner", {{"heating", {{"dsgn", 0.2}}}, {"cooling", {{"dsgn", 0.2}}}}},
+        };
+        b.initializeAirconSpec();
+
+        thermal.addNode(makeNode("SUPPLY", "normal", 22.0));
+        VentilationNetwork vent;
+        auto& vg = vent.getGraph();
+        const auto vIn = boost::add_vertex(makeNode("IN", "normal", in.current_t), vg);
+        const auto vB = boost::add_vertex(makeNode("B", "aircon", b.current_t), vg);
+        const auto vSupply = boost::add_vertex(makeNode("SUPPLY", "normal", 22.0), vg);
+
+        auto addFixed = [&](const std::string& key, auto src, auto dst,
+                            const std::string& source, const std::string& target, double vol) {
+            EdgeProperties e{};
+            e.key = key;
+            e.unique_id = key;
+            e.type = "fixed_flow";
+            e.subtype = "aircon";
+            e.source = source;
+            e.target = target;
+            e.current_vol = vol;
+            e.flow_rate = vol;
+            (void)boost::add_edge(src, dst, e, vg);
+        };
+        addFixed("in_b", vIn, vB, "IN", "B", 0.3);
+        addFixed("b_supply", vB, vSupply, "B", "SUPPLY", 0.3);
+
+        FlowRateMap flows;
+        flows[{"IN", "B"}] = 0.3;
+        std::ostringstream logs;
+        expectTrue(controller.checkAndAdjustDuctCentralAirflow(thermal, vent, flows, logs),
+                   "duct circuit should adjust both intake and supply");
+
+        double intake = 0.0;
+        double supply = 0.0;
+        for (auto edge : boost::make_iterator_range(boost::edges(vg))) {
+            const auto src = vg[boost::source(edge, vg)].key;
+            const auto dst = vg[boost::target(edge, vg)].key;
+            if (src == "IN" && dst == "B") intake = vg[edge].current_vol;
+            if (src == "B" && dst == "SUPPLY") supply = vg[edge].current_vol;
+        }
+        const double qW = archenv::DENSITY_DRY_AIR * archenv::SPECIFIC_HEAT_AIR * 0.3 * (30.0 - 20.0);
+        const double targetFlow = 0.2 * std::clamp(qW / (7.2 * 1000.0), 0.0, 1.0);
+        expectNear(intake, targetFlow, 2e-4, "intake flow follows target");
+        expectNear(supply, targetFlow, 2e-4, "supply flow matches intake");
+        expectNear(supply, intake, 1e-12, "intake and supply share the same signed magnitude");
+
+        // 吸込枝は目標のまま、吹出だけ戻しても吹出を再同期する
+        for (auto edge : boost::make_iterator_range(boost::edges(vg))) {
+            if (vg[boost::source(edge, vg)].key == "B" && vg[boost::target(edge, vg)].key == "SUPPLY") {
+                vg[edge].current_vol = 0.3;
+                vg[edge].flow_rate = 0.3;
+            }
+        }
+        flows[{"IN", "B"}] = intake;
+        std::ostringstream logsSupplyOnly;
+        expectTrue(controller.checkAndAdjustDuctCentralAirflow(thermal, vent, flows, logsSupplyOnly),
+                   "stale supply should still be corrected when intake already matches");
+        double intakeAfter = 0.0;
+        double supplyAfter = 0.0;
+        for (auto edge : boost::make_iterator_range(boost::edges(vg))) {
+            const auto src = vg[boost::source(edge, vg)].key;
+            const auto dst = vg[boost::target(edge, vg)].key;
+            if (src == "IN" && dst == "B") intakeAfter = vg[edge].current_vol;
+            if (src == "B" && dst == "SUPPLY") supplyAfter = vg[edge].current_vol;
+        }
+        expectTrue(std::abs(supplyAfter - 0.3) > 1e-6, "stale supply must leave the original vol");
+        expectNear(supplyAfter, intakeAfter, 1e-12, "stale supply resynced to intake");
+    }
+
+    // DUCT_CENTRAL: in == out のループでも吹出を逆符号にしない
+    {
+        auto& in = thermal.getNode("IN");
+        auto& b = thermal.getNode("B");
+        in.current_t = 20.0;
+        b.current_t = 30.0;
+        b.current_mode = "HEATING";
+        b.on = true;
+        b.model = "DUCT_CENTRAL";
+        b.in_node = "IN";
+        b.set_node.clear();
+        b.aircon_control_state = AirconControlState::SetpointControlled;
+        b.ac_spec = nlohmann::json{
+            {"Q", {{"heating", {{"rtd", 7.2}}}, {"cooling", {{"rtd", 7.2}}}}},
+            {"V_inner", {{"heating", {{"dsgn", 0.2}}}, {"cooling", {{"dsgn", 0.2}}}}},
+        };
+        b.initializeAirconSpec();
+
+        VentilationNetwork vent;
+        auto& vg = vent.getGraph();
+        const auto vIn = boost::add_vertex(makeNode("IN", "normal", in.current_t), vg);
+        const auto vB = boost::add_vertex(makeNode("B", "aircon", b.current_t), vg);
+        EdgeProperties ret{};
+        ret.key = "in_b_loop";
+        ret.unique_id = "in_b_loop";
+        ret.type = "fixed_flow";
+        ret.subtype = "aircon";
+        ret.source = "IN";
+        ret.target = "B";
+        ret.current_vol = 0.3;
+        ret.flow_rate = 0.3;
+        (void)boost::add_edge(vIn, vB, ret, vg);
+        EdgeProperties sup{};
+        sup.key = "b_in_loop";
+        sup.unique_id = "b_in_loop";
+        sup.type = "fixed_flow";
+        sup.subtype = "aircon";
+        sup.source = "B";
+        sup.target = "IN";
+        sup.current_vol = 0.3;
+        sup.flow_rate = 0.3;
+        (void)boost::add_edge(vB, vIn, sup, vg);
+
+        FlowRateMap flows;
+        flows[{"IN", "B"}] = 0.3;
+        std::ostringstream logs;
+        expectTrue(controller.checkAndAdjustDuctCentralAirflow(thermal, vent, flows, logs),
+                   "same-room duct loop should adjust");
+        double intake = 0.0;
+        double supply = 0.0;
+        for (auto edge : boost::make_iterator_range(boost::edges(vg))) {
+            const auto src = vg[boost::source(edge, vg)].key;
+            const auto dst = vg[boost::target(edge, vg)].key;
+            if (src == "IN" && dst == "B") intake = vg[edge].current_vol;
+            if (src == "B" && dst == "IN") supply = vg[edge].current_vol;
+        }
+        expectTrue(intake > 0.0 && supply > 0.0, "loop intake and supply stay positive");
+        expectNear(supply, intake, 1e-12, "same-room supply matches intake and is not negated");
+    }
+
     // DUCT_CENTRAL + CapacityLimited: 計測熱が落ちても Q_max 基準の風量を維持（0 縮小防止）
     {
         auto& in = thermal.getNode("IN");

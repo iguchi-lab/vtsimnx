@@ -156,7 +156,7 @@ DUCT_CENTRAL では、運転点入力として `InputData.V_vent`（換気分風
 - `Q_processed=Q.<mode>.rtd` なら `V_inner=V_inner.<mode>.dsgn`
 - 中間は線形補間（`clamp(Q_processed / Q_rtd, 0..1)`）
 
-この補正で換気枝（`fixed_flow`）が更新された場合、同一 timestep の outer loop を再計算して吸込/吹出状態を再評価します。
+この補正では還気（`in_node` → 空調）と吹出（空調 → `out`）の `fixed_flow` を同じ風量に更新する。いずれかが変わった場合、同一 timestep の outer loop を再計算して吸込/吹出状態を再評価します。
 
 実装上の pyhees 整合ポイント（送風機式、デフロスト境界、内訳回帰）は `docs/duct_central_model_validation.md` を参照してください。
 

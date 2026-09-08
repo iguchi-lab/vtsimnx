@@ -579,10 +579,14 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
         const double flowTol = std::max({kMinFlowTol, kAbsFlowMatch * 0.1,
                                          std::max({targetFlow, currentFlow, kAbsFlowSnap}) * kRelativeFlowTol});
 
-        if (!std::isfinite(context.airFlowRate) ||
-            std::abs(currentFlow - targetFlow) <= flowTol ||
-            (targetFlow <= 0.0 && currentFlow < kAbsFlowMatch) ||
-            (currentFlow < kAbsFlowSnap && targetFlow < kAbsFlowSnap)) {
+        // 吸込が既に目標でも吹出がずれていれば更新する。一致判定は枝側で行う。
+        bool edgeUpdated = false;
+        if (!nodeProps.in_node.empty()) {
+            edgeUpdated = aircon::airflow::updateDuctCentralCircuitFixedFlows(
+                ventNetwork, nodeProps.in_node, nodeProps.key, targetFlow, flowTol);
+        }
+
+        if (!edgeUpdated) {
             if (outProposals && unitReasons != AirconRecomputeReason::None) {
                 auto proposal = makeAirconStateProposalBase(airconKey, nodeProps);
                 proposal.processedHeatW = measuredHeatW;
@@ -595,16 +599,6 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
                 proposal.reasons = unitReasons;
                 outProposals->push_back(std::move(proposal));
             }
-            continue;
-        }
-
-        bool edgeUpdated = false;
-        if (!nodeProps.in_node.empty()) {
-            edgeUpdated = aircon::airflow::updateFixedFlowEdgeByNodePair(
-                ventNetwork, nodeProps.in_node, nodeProps.key, targetFlow, flowTol);
-        }
-
-        if (!edgeUpdated) {
             continue;
         }
 
