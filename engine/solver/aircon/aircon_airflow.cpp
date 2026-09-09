@@ -137,6 +137,86 @@ bool updateDuctCentralCircuitFixedFlows(VentilationNetwork& ventNetwork,
     return updated;
 }
 
+namespace {
+
+void ensureFanRatedCurve(EdgeProperties& edge) {
+    if (edge.fan_curve_rated) return;
+    edge.p_max_rated = edge.p_max;
+    edge.p1_rated = edge.p1;
+    edge.q_max_rated = edge.q_max;
+    edge.q1_rated = edge.q1;
+    edge.fan_curve_rated = true;
+}
+
+void applyFanAffinity(EdgeProperties& edge, double speedRatio) {
+    const double lambda = std::clamp(speedRatio, 0.0, 1.0);
+    // λ=0 でも piecewise の p_max>0 を保つ。流量側は 0 なので風は出ない。
+    constexpr double kShutoffP = 1e-6;
+    if (!(lambda > 0.0)) {
+        edge.q_max = 0.0;
+        edge.q1 = 0.0;
+        edge.p_max = kShutoffP;
+        edge.p1 = 0.0;
+        return;
+    }
+    const double lambda2 = lambda * lambda;
+    edge.q_max = lambda * edge.q_max_rated;
+    edge.q1 = lambda * edge.q1_rated;
+    edge.p_max = std::max(kShutoffP, lambda2 * edge.p_max_rated);
+    edge.p1 = std::min(lambda2 * edge.p1_rated, edge.p_max);
+}
+
+} // namespace
+
+bool updateDuctCentralFanAffinity(VentilationNetwork& ventNetwork,
+                                  const VertexProperties& nodeProps,
+                                  OperationMode operationMode,
+                                  const std::string& airconNode,
+                                  double targetFlowM3s,
+                                  double ratioTol,
+                                  bool* fanPresent) {
+    if (fanPresent) *fanPresent = false;
+    if (airconNode.empty()) return false;
+
+    auto& graph = ventNetwork.getGraph();
+    std::vector<Graph::edge_descriptor> fans;
+    for (auto e : boost::make_iterator_range(boost::edges(graph))) {
+        auto& edge = graph[e];
+        if (edge.type != "fan" || edge.subtype != "aircon") continue;
+        const std::string source = graph[boost::source(e, graph)].key;
+        const std::string target = graph[boost::target(e, graph)].key;
+        if (source != airconNode && target != airconNode) continue;
+        fans.push_back(e);
+    }
+    if (fans.empty()) return false;
+    if (fanPresent) *fanPresent = true;
+
+    const auto vDsgn = readSpecPositive(nodeProps.ac_spec, "V_inner", modeKey(operationMode), "dsgn");
+    double lambda = 0.0;
+    if (vDsgn && *vDsgn > 0.0) {
+        lambda = std::clamp(std::max(0.0, targetFlowM3s) / *vDsgn, 0.0, 1.0);
+    }
+
+    bool updated = false;
+    for (auto e : fans) {
+        auto& edge = graph[e];
+        ensureFanRatedCurve(edge);
+        EdgeProperties desired = edge;
+        applyFanAffinity(desired, lambda);
+        const double qScale = std::max({edge.q_max_rated, edge.q_max, desired.q_max, 1e-6});
+        const double pScale = std::max({edge.p_max_rated, edge.p_max, desired.p_max, 1e-6});
+        const bool same =
+            std::abs(edge.q_max - desired.q_max) <= ratioTol * qScale &&
+            std::abs(edge.q1 - desired.q1) <= ratioTol * qScale &&
+            std::abs(edge.p_max - desired.p_max) <= ratioTol * pScale &&
+            std::abs(edge.p1 - desired.p1) <= ratioTol * pScale;
+        if (same) continue;
+        applyFanAffinity(edge, lambda);
+        updated = true;
+    }
+    return updated;
+}
+
 std::optional<double> computeTargetFlowFromProcessedHeat(const VertexProperties& nodeProps,
                                                          OperationMode operationMode,
                                                          double processedHeatW,

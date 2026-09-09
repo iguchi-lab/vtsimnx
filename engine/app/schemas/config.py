@@ -358,6 +358,20 @@ class AirconModel(_StrictExtraBase):
         description="送風量",
         json_schema_extra=field_extra(VOLUME_FLOW_M3_S),
     )
+    p_max: Optional[float] = Field(
+        default=None,
+        description="空調ファン定格の最大静圧。指定時は固定風量ではなく PQ",
+        json_schema_extra=field_extra(PRESSURE_PA),
+    )
+    p1: Optional[float] = None
+    q1: Optional[float] = None
+    q_max: Optional[float] = None
+    area: Optional[float] = Field(
+        default=None,
+        description="PQ 時の空調→吹出つなぎの断面積",
+        json_schema_extra=field_extra(AREA_M2),
+    )
+    k_total: Optional[float] = None
     in_: Optional[str] = Field(default=None, alias="in")
     out: Optional[str] = None
 

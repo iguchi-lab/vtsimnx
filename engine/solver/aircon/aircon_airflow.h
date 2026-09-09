@@ -25,6 +25,17 @@ bool updateDuctCentralCircuitFixedFlows(VentilationNetwork& ventNetwork,
                                         double targetFlowM3s,
                                         double flowTolM3s);
 
+// subtype=aircon のファン枝があるとき、負荷比 λ=targetFlow/V_dsgn で定格 PQ を相似縮小する。
+// q' = λ q_rated、p' = λ² p_rated。実風量は圧力計算の交点であり、枝へ vol は書かない。
+// fanPresent が非 null なら、対象ファン枝の有無を返す。曲線が変わったとき true。
+bool updateDuctCentralFanAffinity(VentilationNetwork& ventNetwork,
+                                  const VertexProperties& nodeProps,
+                                  OperationMode operationMode,
+                                  const std::string& airconNode,
+                                  double targetFlowM3s,
+                                  double ratioTol,
+                                  bool* fanPresent = nullptr);
+
 // 基準熱量から目標風量 [m3/s] を求める。
 // - 熱量 <= 0 → 0
 // - 0 < 熱量 < Q.min → V_dsgn * Q.min/Q.rtd（最低風量。Q.min が無い機種は線形のまま）

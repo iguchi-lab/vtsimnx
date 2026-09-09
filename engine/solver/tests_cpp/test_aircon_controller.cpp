@@ -1169,6 +1169,89 @@ int main() {
         expectNear(supplyAfter, intakeAfter, 1e-12, "stale supply resynced to intake");
     }
 
+    // DUCT_CENTRAL: ファン枝があるときは vol を書かず、定格 PQ を λ と λ² で縮める
+    {
+        auto& in = thermal.getNode("IN");
+        auto& b = thermal.getNode("B");
+        in.current_t = 20.0;
+        b.current_t = 30.0;
+        b.current_mode = "HEATING";
+        b.on = true;
+        b.model = "DUCT_CENTRAL";
+        b.in_node = "IN";
+        b.set_node.clear();
+        b.aircon_control_state = AirconControlState::SetpointControlled;
+        b.current_requested_pre_temp = 20.0;
+        b.current_pre_temp = 20.0;
+        b.ac_spec = nlohmann::json{
+            {"Q", {{"heating", {{"rtd", 7.2}}}, {"cooling", {{"rtd", 7.2}}}}},
+            {"V_inner", {{"heating", {{"dsgn", 0.2}}}, {"cooling", {{"dsgn", 0.2}}}}},
+        };
+        b.initializeAirconSpec();
+
+        VentilationNetwork vent;
+        auto& vg = vent.getGraph();
+        const auto vIn = boost::add_vertex(makeNode("IN", "normal", in.current_t), vg);
+        const auto vB = boost::add_vertex(makeNode("B", "aircon", b.current_t), vg);
+        const auto vSupply = boost::add_vertex(makeNode("SUPPLY", "normal", 22.0), vg);
+
+        EdgeProperties fan{};
+        fan.key = "in_b";
+        fan.unique_id = "in_b";
+        fan.type = "fan";
+        fan.subtype = "aircon";
+        fan.source = "IN";
+        fan.target = "B";
+        fan.p_max = 80.0;
+        fan.p1 = 40.0;
+        fan.q1 = 0.1;
+        fan.q_max = 0.2;
+        fan.fan_curve_rated = true;
+        fan.p_max_rated = 80.0;
+        fan.p1_rated = 40.0;
+        fan.q1_rated = 0.1;
+        fan.q_max_rated = 0.2;
+        (void)boost::add_edge(vIn, vB, fan, vg);
+
+        EdgeProperties loss{};
+        loss.key = "b_supply";
+        loss.unique_id = "b_supply";
+        loss.type = "pressure_loss";
+        loss.subtype = "aircon";
+        loss.source = "B";
+        loss.target = "SUPPLY";
+        loss.area = 0.05;
+        loss.k_total = 1.0;
+        (void)boost::add_edge(vB, vSupply, loss, vg);
+
+        FlowRateMap flows;
+        flows[{"IN", "B"}] = 0.2;
+        std::ostringstream logs;
+        expectTrue(controller.checkAndAdjustDuctCentralAirflow(thermal, vent, flows, logs),
+                   "fan affinity should update when speed ratio is below 1");
+
+        double qMax = -1.0;
+        double pMax = -1.0;
+        bool lossUnchanged = false;
+        for (auto edge : boost::make_iterator_range(boost::edges(vg))) {
+            const auto src = vg[boost::source(edge, vg)].key;
+            const auto dst = vg[boost::target(edge, vg)].key;
+            if (src == "IN" && dst == "B") {
+                qMax = vg[edge].q_max;
+                pMax = vg[edge].p_max;
+                expectTrue(!vg[edge].has_prescribed_vol, "fan branch must not carry prescribed vol");
+            }
+            if (src == "B" && dst == "SUPPLY") {
+                lossUnchanged = vg[edge].type == "pressure_loss" && vg[edge].k_total == 1.0;
+            }
+        }
+        const double qW = archenv::DENSITY_DRY_AIR * archenv::SPECIFIC_HEAT_AIR * 0.2 * (30.0 - 20.0);
+        const double lambda = std::clamp((0.2 * std::clamp(qW / (7.2 * 1000.0), 0.0, 1.0)) / 0.2, 0.0, 1.0);
+        expectNear(qMax, 0.2 * lambda, 1e-6, "fan q_max scales with speed ratio");
+        expectNear(pMax, 80.0 * lambda * lambda, 1e-6, "fan p_max scales with speed ratio squared");
+        expectTrue(lossUnchanged, "pressure_loss connector is not overwritten");
+    }
+
     // DUCT_CENTRAL: in == out のループでも吹出を逆符号にしない
     {
         auto& in = thermal.getNode("IN");

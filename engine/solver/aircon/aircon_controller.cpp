@@ -603,9 +603,12 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
         const double flowTol = std::max({kMinFlowTol, kAbsFlowMatch * 0.1,
                                          std::max({targetFlow, currentFlow, kAbsFlowSnap}) * kRelativeFlowTol});
 
-        // 吸込が既に目標でも吹出がずれていれば更新する。一致判定は枝側で行う。
-        bool edgeUpdated = false;
-        if (!nodeProps.in_node.empty()) {
+        // ファン枝があれば速度比だけを載せ、固定風量は触らない。無いときだけ vol を書く。
+        bool fanPresent = false;
+        bool edgeUpdated = aircon::airflow::updateDuctCentralFanAffinity(
+            ventNetwork, nodeProps, context.operationMode, nodeProps.key, targetFlow,
+            kRelativeFlowTol, &fanPresent);
+        if (!fanPresent && !nodeProps.in_node.empty()) {
             edgeUpdated = aircon::airflow::updateDuctCentralCircuitFixedFlows(
                 ventNetwork, nodeProps.in_node, nodeProps.key, targetFlow, flowTol);
         }
@@ -633,6 +636,7 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
             << " DUCT_CENTRAL風量補正: 基準熱量(" << heatBasis << ")="
             << std::fixed << std::setprecision(2) << heatForFlowW << "W"
             << " (計測=" << measuredHeatW << "W)"
+            << (fanPresent ? ", ファン速度比を更新" : "")
             << ", 風量 " << context.airFlowRate << "→" << targetFlow << " m3/s"
             << (heldAtMinimumFlow ? ", 最低風量維持" : "")
             << ", 再計算要求";

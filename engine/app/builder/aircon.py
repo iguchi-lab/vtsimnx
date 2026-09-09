@@ -4,6 +4,25 @@ from .logger import get_logger
 
 logger = get_logger(__name__)
 
+_FAN_KEYS = ("p_max", "p1", "q1", "q_max")
+# PQ 時の空調→吹出は短いつなぎ。室への分け前は利用者が書く pressure_loss に任せる。
+_DEFAULT_CONNECTOR_AREA = 0.05
+_DEFAULT_CONNECTOR_K = 1.0
+
+
+def _fan_params(aircon: dict) -> dict | None:
+    """定格 PQ が揃っていれば返す。一部だけならエラー。無ければ固定風量。"""
+    present = [key for key in _FAN_KEYS if aircon.get(key) is not None]
+    if not present:
+        return None
+    missing = [key for key in _FAN_KEYS if aircon.get(key) is None]
+    if missing:
+        raise ValueError(
+            f"空調 {aircon.get('key', '?')}: PQ を使うときは {_FAN_KEYS} をすべて指定してください"
+            f"（不足: {', '.join(missing)}）"
+        )
+    return {key: float(aircon[key]) for key in _FAN_KEYS}
+
 
 def process_aircon(aircon: dict) -> tuple[list, list]:
     """空調を処理する"""
@@ -22,15 +41,12 @@ def process_aircon(aircon: dict) -> tuple[list, list]:
     calc_x = bool(aircon.get("calc_x", False))
     calc_c = bool(aircon.get("calc_c", False))
 
-    ventilation_chain = [
-        f"{in_node}->{aircon_out_node}",
-        f"{aircon_out_node}->{out_node}",
-    ]
+    fan = _fan_params(aircon)
     vol = aircon.get("vol", 1000 / 3600)
 
     # ノードの追加
     logger.info(
-        "　エアコンを追加します: key=%s set=%s in=%s out=%s outside=%s calc_x=%s calc_c=%s vol=%s",
+        "　エアコンを追加します: key=%s set=%s in=%s out=%s outside=%s calc_x=%s calc_c=%s airflow=%s",
         aircon_out_node,
         set_node,
         in_node,
@@ -38,7 +54,7 @@ def process_aircon(aircon: dict) -> tuple[list, list]:
         outside_node,
         calc_x,
         calc_c,
-        vol,
+        "fan" if fan else f"vol={vol}",
     )
     logger.info(f"　エアコンノード【{aircon_out_node}】を追加します。")
     ac_node: dict = {
@@ -60,9 +76,36 @@ def process_aircon(aircon: dict) -> tuple[list, list]:
         ac_node["pre_rh"] = pre_rh
     nodes.append(ac_node)
 
-    for branch in ventilation_chain:
-        logger.info(f"　換気ブランチ【{branch}】を追加します。")
-        ventilation_branches.append({"key": branch, "vol": vol, "subtype": "aircon"})
+    intake_key = f"{in_node}->{aircon_out_node}"
+    supply_key = f"{aircon_out_node}->{out_node}"
+    if fan:
+        if aircon.get("vol") is not None:
+            logger.info("　空調 %s は PQ を使うため vol はファン枝に書きません。", aircon_out_node)
+        logger.info(f"　換気ブランチ【{intake_key}】をファンとして追加します。")
+        ventilation_branches.append(
+            {
+                "key": intake_key,
+                "type": "fan",
+                "subtype": "aircon",
+                **fan,
+            }
+        )
+        area = float(aircon.get("area") if aircon.get("area") is not None else _DEFAULT_CONNECTOR_AREA)
+        k_total = float(aircon.get("k_total") if aircon.get("k_total") is not None else _DEFAULT_CONNECTOR_K)
+        logger.info(f"　換気ブランチ【{supply_key}】を圧損として追加します。")
+        ventilation_branches.append(
+            {
+                "key": supply_key,
+                "type": "pressure_loss",
+                "subtype": "aircon",
+                "area": area,
+                "k_total": k_total,
+            }
+        )
+    else:
+        for branch in (intake_key, supply_key):
+            logger.info(f"　換気ブランチ【{branch}】を追加します。")
+            ventilation_branches.append({"key": branch, "vol": vol, "subtype": "aircon"})
 
     return nodes, ventilation_branches
 

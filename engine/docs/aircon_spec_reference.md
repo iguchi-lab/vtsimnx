@@ -108,6 +108,7 @@ flowchart LR
 - 単位: `Q` / `P` / `P_fan` は [kW]、風量は [m³/s]
 - 運転点入力 `InputData` では `V_vent`（換気分, [m³/s]）を使用可能。`V_outer` とは別入力で、既定は `0`。
 - solver 制御では `Q.<mode>.rtd` と `V_inner.<mode>.dsgn` を使って、処理熱量連動の送風量補正を行う（`Q=0 -> V=0`, `0<Q<Q.min -> V=V_dsgn*Q.min/Q.rtd`, `Q=Q_rtd -> V=V_dsgn`）。能力制限中・未達は `Q.max`/`rtd`/`mid`、設定維持中は室負荷 `|required_heat_w|`。
+- この比の載せ方は二つある。`vol` のみなら還気・吹出の `fixed_flow`。`p_max`・`p1`・`q1`・`q_max` が揃えばファン枝を速度比で縮め、実風量は圧力計算の交点。同じ枝には両方載せない。詳細は [`aircon_control_principles.md`](aircon_control_principles.md) §5.3。
 
 能力上限: **`Q.<mode>.max`** があればそれを使用。無い場合は **`Q.<mode>.rtd`**。それも無い場合は **`Q.<mode>.mid`**。
 

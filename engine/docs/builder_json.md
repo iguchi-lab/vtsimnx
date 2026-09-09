@@ -446,7 +446,9 @@ RC/CTFの詳細は以下:
 - `model`（任意）: エアコンモデル種別。`CRIEPI` / `RAC` / `DUCT_CENTRAL` / `LATENT_EVALUATE`。**未指定時は RAC**
 - `mode`（必須）: 運転モード（時系列）
 - `ac_spec`（任意）: 能力・電力・風量などの仕様JSON。モデル別の形は `docs/aircon_spec_reference.md` を参照
-- `vol`（任意）: 風量（未指定時は既定値）
+- `vol`（任意）: 固定風量（未指定時は既定値）。`p_max` などが無いときの既定
+- `p_max` / `p1` / `q1` / `q_max`（任意）: 揃っていれば固定風量の代わりにファン枝を作る。`vol` はファン枝に書かない
+- `area` / `k_total`（任意）: ファン時の空調→吹出つなぎ（`pressure_loss`）。省略時は `area=0.05`、`k_total=1`
 - `in`/`out`（任意）: 吸込/吹出ノード（省略時は `set`）。`set` と異なってよい（遠隔 set）
 
 ---

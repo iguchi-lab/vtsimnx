@@ -170,6 +170,12 @@ struct EdgeProperties {
     double p1 = 0.0;
     double q_max = 0.0;
     double q1 = 0.0;
+    // ファン相似則の基準曲線（JSON の定格）。速度比 λ で p/q を上書きする前に保持する。
+    bool fan_curve_rated = false;
+    double p_max_rated = 0.0;
+    double p1_rated = 0.0;
+    double q_max_rated = 0.0;
+    double q1_rated = 0.0;
     // pressure_loss 用（dp = 0.5*rho*(Q/A)^2*K_total）
     double k_total = 0.0;
     double friction_factor = 0.0;

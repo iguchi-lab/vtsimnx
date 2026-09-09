@@ -240,6 +240,13 @@ std::vector<EdgeProperties> parseVentilationBranches(const json& config, std::os
         if (branchJson.contains("p1"))      branch.p1      = branchJson["p1"].get<double>();
         if (branchJson.contains("q_max"))   branch.q_max   = branchJson["q_max"].get<double>();
         if (branchJson.contains("q1"))      branch.q1      = branchJson["q1"].get<double>();
+        if (branch.type == "fan") {
+            branch.fan_curve_rated = true;
+            branch.p_max_rated = branch.p_max;
+            branch.p1_rated = branch.p1;
+            branch.q_max_rated = branch.q_max;
+            branch.q1_rated = branch.q1;
+        }
         if (branchJson.contains("k_total")) branch.k_total = branchJson["k_total"].get<double>();
         if (branchJson.contains("friction_factor")) branch.friction_factor = branchJson["friction_factor"].get<double>();
         if (branchJson.contains("length")) branch.length = branchJson["length"].get<double>();
