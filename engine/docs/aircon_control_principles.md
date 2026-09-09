@@ -277,4 +277,4 @@ q' = \lambda\, q_\mathrm{rated},\qquad p' = \lambda^{2}\, p_\mathrm{rated}
 - ループ図: [`simulation_loops.md`](simulation_loops.md)
 - `ac_spec` のキー: [`aircon_spec_reference.md`](aircon_spec_reference.md)
 - COP と送風機式: [`acmodel_overview.md`](acmodel_overview.md)
-- 実装: `solver/aircon/aircon_controller.cpp`、`solver/aircon/aircon_airflow.cpp`、`solver/simulation_aircon_iteration.cpp`
+- 実装: 外側の順は `solver/simulation_aircon_iteration.cpp`。各台への適用は `solver/aircon/aircon_controller.cpp`。判定は `aircon_onoff`（ON/OFF）、`aircon_capacity`（能力制限）、`aircon_airflow`（基準熱量と風量）、`aircon_latent`（潜熱・吹出湿度）
