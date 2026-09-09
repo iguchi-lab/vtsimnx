@@ -153,16 +153,21 @@ dual-row 後の `set_node` 熱収支が ≈0 になり上記式は常に `Qreq�
 ```mermaid
 flowchart TD
     M{"mode"} -->|OFF| Z["強制 OFF"]
-    M -->|ON + Qreq あり| Q{"符号付き必要負荷"}
-    Q -->|HEATING かつ Qreq > +tol| ON1["ON 維持"]
-    Q -->|HEATING かつ Qreq ≤ +tol| OFF1["OFF"]
-    Q -->|COOLING かつ Qreq < −tol| ON2["ON 維持"]
-    Q -->|COOLING かつ Qreq ≥ −tol| OFF2["OFF"]
-    M -->|OFF 中 / Qreq なし| T["室温 vs 要求設定（deadband）"]
+    M -->|設定維持中かつ Qreq を信頼できる| Q{"符号付き必要負荷"}
+    Q -->|Q.min ありかつ絶対値が Q.min 未満| H{"停止すると再起動幅の外?"}
+    H -->|Yes| HOLD["ON のまま Q.min を処理"]
+    H -->|No| OFFQ["OFF"]
+    Q -->|HEATING かつ Qreq が Q.on 以上| ON1["ON 維持"]
+    Q -->|HEATING かつ Qreq が Q.on 未満| OFF1["OFF"]
+    Q -->|COOLING かつ Qreq が −Q.on 以下| ON2["ON 維持"]
+    Q -->|COOLING かつ Qreq が −Q.on より大きい| OFF2["OFF"]
+    M -->|OFF 中 / Qreq を信頼しない| T["室温 vs 要求設定（最低 1 K）"]
 ```
 
-- 暖房: `Qreq > tol` なら ON。`Qreq ≤ tol`（冷房需要・ほぼゼロ含む）なら OFF
-- 冷房: `Qreq < -tol` なら ON。それ以外は OFF
+`Q.on` は、仕様に `Q.min` があればその値、無ければ約 1 W です。
+
+- 暖房: `Qreq` が `Q.on` 以上なら ON。未満（冷房需要・ほぼゼロ含む）なら OFF
+- 冷房: `Qreq` が `-Q.on` 以下なら ON。それ以外は OFF
 - `Q.<mode>.min` がある機種（RAC・CRIEPI・DUCT_CENTRAL を含む）は、設定維持中の `|Qreq|` が `Q.min` 未満なら OFF（最低能力より小さい熱処理はしない）。再開は温度バンドのみ
 - 例外: 停止側の `set` 室温がすでに再起動幅（最低 1 K）の外なら、ON と OFF が共存する。このときは OFF にせず、処理熱を `Q.min` にする。考え方は [`aircon_control_principles.md`](aircon_control_principles.md) の §4.2
 - OFF 中の再起動は従来どおり温度バンド（帯内は現状維持）
