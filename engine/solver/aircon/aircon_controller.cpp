@@ -1,4 +1,5 @@
 #include "aircon/aircon_controller.h"
+#include "aircon/aircon_onoff.h"
 #include "aircon/aircon_capacity.h"
 #include "aircon/aircon_airflow.h"
 #include "aircon/aircon_latent.h"
@@ -320,7 +321,7 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
         //
         // 処理風量がほぼ 0 のときも Qreq（コイル熱）は信頼しない。
         // 固定温度行で室温だけ目標付近に見えて Qreq≈0→OFF→再ON の振動になる。
-        const double setpointBandK = std::max(tolerance, 1.0);
+        const double setpointBandK = aircon::onoff::restartBandK(tolerance);
         const bool nearSetpoint =
             std::isfinite(nodeProps.current_pre_temp) &&
             std::abs(currentTemp - nodeProps.current_pre_temp) <= setpointBandK;
@@ -347,14 +348,9 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
         // 未達・能力制限中は温度側のまま運転を続ける。OFF 後の再開は温度バンドのみ。
         // 停止すると再起動幅を超える室温なら、OFF にせず最低能力で継続する。
         double minProcessHeatW = 0.0;
-        std::string minMode = "heating";
+        const char* minMode = aircon::onoff::minCapacityModeKey(
+            nodeProps.current_mode, nodeProps.required_heat_w);
         if (useRequiredHeat) {
-            if (nodeProps.current_mode == "COOLING") {
-                minMode = "cooling";
-            } else if (nodeProps.current_mode == "AUTO" &&
-                       nodeProps.required_heat_w < 0.0) {
-                minMode = "cooling";
-            }
             if (const auto* spec = nodeProps.getAirconSpec()) {
                 if (const auto qMinKW = spec->getCapacity(minMode, "min")) {
                     if (*qMinKW > 0.0) minProcessHeatW = *qMinKW * 1000.0;
@@ -362,21 +358,20 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
             }
         }
         bool holdAtMinimumCapacity = false;
-        if (useRequiredHeat && minProcessHeatW > 1.0 && std::isfinite(nodeProps.required_heat_w)) {
-            const bool belowMin = std::abs(nodeProps.required_heat_w) < minProcessHeatW;
+        if (useRequiredHeat && minProcessHeatW > aircon::onoff::kLoadDeadbandW &&
+            std::isfinite(nodeProps.required_heat_w) &&
+            std::abs(nodeProps.required_heat_w) < minProcessHeatW) {
             const auto freeIt = lastFreeSetTempC_.find(airconKey);
-            if (belowMin && freeIt != lastFreeSetTempC_.end() && std::isfinite(freeIt->second)) {
-                const double diff = freeIt->second - targetTemp;
-                const bool restart =
-                    (minMode == "cooling") ? (diff > setpointBandK) : (diff < -setpointBandK);
-                holdAtMinimumCapacity = restart;
+            if (freeIt != lastFreeSetTempC_.end()) {
+                holdAtMinimumCapacity = aircon::onoff::temperatureWouldRestart(
+                    minMode, freeIt->second, targetTemp, setpointBandK);
             }
         }
         auto result = controlAircon(nodeProps, currentTemp, targetTemp, tolerance, logFile,
                                     useRequiredHeat, nodeProps.required_heat_w,
                                     /*loadDeadbandW=*/1.0, minProcessHeatW, holdAtMinimumCapacity);
         if (holdAtMinimumCapacity && result.on && std::isfinite(nodeProps.required_heat_w)) {
-            const double signedMin = (minMode == "cooling") ? -minProcessHeatW : minProcessHeatW;
+            const double signedMin = (std::string(minMode) == "cooling") ? -minProcessHeatW : minProcessHeatW;
             nodeProps.required_heat_w = signedMin;
         }
         writeDomainLog(logFile, "空調", result.logMessage);
@@ -559,50 +554,15 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
         }
         const double measuredHeatW = aircon::latent::totalHeatCapacity(loads);
 
-        // 風量比の基準熱量:
-        // - 能力制限中・要求設定未達: Q_max（追いつくまで設計風量側）
-        // - 設定を保持できている: |required_heat_w|（室負荷。コイル熱 Q∝V は使わない）
-        //   室負荷が無いときだけ Q_max に戻し、0 縮小を防ぐ
-        // - set_node なし等で室温が自由: 計測処理熱
-        double heatForFlowW = measuredHeatW;
-        const char* heatBasis = "計測処理熱";
-        const double unmetBandK = 0.5;
         double controlledRoomTemp = context.validData.setTemp;
         if (!nodeProps.set_node.empty()) {
             (void)aircon::network_utils::tryGetTempFromThermalNetwork(
                 thermalNetwork, nodeProps.set_node, controlledRoomTemp);
         }
-        const bool heatingUnmet =
-            isHeating(context.operationMode) &&
-            std::isfinite(nodeProps.current_requested_pre_temp) &&
-            (controlledRoomTemp < nodeProps.current_requested_pre_temp - unmetBandK);
-        const bool coolingUnmet =
-            !isHeating(context.operationMode) &&
-            std::isfinite(nodeProps.current_requested_pre_temp) &&
-            (controlledRoomTemp > nodeProps.current_requested_pre_temp + unmetBandK);
-        const bool capacityLimited =
-            nodeProps.aircon_control_state == AirconControlState::CapacityLimited;
-        const bool setpointHeld = nodeProps.on && !nodeProps.set_node.empty() &&
-                                   !capacityLimited && !heatingUnmet && !coolingUnmet;
-        const bool useExogenousHeatForFlow = capacityLimited || heatingUnmet || coolingUnmet || setpointHeld;
-        std::string maxSource;
-        const auto qMax = aircon::capacity::resolveMaxHeatCapacity(
-            nodeProps, context.operationMode, maxSource);
-        if (capacityLimited || heatingUnmet || coolingUnmet) {
-            if (qMax) {
-                heatForFlowW = *qMax;
-                heatBasis = capacityLimited ? "能力上限" : "未達→能力上限";
-            }
-        } else if (setpointHeld) {
-            if (std::isfinite(nodeProps.required_heat_w)) {
-                heatForFlowW = std::abs(nodeProps.required_heat_w);
-                if (qMax && heatForFlowW > *qMax) heatForFlowW = *qMax;
-                heatBasis = "設定維持負荷";
-            } else if (qMax) {
-                heatForFlowW = *qMax;
-                heatBasis = "設定固定→能力上限";
-            }
-        }
+        const auto heatBasis = aircon::airflow::selectFlowHeatBasis(
+            nodeProps, context.operationMode, measuredHeatW, controlledRoomTemp);
+        const double heatForFlowW = heatBasis.heatW;
+        const bool useExogenousHeatForFlow = heatBasis.exogenous;
 
         bool heldAtMinimumFlow = false;
         const auto targetFlowOpt = aircon::airflow::computeTargetFlowFromProcessedHeat(
@@ -652,7 +612,7 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
         unitReasons |= AirconRecomputeReason::AirflowChanged;
         std::ostringstream oss;
         oss << "　" << airconKey
-            << " DUCT_CENTRAL風量補正: 基準熱量(" << heatBasis << ")="
+            << " DUCT_CENTRAL風量補正: 基準熱量(" << heatBasis.label << ")="
             << std::fixed << std::setprecision(2) << heatForFlowW << "W"
             << " (計測=" << measuredHeatW << "W)"
             << (fanPresent ? ", ファン速度比を更新" : "")

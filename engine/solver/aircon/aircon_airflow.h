@@ -36,6 +36,18 @@ bool updateDuctCentralFanAffinity(VentilationNetwork& ventNetwork,
                                   double ratioTol,
                                   bool* fanPresent = nullptr);
 
+// 風量比に使う基準熱量。計測コイル熱は室温が自由なときだけ。
+struct FlowHeatBasis {
+    double heatW = 0.0;
+    const char* label = "計測処理熱";
+    bool exogenous = false;
+};
+
+FlowHeatBasis selectFlowHeatBasis(const VertexProperties& nodeProps,
+                                  OperationMode operationMode,
+                                  double measuredHeatW,
+                                  double controlledRoomTemp);
+
 // 基準熱量から目標風量 [m3/s] を求める。
 // - 熱量 <= 0 → 0
 // - 0 < 熱量 < Q.min → V_dsgn * Q.min/Q.rtd（最低風量。Q.min が無い機種は線形のまま）

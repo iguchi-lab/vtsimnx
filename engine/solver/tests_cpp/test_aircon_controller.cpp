@@ -956,6 +956,75 @@ int main() {
         expectTrue(!r.stateChanged && !r.on, "below-min OFF must not restart inside 1K band");
     }
 
+    // 停止すると再起動幅の外に出るときは OFF にせず、最低能力で継続する。
+    {
+        VertexProperties ac;
+        ac.key = "HMIN_HOLD";
+        ac.set_node = "ROOM";
+        ac.current_mode = "HEATING";
+        ac.on = true;
+        ac.required_heat_w = 160.0;
+        std::ostringstream logs;
+        auto r = controller.controlAircon(ac, 20.0, 20.0, 0.5, logs, true, ac.required_heat_w, 1.0,
+                                          2706.9, /*holdAtMinimumCapacity=*/true);
+        expectTrue(!r.stateChanged && r.on, "coexistence must stay ON at minimum capacity");
+        expectTrue(r.logMessage.find("再起動と共存のため最低能力で継続") != std::string::npos,
+                   "hold-min log should cite coexistence");
+    }
+    {
+        auto runHoldMin = [&](const std::string& mode, double freeTemp, double qReq,
+                              bool expectHold, const std::string& msg) {
+            ThermalNetwork net;
+            auto room = makeNode("ROOM", "normal", freeTemp);
+            auto ac = makeNode("HOLD", "aircon", freeTemp);
+            ac.model = "IDEAL";
+            ac.current_mode = mode;
+            ac.on = false;
+            ac.set_node = "ROOM";
+            ac.in_node = "ROOM";
+            setRequestedAndEffective(ac, 20.0);
+            ac.ac_spec = nlohmann::json{
+                {"Q", {{"heating", {{"min", 2.7069}, {"rtd", 7.2}}},
+                       {"cooling", {{"min", 2.7069}, {"rtd", 7.2}}}}},
+            };
+            ac.initializeAirconSpec();
+            net.addNode(room);
+            net.addNode(ac);
+            AirconController local;
+            std::ostringstream logs;
+            local.initializeModels(net, logs, 0);
+            FlowRateMap flows;
+            flows[{"ROOM", "HOLD"}] = 0.1;
+
+            (void)local.controlAllAircons(net, 0.5, logs, nullptr, 1e-9, nullptr, &flows);
+
+            net.getNode("ROOM").current_t = 20.0;
+            auto& held = net.getNode("HOLD");
+            held.on = true;
+            held.required_heat_w = qReq;
+            setRequestedAndEffective(held, 20.0);
+            std::ostringstream logs2;
+            (void)local.controlAllAircons(net, 0.5, logs2, nullptr, 1e-9, nullptr, &flows);
+
+            const double signedMin = (mode == "COOLING") ? -2706.9 : 2706.9;
+            if (expectHold) {
+                expectTrue(held.on, msg + " stays ON");
+                expectNear(held.required_heat_w, signedMin, 1e-6, msg + " processes signed Q.min");
+                expectTrue(logs2.str().find("再起動と共存のため最低能力で継続") != std::string::npos,
+                           msg + " cites coexistence");
+            } else {
+                expectTrue(!held.on, msg + " turns OFF");
+                expectTrue(!std::isfinite(held.required_heat_w), msg + " clears required heat");
+            }
+        };
+        runHoldMin("HEATING", 18.9, 160.0, true,
+                   "heating below Q.min with free temp outside restart band");
+        runHoldMin("HEATING", 19.5, 160.0, false,
+                   "heating below Q.min with free temp inside restart band");
+        runHoldMin("COOLING", 21.2, -160.0, true,
+                   "cooling below Q.min with free temp outside restart band");
+    }
+
     // AirconStateProposal: ON/OFF 変化で OnOffChanged が立つ
     {
         thermal.addNode(makeNode("ROOM2", "normal", 18.0));

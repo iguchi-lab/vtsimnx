@@ -1,6 +1,7 @@
 #pragma once
 
 #include "vtsim_solver.h"
+#include "aircon/aircon_onoff.h"
 #include "aircon/aircon_operation_mode.h"
 #include "aircon/aircon_capacity.h"
 #include "types/aircon_control_state.h"
@@ -163,78 +164,13 @@ public:
             return result;
         }
 
-        bool shouldBeOn = false;
-        std::ostringstream detail;
-
-        // ON かつ fixed-row 後の必要負荷が取れるときは符号付き負荷で active-set を決める。
-        // （固定後の室温は常に設定値付近なので温度比較では停止判定できない）
-        // 符号: Qrequired>0 = 暖房需要、Qrequired<0 = 冷房需要
-        if (useRequiredHeat && nodeProps.on && std::isfinite(requiredHeatW)) {
-            const double qTol = std::max(0.0, loadDeadbandW);
-            // 最低能力未満は連続して熱処理できないので停止する。
-            // ちょうど Q.min は出せるので継続。Q.min が無い機種は従来の 1W 帯。
-            // ただし停止すると再起動幅を超えるときは OFF にせず、最低能力で継続する。
-            const bool useMinCapacity = std::isfinite(minProcessHeatW) && minProcessHeatW > qTol;
-            const double qOn = useMinCapacity ? minProcessHeatW : qTol;
-            if (holdAtMinimumCapacity && useMinCapacity) {
-                shouldBeOn = true;
-            } else if (nodeProps.current_mode == "HEATING") {
-                shouldBeOn = useMinCapacity ? (requiredHeatW >= qOn) : (requiredHeatW > qOn);
-            } else if (nodeProps.current_mode == "COOLING") {
-                shouldBeOn = useMinCapacity ? (requiredHeatW <= -qOn) : (requiredHeatW < -qOn);
-            } else if (nodeProps.current_mode == "AUTO") {
-                shouldBeOn = useMinCapacity ? (std::abs(requiredHeatW) >= qOn)
-                                            : (std::abs(requiredHeatW) > qOn);
-            } else {
-                throw std::runtime_error("エアコンのモードが不正です: " + nodeProps.current_mode);
-            }
-            detail << "Qreq=" << requiredHeatW << "W";
-            if (holdAtMinimumCapacity && useMinCapacity) {
-                detail << " < Q.min=" << qOn << "W, 再起動と共存のため最低能力で継続";
-            } else if (useMinCapacity && !shouldBeOn) {
-                detail << " < Q.min=" << qOn << "W";
-            }
-        } else {
-            // OFF 中（室温が自由）または負荷未評価: 温度バンド
-            // thermal/空調の数値 tol が 1e-6 など極小だと、Qreq≈0 で OFF した直後に
-            // T が設定+0.003℃へ僅かに浮いただけでも再 ON し、外側ループが振動する。
-            // 遠隔 set では OFF 後に室温が設定−0.7K 程度まで落ちることがあり、
-            // 0.5K 帯だと即再 ON するため最低 1.0K のヒステリシスを使う。
-            const double tempBandK = std::max(tolerance, 1.0);
-            const double diff = currentTemp - targetTemp;
-            const bool withinBand = (std::abs(diff) <= tempBandK);
-            if (nodeProps.current_mode == "HEATING") {
-                if (withinBand) shouldBeOn = nodeProps.on;
-                else shouldBeOn = (diff < 0.0);
-            } else if (nodeProps.current_mode == "COOLING") {
-                if (withinBand) shouldBeOn = nodeProps.on;
-                else shouldBeOn = (diff > 0.0);
-            } else if (nodeProps.current_mode == "AUTO") {
-                shouldBeOn = withinBand ? nodeProps.on : true;
-            } else {
-                throw std::runtime_error("エアコンのモードが不正です: " + nodeProps.current_mode);
-            }
-            detail << "T=" << currentTemp << "°C";
-        }
-
-        if (shouldBeOn != nodeProps.on) {
-            result.stateChanged = true;
-            result.on = shouldBeOn;
-            const char* transition = nodeProps.on ? "ON→OFF" : "OFF→ON";
-            const char* action = result.on ? "起動" : "停止";
-            std::ostringstream oss;
-            oss << "　" << targetName << " エアコン " << transition << " (" << action << ")"
-                << " : " << detail.str()
-                << ", 目標 " << targetTemp << "°C";
-            result.logMessage = oss.str();
-        } else {
-            std::ostringstream oss;
-            oss << "　" << targetName << " エアコン: "
-                << (shouldBeOn ? "運転継続" : "停止維持")
-                << " (" << detail.str()
-                << ", 目標 " << targetTemp << "°C)";
-            result.logMessage = oss.str();
-        }
+        const auto decision = aircon::onoff::decide(
+            nodeProps.current_mode, nodeProps.on, currentTemp, targetTemp, tolerance,
+            useRequiredHeat, requiredHeatW, loadDeadbandW, minProcessHeatW, holdAtMinimumCapacity);
+        result.on = decision.shouldBeOn;
+        result.stateChanged = decision.shouldBeOn != nodeProps.on;
+        result.logMessage = aircon::onoff::formatLog(
+            targetName, nodeProps.on, decision.shouldBeOn, targetTemp, decision.detail);
         return result;
     }
 

@@ -1,6 +1,8 @@
 #include "aircon/aircon_airflow.h"
 
+#include "aircon/aircon_capacity.h"
 #include "aircon/aircon_operation_mode.h"
+#include "types/aircon_control_state.h"
 
 #include <algorithm>
 #include <cmath>
@@ -215,6 +217,47 @@ bool updateDuctCentralFanAffinity(VentilationNetwork& ventNetwork,
         updated = true;
     }
     return updated;
+}
+
+FlowHeatBasis selectFlowHeatBasis(const VertexProperties& nodeProps,
+                                  OperationMode operationMode,
+                                  double measuredHeatW,
+                                  double controlledRoomTemp) {
+    FlowHeatBasis basis;
+    basis.heatW = measuredHeatW;
+    constexpr double kUnmetBandK = 0.5;
+    const bool heatingUnmet =
+        isHeating(operationMode) &&
+        std::isfinite(nodeProps.current_requested_pre_temp) &&
+        (controlledRoomTemp < nodeProps.current_requested_pre_temp - kUnmetBandK);
+    const bool coolingUnmet =
+        !isHeating(operationMode) &&
+        std::isfinite(nodeProps.current_requested_pre_temp) &&
+        (controlledRoomTemp > nodeProps.current_requested_pre_temp + kUnmetBandK);
+    const bool capacityLimited =
+        nodeProps.aircon_control_state == AirconControlState::CapacityLimited;
+    const bool setpointHeld = nodeProps.on && !nodeProps.set_node.empty() &&
+                               !capacityLimited && !heatingUnmet && !coolingUnmet;
+    basis.exogenous = capacityLimited || heatingUnmet || coolingUnmet || setpointHeld;
+
+    std::string maxSource;
+    const auto qMax = aircon::capacity::resolveMaxHeatCapacity(nodeProps, operationMode, maxSource);
+    if (capacityLimited || heatingUnmet || coolingUnmet) {
+        if (qMax) {
+            basis.heatW = *qMax;
+            basis.label = capacityLimited ? "能力上限" : "未達→能力上限";
+        }
+    } else if (setpointHeld) {
+        if (std::isfinite(nodeProps.required_heat_w)) {
+            basis.heatW = std::abs(nodeProps.required_heat_w);
+            if (qMax && basis.heatW > *qMax) basis.heatW = *qMax;
+            basis.label = "設定維持負荷";
+        } else if (qMax) {
+            basis.heatW = *qMax;
+            basis.label = "設定固定→能力上限";
+        }
+    }
+    return basis;
 }
 
 std::optional<double> computeTargetFlowFromProcessedHeat(const VertexProperties& nodeProps,

@@ -59,6 +59,7 @@ set(CORE_SOURCES
 
 set(AIRCON_SOURCES
     aircon/aircon_controller.cpp
+    aircon/aircon_onoff.cpp
     aircon/aircon_latent.cpp
     aircon/aircon_capacity.cpp
     aircon/aircon_airflow.cpp
