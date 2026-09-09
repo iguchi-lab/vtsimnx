@@ -40,6 +40,8 @@ API 入力スキーマ: `engine/app/schemas/config.py` の `json_schema_extra={"
 | `p` | Pa |
 | `v` | m3 |
 | `vol` | m3/s |
+| `p_max`, `p1` | Pa |
+| `q_max`, `q1` | m3/s |
 | `x` | kg/kg' |
 | `conductance` | W/K |
 | `u_value` | W/(m2·K) |
@@ -49,6 +51,12 @@ API 入力スキーマ: `engine/app/schemas/config.py` の `json_schema_extra={"
 | `thermal_mass` | J/K |
 | `solar` | W/m2 |
 | `timestep` | s |
+| `aircon[].ac_spec.Q.*.*`, `P.*.*`, `P_fan.*.*` | kW |
+| `aircon[].ac_spec.V_inner.*.*`, `V_outer.*.*`, `V_vent` | m3/s |
+
+`DUCT_CENTRAL` の風量比は `Q.<mode>.rtd` [kW] を1000倍してWへ換算した値を分母に用いる。
+`V_inner.<mode>.dsgn` は風量制御の上限であり、`rtd` や `mid` と役割が異なる。
+入力と式の詳細は[全館空調の風量制御](duct_central_airflow_control.md)を参照する。
 
 ## 前処理と solver の単位が異なる項目
 
