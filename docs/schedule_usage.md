@@ -119,10 +119,11 @@ pre_rh = vt.schedule.pre_rh["region6"]["全館空調"]
 
 これらはモジュール import 時に一括生成され、`vt.schedule.ac_mode` などとして直接参照できます。
 
-v1.7.4では、選択した `pre_rh` の配列を `aircon[].pre_rh` に渡すと理想除湿の目標に使えます。
+v1.7.4以降では、選択した `pre_rh` の配列を `aircon[].pre_rh` に渡すと理想除湿の目標に使えます。
 計算の時刻・時間刻み・配列長を合わせてください。生成しただけでは自動的に空調へ適用されません。
 `pre_rh` は吸込温度を基準に吹出絶対湿度を決める入力であり、室の相対湿度を直接固定しません。
 温度制御がOFFのときは単独除湿しません。詳細は[空調湿度ガイド](aircon_humidity_control.md)を参照してください。
+全館空調の負荷追従風量と最低能力の扱いは[全館空調の風量制御](duct_central_airflow_control.md)を参照してください。
 
 ---
 
@@ -275,4 +276,3 @@ custom_pre_tmp = vt.schedule.build_pre_tmp()
 - 利用者向け最短導線: `builder_input_quickstart.md`
 - ノード/ブランチの早見表: `node_branch_schema.md`
 - 空調制御の詳細仕様（必要時のみ）: `engine/docs/aircon_control_overview.md`
-

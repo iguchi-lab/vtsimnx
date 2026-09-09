@@ -93,6 +93,9 @@ def test_aircon_fan_pq_keeps_supply_as_pressure_loss_and_ignores_vol():
     assert supply["type"] == "pressure_loss"
     assert supply["area"] == 0.08
     assert supply["k_total"] == 2.0
+    ac1 = next(n for n in out["nodes"] if n["key"] == "AC1")
+    assert ac1["calc_p"] is True
+    assert out["simulation"]["calc_flag"]["p"] is True
 
 
 def test_aircon_pre_rh_is_passed_to_aircon_node():
@@ -174,5 +177,4 @@ def test_aircon_pre_temp_nan_raises_when_mode_is_active():
 
     with pytest.raises(ValidationError, match="pre_temp\\[0\\].*NaN/None"):
         build_config(raw, add_surface=False, add_capacity=False)
-
 

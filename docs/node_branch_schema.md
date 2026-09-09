@@ -2,7 +2,7 @@
 
 > このページは `vt.run_calc(base_url, input_data)` で使う `input_data` のうち、`nodes` / `ventilation_branches` / `thermal_branches` を素早く確認するための早見表です。
 
-このドキュメントは、入力JSON（`input_data`）内の **nodes / ventilation_branches / thermal_branches** のキー仕様を、ユーザーが迷わない形でまとめたものです。
+このドキュメントは、入力JSON（`input_data`）内の **nodes / ventilation_branches / thermal_branches / aircon** の主要キーを、ユーザーが迷わない形でまとめたものです。
 
 ## 使い方（最初にここだけ）
 
@@ -164,6 +164,34 @@
 }
 ```
 
+## Aircon（builder入力）
+
+`aircon` は空調機ノードと吸込・吹出の換気枝へ展開される。ここで指定するキーは、
+展開後の `type="aircon"` ノードへ直接与えるフィールドとは区別する。
+
+| key | 意味 | 型 | 単位/備考 |
+|---|---|---:|---|
+| `key` | 空調機名。展開後の空調ノード名 | string | 必須 |
+| `set` | 温度制御対象ノード | string | 必須。`nodes[].key` |
+| `in` | 吸込ノード | string | 省略時は `set` |
+| `out` | 吹出ノード | string | 省略時は `set` |
+| `outside` | 外気状態の参照ノード | string | 必須。`nodes[].key` |
+| `pre_temp` | 要求設定温度 | number \| number[] | ℃ |
+| `pre_rh` | 理想除湿の設定相対湿度 | number \| number[] | %、任意 |
+| `mode` | 運転モード | string \| number[] | `OFF` / `HEATING` / `COOLING` / `AUTO` 等 |
+| `model` | 能力・COPモデル | string | `RAC` / `CRIEPI` / `DUCT_CENTRAL` 等 |
+| `vol` | 固定風量の初期値 | number \| number[] | m³/s。PQ指定時はファン枝へ書かれない |
+| `ac_spec` | 機器性能 | object | `Q`, `P`, `P_fan`, `V_inner`, `V_outer` 等 |
+| `p_max`, `p1` | ファンPQの静圧 | number | Pa。4点を一組で指定 |
+| `q_max`, `q1` | ファンPQの風量 | number | m³/s。4点を一組で指定 |
+| `area`, `k_total` | 空調機から吹出への接続圧損 | number | PQ時。既定は0.05 m²、1 |
+
+`p_max`, `p1`, `q1`, `q_max` は全部を指定した場合だけPQ方式となる。一部だけの指定は入力エラーである。
+PQ方式ではbuilderが空調機ノードの `calc_p=true` と全体の圧力計算フラグを設定する。
+指定しない場合は固定風量方式となり、builderは `in → 空調機` と `空調機 → out` の両方を
+同じ循環向きの `fixed_flow` とする。`DUCT_CENTRAL` の負荷追従、最低能力とPQの条件は
+[全館空調の風量制御](duct_central_airflow_control.md)を参照する。
+
 ## 物理的な意味と符号
 
 - 換気流量は `source → target` を正とする。負値では上流・下流が入れ替わる。`gap` は `Q = sign(Δp) * a * abs(Δp)**(1/n)` であり、`a` は開口率ではない。
@@ -178,5 +206,4 @@
 - **`source` / `target` に存在しないノード名**を入れる
 - **配列長がシミュレーション長と合っていない**（例: 8760 なのに 24 要素）
 - **単位誤り**（`vol` / `q_max` / `q1` を m3/h のまま入れる等。正本は [`units.md`](units.md)）
-
-
+- **PQの4点を一部だけ指定する**、またはPQ方式なのに圧力計算を無効にする

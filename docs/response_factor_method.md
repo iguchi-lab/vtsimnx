@@ -1,6 +1,6 @@
 # 応答係数法：壁体の履歴を用いた非定常熱伝導
 
-対象はパッケージ v1.7.4、実装 commit `9a5c379b7d7226e724cd65cce736147ba95b9792`。
+対象はパッケージ v1.7.5更新版、実装 commit `83a724d376010a85da10163de4797636d795ea90`。
 応答係数の生成・計算実装は、前回点検したv1.7.2（commit `db107ac`）から変更されていない。
 入力の全体構成は [surface_usage.md](surface_usage.md)、解法の位置づけは
 [建築環境の基礎](building_environment_engineering_basics.md) を参照してください。

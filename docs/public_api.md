@@ -31,6 +31,14 @@
 | `as_result=False` | API レスポンス dict |
 | `with_dataframes=...` | `as_result` の旧別名（`DeprecationWarning`） |
 | `raise_on_error=True` | 系列/ログ取得失敗を例外にする（既定は `errors` に記録して `None`） |
+| `timeout=600.0` | `/runs` のポーリング打ち切り時間[s]。v1.7.5以降の既定は10分 |
+
+`timeout` はソルバ内部の反復回数や時間刻みを変えず、クライアントが計算完了を待つ上限だけを定める。
+年間計算など10分を超える可能性がある場合は、想定実行時間に合わせて明示する。
+
+```python
+result = vt.run_calc(base_url, input_data, timeout=3600)  # 最大1時間待つ
+```
 
 成果物まわりの追加 stable（`vtsimnx.artifacts` から）:
 
@@ -90,7 +98,7 @@ from vtsimnx.schedule import make_8760_data
 温度・圧力・流量・熱流などの単位は [`units.md`](units.md) および `vtsimnx.units` を参照してください。
 OpenAPI / Pydantic スキーマでは `json_schema_extra.unit` に同じ表記を載せます。
 
-## 成果物の空系列（v1.7.4）
+## 成果物の空系列（v1.7.4以降）
 
 `schema.json` の `series.<name>.keys=[]` は対象キーがなく、列数0であることを表す。
 対応するfloat32 binは0バイトで、クライアントは形状 `(時刻数, 0)` のDataFrameとして復元する。
