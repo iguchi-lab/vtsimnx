@@ -70,6 +70,9 @@ private:
     // 能力超過時 nullopt 用の二分探索 bracket（タイムステップごとにクリア）
     mutable aircon::capacity::CapacityBracketMap capacityLimitBracket_;
 
+    // OFF 中に観測した set 室温。停止すると再起動幅を超えるときは最低能力で継続する。
+    mutable std::unordered_map<std::string, double> lastFreeSetTempC_;
+
     // 外側連成の forceMinTwo 判定用（ON/OFF・mode 署名）。initializeModels でクリア。
     std::uint64_t prevAirconStateSig_ = 0;
     bool havePrevAirconStateSig_ = false;
@@ -137,13 +140,15 @@ public:
     // === 制御関数 ===
     // minProcessHeatW > 0 のとき、設定維持中の符号付き負荷がこの値未満なら OFF。
     // 再開は温度バンド側（呼び出し側が useRequiredHeat=false）だけ。
+    // holdAtMinimumCapacity のときは停止せず、最低能力で運転を続ける。
     template<typename NodeType>
     AirconControlResult controlAircon(const NodeType& nodeProps, double currentTemp,
                                       double targetTemp, double tolerance, [[maybe_unused]] std::ostream& logs,
                                       bool useRequiredHeat = false,
                                       double requiredHeatW = 0.0,
                                       double loadDeadbandW = 1.0,
-                                      double minProcessHeatW = 0.0) const {
+                                      double minProcessHeatW = 0.0,
+                                      bool holdAtMinimumCapacity = false) const {
         AirconControlResult result{false, nodeProps.on, ""};
         const std::string targetName = nodeProps.set_node.empty() ? nodeProps.key : nodeProps.set_node;
         if (nodeProps.current_mode == "OFF") {
@@ -168,9 +173,12 @@ public:
             const double qTol = std::max(0.0, loadDeadbandW);
             // 最低能力未満は連続して熱処理できないので停止する。
             // ちょうど Q.min は出せるので継続。Q.min が無い機種は従来の 1W 帯。
+            // ただし停止すると再起動幅を超えるときは OFF にせず、最低能力で継続する。
             const bool useMinCapacity = std::isfinite(minProcessHeatW) && minProcessHeatW > qTol;
             const double qOn = useMinCapacity ? minProcessHeatW : qTol;
-            if (nodeProps.current_mode == "HEATING") {
+            if (holdAtMinimumCapacity && useMinCapacity) {
+                shouldBeOn = true;
+            } else if (nodeProps.current_mode == "HEATING") {
                 shouldBeOn = useMinCapacity ? (requiredHeatW >= qOn) : (requiredHeatW > qOn);
             } else if (nodeProps.current_mode == "COOLING") {
                 shouldBeOn = useMinCapacity ? (requiredHeatW <= -qOn) : (requiredHeatW < -qOn);
@@ -181,7 +189,9 @@ public:
                 throw std::runtime_error("エアコンのモードが不正です: " + nodeProps.current_mode);
             }
             detail << "Qreq=" << requiredHeatW << "W";
-            if (useMinCapacity && !shouldBeOn) {
+            if (holdAtMinimumCapacity && useMinCapacity) {
+                detail << " < Q.min=" << qOn << "W, 再起動と共存のため最低能力で継続";
+            } else if (useMinCapacity && !shouldBeOn) {
                 detail << " < Q.min=" << qOn << "W";
             }
         } else {

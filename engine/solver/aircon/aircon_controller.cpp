@@ -339,27 +339,46 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
         const bool useRequiredHeat =
             nodeProps.on && std::isfinite(nodeProps.required_heat_w) && nearSetpoint &&
             !capacityLimited && !setpointDetuned && !processFlowTooLow;
+        if (!useRequiredHeat && std::isfinite(currentTemp)) {
+            lastFreeSetTempC_[airconKey] = currentTemp;
+        }
         // 設定を保持できているときだけ Q.min 未満で停止する。
         // RAC / CRIEPI / DUCT_CENTRAL など機種は問わない。仕様に Q.min があれば適用する。
         // 未達・能力制限中は温度側のまま運転を続ける。OFF 後の再開は温度バンドのみ。
+        // 停止すると再起動幅を超える室温なら、OFF にせず最低能力で継続する。
         double minProcessHeatW = 0.0;
+        std::string minMode = "heating";
         if (useRequiredHeat) {
+            if (nodeProps.current_mode == "COOLING") {
+                minMode = "cooling";
+            } else if (nodeProps.current_mode == "AUTO" &&
+                       nodeProps.required_heat_w < 0.0) {
+                minMode = "cooling";
+            }
             if (const auto* spec = nodeProps.getAirconSpec()) {
-                std::string mode = "heating";
-                if (nodeProps.current_mode == "COOLING") {
-                    mode = "cooling";
-                } else if (nodeProps.current_mode == "AUTO" &&
-                           nodeProps.required_heat_w < 0.0) {
-                    mode = "cooling";
-                }
-                if (const auto qMinKW = spec->getCapacity(mode, "min")) {
+                if (const auto qMinKW = spec->getCapacity(minMode, "min")) {
                     if (*qMinKW > 0.0) minProcessHeatW = *qMinKW * 1000.0;
                 }
             }
         }
+        bool holdAtMinimumCapacity = false;
+        if (useRequiredHeat && minProcessHeatW > 1.0 && std::isfinite(nodeProps.required_heat_w)) {
+            const bool belowMin = std::abs(nodeProps.required_heat_w) < minProcessHeatW;
+            const auto freeIt = lastFreeSetTempC_.find(airconKey);
+            if (belowMin && freeIt != lastFreeSetTempC_.end() && std::isfinite(freeIt->second)) {
+                const double diff = freeIt->second - targetTemp;
+                const bool restart =
+                    (minMode == "cooling") ? (diff > setpointBandK) : (diff < -setpointBandK);
+                holdAtMinimumCapacity = restart;
+            }
+        }
         auto result = controlAircon(nodeProps, currentTemp, targetTemp, tolerance, logFile,
                                     useRequiredHeat, nodeProps.required_heat_w,
-                                    /*loadDeadbandW=*/1.0, minProcessHeatW);
+                                    /*loadDeadbandW=*/1.0, minProcessHeatW, holdAtMinimumCapacity);
+        if (holdAtMinimumCapacity && result.on && std::isfinite(nodeProps.required_heat_w)) {
+            const double signedMin = (minMode == "cooling") ? -minProcessHeatW : minProcessHeatW;
+            nodeProps.required_heat_w = signedMin;
+        }
         writeDomainLog(logFile, "空調", result.logMessage);
         AirconRecomputeReason unitReasons = AirconRecomputeReason::None;
         if (result.stateChanged) {

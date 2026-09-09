@@ -164,6 +164,7 @@ flowchart TD
 - 暖房: `Qreq > tol` なら ON。`Qreq ≤ tol`（冷房需要・ほぼゼロ含む）なら OFF
 - 冷房: `Qreq < -tol` なら ON。それ以外は OFF
 - `Q.<mode>.min` がある機種（RAC・CRIEPI・DUCT_CENTRAL を含む）は、設定維持中の `|Qreq|` が `Q.min` 未満なら OFF（最低能力より小さい熱処理はしない）。再開は温度バンドのみ
+- 例外: 停止側の `set` 室温がすでに再起動幅（最低 1 K）の外なら、ON と OFF が共存する。このときは OFF にせず、処理熱を `Q.min` にする。考え方は [`aircon_control_principles.md`](aircon_control_principles.md) の §4.2
 - OFF 中の再起動は従来どおり温度バンド（帯内は現状維持）
 
 注意:
