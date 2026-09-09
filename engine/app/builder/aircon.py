@@ -59,6 +59,9 @@ def process_aircon(aircon: dict) -> tuple[list, list]:
     logger.info(f"　エアコンノード【{aircon_out_node}】を追加します。")
     ac_node: dict = {
         "key": aircon_out_node,
+        # ファンPQでは吸込ファンと吹出側圧損の交点を解くため、
+        # 空調機ノードの圧力を未知数にする。固定流量では従来どおり既知境界。
+        "calc_p": fan is not None,
         "calc_t": True,
         # 吸込ノード側で湿度・濃度計算を行う場合のみ、airconノードも対象にする
         "calc_x": calc_x,
@@ -126,6 +129,5 @@ def process_aircons(aircons: list) -> tuple[list, list]:
     logger.info("空調の解析が完了しました。")
 
     return nodes_all, vents_all
-
 
 
