@@ -116,6 +116,7 @@ result = vt.run_calc("http://127.0.0.1:8000", input_data)
 
 - `ConnectionError` / `ReadTimeout`
   - APIサーバー未起動、URL誤り、ポート未公開を確認してください。
+  - v1.7.5以降の `run_calc` は既定で10分待ちます。年間計算などがこれを超える場合は、計算条件を確認した上で `timeout=3600` のように秒単位で延長します。
 - `source` / `target` の参照エラー
   - `nodes[].key` と完全一致しているかを確認してください（全角半角・大小文字含む）。
 - 時系列長の不一致
@@ -139,7 +140,6 @@ result = vt.run_calc("http://127.0.0.1:8000", input_data)
 
 #### DUCT_CENTRAL の注意
 
-- DUCT_CENTRAL モデルでは、solver が処理熱量に応じて送風量を再評価します。
-- 正の `ac_spec.Q.<mode>.rtd` [kW] と `V_inner.<mode>.dsgn` [m³/s] が得られる場合、`V = V_dsgn * clip(Q_W/(1000*Q_rtd_kW), 0, 1)` です。定格以上は設計風量に制限し、仕様値がなければこの補正を行いません。
-- 送風量変更で換気・熱連成の解が変わるため、同じ timestep 内で再計算が走る場合があります。
-- 実装詳細は `../engine/docs/aircon_control_overview.md` と `../engine/docs/acmodel_overview.md` を参照してください。
+- v1.7.5ではON/OFF、能力制限、風量の順に判定し、前段が変化するたび換気・熱を解き直します。
+- 正の `ac_spec.Q.<mode>.rtd` [kW] と `V_inner.<mode>.dsgn` [m³/s] が必要です。最低能力、負荷の選び方、固定風量とファンPQの違いは[全館空調の風量制御](duct_central_airflow_control.md)を参照してください。
+- 実装の正本は `../engine/docs/aircon_control_principles.md` と `../engine/docs/aircon_control_overview.md` です。
