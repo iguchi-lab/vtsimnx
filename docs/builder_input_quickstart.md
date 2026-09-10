@@ -143,3 +143,9 @@ result = vt.run_calc("http://127.0.0.1:8000", input_data)
 - v1.7.5ではON/OFF、能力制限、風量の順に判定し、前段が変化するたび換気・熱を解き直します。
 - 正の `ac_spec.Q.<mode>.rtd` [kW] と `V_inner.<mode>.dsgn` [m³/s] が必要です。最低能力、負荷の選び方、固定風量とファンPQの違いは[全館空調の風量制御](duct_central_airflow_control.md)を参照してください。
 - 実装の正本は `../engine/docs/aircon_control_principles.md` と `../engine/docs/aircon_control_overview.md` です。
+
+### 熱交換換気を使う場合
+
+- `heat_recovery_vent` で顕熱（`sensible`）または全熱（`total`）を追加できます。
+- OA/SA/RA/EA を別ノードに分けられ、固定風量または給気・排気それぞれのファン PQ を使えます。
+- 詳細と入力例は[熱交換換気（顕熱・全熱）](heat_recovery_vent.md)を参照してください。

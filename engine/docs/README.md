@@ -46,6 +46,13 @@ Python クライアント利用者向けガイドは [`../../docs/README.md`](..
 | [`aircon_spec_reference.md`](aircon_spec_reference.md) | `ac_spec` キー一覧 |
 | [`duct_central_model_validation.md`](duct_central_model_validation.md) | DUCT_CENTRAL 検証観点 |
 
+## 熱交換換気
+
+| 文書 | 役割 |
+|---|---|
+| [`builder_json.md`](builder_json.md) §11.0 | `heat_recovery_vent` 入力正本 |
+| [`../../docs/heat_recovery_vent.md`](../../docs/heat_recovery_vent.md) | 顕熱・全熱の利用者ガイド |
+
 ## テスト
 
 | 文書 | 役割 |

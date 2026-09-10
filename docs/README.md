@@ -21,6 +21,7 @@ engine 実装の厳密仕様は [`../engine/docs/README.md`](../engine/docs/READ
 | [`aircon_model_and_control.md`](aircon_model_and_control.md) | 技術文書第9章。接続、温度制御、潜熱処理、能力・風量、反復と電力を順に説明 |
 | [`aircon_humidity_control.md`](aircon_humidity_control.md) | 潜熱処理の入力、pre_rhによる理想除湿、湿度境界と制約 |
 | [`duct_central_airflow_control.md`](duct_central_airflow_control.md) | 全館空調の負荷追従風量、最低能力、固定風量とファンPQ |
+| [`heat_recovery_vent.md`](heat_recovery_vent.md) | 熱交換換気（顕熱・全熱）、OA/SA/RA/EA、回収熱出力 |
 | [`schedule_usage.md`](schedule_usage.md) | 8760 スケジュール |
 | [`archenv_comfort_nocturnal_wind_usage.md`](archenv_comfort_nocturnal_wind_usage.md) | 風圧・夜間放射・地盤・PMV/PPD |
 | [`vs_simheat_example.md`](vs_simheat_example.md) | SimHeat 比較ケースの入力フロー |

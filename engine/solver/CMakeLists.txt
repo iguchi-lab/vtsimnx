@@ -720,6 +720,14 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         network/ventilation_network.cpp
         network/ventilation_network_outputs.cpp
         ${VENTILATION_PRESSURE_SOURCES}
+        core/thermal/thermal_solver.cpp
+        core/thermal/thermal_solver_linear_direct.cpp
+        core/thermal/thermal_direct_internal.cpp
+        core/thermal/thermal_direct_topology.cpp
+        core/thermal/thermal_direct_rhs.cpp
+        core/thermal/thermal_direct_build.cpp
+        core/thermal/thermal_direct_solve.cpp
+        core/thermal/thermal_direct_postprocess.cpp
         ${ARCHENV_SOURCES}
     )
     target_link_libraries(vtsimnx_solver_cpp_test_hrv_controller

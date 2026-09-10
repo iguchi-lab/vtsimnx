@@ -1,7 +1,11 @@
 #include "simulation_coupled_step.h"
+
+#include "core/thermal/thermal_solver_linear_direct.h"
+#include "hrv/hrv_controller.h"
+#include "network/thermal_network.h"
+#include "network/ventilation_network.h"
 #include "simulation_error.h"
 #include "utils/utils.h"
-#include "hrv/hrv_controller.h"
 
 #include <algorithm>
 #include <chrono>

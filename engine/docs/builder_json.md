@@ -493,6 +493,8 @@ RA ──► {key}_exhaust       ──► EA
 
 出力系列: `hrv_sensible_heat` / `hrv_latent_heat` [W]（有効風量は \(\min(Q_\mathrm{sa},Q_\mathrm{ea})\)）。
 
+利用者向けの解説・入力例は [`../../docs/heat_recovery_vent.md`](../../docs/heat_recovery_vent.md) を参照。
+
 ---
 
 ### 11.1 `humidity_source`（発湿源: 加湿器/人体など）
