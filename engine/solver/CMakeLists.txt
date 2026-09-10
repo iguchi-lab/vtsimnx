@@ -444,6 +444,8 @@ if(VTSIMNX_BUILD_CPP_TESTS)
     add_executable(vtsimnx_solver_cpp_test_pressure_acceptance_coupling
         tests_cpp/test_pressure_acceptance_coupling.cpp
         simulation_coupled_step.cpp
+        hrv/hrv_controller.cpp
+        aircon/aircon_network_utils.cpp
         network/ventilation_network.cpp
         network/ventilation_network_outputs.cpp
         network/thermal_network.cpp
@@ -588,6 +590,8 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         simulation_coupled_step.cpp
         simulation_coupling_control.cpp
         simulation_runner_helpers.cpp
+        hrv/hrv_controller.cpp
+        aircon/aircon_network_utils.cpp
         ${VENTILATION_PRESSURE_SOURCES}
         core/thermal/thermal_solver.cpp
         core/thermal/thermal_solver_linear_direct.cpp
