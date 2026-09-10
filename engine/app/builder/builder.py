@@ -13,6 +13,7 @@ from .surfaces import process_surfaces
 from .heat_sources import build_heat_generation_branches
 from .moisture import build_humidity_generation_vents
 from .aircon import process_aircons
+from .heat_recovery_vent import parse_heat_recovery_vents, process_heat_recovery_vents
 from .thermal import process_capacities
 from .moisture_capacity import (
     derive_calc_x_from_moisture_capacity,
@@ -105,6 +106,14 @@ def _build_output_json(raw: Dict[str, Any], *, options: BuildOptions) -> Dict[st
     elif aircon_config:
         logger.info("空調の処理をスキップします。")
 
+    hrv_config = parse_heat_recovery_vents(raw)
+    if hrv_config and options.add_heat_recovery_vent:
+        add_nodes, add_ventilation_branches = process_heat_recovery_vents(hrv_config)
+        node_config.extend(add_nodes)
+        ventilation_config.extend(add_ventilation_branches)
+    elif hrv_config:
+        logger.info("熱交換換気の処理をスキップします。")
+
     if options.add_capacity:
         add_nodes, add_thermal_branches = process_capacities(node_config, sim_config["index"]["timestep"])
         node_config.extend(add_nodes)
@@ -133,6 +142,7 @@ def _build_output_json(raw: Dict[str, Any], *, options: BuildOptions) -> Dict[st
         "ventilation_branches": ventilation_config,
         "thermal_branches": thermal_config,
         "aircon": aircon_config,
+        "heat_recovery_vent": hrv_config,
     }
 
 
@@ -154,6 +164,7 @@ def _build_core(
     output_path: Optional[str],
     add_surface: bool | None,
     add_aircon: bool | None,
+    add_heat_recovery_vent: bool | None,
     add_capacity: bool | None,
     add_moisture_capacity: bool | None,
     add_surface_solar: bool | None,
@@ -177,6 +188,7 @@ def _build_core(
             raw,
             add_surface=add_surface,
             add_aircon=add_aircon,
+            add_heat_recovery_vent=add_heat_recovery_vent,
             add_capacity=add_capacity,
             add_moisture_capacity=add_moisture_capacity,
             add_surface_solar=add_surface_solar,
@@ -221,6 +233,7 @@ def build_config_with_warnings(
     output_path: Optional[str] = None,
     add_surface: bool | None = None,
     add_aircon: bool | None = None,
+    add_heat_recovery_vent: bool | None = None,
     add_capacity: bool | None = None,
     add_moisture_capacity: bool | None = None,
     add_surface_solar: bool | None = None,
@@ -248,6 +261,7 @@ def build_config_with_warnings(
             output_path=output_path,
             add_surface=add_surface,
             add_aircon=add_aircon,
+            add_heat_recovery_vent=add_heat_recovery_vent,
             add_capacity=add_capacity,
             add_moisture_capacity=add_moisture_capacity,
             add_surface_solar=add_surface_solar,
@@ -273,6 +287,7 @@ def build_config_with_warning_details(
     output_path: Optional[str] = None,
     add_surface: bool | None = None,
     add_aircon: bool | None = None,
+    add_heat_recovery_vent: bool | None = None,
     add_capacity: bool | None = None,
     add_moisture_capacity: bool | None = None,
     add_surface_solar: bool | None = None,
@@ -295,6 +310,7 @@ def build_config_with_warning_details(
         output_path=output_path,
         add_surface=add_surface,
         add_aircon=add_aircon,
+        add_heat_recovery_vent=add_heat_recovery_vent,
         add_capacity=add_capacity,
         add_moisture_capacity=add_moisture_capacity,
         add_surface_solar=add_surface_solar,
@@ -318,6 +334,7 @@ def build_config(
     output_path: Optional[str] = None,
     add_surface: bool | None = None,
     add_aircon: bool | None = None,
+    add_heat_recovery_vent: bool | None = None,
     add_capacity: bool | None = None,
     add_moisture_capacity: bool | None = None,
     add_surface_solar: bool | None = None,
@@ -341,6 +358,7 @@ def build_config(
         output_path=output_path,
         add_surface=add_surface,
         add_aircon=add_aircon,
+        add_heat_recovery_vent=add_heat_recovery_vent,
         add_capacity=add_capacity,
         add_moisture_capacity=add_moisture_capacity,
         add_surface_solar=add_surface_solar,

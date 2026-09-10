@@ -44,6 +44,10 @@ struct TimestepResult {
     std::vector<float> airconPower;        // キー順は AirconController が提供
     std::vector<float> airconCOP;          // キー順は AirconController が提供
 
+    // 熱交換換気の回収熱量 [W]（キー順は hrv::orderedKeys）
+    std::vector<float> hrvSensibleHeat;
+    std::vector<float> hrvLatentHeat;
+
     // その他（将来の拡張用）
     AirconDataMap humidityMap;
     AirconDataMap concentrationMap;

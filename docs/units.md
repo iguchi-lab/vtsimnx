@@ -83,6 +83,7 @@ API 入力スキーマ: `engine/app/schemas/config.py` の `json_schema_extra={"
 | `humidity_x` | kg/kg' |
 | `humidity_flux` | kg/s |
 | `aircon_sensible_heat` / `aircon_latent_heat` / `aircon_power` | W |
+| `hrv_sensible_heat` / `hrv_latent_heat` | W（熱交換換気の回収熱） |
 
 ```python
 from vtsimnx.units import unit_for_field, unit_for_series

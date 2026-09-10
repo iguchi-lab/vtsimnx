@@ -5,6 +5,7 @@ import numpy as np
 
 class NodeTypeEnum(str, Enum):
     AIRCON = "aircon"
+    HRV = "hrv"
     CAPACITY = "capacity"
     NORMAL = "normal"
 

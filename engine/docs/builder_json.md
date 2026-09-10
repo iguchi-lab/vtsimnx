@@ -453,6 +453,48 @@ RC/CTFの詳細は以下:
 
 ---
 
+### 11.0 `heat_recovery_vent`（builder展開）
+
+`heat_recovery_vent` を書くと、builder が給気ノード（`type=hrv`）・排気ジャンクションと、給気/排気の換気枝 4 本を追加します。
+
+ポート（いずれも既存 `nodes[].key`）:
+
+| ポート | 意味 | 個別キー | 短縮形 |
+|---|---|---|---|
+| OA | 外気取入 | `oa`（別名 `outdoor`） | `outdoor` |
+| SA | 給気先 | `sa`（別名 `out`） | `room` |
+| RA | 還気元 | `ra`（別名 `in` / `return` / `room` / `set`） | `room` |
+| EA | 排気先 | `ea`（別名 `exhaust_out`） | `outdoor` |
+
+- 短縮: `outdoor` + `room` → `oa=ea=outdoor`, `sa=ra=room`
+- 個別: `oa`/`sa`/`ra`/`ea` を別ノードにできる
+
+その他フィールド:
+
+- `key`（必須）: 給気ノード名（排気側は `{key}_exhaust`）
+- `recovery`（任意）: `sensible`（顕熱）または `total`（全熱）。既定 `sensible`
+- `eta_t`（任意）: 温度交換効率 0..1（既定 0.7）
+- `eta_x`（任意）: 湿度交換効率 0..1（`total` 時。既定 0.6。`sensible` では 0 固定）
+- `vol`（任意）: 固定風量 [m³/s]（給気・排気とも）。PQ 未指定時の既定は 150/3600
+- `supply` / `exhaust`（任意）: それぞれ `{p_max,p1,q1,q_max}`。**両方そろえる**と固定風量の代わりにファン PQ。片方だけはエラー（ポート名ではない）
+- `area` / `k_total`（任意）: ファン時のつなぎ `pressure_loss`（省略時 `area=0.05`, `k_total=1`）
+
+展開トポロジ:
+
+```
+OA ──► {key}(HRV給気境界) ──► SA
+RA ──► {key}_exhaust       ──► EA
+```
+
+物理式（給気境界）:
+
+- \(T_\mathrm{sa}=T_\mathrm{oa}+\eta_t(T_\mathrm{ra}-T_\mathrm{oa})\)
+- 全熱時のみ \(x_\mathrm{sa}=x_\mathrm{oa}+\eta_x(x_\mathrm{ra}-x_\mathrm{oa})\)
+
+出力系列: `hrv_sensible_heat` / `hrv_latent_heat` [W]（有効風量は \(\min(Q_\mathrm{sa},Q_\mathrm{ea})\)）。
+
+---
+
 ### 11.1 `humidity_source`（発湿源: 加湿器/人体など）
 
 `humidity_source` は raw_config の補助入力で、builder が **`ventilation_branches[].humidity_generation`** に変換します。

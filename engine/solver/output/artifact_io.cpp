@@ -57,6 +57,8 @@ nlohmann::json schemaToJson(long length, long timestepSec, const OutputSchema& s
         {"aircon_latent_heat", {{"keys", s.airconLatentHeatKeys}}},
         {"aircon_power", {{"keys", s.airconPowerKeys}}},
         {"aircon_cop", {{"keys", s.airconCOPKeys}}},
+        {"hrv_sensible_heat", {{"keys", s.hrvSensibleHeatKeys}}},
+        {"hrv_latent_heat", {{"keys", s.hrvLatentHeatKeys}}},
     };
     return j;
 }

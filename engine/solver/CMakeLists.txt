@@ -64,6 +64,7 @@ set(AIRCON_SOURCES
     aircon/aircon_capacity.cpp
     aircon/aircon_airflow.cpp
     aircon/aircon_network_utils.cpp
+    hrv/hrv_controller.cpp
 )
 
 set(ACMODEL_SOURCES
@@ -709,6 +710,28 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         -Wextra
     )
     add_test(NAME vtsimnx_solver_cpp_test_aircon_controller COMMAND vtsimnx_solver_cpp_test_aircon_controller)
+
+    add_executable(vtsimnx_solver_cpp_test_hrv_controller
+        tests_cpp/test_hrv_controller.cpp
+        hrv/hrv_controller.cpp
+        aircon/aircon_network_utils.cpp
+        network/thermal_network.cpp
+        network/thermal_network_outputs.cpp
+        network/ventilation_network.cpp
+        network/ventilation_network_outputs.cpp
+        ${VENTILATION_PRESSURE_SOURCES}
+        ${ARCHENV_SOURCES}
+    )
+    target_link_libraries(vtsimnx_solver_cpp_test_hrv_controller
+        Boost::boost
+        ceres
+    )
+    target_include_directories(vtsimnx_solver_cpp_test_hrv_controller PRIVATE /usr/include/eigen3)
+    target_compile_options(vtsimnx_solver_cpp_test_hrv_controller PRIVATE
+        -Wall
+        -Wextra
+    )
+    add_test(NAME vtsimnx_solver_cpp_test_hrv_controller COMMAND vtsimnx_solver_cpp_test_hrv_controller)
 
     # 10) app: minimal smoke test (runVtsimnxSolverApp end-to-end)
     add_executable(vtsimnx_solver_cpp_test_app_smoke

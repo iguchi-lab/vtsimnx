@@ -247,6 +247,16 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
             }
         }
 
+        // 熱交換換気の給気ノードは T/x 固定境界（コントローラが毎ステップ更新）
+        if (node.type == "hrv") {
+            node.calc_t = false;
+            node.calc_x = false;
+            if (node.model.empty()) node.model = "sensible";
+            if (verbosity >= 1) {
+                writeLog(logs, "  [INFO] hrv node: calc_t/calc_x を false（給気境界）に設定: key=" + node.key);
+            }
+        }
+
         // timestep に応じた更新ヘルパ（保守目的）
         node.updateForTimestep(timestep);
 

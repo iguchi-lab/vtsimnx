@@ -8,6 +8,7 @@ from typing import Any, Dict
 _BOOL_FLAGS_DEFAULT_TRUE = (
     "add_surface",
     "add_aircon",
+    "add_heat_recovery_vent",
     "add_capacity",
     "add_moisture_capacity",
     "add_surface_solar",
@@ -58,6 +59,7 @@ class BuildOptions:
 
     add_surface: bool = True
     add_aircon: bool = True
+    add_heat_recovery_vent: bool = True
     add_capacity: bool = True
     add_moisture_capacity: bool = True
     add_surface_solar: bool = True
@@ -75,6 +77,7 @@ class BuildOptions:
         *,
         add_surface: bool | None = None,
         add_aircon: bool | None = None,
+        add_heat_recovery_vent: bool | None = None,
         add_capacity: bool | None = None,
         add_moisture_capacity: bool | None = None,
         add_surface_solar: bool | None = None,
@@ -95,6 +98,7 @@ class BuildOptions:
         pending: dict[str, bool | None] = {
             "add_surface": add_surface,
             "add_aircon": add_aircon,
+            "add_heat_recovery_vent": add_heat_recovery_vent,
             "add_capacity": add_capacity,
             "add_moisture_capacity": add_moisture_capacity,
             "add_surface_solar": add_surface_solar,

@@ -18,6 +18,7 @@ struct VertexProperties {
         Unknown = 0,
         Normal,
         Aircon,
+        Hrv,
         Capacity,
         Layer,
     };
@@ -116,6 +117,7 @@ struct VertexProperties {
     TypeCode getTypeCode() const {
         if (type_code != TypeCode::Unknown) return type_code;
         if (type == "aircon") type_code = TypeCode::Aircon;
+        else if (type == "hrv") type_code = TypeCode::Hrv;
         else if (type == "capacity") type_code = TypeCode::Capacity;
         else if (type == "layer") type_code = TypeCode::Layer;
         else if (type == "normal") type_code = TypeCode::Normal;

@@ -1,6 +1,7 @@
 #include "simulation_timestep_result.h"
 
 #include "aircon/aircon_controller.h"
+#include "hrv/hrv_controller.h"
 #include "network/contaminant_network.h"
 #include "network/humidity_network.h"
 #include "network/thermal_network.h"
@@ -49,6 +50,10 @@ void buildTimestepResult(const SimulationConstants& constants,
                             airconController.calculatePowerValues(thermalNetwork, flowRates, logs));
         convertDoublesToF32(timestepResult.airconCOP,
                             airconController.calculateCOPValues(thermalNetwork, flowRates, logs));
+        convertDoublesToF32(timestepResult.hrvSensibleHeat,
+                            hrv::collectSensibleRecoveredW(thermalNetwork, flowRates));
+        convertDoublesToF32(timestepResult.hrvLatentHeat,
+                            hrv::collectLatentRecoveredW(thermalNetwork, flowRates));
     }
 
     if (constants.humidityCalc) {

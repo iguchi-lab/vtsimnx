@@ -1,10 +1,7 @@
 #include "simulation_coupled_step.h"
-
-#include "core/thermal/thermal_solver_linear_direct.h"
-#include "network/thermal_network.h"
-#include "network/ventilation_network.h"
 #include "simulation_error.h"
 #include "utils/utils.h"
+#include "hrv/hrv_controller.h"
 
 #include <algorithm>
 #include <chrono>
@@ -19,6 +16,11 @@ CoupledStepData performCoupledStepCalculation(VentilationNetwork& ventNetwork,
                                               simulation::TimestepSolveMetrics* metrics) {
     const bool logEnabled = (constants.logVerbosity > 0);
     CoupledStepData step;
+
+    // 圧力・熱の前に HRV 給気境界を更新（還気/外気の現在値から η で合成）
+    if (constants.temperatureCalc || constants.humidityCalc) {
+        hrv::updateSupplyBoundaries(thermalNetwork, logs, constants.logVerbosity);
+    }
 
     // 換気計算
     if (constants.pressureCalc) {

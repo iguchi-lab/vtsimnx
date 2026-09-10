@@ -29,6 +29,7 @@ using json = nlohmann::json;
 #include "network/thermal_network.h"
 #include "network/contaminant_network.h"
 #include "aircon/aircon_controller.h"
+#include "hrv/hrv_controller.h"
 #include "simulation_metrics.h"
 #include "simulation_runner.h"
 #include "simulation_error.h"
@@ -85,6 +86,8 @@ struct OutputFiles {
     std::ofstream& airconLatentHeatFile;
     std::ofstream& airconPowerFile;
     std::ofstream& airconCOPFile;
+    std::ofstream& hrvSensibleHeatFile;
+    std::ofstream& hrvLatentHeatFile;
 };
 
 static void initializeSchemaIfNeeded(ArtifactIO::OutputSchema& schema,
@@ -119,6 +122,8 @@ static void initializeSchemaIfNeeded(ArtifactIO::OutputSchema& schema,
         schema.airconLatentHeatKeys = airconKeys;
         schema.airconPowerKeys = airconKeys;
         schema.airconCOPKeys = airconKeys;
+        schema.hrvSensibleHeatKeys = hrv::orderedKeys(thermalNetwork);
+        schema.hrvLatentHeatKeys = schema.hrvSensibleHeatKeys;
     }
     if (simConstants.humidityCalc) {
         schema.humidityKeys = humidityNetwork.getOutputKeys(
@@ -448,7 +453,9 @@ static bool runSimulationLoop(const InputData& inputData,
                     !writeSeries(outFiles.airconSensibleHeatFile, timestepResult.airconSensibleHeat, schema.airconSensibleHeatKeys.size()) ||
                     !writeSeries(outFiles.airconLatentHeatFile, timestepResult.airconLatentHeat, schema.airconLatentHeatKeys.size()) ||
                     !writeSeries(outFiles.airconPowerFile, timestepResult.airconPower, schema.airconPowerKeys.size()) ||
-                    !writeSeries(outFiles.airconCOPFile, timestepResult.airconCOP, schema.airconCOPKeys.size())) {
+                    !writeSeries(outFiles.airconCOPFile, timestepResult.airconCOP, schema.airconCOPKeys.size()) ||
+                    !writeSeries(outFiles.hrvSensibleHeatFile, timestepResult.hrvSensibleHeat, schema.hrvSensibleHeatKeys.size()) ||
+                    !writeSeries(outFiles.hrvLatentHeatFile, timestepResult.hrvLatentHeat, schema.hrvLatentHeatKeys.size())) {
                     return false;
                 }
                 resultsLinesWritten += 8;
@@ -474,6 +481,8 @@ static bool runSimulationLoop(const InputData& inputData,
                     outFiles.airconLatentHeatFile.flush();
                     outFiles.airconPowerFile.flush();
                     outFiles.airconCOPFile.flush();
+                    outFiles.hrvSensibleHeatFile.flush();
+                    outFiles.hrvLatentHeatFile.flush();
                 }
             }
         }
@@ -499,6 +508,8 @@ static bool runSimulationLoop(const InputData& inputData,
         outFiles.airconLatentHeatFile.flush();
         outFiles.airconPowerFile.flush();
         outFiles.airconCOPFile.flush();
+        outFiles.hrvSensibleHeatFile.flush();
+        outFiles.hrvLatentHeatFile.flush();
 
         clearLogTimestepMeta(logs);
         writeLog(logs, "タイムステップループ終了");
@@ -688,6 +699,8 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
     const std::string airconLatentHeatBinName = "aircon.latent_heat.f32.bin";
     const std::string airconPowerBinName = "aircon.power.f32.bin";
     const std::string airconCOPBinName = "aircon.cop.f32.bin";
+    const std::string hrvSensibleHeatBinName = "hrv.sensible_heat.f32.bin";
+    const std::string hrvLatentHeatBinName = "hrv.latent_heat.f32.bin";
 
     const std::filesystem::path ventPressureBinPath = artifactDirPath / ventPressureBinName;
     const std::filesystem::path ventFlowRateBinPath = artifactDirPath / ventFlowRateBinName;
@@ -710,6 +723,8 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
     const std::filesystem::path airconLatentHeatBinPath = artifactDirPath / airconLatentHeatBinName;
     const std::filesystem::path airconPowerBinPath = artifactDirPath / airconPowerBinName;
     const std::filesystem::path airconCOPBinPath = artifactDirPath / airconCOPBinName;
+    const std::filesystem::path hrvSensibleHeatBinPath = artifactDirPath / hrvSensibleHeatBinName;
+    const std::filesystem::path hrvLatentHeatBinPath = artifactDirPath / hrvLatentHeatBinName;
 
     std::ofstream logFile(logPath, std::ios::out | std::ios::trunc);
     if (!logFile.is_open()) {
@@ -823,6 +838,17 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
         return 1;
     }
 
+    std::ofstream hrvSensibleHeatFile(hrvSensibleHeatBinPath, std::ios::out | std::ios::binary | std::ios::trunc);
+    if (!hrvSensibleHeatFile.is_open()) {
+        std::cerr << "エラー: 結果ファイルを開けません: " << hrvSensibleHeatBinPath << "\n";
+        return 1;
+    }
+    std::ofstream hrvLatentHeatFile(hrvLatentHeatBinPath, std::ios::out | std::ios::binary | std::ios::trunc);
+    if (!hrvLatentHeatFile.is_open()) {
+        std::cerr << "エラー: 結果ファイルを開けません: " << hrvLatentHeatBinPath << "\n";
+        return 1;
+    }
+
     // 出力ファイルのバッファを大きくしてI/Oオーバーヘッドを低減
     constexpr size_t kFileBufferBytes = 1u << 20; // 1MiB
     std::vector<char> logBuf(kFileBufferBytes);
@@ -847,6 +873,8 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
     std::vector<char> airconLatentHeatBuf(kFileBufferBytes);
     std::vector<char> airconPowerBuf(kFileBufferBytes);
     std::vector<char> airconCOPBuf(kFileBufferBytes);
+    std::vector<char> hrvSensibleHeatBuf(kFileBufferBytes);
+    std::vector<char> hrvLatentHeatBuf(kFileBufferBytes);
     logFile.rdbuf()->pubsetbuf(logBuf.data(), static_cast<std::streamsize>(logBuf.size()));
     ventPressureFile.rdbuf()->pubsetbuf(ventPressureBuf.data(), static_cast<std::streamsize>(ventPressureBuf.size()));
     ventFlowRateFile.rdbuf()->pubsetbuf(ventFlowRateBuf.data(), static_cast<std::streamsize>(ventFlowRateBuf.size()));
@@ -869,6 +897,8 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
     airconLatentHeatFile.rdbuf()->pubsetbuf(airconLatentHeatBuf.data(), static_cast<std::streamsize>(airconLatentHeatBuf.size()));
     airconPowerFile.rdbuf()->pubsetbuf(airconPowerBuf.data(), static_cast<std::streamsize>(airconPowerBuf.size()));
     airconCOPFile.rdbuf()->pubsetbuf(airconCOPBuf.data(), static_cast<std::streamsize>(airconCOPBuf.size()));
+    hrvSensibleHeatFile.rdbuf()->pubsetbuf(hrvSensibleHeatBuf.data(), static_cast<std::streamsize>(hrvSensibleHeatBuf.size()));
+    hrvLatentHeatFile.rdbuf()->pubsetbuf(hrvLatentHeatBuf.data(), static_cast<std::streamsize>(hrvLatentHeatBuf.size()));
 
     InputData inputData;
     std::string err;
@@ -913,6 +943,8 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
         airconLatentHeatFile,
         airconPowerFile,
         airconCOPFile,
+        hrvSensibleHeatFile,
+        hrvLatentHeatFile,
     };
 
     auto simStart = std::chrono::steady_clock::now();
@@ -932,6 +964,8 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
     timings.push_back({"simulation_total", simMs, ""});
 
     airconCOPFile.close();
+    hrvLatentHeatFile.close();
+    hrvSensibleHeatFile.close();
     airconPowerFile.close();
     airconLatentHeatFile.close();
     airconSensibleHeatFile.close();
@@ -978,6 +1012,8 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
             {"aircon_latent_heat", airconLatentHeatBinName},
             {"aircon_power", airconPowerBinName},
             {"aircon_cop", airconCOPBinName},
+            {"hrv_sensible_heat", hrvSensibleHeatBinName},
+            {"hrv_latent_heat", hrvLatentHeatBinName},
         };
         if (!writeOutputData(outputPath, artifactDirName, logFileName, resultFiles, inputData.inputJson, inputData.inputContent, timings, runMetrics, err)) {
             std::cerr << err << "\n";

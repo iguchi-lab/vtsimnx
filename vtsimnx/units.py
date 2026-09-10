@@ -71,6 +71,8 @@ SERIES_UNITS: Mapping[str, str] = {
     "aircon_latent_heat": HEAT_RATE_W,
     "aircon_power": HEAT_RATE_W,
     "aircon_cop": "-",
+    "hrv_sensible_heat": HEAT_RATE_W,
+    "hrv_latent_heat": HEAT_RATE_W,
 }
 
 

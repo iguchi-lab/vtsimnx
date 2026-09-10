@@ -12,7 +12,7 @@
 
 - 計算実行は `vt.run_calc(...)` で行います。
 - 入力は Python の `dict`（JSON互換）で組み立て、`config_json` として渡します。
-- `surfaces`, `aircon`, `heat_source` などを含むと、builder が展開して solver 入力を構成します。
+- `surfaces`, `aircon`, `heat_recovery_vent`, `heat_source` などを含むと、builder が展開して solver 入力を構成します。
 - 利用者は通常、engine 側コードを編集せずに `input_data` 側を調整して運用します。
 
 ---
