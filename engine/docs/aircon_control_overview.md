@@ -1,6 +1,7 @@
 ### エアコン制御の概要
 
 考え方（何を同時に揃えるか）は [`aircon_control_principles.md`](aircon_control_principles.md) を参照してください。
+物理モデルから順に読む解説は [`../../docs/aircon_model_and_control.md`](../../docs/aircon_model_and_control.md) にまとめています。
 
 このドキュメントは、solver 側のエアコン制御が
 
@@ -110,6 +111,11 @@ flowchart TD
 4. 各段階は `AirconStateProposal` を積み上げ、`AirconRecomputeReason` を OR 集約する
 5. 優先順位 ON/OFF > Capacity > Flow > SupplyHumidity で再計算 or Accept を決める
 
+この優先順位は再計算理由の選択順です。潜熱処理を最後に実行する意味ではありません。
+`checkAndAdjustCapacity()` は潜熱処理と `supplyX` の適用を行ってから全熱能力を比較し、
+`checkAndAdjustDuctCentralAirflow()` でも潜熱処理を再評価します。
+`pre_rh` による理想除湿は、その潜熱処理モデル内の優先分岐です。
+
 能力探索中は風量を動かさない。風量は処理熱が決まったあとに一度合わせ、必要ならその結果で再計算する。能力制限中に計測コイル熱へ追従すると `V∝Q∝V` で 0 へ縮小するため、上限能力を風量比の基準にする。
 
 メトリクスには従来の種別カウンタに加え、次を記録します。
@@ -155,7 +161,7 @@ flowchart TD
     M{"mode"} -->|OFF| Z["強制 OFF"]
     M -->|設定維持中かつ Qreq を信頼できる| Q{"符号付き必要負荷"}
     Q -->|Q.min ありかつ絶対値が Q.min 未満| H{"停止すると再起動幅の外?"}
-    H -->|Yes| HOLD["ON のまま Q.min を処理"]
+    H -->|Yes| HOLD["ON を維持し要求負荷を Q.min 相当へ"]
     H -->|No| OFFQ["OFF"]
     Q -->|HEATING かつ Qreq が Q.on 以上| ON1["ON 維持"]
     Q -->|HEATING かつ Qreq が Q.on 未満| OFF1["OFF"]
@@ -168,8 +174,8 @@ flowchart TD
 
 - 暖房: `Qreq` が `Q.on` 以上なら ON。未満（冷房需要・ほぼゼロ含む）なら OFF
 - 冷房: `Qreq` が `-Q.on` 以下なら ON。それ以外は OFF
-- `Q.<mode>.min` がある機種（RAC・CRIEPI・DUCT_CENTRAL を含む）は、設定維持中の `|Qreq|` が `Q.min` 未満なら OFF（最低能力より小さい熱処理はしない）。再開は温度バンドのみ
-- 例外: 停止側の `set` 室温がすでに再起動幅（最低 1 K）の外なら、ON と OFF が共存する。このときは OFF にせず、処理熱を `Q.min` にする。考え方は [`aircon_control_principles.md`](aircon_control_principles.md) の §4.2
+- `Q.<mode>.min` がある機種（RAC・CRIEPI・DUCT_CENTRAL を含む）は、設定維持中の `|Qreq|` が `Q.min` 未満なら原則OFF。次の継続例外を除き、再開は温度バンドのみ
+- 例外: 記憶された停止側の `set` 室温が再起動幅（最低 1 K）の外なら、OFFにせず `required_heat_w` を最低能力相当へ置き換えます。全機種の実処理熱量を常に `Q.min` へ固定する式ではありません。考え方は [`aircon_control_principles.md`](aircon_control_principles.md) の §4.2
 - OFF 中の再起動は従来どおり温度バンド（帯内は現状維持）
 
 注意:
@@ -229,7 +235,7 @@ Q = \dot m\,|h_\mathrm{in}-h_\mathrm{out}|
 \]
 
 （\(h=\) `archenv::total_enthalpy_from_x`、モード向きのみ正）です。  
-吹出湿度 `supplyX` は従来どおり `latent_method` で決め、その後に全熱をエンタルピーから再計算し、顕熱/潜熱へ分解して出力・acmodel へ渡します。
+吹出湿度 `supplyX` は設定相対湿度の理想除湿、または `latent_method` で決め、その後に全熱をエンタルピーから再計算し、顕熱/潜熱へ分解して出力・acmodel へ渡します。
 
 ---
 
@@ -312,7 +318,7 @@ Q = \dot m\,|h_\mathrm{in}-h_\mathrm{out}|
 仕様:
 
 - 基準熱量が `0` のとき、目標風量は `0`
-- 基準熱量が正で `Q.<mode>.min` 未満のとき、目標風量は `V_inner.<mode>.dsgn * Q.min/Q.rtd`（最低風量。`Q.min` が無い機種は線形のまま）
+- 基準熱量が正で `Q.<mode>.min` 未満のとき、`0 < Q.min < Q.rtd` なら目標風量を `V_inner.<mode>.dsgn * Q.min/Q.rtd` 以上とする（この条件を満たさなければ下限補正しない）
 - 基準熱量が `Q.<mode>.rtd` のとき、目標風量は `V_inner.<mode>.dsgn`
 - その間は線形補間（上限は `dsgn`）
 
