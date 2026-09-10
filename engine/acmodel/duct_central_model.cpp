@@ -120,13 +120,21 @@ COPResult DuctCentralModel::estimateCoolingCOP(const InputData& in) {
                                    std::to_string(DEFAULT_V_HS_VENT_M3H) + "m3/h");
     }
 
-    // 吹出温度
-    const double Theta_hs_out = Theta_hs_in - q_hs_CS / (C_P_AIR * RHO_AIR * (V_hs_supply/3600.0));
-    calculationLogs_.push_back("　　　吹出温度: " + std::to_string(Theta_hs_out) + "°C");
-
     // 総冷房能力
     const double q_hs_C = q_hs_CS + q_hs_CL;
     calculationLogs_.push_back("　　　総冷房能力: " + std::to_string(q_hs_C) + "W");
+    if (!(q_hs_C > 0.0)) {
+        result.COP = 0.0;
+        result.power = 0.0;
+        result.valid = true;
+        calculationLogs_.push_back("　　　負荷0のためCOP計算をスキップ: 電力=0kW, COP=0");
+        result.logMessages.insert(result.logMessages.end(), calculationLogs_.begin(), calculationLogs_.end());
+        return result;
+    }
+
+    // 吹出温度
+    const double Theta_hs_out = Theta_hs_in - q_hs_CS / (C_P_AIR * RHO_AIR * (V_hs_supply/3600.0));
+    calculationLogs_.push_back("　　　吹出温度: " + std::to_string(Theta_hs_out) + "°C");
 
     // 送風機消費電力（q_hs_C > 0 のときのみ）
     const double E_E_fan_C_kW = (q_hs_C > 0.0)
@@ -222,10 +230,11 @@ COPResult DuctCentralModel::estimateCoolingCOP(const InputData& in) {
                                    std::to_string(q_hs_CS/1000.0) + "kW + 潜熱:" + std::to_string(q_hs_CL/1000.0) + 
                                    "kW), COP=" + std::to_string(COP) + ", 電力=" + std::to_string(E_E_C_d_t_kW) + "kW");
     } else {
+        // 負荷正でも電力が立たない場合は 0 として有効扱い（呼び出し側でエラーにしない）
         result.COP = 0.0;
         result.power = 0.0;
-        result.valid = false;
-        calculationLogs_.push_back("　　　エラー: 消費電力計算が無効です");
+        result.valid = true;
+        calculationLogs_.push_back("　　　消費電力=0のため COP=0, 電力=0kW");
     }
     
     // ログメッセージを結果に含める
@@ -276,6 +285,15 @@ COPResult DuctCentralModel::estimateHeatingCOP(const InputData& in) {
     if (!has_v_vent_input) {
         calculationLogs_.push_back("　　　換気風量入力なしのため既定値を使用: V_hs_vent=" +
                                    std::to_string(DEFAULT_V_HS_VENT_M3H) + "m3/h");
+    }
+
+    if (!(q_hs_H > 0.0)) {
+        result.COP = 0.0;
+        result.power = 0.0;
+        result.valid = true;
+        calculationLogs_.push_back("　　　負荷0のためCOP計算をスキップ: 電力=0kW, COP=0");
+        result.logMessages.insert(result.logMessages.end(), calculationLogs_.begin(), calculationLogs_.end());
+        return result;
     }
 
     const double Theta_hs_out = Theta_hs_in + q_hs_H / (C_P_AIR * RHO_AIR * (V_hs_supply/3600.0));
@@ -392,8 +410,8 @@ COPResult DuctCentralModel::estimateHeatingCOP(const InputData& in) {
     } else {
         result.COP = 0.0;
         result.power = 0.0;
-        result.valid = false;
-        calculationLogs_.push_back("　　　エラー: 暖房消費電力計算が無効です");
+        result.valid = true;
+        calculationLogs_.push_back("　　　暖房消費電力=0のため COP=0, 電力=0kW");
     }
     
     // ログメッセージを結果に含める

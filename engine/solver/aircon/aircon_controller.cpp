@@ -707,6 +707,19 @@ std::pair<double, double> AirconController::estimatePowerAndCOPForAircon(
     const auto loads = aircon::latent::estimateLatentProcess(
         context.validData, context.operationMode, context.heatCapacity, context.airFlowRate,
         nodeProps, moistEnthalpyEnabled_);
+    // 処理熱量 0 のときは COP モデルを呼ばず、電力・COP を 0 とする（無効扱いしない）
+    const double totalHeatW = aircon::latent::totalHeatCapacity(loads);
+    if (!(totalHeatW > 0.0)) {
+        if (logDetail && logVerbosity_ >= 1) {
+            std::ostringstream detail;
+            detail << "　　エアコン電力計算: " << airconKey
+                   << " [" << modeKey(context.operationMode) << "]"
+                   << " 処理熱量=0W のため COP 推定をスキップ"
+                   << " 電力=0W COP=0";
+            writeDomainLog(logs, "空調", detail.str());
+        }
+        return {0.0, 0.0};
+    }
     // 出力・COP 計算はグラフ状態を変更しない（supplyX 適用は外側ループ側）
     acmodel::InputData input =
         aircon::latent::buildAcmodelInput(context.validData,

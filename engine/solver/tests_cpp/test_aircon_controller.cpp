@@ -246,6 +246,26 @@ int main() {
         expectTrue(calls == 1, "estimateCOP called only for ON aircon (cop)");
     }
 
+    // ON でも処理熱量 0 なら COP 推定を呼ばず電力・COP=0（エラーにしない）
+    {
+        FlowRateMap zeroFlow;
+        zeroFlow[{"IN", "A"}] = 0.0;
+        zeroFlow[{"IN", "B"}] = 0.0;
+        calls = 0;
+        history.clear();
+        auto powerW = controller.calculatePowerValues(thermal, zeroFlow, std::cout);
+        auto cop = controller.calculateCOPValues(thermal, zeroFlow, std::cout);
+        expectTrue(powerW.size() == 2 && cop.size() == 2, "zero-load power/cop size");
+        if (powerW.size() == 2 && cop.size() == 2) {
+            expectNear(powerW[0], 0.0, 0.0, "A power=0 (off)");
+            expectNear(powerW[1], 0.0, 0.0, "B power=0 when load=0");
+            expectNear(cop[0], 0.0, 0.0, "A COP=0 (off)");
+            expectNear(cop[1], 0.0, 0.0, "B COP=0 when load=0");
+        }
+        expectTrue(calls == 0, "estimateCOP not called when load=0");
+        expectTrue(history.empty(), "history empty when load=0");
+    }
+
     // sensibleHeatCapacity も OFF は 0、ON のみ正値になること
     {
         auto sensible = controller.collectAirconDataValues(thermal, flowRates, "sensibleHeatCapacity");

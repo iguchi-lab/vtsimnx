@@ -1142,6 +1142,36 @@ int main() {
             expectNear(cOutB.power, cOutA.power, 1.0e-12,
                        "DUCT_CENTRAL cooling alignment: V_outer separation");
 
+            // 負荷 0: COP 推定をスキップし、電力=0・COP=0・valid=true
+            {
+                InputData zeroLoad = cIn;
+                zeroLoad.Q_S = 0.0;
+                zeroLoad.Q_L = 0.0;
+                zeroLoad.Q = 0.0;
+                COPResult zeroCool{};
+                try {
+                    zeroCool = model->estimateCOP("cooling", zeroLoad);
+                } catch (const std::exception& e) {
+                    fail(std::string("DUCT_CENTRAL zero-load cooling failed: ") + e.what());
+                }
+                expectTrue(zeroCool.valid, "DUCT_CENTRAL zero-load cooling: valid");
+                expectNear(zeroCool.power, 0.0, 0.0, "DUCT_CENTRAL zero-load cooling: power=0");
+                expectNear(zeroCool.COP, 0.0, 0.0, "DUCT_CENTRAL zero-load cooling: COP=0");
+
+                InputData zeroHeat = in;
+                zeroHeat.Q_S = 0.0;
+                zeroHeat.Q = 0.0;
+                COPResult zeroHeatOut{};
+                try {
+                    zeroHeatOut = model->estimateCOP("heating", zeroHeat);
+                } catch (const std::exception& e) {
+                    fail(std::string("DUCT_CENTRAL zero-load heating failed: ") + e.what());
+                }
+                expectTrue(zeroHeatOut.valid, "DUCT_CENTRAL zero-load heating: valid");
+                expectNear(zeroHeatOut.power, 0.0, 0.0, "DUCT_CENTRAL zero-load heating: power=0");
+                expectNear(zeroHeatOut.COP, 0.0, 0.0, "DUCT_CENTRAL zero-load heating: COP=0");
+            }
+
             // テスト専用ルール確認:
             // V_supply < 160m3/h のとき、V_vent=160m3/h としたケースでは
             // fan電力が0になり、V_vent=0ケースとの差は fan(=P_fan_rtd * V/V_dsgn) 相当になる。
