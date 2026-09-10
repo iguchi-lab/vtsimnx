@@ -18,7 +18,8 @@ engine 実装の厳密仕様は [`../engine/docs/README.md`](../engine/docs/READ
 | [`solar_usage.md`](solar_usage.md) | 日射取得 |
 | [`surface_usage.md`](surface_usage.md) | `surfaces` の組み立て |
 | [`response_factor_method.md`](response_factor_method.md) | 応答係数法・CTFの式、RCとの関係、履歴と制約 |
-| [`aircon_humidity_control.md`](aircon_humidity_control.md) | 空調湿度境界、理想除湿pre_rh、再計算閾値と制約 |
+| [`aircon_model_and_control.md`](aircon_model_and_control.md) | 技術文書第9章。接続、温度制御、潜熱処理、能力・風量、反復と電力を順に説明 |
+| [`aircon_humidity_control.md`](aircon_humidity_control.md) | 潜熱処理の入力、pre_rhによる理想除湿、湿度境界と制約 |
 | [`duct_central_airflow_control.md`](duct_central_airflow_control.md) | 全館空調の負荷追従風量、最低能力、固定風量とファンPQ |
 | [`schedule_usage.md`](schedule_usage.md) | 8760 スケジュール |
 | [`archenv_comfort_nocturnal_wind_usage.md`](archenv_comfort_nocturnal_wind_usage.md) | 風圧・夜間放射・地盤・PMV/PPD |
@@ -50,9 +51,10 @@ engine 実装の厳密仕様は [`../engine/docs/README.md`](../engine/docs/READ
 
 - 現行技術文書v3.2：[PDF](vtsimnx_calculation_model_and_implementation_flow_ja_v3.2.pdf) / [DOCX](vtsimnx_calculation_model_and_implementation_flow_ja_v3.2.docx)。2026年9月改訂。応答係数法は6.7節。
 - [v1.7.5差分点検記録](documentation_review_2026-09_v175.md)：全館空調の風量・ON/OFF、待ち時間に関する改訂と確認結果。
+- [空調章と記号表現の点検記録](documentation_review_2026-09_aircon_refinement.md)：章構成、潜熱処理の位置づけ、本文・表の数式と列配置の整理。
 - [v1.7.4差分点検記録](documentation_review_2026-09_v174.md)：空調湿気処理の改訂内容、確認結果、制約。
 - [初回文書点検記録](documentation_review_2026-09.md)：基礎式・応答係数法の照合、数値確認、コード側の未解決事項。
-- 文書v3.2はパッケージv1.7.5更新版（commit `83a724d`）の実装を説明します。空調湿度境界、全館空調の負荷追従風量と最低能力制御を反映済みです。文書とソフトウェアの版番号は別です。
+- 文書v3.2はパッケージv1.7.5更新版（commit `bcec37e`）の実装を説明します。第9章は空調全体の構成から再整理し、設定相対湿度による理想除湿を潜熱処理モデルとして説明します。文書とソフトウェアの版番号は別です。
 - v2.8・v3.1は旧版資料です。現行の説明と異なる場合は、対象commitを明記したv3.2改訂版と各ガイドを参照してください。
 
 ## 関連入口
