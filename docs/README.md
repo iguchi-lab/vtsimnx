@@ -50,13 +50,14 @@ engine 実装の厳密仕様は [`../engine/docs/README.md`](../engine/docs/READ
 
 ## 技術文書と点検記録
 
-- 現行技術文書v3.2：[PDF](vtsimnx_calculation_model_and_implementation_flow_ja_v3.2.pdf) / [DOCX](vtsimnx_calculation_model_and_implementation_flow_ja_v3.2.docx)。2026年9月改訂。応答係数法は6.7節。
+- 現行技術文書v3.3：[PDF](vtsimnx_calculation_model_and_implementation_flow_ja_v3.3.pdf) / [DOCX](vtsimnx_calculation_model_and_implementation_flow_ja_v3.3.docx)。2026年9月改訂。応答係数法は6.7節、熱交換換気は第9章。
+- [v1.8.0差分点検記録](documentation_review_2026-09_v180.md)：顕熱・全熱交換、4ポート接続、回収熱量、零負荷時COPの改訂と確認結果。
 - [v1.7.5差分点検記録](documentation_review_2026-09_v175.md)：全館空調の風量・ON/OFF、待ち時間に関する改訂と確認結果。
 - [空調章と記号表現の点検記録](documentation_review_2026-09_aircon_refinement.md)：章構成、潜熱処理の位置づけ、本文・表の数式と列配置の整理。
 - [v1.7.4差分点検記録](documentation_review_2026-09_v174.md)：空調湿気処理の改訂内容、確認結果、制約。
 - [初回文書点検記録](documentation_review_2026-09.md)：基礎式・応答係数法の照合、数値確認、コード側の未解決事項。
-- 文書v3.2はパッケージv1.7.5更新版（commit `bcec37e`）の実装を説明します。第9章は空調全体の構成から再整理し、設定相対湿度による理想除湿を潜熱処理モデルとして説明します。文書とソフトウェアの版番号は別です。
-- v2.8・v3.1は旧版資料です。現行の説明と異なる場合は、対象commitを明記したv3.2改訂版と各ガイドを参照してください。
+- 文書v3.3はパッケージv1.8.0（commit `ef11982`）の実装を説明します。第9章は熱交換換気、第10章は空調機を扱い、設定相対湿度による理想除湿を潜熱処理モデルとして説明します。文書とソフトウェアの版番号は別です。
+- v2.8・v3.1・v3.2は旧版資料です。現行の説明と異なる場合は、対象commitを明記したv3.3と各ガイドを参照してください。
 
 ## 関連入口
 

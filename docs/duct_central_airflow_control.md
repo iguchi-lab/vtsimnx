@@ -1,6 +1,6 @@
 # 全館空調（DUCT_CENTRAL）の風量・最低能力制御
 
-対象はパッケージ v1.7.5更新版、実装 commit `bcec37eac4b4ff00dcc54711cd4ff1587e963289`。
+対象はパッケージ v1.8.0、実装 commit `ef11982`。
 全体のモデル構成は[空調機のモデルと制御](aircon_model_and_control.md)を参照する。
 このガイドは利用者入力と結果解釈を扱う。反復手順の正本は
 [engineの空調制御原則](../engine/docs/aircon_control_principles.md)と
