@@ -103,7 +103,13 @@ solverでは \(q = A\,q''\) に変換して熱収支（\[W]）に入れます。
 #### 4.3 安定性（sum(c)≈1）
 
 非常に遅い系では \(\sum c \to 1\) に近づき、丸め誤差で不安定化しやすい。
-builderはこのケースで **定常U値（メモリなし）へフォールバック**することがあります。
+**現行の数値安定化処理**: builder の [`surface_response.py`](../app/builder/surface_response.py) は、自動生成した AR 係数の和 `sum_c > 0.9999` の場合に **定常U値（メモリなし）へフォールバック**します。等号の場合はこの分岐に入りません。
+
+- `R_total = sum(層厚 / 熱伝導率)`、`U = 1 / R_total`（`R_total <= 0` では U=0）とし、両側の `resp_a=[U]`, `resp_b=[-U]`, `resp_c=[]` を返します。
+- **制約**: この分岐では壁の履歴項を失うため、元の壁の蓄熱・時間遅れを再現する保証はありません。数値発散を避ける処理であり、動的応答の同等性を保証する処理ではありません。
+- **変更時の確認**: [`test_surfaces_response_conduction.py`](../tests_py/builder/test_surfaces_response_conduction.py) の `test_auto_response_coefficients_falls_back_to_steady_state_when_sum_c_near_1` は、遅い系で履歴係数が空になること等を検証します。閾値直下・等号・直上の網羅性や元の壁との過渡応答一致を、このテストだけで保証しないでください。
+
+この閾値は現行実装の安定化条件です。変更する場合は、定常熱流と過渡応答の影響を評価し、仕様・実装・テストを同時に更新してください。
 
 ---
 
@@ -191,5 +197,3 @@ acmodel の `CRIEPIModel` は、CRIEPI の熱源特性モデルの考え方（�
 - 一方で「1時間当たりの処理量/負荷」は \(MJ/h\) を用いる式があり、換算が前提（例: \(\times 3600 \times 10^{-6}\)）
 
 参考: [第四章 暖冷房設備／第三節 ルームエアコンディショナー（Ver.08, 2025.04）](https://www.kenken.go.jp/becc/documents/house/4-3_250401_v08.pdf)
-
-

@@ -53,6 +53,10 @@ Python クライアント利用者向けガイドは [`../../docs/README.md`](..
 | [`builder_json.md`](builder_json.md) §11.0 | `heat_recovery_vent` 入力正本 |
 | [`../../docs/heat_recovery_vent.md`](../../docs/heat_recovery_vent.md) | 顕熱・全熱の利用者ガイド |
 
+## 仕様の保守
+
+[仕様・実装・テスト対応表](specification_traceability.md) に、主要な変更箇所の参照先、既存テストの検証範囲、文書更新手順をまとめています。仕様、現在の実装説明、制約・近似、将来案を区別して記述してください。文書とコードに差がある場合の扱いも同表を参照してください。
+
 ## テスト
 
 | 文書 | 役割 |

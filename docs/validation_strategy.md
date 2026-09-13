@@ -126,3 +126,9 @@ baseline 更新: `tests_py/perf/baselines/representative.json` を意図的な�
 - C++テストの具体例: `../engine/docs/cpp_test_catalog.md`
 - Python 物理スイート: `../engine/tests_py/README.md`
 - リリース方針: `release_policy.md`
+
+## 仕様変更時の検証先
+
+[仕様・実装・テスト対応表](../engine/docs/specification_traceability.md) から、主要仕様に対応する実装とテストを参照できます。
+既存テストの存在、実行した結果、未検証の条件を分けて記録してください。特に、制御関数の分岐テストが通ることだけでは、連成シミュレーション全体の物理妥当性を保証しません。
+数値の閾値やフォールバックを変更するときは、期待する分岐に加え、定常値・過渡応答・収支への影響を確認します。
