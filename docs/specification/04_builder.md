@@ -44,7 +44,9 @@ response_terms を指定する場合は正の整数とする。bool、非整数 
 
 体積 V>0 のノードで、空気熱容量 C_a と残余容量 C_f は式 (4-1) とする。
 
-$$ C_a=1.2\times1006\,V,\qquad C_f=\max(0,C_T-C_a). \tag{4-1} $$
+```math
+C_a=1.2\times1006\,V,\qquad C_f=\max(0,C_T-C_a). \tag{4-1}
+```
 
 C_T は thermal_mass [J/K]、V は m³。C_a>C_T+10^-9 の場合は ValueError。正の容量ごとに次の要素を追加する。
 
@@ -59,7 +61,9 @@ C_T は thermal_mass [J/K]、V は m³。C_a>C_T+10^-9 の場合は ValueError�
 
 入力容量 C_in の単位が J/(kg/kg') の場合、式 (4-2) により内部容量を求める。kg/(kg/kg) の場合は C_x=C_in とする。
 
-$$ C_x=C_{\rm in}/(2.5\times10^6). \tag{4-2} $$
+```math
+C_x=C_{\rm in}/(2.5\times10^6). \tag{4-2}
+```
 
 入力容量及び Δt は有限で正とする。key_mx（calc_x=True、calc_t=False、type=capacity、subtype=moisture、ref_node=key）を追加し、moisture_capacity=C_x とする。初期 x は元ノードの x、省略時0を用いる。
 

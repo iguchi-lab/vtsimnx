@@ -28,7 +28,9 @@ Python run_calc の既定は POST /runs による非同期投入とポーリン�
 
 schema の dtype は f32le、layout は timestep-major、length は非負整数 T。series の keys の個数を N とする。数値ファイルの期待サイズは式 (13-1) による。
 
-$$ B=4TN\quad{\rm bytes}. \tag{13-1} $$
+```math
+B=4TN\quad{\rm bytes}. \tag{13-1}
+```
 
 順序は時刻を外側、キーを内側とする。値(n,j)は先頭から4(nN+j) bytes の位置にある。列を独自に再ソートせず schema の keys に従う。
 

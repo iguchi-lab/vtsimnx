@@ -108,3 +108,11 @@
 ## 6. 確定条件
 
 入出力・式・分岐・単位・例外が記載され、対象 commit の実装と対応付けられ、重要な境界条件の検証範囲と未検証範囲が明示されていることを確認する。未解決の仕様差異を残した節を「確定」と表示しない。
+
+## 7. GitHub での数式表示
+
+独立した数式は、GitHub が対応する `math` フェンスで囲み、開始・終了フェンスをそれぞれ独立した行に置く。前後には空行を入れる。式番号は数式内の `\tag{章-番号}` で指定する。数式本文・係数・符号を表示修正のために変更しない。
+
+表内の式はインライン数式とし、絶対値には `\lvert` と `\rvert` を用いる。未エスケープの縦線は Markdown の列区切りになるため使用しない。添え字には波括弧を使う。
+
+参考：[GitHub の数式記述方法](https://docs.github.com/en/get-started/writing-on-github/working-with-advanced-formatting/writing-mathematical-expressions)。

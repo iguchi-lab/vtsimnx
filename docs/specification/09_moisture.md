@@ -14,7 +14,7 @@
 | x | 乾き空気基準の湿度比 kg/kg(DA) |
 | V | 空気体積 m³ |
 | ρ₀ | 固定の乾き空気密度 kg/m³ |
-| M_ji=ρ₀|q_ji| | 実流向 j→i の空気質量流量 kg/s |
+| $M_{ji}=\rho_0\lvert q_{ji}\rvert$ | 実流向 j→i の空気質量流量 kg/s |
 | g_i | humidity_generation の集計 kg/s |
 | K_ij | moisture_conductance、kg/s |
 | C_i | 正の moisture_capacity、なければρ₀V |
@@ -26,17 +26,21 @@ moisture_conductance は表記方向によらず双方向結合である。発�
 
 一般式は式 (9-1) とする。
 
-$$ C_i\frac{dx_i}{dt}
+```math
+C_i\frac{dx_i}{dt}
 =g_i+\sum_{\rm in}M_{ji}x_j-\sum_{\rm out}M_{ij}x_i
-+\sum_jK_{ij}(x_j-x_i). \tag{9-1} $$
++\sum_jK_{ij}(x_j-x_i). \tag{9-1}
+```
 
 C_i>0 のとき、ソルバが組み立てる行は式 (9-2) である。
 
-$$\left[1+\frac{\Delta t}{C_i}
+```math
+\left[1+\frac{\Delta t}{C_i}
 \left(\sum_{\rm out}M_{ij}+\sum_jK_{ij}\right)\right]x_i^{n+1}
 -\frac{\Delta t}{C_i}\sum_{\rm in}M_{ji}x_j^{n+1}
 -\frac{\Delta t}{C_i}\sum_jK_{ij}x_j^{n+1}
-=x_i^n+\frac{\Delta t}{C_i}g_i. \tag{9-2}$$
+=x_i^n+\frac{\Delta t}{C_i}g_i. \tag{9-2}
+```
 
 固定湿度の項は現在の反復境界値で右辺へ移す。未知湿度は同時に解く。同一上流からの並列枝は合算する。x_i^n は時間段階の開始値であり、直前反復値ではない。
 
@@ -64,8 +68,10 @@ from_phase_change は材料側の相変化量から潜熱を計算する。from_
 
 humidity_x は kg/kg(DA)、humidity_flux は kg/s。収支残差は式 (9-3) とする。
 
-$$ R_i=C_i(x_i^{n+1}-x_i^n)/\Delta t-
-(\dot m_{{\rm vent},i}+g_i+\dot m_{{\rm material},i}). \tag{9-3} $$
+```math
+R_i=C_i(x_i^{n+1}-x_i^n)/\Delta t-
+(\dot m_{{\rm vent},i}+g_i+\dot m_{{\rm material},i}). \tag{9-3}
+```
 
 空調除湿診断は吹出境界に織込み済みであり、残差へ再加算しない。
 
