@@ -1,0 +1,106 @@
+{
+  "verified_at_utc": "2026-09-16T22:05:41.397169+00:00",
+  "python": "3.12.14",
+  "pandas": "3.0.1",
+  "numpy": "2.3.5",
+  "target_commit": "07a2181cec92029f841c4be63fe5c0932ba95ece",
+  "cpp_solver_executed": false,
+  "http_executed": false,
+  "checks": [
+    {
+      "id": "SPEC-03-002",
+      "method": "actual_builder",
+      "status": "passed",
+      "details": "simulation extras not propagated; flags derived; raw unchanged"
+    },
+    {
+      "id": "SPEC-04-002",
+      "method": "actual_builder",
+      "status": "passed",
+      "details": "air/furniture conductance=16.7666666667 W/K; insufficient capacity rejected"
+    },
+    {
+      "id": "SPEC-04-003",
+      "method": "actual_builder",
+      "status": "passed",
+      "details": "capacity conversion, link, and disabling"
+    },
+    {
+      "id": "SPEC-03-001",
+      "method": "actual_builder",
+      "status": "passed",
+      "details": "omitted branch arrays become empty"
+    },
+    {
+      "id": "SPEC-03-003",
+      "method": "actual_helper",
+      "status": "passed",
+      "details": "length-one broadcast and length mismatch"
+    },
+    {
+      "id": "SPEC-04-OPTIONS",
+      "method": "actual_helper",
+      "status": "passed",
+      "details": "argument > builder > top-level; bool terms rejected"
+    },
+    {
+      "id": "SPEC-02-001",
+      "method": "actual_helper",
+      "status": "passed",
+      "details": "Series, DataFrame and non-finite floats"
+    },
+    {
+      "id": "SPEC-02-002",
+      "method": "actual_helper",
+      "status": "passed",
+      "details": "timezone conversion and irregular spacing rejection"
+    },
+    {
+      "id": "SPEC-02-PRECISION",
+      "method": "actual_helper",
+      "status": "passed",
+      "details": {
+        "ns": 3600,
+        "us": 4
+      }
+    },
+    {
+      "id": "SPEC-13-001-002",
+      "method": "actual_decoder",
+      "status": "passed",
+      "details": "timestep-major, byte count, units, zero columns"
+    },
+    {
+      "id": "SPEC-09-EXAMPLE",
+      "method": "arithmetic_only",
+      "status": "passed",
+      "details": {
+        "x": 0.009716981132075472
+      }
+    },
+    {
+      "id": "SPEC-10-EXAMPLE",
+      "method": "arithmetic_only",
+      "status": "passed",
+      "details": {
+        "c": 94.17645335842487
+      }
+    },
+    {
+      "id": "SPEC-11-EXAMPLE",
+      "method": "arithmetic_only",
+      "status": "passed",
+      "details": {
+        "hrv_W_when_exhaust_zero": 1690.0800000000002
+      }
+    },
+    {
+      "id": "SPEC-12-EXAMPLE",
+      "method": "arithmetic_only",
+      "status": "passed",
+      "details": {
+        "energy_kWh": 1.0
+      }
+    }
+  ]
+}

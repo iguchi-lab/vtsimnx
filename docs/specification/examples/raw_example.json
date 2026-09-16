@@ -1,0 +1,54 @@
+{
+  "simulation": {
+    "index": {
+      "start": "2026-01-01 00:00:00",
+      "end": "2026-01-01 01:00:00",
+      "timestep": 3600,
+      "length": 2
+    },
+    "coupling": {
+      "moisture_enabled": false
+    },
+    "iteration": {
+      "max_inner": 3
+    },
+    "calc_flag": {
+      "p": true,
+      "t": false,
+      "x": false,
+      "c": false
+    }
+  },
+  "nodes": [
+    {
+      "key": "room",
+      "t": 20.0,
+      "x": 0.01,
+      "v": 50,
+      "calc_t": true,
+      "thermal_mass": 120720,
+      "moisture_capacity": 2500000
+    },
+    {
+      "key": "outside",
+      "t": 0.0,
+      "x": 0.005
+    }
+  ],
+  "ventilation_branches": [
+    {
+      "key": "outside->room",
+      "vol": 0.1
+    },
+    {
+      "key": "room->outside",
+      "vol": 0.1
+    }
+  ],
+  "thermal_branches": [
+    {
+      "key": "outside->room",
+      "conductance": 10.0
+    }
+  ]
+}

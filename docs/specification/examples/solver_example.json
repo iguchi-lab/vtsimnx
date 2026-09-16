@@ -1,0 +1,147 @@
+{
+  "simulation": {
+    "index": {
+      "start": "2026-01-01 00:00:00",
+      "end": "2026-01-01 01:00:00",
+      "timestep": 3600,
+      "length": 2
+    },
+    "tolerance": {
+      "ventilation": 1e-06,
+      "thermal": 1e-06,
+      "convergence": 1e-06
+    },
+    "calc_flag": {
+      "p": false,
+      "t": true,
+      "x": true,
+      "c": false
+    }
+  },
+  "nodes": [
+    {
+      "key": "void",
+      "type": "normal",
+      "v": 0.0
+    },
+    {
+      "key": "room",
+      "t": 20.0,
+      "x": 0.01,
+      "v": 50,
+      "calc_t": true,
+      "comment": "",
+      "calc_x": true,
+      "type": "normal",
+      "p": 0.0
+    },
+    {
+      "key": "outside",
+      "t": 0.0,
+      "x": 0.005,
+      "comment": "",
+      "type": "normal",
+      "p": 0.0,
+      "v": 0.0
+    },
+    {
+      "key": "room_c",
+      "calc_t": false,
+      "type": "capacity",
+      "ref_node": "room",
+      "t": 20.0,
+      "v": 0.0
+    },
+    {
+      "key": "room_air",
+      "calc_t": false,
+      "type": "capacity",
+      "ref_node": "room",
+      "t": 20.0,
+      "v": 0.0
+    },
+    {
+      "key": "room_mx",
+      "calc_x": true,
+      "calc_t": false,
+      "type": "capacity",
+      "subtype": "moisture",
+      "ref_node": "room",
+      "x": 0.01,
+      "moisture_capacity": 1.0,
+      "t": 20.0,
+      "v": 0.0
+    }
+  ],
+  "ventilation_branches": [
+    {
+      "key": "outside->room",
+      "vol": 0.1,
+      "comment": "",
+      "source": "outside",
+      "target": "room",
+      "enable": true,
+      "type": "fixed_flow",
+      "h_from": 0.0,
+      "h_to": 0.0,
+      "humidity_generation": [
+        0.0,
+        0.0
+      ]
+    },
+    {
+      "key": "room->outside",
+      "vol": 0.1,
+      "comment": "",
+      "source": "room",
+      "target": "outside",
+      "enable": true,
+      "type": "fixed_flow",
+      "h_from": 0.0,
+      "h_to": 0.0,
+      "humidity_generation": [
+        0.0,
+        0.0
+      ]
+    }
+  ],
+  "thermal_branches": [
+    {
+      "key": "outside->room",
+      "conductance": 10.0,
+      "comment": "",
+      "source": "outside",
+      "target": "room",
+      "enable": true,
+      "type": "conductance"
+    },
+    {
+      "key": "room_c->room",
+      "conductance": 16.766666666666666,
+      "subtype": "capacity",
+      "source": "room_c",
+      "target": "room",
+      "enable": true,
+      "type": "conductance"
+    },
+    {
+      "key": "room_air->room",
+      "conductance": 16.766666666666666,
+      "subtype": "air_capacity",
+      "source": "room_air",
+      "target": "room",
+      "enable": true,
+      "type": "conductance"
+    },
+    {
+      "key": "room_mx->room",
+      "source": "room_mx",
+      "target": "room",
+      "type": "conductance",
+      "subtype": "moisture_capacity",
+      "conductance": 0.0,
+      "moisture_conductance": 0.0002777777777777778,
+      "enable": true
+    }
+  ]
+}
