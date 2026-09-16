@@ -100,6 +100,8 @@ class NodeType(TypedDict):
     model: Optional[str]
     mode: Optional[str]
     ac_spec: Optional[dict]
+    # DUCT_CENTRAL: 熱処理負荷0のときの循環風量 [m³/s]（未指定は0）
+    vol_zero: Optional[float]
     # 湿気回路網（Phase1）
     # - moisture_capacity: 材料側ノードなどに与える湿気容量 [kg/(kg/kg)]
     # - moisture_capacity_unit:

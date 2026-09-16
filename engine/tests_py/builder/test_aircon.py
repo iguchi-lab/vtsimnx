@@ -50,6 +50,41 @@ def test_aircon_adds_aircon_node_and_ventilation_branches():
     assert "vol" in intake and "vol" in supply
 
 
+def test_aircon_vol_zero_is_copied_to_aircon_node():
+    raw = {
+        "simulation": {
+            "index": {"start": "2025-01-01T00:00:00Z", "end": "2025-01-01T01:00:00Z", "timestep": 60, "length": 2},
+            "tolerance": {"ventilation": 1e-6, "thermal": 1e-6, "convergence": 1e-6},
+            "calc_flag": {"p": False, "t": False, "x": False, "c": False},
+        },
+        "nodes": [{"key": "室1"}],
+        "ventilation_branches": [],
+        "thermal_branches": [],
+        "aircon": [
+            {
+                "key": "AC1",
+                "set": "室1",
+                "outside": "外気",
+                "pre_temp": 20.0,
+                "model": "DUCT_CENTRAL",
+                "mode": "HEATING",
+                "vol": 0.36,
+                "vol_zero": 0.05,
+                "ac_spec": {
+                    "Q": {"heating": {"rtd": 7.2}, "cooling": {"rtd": 7.2}},
+                    "min_process": {"heating": 2.7, "cooling": 2.7},
+                    "V_inner": {"heating": {"dsgn": 0.36}, "cooling": {"dsgn": 0.36}},
+                },
+            }
+        ],
+    }
+
+    out = build_config(raw, add_surface=False, add_capacity=False)
+    ac1 = next(n for n in out["nodes"] if n["key"] == "AC1")
+    assert ac1["vol_zero"] == 0.05
+    assert ac1["ac_spec"]["min_process"]["heating"] == 2.7
+
+
 def test_aircon_fan_pq_keeps_supply_as_pressure_loss_and_ignores_vol():
     raw = {
         "simulation": {

@@ -71,7 +71,7 @@ private:
     // 能力超過時 nullopt 用の二分探索 bracket（タイムステップごとにクリア）
     mutable aircon::capacity::CapacityBracketMap capacityLimitBracket_;
 
-    // OFF 中に観測した set 室温。停止すると再起動幅を超えるときは最低能力で継続する。
+    // OFF 中に観測した set 室温。停止後の再起動判定などで参照する。
     mutable std::unordered_map<std::string, double> lastFreeSetTempC_;
 
     // 外側連成の forceMinTwo 判定用（ON/OFF・mode 署名）。initializeModels でクリア。
@@ -139,9 +139,8 @@ public:
                                         const FlowRateMap& flowRates) const;
 
     // === 制御関数 ===
-    // minProcessHeatW > 0 のとき、設定維持中の符号付き負荷がこの値未満なら OFF。
-    // 再開は温度バンド側（呼び出し側が useRequiredHeat=false）だけ。
-    // holdAtMinimumCapacity のときは停止せず、最低能力で運転を続ける。
+    // minProcessHeatW > 0 かつ holdAtMinimumCapacity のとき、最低能力で運転を続ける。
+    // ON/OFF そのものは負荷デッドバンド（約 1 W）のみ。カタログ Q.min では止めない。
     template<typename NodeType>
     AirconControlResult controlAircon(const NodeType& nodeProps, double currentTemp,
                                       double targetTemp, double tolerance, [[maybe_unused]] std::ostream& logs,
@@ -197,9 +196,9 @@ public:
                                 std::vector<AirconStateProposal>* outProposals = nullptr) const;
 
     // DUCT_CENTRAL 用: 処理熱量に応じて送風量を補正する。
-    // - 基準熱量=0 -> 風量=0
-    // - 0 < 基準熱量 < Q.min -> 風量=V_inner.dsgn * Q.min/Q.rtd
-    // - 基準熱量=Q.rtd -> 風量=V_inner.dsgn
+    // - 基準熱量=0 -> vol_zero（既定 0）
+    // - min_process 運転中（0 < 基準熱量 <= min_process）-> V_inner.dsgn * min_process/Q.rtd
+    // - それ以外は V_inner.dsgn * clamp(基準熱量/Q.rtd, 0, 1)
     // - 能力制限中・要求設定未達は Q_max
     // - 設定維持中は |required_heat_w|（無いときは Q_max。計測コイル熱では 0 へ縮小する）
     // 還気と吹出の fixed_flow を同じ風量・同じ循環向きに更新する。

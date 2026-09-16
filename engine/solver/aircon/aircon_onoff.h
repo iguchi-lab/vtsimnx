@@ -21,10 +21,12 @@ bool temperatureWouldRestart(const std::string& mode,
                              double targetTempC,
                              double bandK);
 
-// Q.min を引くモードキー。AUTO は符号付き負荷が負なら冷却。
+// Q.min / min_process を引くモードキー。AUTO は符号付き負荷が負なら冷却。
 const char* minCapacityModeKey(const std::string& currentMode, double requiredHeatW);
 
 // 設定維持中の室負荷、または停止中の温度バンドで ON/OFF を決める。
+// minProcessHeatW はカタログ Q.min ではなく制御用 min_process [W]。
+// holdAtMinimumCapacity のとき停止せず最低能力で処理する。
 Decision decide(const std::string& mode,
                 bool currentlyOn,
                 double currentTemp,

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cmath>
 #include <optional>
 #include <string>
 
@@ -50,11 +51,16 @@ struct AirconPerformanceSpec {
 
 // エアコンの仕様
 struct AirconSpec {
-    AirconPerformanceSpec Q;   // 能力 [kW]
+    AirconPerformanceSpec Q;   // 能力 [kW]（カタログ。COP 用 Q.min を含む）
     AirconPerformanceSpec P;   // 消費電力 [kW]
     std::optional<AirconPerformanceSpec> P_fan;   // ファン消費電力 [kW]
     std::optional<AirconPerformanceSpec> V_inner; // 内部風量 [m³/s]
     std::optional<AirconPerformanceSpec> V_outer; // 外部風量 [m³/s]
+
+    // 制御用の最低処理能力 [kW]（任意）。カタログ Q.min とは独立。
+    // 指定時、設定維持中の |必要負荷| がこの値以下なら最低能力分を処理する。
+    std::optional<double> min_process_heating;
+    std::optional<double> min_process_cooling;
 
     // 追加パラメータ
     double max_heat_capacity = 2400.0; // 最大処理熱量 [W]
@@ -80,6 +86,18 @@ struct AirconSpec {
             spec.V_outer->setFromJson(ac_spec_json["V_outer"]);
         }
 
+        if (ac_spec_json.contains("min_process") && ac_spec_json["min_process"].is_object()) {
+            const auto& mp = ac_spec_json["min_process"];
+            if (mp.contains("heating") && mp["heating"].is_number()) {
+                const double v = mp["heating"].get<double>();
+                if (std::isfinite(v) && v > 0.0) spec.min_process_heating = v;
+            }
+            if (mp.contains("cooling") && mp["cooling"].is_number()) {
+                const double v = mp["cooling"].get<double>();
+                if (std::isfinite(v) && v > 0.0) spec.min_process_cooling = v;
+            }
+        }
+
         if (ac_spec_json.contains("max_heat_capacity")) {
             spec.max_heat_capacity = ac_spec_json["max_heat_capacity"].get<double>();
         }
@@ -90,6 +108,12 @@ struct AirconSpec {
     double getMaxHeatCapacity() const { return max_heat_capacity; }
     std::optional<double> getCapacity(const std::string& mode, const std::string& rating = "rtd") const {
         return Q.getValue(mode, rating);
+    }
+    /** 制御用最低処理能力 [kW]。未指定なら nullopt（カタログ Q.min は見ない）。 */
+    std::optional<double> getMinProcess(const std::string& mode) const {
+        if (mode == "cooling") return min_process_cooling;
+        if (mode == "heating") return min_process_heating;
+        return std::nullopt;
     }
     /** 能力上限 [kW]。max があればそれ、なければ mid を返す（DUCT_CENTRAL / LATENT_EVALUATE で mid のみの spec に対応） */
     std::optional<double> getCapacityMaxForMode(const std::string& mode) const {

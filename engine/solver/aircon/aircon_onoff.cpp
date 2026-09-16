@@ -32,17 +32,15 @@ namespace {
 
 bool demandKeepsOn(const std::string& mode,
                    double requiredHeatW,
-                   double qOn,
-                   bool useMinCapacity) {
+                   double qOn) {
     if (mode == "HEATING") {
-        return useMinCapacity ? (requiredHeatW >= qOn) : (requiredHeatW > qOn);
+        return requiredHeatW > qOn;
     }
     if (mode == "COOLING") {
-        return useMinCapacity ? (requiredHeatW <= -qOn) : (requiredHeatW < -qOn);
+        return requiredHeatW < -qOn;
     }
     if (mode == "AUTO") {
-        return useMinCapacity ? (std::abs(requiredHeatW) >= qOn)
-                              : (std::abs(requiredHeatW) > qOn);
+        return std::abs(requiredHeatW) > qOn;
     }
     throw std::runtime_error("エアコンのモードが不正です: " + mode);
 }
@@ -53,22 +51,21 @@ Decision decideFromRequiredHeat(const std::string& mode,
                                 double minProcessHeatW,
                                 bool holdAtMinimumCapacity) {
     const double qTol = std::max(0.0, loadDeadbandW);
-    const bool useMinCapacity = std::isfinite(minProcessHeatW) && minProcessHeatW > qTol;
-    const double qOn = useMinCapacity ? minProcessHeatW : qTol;
+    const bool useMinProcess = std::isfinite(minProcessHeatW) && minProcessHeatW > qTol;
 
     Decision decision;
-    if (holdAtMinimumCapacity && useMinCapacity) {
+    // ON/OFF は負荷デッドバンドのみ。カタログ Q.min では止めない。
+    // min_process 指定時に負荷がその以下なら hold で最低能力運転を継続する。
+    if (holdAtMinimumCapacity && useMinProcess) {
         decision.shouldBeOn = true;
     } else {
-        decision.shouldBeOn = demandKeepsOn(mode, requiredHeatW, qOn, useMinCapacity);
+        decision.shouldBeOn = demandKeepsOn(mode, requiredHeatW, qTol);
     }
 
     std::ostringstream detail;
     detail << "Qreq=" << requiredHeatW << "W";
-    if (holdAtMinimumCapacity && useMinCapacity) {
-        detail << " < Q.min=" << qOn << "W, 再起動と共存のため最低能力で継続";
-    } else if (useMinCapacity && !decision.shouldBeOn) {
-        detail << " < Q.min=" << qOn << "W";
+    if (holdAtMinimumCapacity && useMinProcess) {
+        detail << " <= min_process=" << minProcessHeatW << "W, 最低能力で処理";
     }
     decision.detail = detail.str();
     return decision;

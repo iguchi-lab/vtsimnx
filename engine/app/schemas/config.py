@@ -162,6 +162,11 @@ class NodeModel(_StrictExtraBase):
     model: Optional[str] = None
     mode: Optional[ScalarOrSeries] = None
     ac_spec: Optional[Dict[str, Any]] = None
+    vol_zero: Optional[float] = Field(
+        default=None,
+        description="熱処理負荷が0のときの循環風量（DUCT_CENTRAL）。未指定は0",
+        json_schema_extra=field_extra(VOLUME_FLOW_M3_S),
+    )
 
 
 class VentilationBranchModel(_StrictExtraBase):
@@ -356,6 +361,11 @@ class AirconModel(_StrictExtraBase):
     vol: Optional[ScalarOrSeries] = Field(
         default=None,
         description="送風量",
+        json_schema_extra=field_extra(VOLUME_FLOW_M3_S),
+    )
+    vol_zero: Optional[float] = Field(
+        default=None,
+        description="熱処理負荷が0のときの循環風量（DUCT_CENTRAL）。未指定は0",
         json_schema_extra=field_extra(VOLUME_FLOW_M3_S),
     )
     p_max: Optional[float] = Field(

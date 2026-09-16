@@ -49,13 +49,16 @@ FlowHeatBasis selectFlowHeatBasis(const VertexProperties& nodeProps,
                                   double controlledRoomTemp);
 
 // 基準熱量から目標風量 [m3/s] を求める。
-// - 熱量 <= 0 → 0
-// - 0 < 熱量 < Q.min → V_dsgn * Q.min/Q.rtd（最低風量。Q.min が無い機種は線形のまま）
+// - 熱量 <= 0 → zeroLoadFlowM3s（既定 0。換気用の零負荷風量）
+// - minProcessHeatW > 0 かつ 0 < 熱量 <= minProcessHeatW
+//     → V_dsgn * minProcessHeatW/Q.rtd（最低能力時の最低風量）
 // - それ以上は V_dsgn * clamp(熱量/Q.rtd, 0, 1)
-// heldAtMinimum が非 null なら、最低風量で頭打ちしたとき true。
+// カタログ Q.min は使わない。heldAtMinimum が非 null なら最低能力風量のとき true。
 std::optional<double> computeTargetFlowFromProcessedHeat(const VertexProperties& nodeProps,
                                                          OperationMode operationMode,
                                                          double processedHeatW,
+                                                         double zeroLoadFlowM3s = 0.0,
+                                                         double minProcessHeatW = 0.0,
                                                          bool* heldAtMinimum = nullptr);
 
 } // namespace aircon::airflow

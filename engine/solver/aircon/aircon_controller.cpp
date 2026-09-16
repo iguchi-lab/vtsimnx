@@ -343,28 +343,25 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
         if (!useRequiredHeat && std::isfinite(currentTemp)) {
             lastFreeSetTempC_[airconKey] = currentTemp;
         }
-        // 設定を保持できているときだけ Q.min 未満で停止する。
-        // RAC / CRIEPI / DUCT_CENTRAL など機種は問わない。仕様に Q.min があれば適用する。
-        // 未達・能力制限中は温度側のまま運転を続ける。OFF 後の再開は温度バンドのみ。
-        // 停止すると再起動幅を超える室温なら、OFF にせず最低能力で継続する。
+        // 設定を保持できているとき、制御用 min_process があれば
+        // |Qreq| がその以下（かつデッドバンド超）なら最低能力分を処理する。
+        // カタログ Q.min では ON/OFF も風量も決めない。
         double minProcessHeatW = 0.0;
         const char* minMode = aircon::onoff::minCapacityModeKey(
             nodeProps.current_mode, nodeProps.required_heat_w);
         if (useRequiredHeat) {
             if (const auto* spec = nodeProps.getAirconSpec()) {
-                if (const auto qMinKW = spec->getCapacity(minMode, "min")) {
+                if (const auto qMinKW = spec->getMinProcess(minMode)) {
                     if (*qMinKW > 0.0) minProcessHeatW = *qMinKW * 1000.0;
                 }
             }
         }
         bool holdAtMinimumCapacity = false;
         if (useRequiredHeat && minProcessHeatW > aircon::onoff::kLoadDeadbandW &&
-            std::isfinite(nodeProps.required_heat_w) &&
-            std::abs(nodeProps.required_heat_w) < minProcessHeatW) {
-            const auto freeIt = lastFreeSetTempC_.find(airconKey);
-            if (freeIt != lastFreeSetTempC_.end()) {
-                holdAtMinimumCapacity = aircon::onoff::temperatureWouldRestart(
-                    minMode, freeIt->second, targetTemp, setpointBandK);
+            std::isfinite(nodeProps.required_heat_w)) {
+            const double absReq = std::abs(nodeProps.required_heat_w);
+            if (absReq > aircon::onoff::kLoadDeadbandW && absReq <= minProcessHeatW) {
+                holdAtMinimumCapacity = true;
             }
         }
         auto result = controlAircon(nodeProps, currentTemp, targetTemp, tolerance, logFile,
@@ -565,8 +562,17 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
         const bool useExogenousHeatForFlow = heatBasis.exogenous;
 
         bool heldAtMinimumFlow = false;
+        double minProcessHeatW = 0.0;
+        if (const auto* spec = nodeProps.getAirconSpec()) {
+            const char* modeKeyStr =
+                (context.operationMode == OperationMode::Cooling) ? "cooling" : "heating";
+            if (const auto qMinKW = spec->getMinProcess(modeKeyStr)) {
+                if (*qMinKW > 0.0) minProcessHeatW = *qMinKW * 1000.0;
+            }
+        }
         const auto targetFlowOpt = aircon::airflow::computeTargetFlowFromProcessedHeat(
-            nodeProps, context.operationMode, heatForFlowW, &heldAtMinimumFlow);
+            nodeProps, context.operationMode, heatForFlowW, nodeProps.vol_zero, minProcessHeatW,
+            &heldAtMinimumFlow);
         if (!targetFlowOpt) {
             continue;
         }

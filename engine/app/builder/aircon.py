@@ -43,6 +43,7 @@ def process_aircon(aircon: dict) -> tuple[list, list]:
 
     fan = _fan_params(aircon)
     vol = aircon.get("vol", 1000 / 3600)
+    vol_zero = aircon.get("vol_zero")
 
     # ノードの追加
     logger.info(
@@ -77,6 +78,8 @@ def process_aircon(aircon: dict) -> tuple[list, list]:
     }
     if pre_rh is not None:
         ac_node["pre_rh"] = pre_rh
+    if vol_zero is not None:
+        ac_node["vol_zero"] = float(vol_zero)
     nodes.append(ac_node)
 
     intake_key = f"{in_node}->{aircon_out_node}"

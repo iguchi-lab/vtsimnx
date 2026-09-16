@@ -65,6 +65,8 @@ struct VertexProperties {
     std::vector<double> pre_rh;
     double current_pre_rh = std::numeric_limits<double>::quiet_NaN();
     double v = 0.0;
+    // 熱処理負荷が 0 のときの循環風量 [m³/s]（DUCT_CENTRAL）。未指定=0。
+    double vol_zero = 0.0;
     bool on = false;
     AirconControlState aircon_control_state = AirconControlState::Off;
     // fixed-row 拘束時、設定温度維持に必要な符号付き空調負荷 [W]

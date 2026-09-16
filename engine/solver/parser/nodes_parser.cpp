@@ -215,6 +215,13 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
 
         // エアコン仕様原本
         if (nodeJson.contains("ac_spec")) node.ac_spec = nodeJson["ac_spec"];
+        if (nodeJson.contains("vol_zero")) {
+            node.vol_zero =
+                parser_utils::getNumberIfPresent(nodeJson, "vol_zero", nodePrefix, 0.0);
+            if (!(node.vol_zero >= 0.0) || !std::isfinite(node.vol_zero)) {
+                throw std::runtime_error(nodePrefix + ".vol_zero must be a finite non-negative number");
+            }
+        }
 
         // 型が aircon の場合、モデル未指定時は RAC をデフォルトにし、仕様を初期化
         if (node.type == "aircon") {

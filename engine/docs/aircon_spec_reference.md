@@ -83,7 +83,7 @@ flowchart LR
 
 能力上限: **`Q.<mode>.max`** を推奨（`mid` は CRIEPI では通常使わない）。
 
-設定維持中、室負荷が **`Q.<mode>.min`** 未満なら運転を止めて熱処理しません。再開は温度バンドのみです。
+カタログの `Q.<mode>.min` は性能同定用です。制御用の最低能力は任意の `min_process.{heating,cooling}` [kW] です。指定時、設定維持中の室負荷がそれ以下（かつ約 1 W 超）なら停止せず最低能力分を処理します。無い機種は約 1 W の符号判定のままです。
 
 最小形の例は `docs/acmodel_overview.md` の「CRIEPI向けの例」を参照。
 
@@ -97,7 +97,7 @@ flowchart LR
 
 能力上限: **`Q.<mode>.max`** を指定するのが一般的。
 
-`Q.<mode>.min` がある場合は、設定維持中の室負荷がそれ未満なら運転を止めて熱処理しません。無い機種は約 1 W の符号判定のままです。
+制御用の最低能力は任意の `min_process.{heating,cooling}` [kW]（上記 CRIEPI と同じ扱い）。カタログに `Q.min` があっても ON/OFF には使いません。
 
 ---
 
@@ -107,7 +107,8 @@ flowchart LR
 - **必須**: `P_fan`, `V_inner`（必要に応じ `V_outer`）の cooling/heating × **rtd, mid, dsgn** 等
 - 単位: `Q` / `P` / `P_fan` は [kW]、風量は [m³/s]
 - 運転点入力 `InputData` では `V_vent`（換気分, [m³/s]）を使用可能。`V_outer` とは別入力で、既定は `0`。
-- solver 制御では `Q.<mode>.rtd` と `V_inner.<mode>.dsgn` を使って、処理熱量連動の送風量補正を行う（`Q=0 -> V=0`, `0<Q<Q.min -> V=V_dsgn*Q.min/Q.rtd`, `Q=Q_rtd -> V=V_dsgn`）。能力制限中・未達は `Q.max`/`rtd`/`mid`、設定維持中は室負荷 `|required_heat_w|`。
+- 任意の制御入力: `min_process.{heating,cooling}` [kW]。指定時、小負荷は最低能力処理。
+- solver 制御では `Q.<mode>.rtd` と `V_inner.<mode>.dsgn` を使って、処理熱量連動の送風量補正を行う（`Q=0 -> vol_zero`（既定0）, `0<Q<=min_process -> V=V_dsgn*min_process/Q.rtd`, `Q=Q_rtd -> V=V_dsgn`）。能力制限中・未達は `Q.max`/`rtd`/`mid`、設定維持中は室負荷 `|required_heat_w|`。カタログ `Q.min` は風量床に使わない。
 - この比の載せ方は二つある。`vol` のみなら還気・吹出の `fixed_flow`。`p_max`・`p1`・`q1`・`q_max` が揃えばファン枝を速度比で縮め、実風量は圧力計算の交点。同じ枝には両方載せない。詳細は [`aircon_control_principles.md`](aircon_control_principles.md) §5.3。
 
 能力上限: **`Q.<mode>.max`** があればそれを使用。無い場合は **`Q.<mode>.rtd`**。それも無い場合は **`Q.<mode>.mid`**。

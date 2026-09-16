@@ -141,7 +141,7 @@ result = vt.run_calc("http://127.0.0.1:8000", input_data)
 #### DUCT_CENTRAL の注意
 
 - v1.7.5ではON/OFF、能力制限、風量の順に判定し、前段が変化するたび換気・熱を解き直します。
-- 正の `ac_spec.Q.<mode>.rtd` [kW] と `V_inner.<mode>.dsgn` [m³/s] が必要です。最低能力、負荷の選び方、固定風量とファンPQの違いは[全館空調の風量制御](duct_central_airflow_control.md)を参照してください。
+- 正の `ac_spec.Q.<mode>.rtd` [kW] と `V_inner.<mode>.dsgn` [m³/s] が必要です。制御用最低能力は任意の `ac_spec.min_process`、負荷0時の風量は任意の `vol_zero` です。詳細は[全館空調の風量制御](duct_central_airflow_control.md)を参照してください。
 - 実装の正本は `../engine/docs/aircon_control_principles.md` と `../engine/docs/aircon_control_overview.md` です。
 
 ### 熱交換換気を使う場合
