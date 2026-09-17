@@ -11,9 +11,9 @@ calc_p の未知圧力を求め、換気枝の体積流量を更新する。固�
 
 source、target の高さ補正を含む圧力差は式 (7-1) とする。
 
-```math
-\Delta p=(p_s-\rho_s g h_{\rm from})-(p_t-\rho_t g h_{\rm to}). \tag{7-1}
-```
+![式 (7-1)](equations/eq-7-1.svg)
+
+[数式ソース](equations/eq-7-1.tex)
 
 未知圧力ノード i で、流入を正に集計した体積収支 r_i をゼロにする。温度による密度の影響は高さ補正の評価に入り、流量式の密度定数とは区別する。風圧を使用する場合は境界圧力へ反映した入力を用いる。
 
@@ -23,18 +23,15 @@ s=sign(Δp)、ε=archenv::TOLERANCE_SMALL とする。
 
 開口部は式 (7-2) による。alpha は無次元、A は m²、ρ₀ は実装の乾き空気密度定数。
 
-```math
-K=\alpha A\sqrt{2/\rho_0},\qquad
-q=\begin{cases}sK\sqrt{|\Delta p|}&|\Delta p|\ge\epsilon\\
-K\sqrt{\epsilon}\,\Delta p/\epsilon&|\Delta p|<\epsilon.\end{cases}\tag{7-2}
-```
+![式 (7-2)](equations/eq-7-2.svg)
+
+[数式ソース](equations/eq-7-2.tex)
 
 隙間は式 (7-3) による。n=0 が渡された場合、この関数内では n=1 に置換する。
 
-```math
-q=\begin{cases}s a|\Delta p|^{1/n}&|\Delta p|\ge\epsilon\\
-a\epsilon^{1/n-1}\Delta p&|\Delta p|<\epsilon.\end{cases}\tag{7-3}
-```
+![式 (7-3)](equations/eq-7-3.svg)
+
+[数式ソース](equations/eq-7-3.tex)
 
 圧損要素は K=A√(2/(ρ₀ k_total)) を式 (7-2) の K に用いる。k_total が正でない場合、friction_factor>0、length≥0、diameter>0 の条件で k_total=f L/D+ζ を使う。A 又は最終 k_total が正でない場合、流量関数は0を返す。入力検証による拒否とは別の関数内処理である。
 
@@ -42,15 +39,9 @@ a\epsilon^{1/n-1}\Delta p&|\Delta p|<\epsilon.\end{cases}\tag{7-3}
 
 d=−Δp、τ=archenv::TOLERANCE_MEDIUM、S(d,b)={tanh((d−b)/τ)+1}/2 とする。
 
-```math
-\begin{aligned}
-w_1&=S(d,p_{\max}+\tau),\\
-w_2&=S(d,p_1+\tau)(1-w_1),\\
-w_3&=S(d,\tau)(1-S(d,p_1+\tau)),\\
-w_4&=1-S(d,\tau),\\
-q&=w_2 f_2+w_3 f_3+w_4 q_{\max}.
-\end{aligned}\tag{7-4}
-```
+![式 (7-4)](equations/eq-7-4.svg)
+
+[数式ソース](equations/eq-7-4.tex)
 
 f₂=q₁(d−p_max)/(p₁−p_max)、ただし p₁=p_max なら q₁とする。f₃=q₁+(q_max−q₁)(d−p₁)/(−p₁)、ただし p₁=0なら q_max とする。単純な区分直線ではなく、上記重みで平滑化した値を返す。
 

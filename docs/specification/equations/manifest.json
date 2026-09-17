@@ -1,0 +1,157 @@
+[
+  {
+    "source": "04_builder.md",
+    "file": "eq-4-1",
+    "label": "4-1"
+  },
+  {
+    "source": "04_builder.md",
+    "file": "eq-4-2",
+    "label": "4-2"
+  },
+  {
+    "source": "06_coupling.md",
+    "file": "eq-6-1",
+    "label": "6-1"
+  },
+  {
+    "source": "06_coupling.md",
+    "file": "eq-6-2",
+    "label": "6-2"
+  },
+  {
+    "source": "07_ventilation.md",
+    "file": "eq-7-1",
+    "label": "7-1"
+  },
+  {
+    "source": "07_ventilation.md",
+    "file": "eq-7-2",
+    "label": "7-2"
+  },
+  {
+    "source": "07_ventilation.md",
+    "file": "eq-7-3",
+    "label": "7-3"
+  },
+  {
+    "source": "07_ventilation.md",
+    "file": "eq-7-4",
+    "label": "7-4"
+  },
+  {
+    "source": "08_thermal.md",
+    "file": "eq-8-1",
+    "label": "8-1"
+  },
+  {
+    "source": "08_thermal.md",
+    "file": "eq-8-2",
+    "label": "8-2"
+  },
+  {
+    "source": "08_thermal.md",
+    "file": "eq-8-3",
+    "label": "8-3"
+  },
+  {
+    "source": "08_thermal.md",
+    "file": "eq-8-4",
+    "label": "8-4"
+  },
+  {
+    "source": "08_thermal.md",
+    "file": "eq-8-5",
+    "label": "8-5"
+  },
+  {
+    "source": "09_moisture.md",
+    "file": "eq-9-1",
+    "label": "9-1"
+  },
+  {
+    "source": "09_moisture.md",
+    "file": "eq-9-2",
+    "label": "9-2"
+  },
+  {
+    "source": "09_moisture.md",
+    "file": "eq-9-3",
+    "label": "9-3"
+  },
+  {
+    "source": "10_concentration.md",
+    "file": "eq-10-1",
+    "label": "10-1"
+  },
+  {
+    "source": "10_concentration.md",
+    "file": "eq-10-2",
+    "label": "10-2"
+  },
+  {
+    "source": "10_concentration.md",
+    "file": "eq-10-3",
+    "label": "10-3"
+  },
+  {
+    "source": "11_equipment.md",
+    "file": "eq-11-1",
+    "label": "11-1"
+  },
+  {
+    "source": "11_equipment.md",
+    "file": "eq-11-2",
+    "label": "11-2"
+  },
+  {
+    "source": "11_equipment.md",
+    "file": "eq-11-3",
+    "label": "11-3"
+  },
+  {
+    "source": "12_power.md",
+    "file": "eq-12-1",
+    "label": "12-1"
+  },
+  {
+    "source": "12_power.md",
+    "file": "eq-12-2",
+    "label": "12-2"
+  },
+  {
+    "source": "12_power.md",
+    "file": "eq-12-aux-3",
+    "label": ""
+  },
+  {
+    "source": "12_power.md",
+    "file": "eq-12-3",
+    "label": "12-3"
+  },
+  {
+    "source": "12_power.md",
+    "file": "eq-12-4",
+    "label": "12-4"
+  },
+  {
+    "source": "12_power.md",
+    "file": "eq-12-5",
+    "label": "12-5"
+  },
+  {
+    "source": "12_power.md",
+    "file": "eq-12-6",
+    "label": "12-6"
+  },
+  {
+    "source": "12_power.md",
+    "file": "eq-12-7",
+    "label": "12-7"
+  },
+  {
+    "source": "13_output.md",
+    "file": "eq-13-1",
+    "label": "13-1"
+  }
+]

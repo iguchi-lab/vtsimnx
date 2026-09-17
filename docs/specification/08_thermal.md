@@ -11,10 +11,9 @@
 
 一般の一ノード収支を、流入熱を正として式 (8-1) で表す。具体的な枝の符号と設備制約を組み込んで離散化する。
 
-```math
-C_{T,i}\frac{dT_i}{dt}
-=\sum_jG_{ij}(T_j-T_i)+Q_{{\rm adv},i}+Q_{{\rm gen},i}. \tag{8-1}
-```
+![式 (8-1)](equations/eq-8-1.svg)
+
+[数式ソース](equations/eq-8-1.tex)
 
 熱容量の後退差分項は C_T(T_i^{n+1}−T_i^n)/Δt とする。ビルダーは旧温度を保持する容量ノードと G_C=C_T/Δt の枝に変換する。空気と残余容量の分割は第四章による。
 
@@ -24,9 +23,9 @@ C_{T,i}\frac{dT_i}{dt}
 
 conductance 枝の出力熱流は式 (8-2) による。
 
-```math
-Q_{s\to t}=G(T_s-T_t). \tag{8-2}
-```
+![式 (8-2)](equations/eq-8-2.svg)
+
+[数式ソース](equations/eq-8-2.tex)
 
 厚さ d、熱伝導率 λ の層の抵抗は d/(λA)、容量は体積比熱 c_v に対し A d c_v である。層間・表面への配分は surface_rc の生成規則による。対流係数 h を使用する面は hA の伝熱係数へ変換する。
 
@@ -36,18 +35,17 @@ Q_{s\to t}=G(T_s-T_t). \tag{8-2}
 
 乾き空気の実装で、枝の診断熱流は符号付き q に対して式 (8-3) とする。|q|<FLOW_RATE_MIN なら0とする。
 
-```math
-Q_{\rm adv}=\rho_0c_{pa}q(T_s-T_t). \tag{8-3}
-```
+![式 (8-3)](equations/eq-8-3.svg)
+
+[数式ソース](equations/eq-8-3.tex)
 
 この診断値は温度差による熱取得を表す。絶対エンタルピー輸送量 ρq c_p T_upstream そのものではない。ノード方程式では流向に応じた上流温度と流入側の取扱いを適用する。
 
 moist_enthalpy_enabled の場合は式 (8-4) に置き換える。
 
-```math
-h(T,x)=(c_{pa}+c_{pv}x)T+L_vx,\quad
-Q_{\rm adv}=\rho_0q\{h(T_s,x_s)-h(T_t,x_t)\}. \tag{8-4}
-```
+![式 (8-4)](equations/eq-8-4.svg)
+
+[数式ソース](equations/eq-8-4.tex)
 
 温度求解中の x は既知として扱う。空気容量の蓄積は ρ₀V{h^{n+1}−h^n}/Δt を基にする。air_capacity の係数は体積から再評価し、家具等の乾き容量は別に保持する。必要な連成条件は第六章による。
 
@@ -55,11 +53,9 @@ Q_{\rm adv}=\rho_0q\{h(T_s,x_s)-h(T_t,x_t)\}. \tag{8-4}
 
 source 側の熱流密度は式 (8-5) の形式で扱う。
 
-```math
-q_s''(n)=\sum_{j=0}^{m}a_{s,j}T_s(n-j)
-+\sum_{j=0}^{m}b_{s,j}T_t(n-j)
-+\sum_{r=0}^{m-1}c_{s,r}q_s''(n-1-r). \tag{8-5}
-```
+![式 (8-5)](equations/eq-8-5.svg)
+
+[数式ソース](equations/eq-8-5.tex)
 
 target 側にも固有の係数を用いる。a、b の単位は W/(m² K)、c は無次元、回路網への熱流は A q'' [W] とする。蓄熱があるので両側熱流を常に互いの負値とみなさない。
 

@@ -43,10 +43,9 @@ OA は外気取入、RA は還気元、SA は給気先、EA は排気先とす�
 
 給気境界 H の温湿度は式 (11-1) による。
 
-```math
-T_H=T_{OA}+\eta_t(T_{RA}-T_{OA}),\quad
-x_H=x_{OA}+\eta_x(x_{RA}-x_{OA}). \tag{11-1}
-```
+![式 (11-1)](equations/eq-11-1.svg)
+
+[数式ソース](equations/eq-11-1.tex)
 
 sensible は eta_x=0、total は指定値を使う。C++ readParams は効率を[0,1]へ制限する。生成された排気ジャンクションの温湿度は RA と同じにする。排気側を熱交換後の平衡状態に求め直すモデルではない。
 
@@ -54,14 +53,13 @@ sensible は eta_x=0、total は指定値を使う。C++ readParams は効率を
 
 q_S、q_E は接続から得る風量の絶対値。実装の有効風量は式 (11-2) とする。
 
-```math
-q_{\rm eff}=\begin{cases}\min(q_S,q_E)&q_E>0\\q_S&q_E\le0.\end{cases}\tag{11-2}
-```
+![式 (11-2)](equations/eq-11-2.svg)
 
-```math
-Q_{HRV,S}=\rho_0 c_{pa}q_{\rm eff}(T_H-T_{OA}),\quad
-Q_{HRV,L}=\rho_0(2.501\times10^6)q_{\rm eff}(x_H-x_{OA}). \tag{11-3}
-```
+[数式ソース](equations/eq-11-2.tex)
+
+![式 (11-3)](equations/eq-11-3.svg)
+
+[数式ソース](equations/eq-11-3.tex)
 
 出力単位はW。排気0でも必ず回収熱0になるわけではない。給気温湿度の式 (11-1) に q_eff の比を掛ける処理はない。不均衡風量時の厳密な両側熱収支を保証しない。
 

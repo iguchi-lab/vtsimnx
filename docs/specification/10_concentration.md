@@ -19,22 +19,15 @@ dust_generation は枝の target に加える。発生先は q の反転に追�
 
 V_i>0 の場合、係数は式 (10-1) による。
 
-```math
-k_{1,i}=\frac{m_i}{V_i}+
-\sum_{\rm in}\frac{|q_{ji}|(1-\eta_{ji})}{V_i}c_j^n,\qquad
-k_{2,i}=\beta_i+\frac{\sum_{\rm out}|q_{ij}|}{V_i}. \tag{10-1}
-```
+![式 (10-1)](equations/eq-10-1.svg)
+
+[数式ソース](equations/eq-10-1.tex)
 
 m_i は発生量、k₁ は濃度/s、k₂ は1/s。各ステップ内で係数と流入元の濃度を固定し、dc_i/dt=k₁−k₂c_i を式 (10-2) で更新する。
 
-```math
-c_i^{n+1}=
-\begin{cases}
-c_i^n+k_{1,i}\Delta t & k_{2,i}=0,\\
-(c_i^n-k_{1,i}/k_{2,i})\exp(-k_{2,i}\Delta t)+k_{1,i}/k_{2,i}
-& k_{2,i}\ne0.
-\end{cases}\tag{10-2}
-```
+![式 (10-2)](equations/eq-10-2.svg)
+
+[数式ソース](equations/eq-10-2.tex)
 
 これは各室の係数固定時の解析更新であり、多室濃度連立系全体の厳密解ではない。流入元が計算対象でも c_j^n を使う。時間刻み依存をなくす保証はない。
 
@@ -42,11 +35,9 @@ c_i^n+k_{1,i}\Delta t & k_{2,i}=0,\\
 
 V_i≤0 の場合、発生と沈着を無視し、式 (10-3) の流入混合だけを行う。
 
-```math
-c_i^{n+1}=
-\frac{\sum_{\rm in}|q_{ji}|(1-\eta_{ji})c_j^n}
-{\sum_{\rm in}|q_{ji}|(1-\eta_{ji})}. \tag{10-3}
-```
+![式 (10-3)](equations/eq-10-3.svg)
+
+[数式ソース](equations/eq-10-3.tex)
 
 分母が正でなければ旧値を保持する。完全除去 eta=1 の枝のみの場合も分母0となり、旧値を保持する。これは有限体積の物質収支と同一ではない。
 
