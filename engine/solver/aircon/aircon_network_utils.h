@@ -21,6 +21,11 @@ bool tryGetTempFromThermalNetwork(const ThermalNetwork& thermalNetwork,
                                   const std::string& nodeKey,
                                   double& outTemp);
 
+// ON/OFF 判定用の制御室温。set_node があれば必須（欠落は例外）、無ければ aircon ノード、
+// それも無ければ aircon.current_t。
+double getControlledRoomTemperature(const ThermalNetwork& thermalNetwork,
+                                    const VertexProperties& airconNode);
+
 double getAbsoluteHumidityFromNode(const ThermalNetwork& thermalNetwork,
                                    const std::string& nodeKey);
 

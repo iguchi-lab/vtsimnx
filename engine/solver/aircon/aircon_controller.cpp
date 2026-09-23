@@ -291,128 +291,108 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
                                          std::vector<AirconStateProposal>* outProposals,
                                          const FlowRateMap* flowRates) const {
     bool allControlled = true;
-    constexpr double kMinMeaningfulProcessFlow = 1e-4; // [m3/s]
+    const double setpointBandK = aircon::onoff::restartBandK(tolerance);
 
-    // 順序を決定的にしてログ/挙動の再現性を上げる
     for (const auto& airconKey : getAirconKeys()) {
         auto& nodeProps = thermalNetwork.getNode(airconKey);
-        double currentTemp = 0.0;
-        if (!nodeProps.set_node.empty()) {
-            if (!aircon::network_utils::tryGetTempFromThermalNetwork(
-                    thermalNetwork, nodeProps.set_node, currentTemp)) {
-                throw std::runtime_error(
-                    "aircon set_node temperature lookup failed: aircon=" + airconKey +
-                    ", set_node=" + nodeProps.set_node);
-            }
-        } else {
-            if (!aircon::network_utils::tryGetTempFromThermalNetwork(thermalNetwork, nodeProps.key, currentTemp)) {
-                currentTemp = nodeProps.current_t;
-            }
-        }
-        double targetTemp = nodeProps.current_requested_pre_temp;
+        const double currentTemp =
+            aircon::network_utils::getControlledRoomTemperature(thermalNetwork, nodeProps);
+        const double targetTemp = nodeProps.current_requested_pre_temp;
 
-        // Qreq は set_node が実効設定近傍にあるときだけ信頼する。
-        // fixed-row が効いていない解（室温が大きく外れている）では、
-        // 容量ノードからの見かけの加熱などで符号が反転し ON/OFF が振動しうる。
-        //
-        // 能力制限中（実効設定を要求からずらしている）も Qreq で OFF しない。
-        // 暖房で実効設定を下げた直後は、自然室温より低い温度を拘束するため
-        // Qreq が負になり、OFF→要求温度で再ONの振動になる。
-        //
-        // 処理風量がほぼ 0 のときも Qreq（コイル熱）は信頼しない。
-        // 固定温度行で室温だけ目標付近に見えて Qreq≈0→OFF→再ON の振動になる。
-        const double setpointBandK = aircon::onoff::restartBandK(tolerance);
-        const bool nearSetpoint =
-            std::isfinite(nodeProps.current_pre_temp) &&
-            std::abs(currentTemp - nodeProps.current_pre_temp) <= setpointBandK;
-        const bool capacityLimited =
-            nodeProps.aircon_control_state == AirconControlState::CapacityLimited;
-        const bool setpointDetuned =
-            std::isfinite(nodeProps.current_pre_temp) &&
-            std::isfinite(nodeProps.current_requested_pre_temp) &&
-            std::abs(nodeProps.current_pre_temp - nodeProps.current_requested_pre_temp) > setpointBandK;
-        bool processFlowTooLow = false;
+        std::optional<double> processFlow;
         if (flowRates && !nodeProps.in_node.empty()) {
-            const double processFlow = std::abs(aircon::network_utils::getAirconProcessFlowRate(
-                *flowRates, nodeProps.in_node, nodeProps.key));
-            processFlowTooLow = !(processFlow > kMinMeaningfulProcessFlow);
+            processFlow = aircon::network_utils::getAirconProcessFlowRate(
+                *flowRates, nodeProps.in_node, nodeProps.key);
         }
+        const auto trust = aircon::onoff::buildRequiredHeatTrust(
+            currentTemp,
+            nodeProps.current_pre_temp,
+            nodeProps.current_requested_pre_temp,
+            setpointBandK,
+            nodeProps.aircon_control_state == AirconControlState::CapacityLimited,
+            processFlow);
         const bool useRequiredHeat =
-            nodeProps.on && std::isfinite(nodeProps.required_heat_w) && nearSetpoint &&
-            !capacityLimited && !setpointDetuned && !processFlowTooLow;
+            aircon::onoff::shouldUseRequiredHeat(nodeProps.on, nodeProps.required_heat_w, trust);
         if (!useRequiredHeat && std::isfinite(currentTemp)) {
             lastFreeSetTempC_[airconKey] = currentTemp;
         }
-        // 設定を保持できているとき、制御用 min_process（未指定時は Q.rtd の 10%）以下なら
-        // |Qreq| がデッドバンド超かつその以下なら最低能力分を処理する。
-        // カタログ Q.min では ON/OFF も風量も決めない。
-        double minProcessHeatW = 0.0;
+
         const char* minMode = aircon::onoff::minCapacityModeKey(
             nodeProps.current_mode, nodeProps.required_heat_w);
+        double minProcessHeatW = 0.0;
         if (useRequiredHeat) {
             if (const auto* spec = nodeProps.getAirconSpec()) {
-                if (const auto qMinKW = spec->getMinProcess(minMode)) {
-                    if (*qMinKW > 0.0) minProcessHeatW = *qMinKW * 1000.0;
-                }
+                minProcessHeatW =
+                    aircon::onoff::resolveMinProcessHeatW(spec->getMinProcess(minMode));
             }
         }
-        bool holdAtMinimumCapacity = false;
-        if (useRequiredHeat && minProcessHeatW > aircon::onoff::kLoadDeadbandW &&
-            std::isfinite(nodeProps.required_heat_w)) {
-            const double absReq = std::abs(nodeProps.required_heat_w);
-            if (absReq > aircon::onoff::kLoadDeadbandW && absReq <= minProcessHeatW) {
-                holdAtMinimumCapacity = true;
-            }
-        }
+        const bool holdAtMinimumCapacity = useRequiredHeat &&
+            aircon::onoff::inMinProcessHoldBand(minMode, nodeProps.required_heat_w,
+                                                minProcessHeatW, aircon::onoff::kLoadDeadbandW);
+
         auto result = controlAircon(nodeProps, currentTemp, targetTemp, tolerance, logFile,
                                     useRequiredHeat, nodeProps.required_heat_w,
-                                    /*loadDeadbandW=*/1.0, minProcessHeatW, holdAtMinimumCapacity);
+                                    aircon::onoff::kLoadDeadbandW, minProcessHeatW,
+                                    holdAtMinimumCapacity);
         if (holdAtMinimumCapacity && result.on && std::isfinite(nodeProps.required_heat_w)) {
-            const double signedMin = (std::string(minMode) == "cooling") ? -minProcessHeatW : minProcessHeatW;
-            nodeProps.required_heat_w = signedMin;
+            nodeProps.required_heat_w =
+                aircon::onoff::signedMinProcessHeatW(minMode, minProcessHeatW);
         }
         writeDomainLog(logFile, "空調", result.logMessage);
-        AirconRecomputeReason unitReasons = AirconRecomputeReason::None;
-        if (result.stateChanged) {
-            allControlled = false;
-            nodeProps.on = result.on;
-            unitReasons |= AirconRecomputeReason::OnOffChanged;
-            if (!nodeProps.on) {
-                nodeProps.required_heat_w = std::numeric_limits<double>::quiet_NaN();
-            }
-            // NOTE:
-            // set_node の calc_t を ON/OFF で切り替えると、
-            // 熱ソルバ側の「固定温度行（fixed row）」の適用条件（= set_node が未知数）を満たさず、
-            // エアコンON直後に未収束/バランス超過になりやすい。
-            //
-            // setpoint 制御は thermal_solver_linear_direct.cpp の fixed row ロジックで行うため、
-            // ここでは set_node.calc_t を変更しない。
-        }
-
-        if (!nodeProps.on) {
-            nodeProps.aircon_control_state = AirconControlState::Off;
-            // OFF 中は実効設定を要求値へ戻す（次に ON したときの起点を明確化）
-            nodeProps.current_pre_temp = nodeProps.current_requested_pre_temp;
-            // OFF 中（遷移直後含む）は吹出湿度を入口へ追従。送風継続時の乾燥空気残留を防ぐ。
-            if (aircon::latent::applyPassthroughHumidityToAirconNode(
-                    thermalNetwork, airconKey, humidityAbsTol)) {
-                if (supplyHumidityChanged) *supplyHumidityChanged = true;
-                unitReasons |= AirconRecomputeReason::SupplyHumidityChanged;
-            }
-        } else if (nodeProps.aircon_control_state != AirconControlState::CapacityLimited) {
-            nodeProps.aircon_control_state = AirconControlState::SetpointControlled;
-            // 能力制限中でなければ実効設定=要求設定
-            nodeProps.current_pre_temp = nodeProps.current_requested_pre_temp;
-        }
-
-        if (outProposals) {
-            auto proposal = makeAirconStateProposalBase(airconKey, nodeProps);
-            proposal.reasons = unitReasons;
-            outProposals->push_back(std::move(proposal));
-        }
+        applyOnOffControlResult(thermalNetwork, airconKey, nodeProps, result, humidityAbsTol,
+                                allControlled, supplyHumidityChanged, outProposals);
     }
 
     return allControlled;
+}
+
+void AirconController::applyOnOffControlResult(
+    ThermalNetwork& thermalNetwork,
+    const std::string& airconKey,
+    VertexProperties& nodeProps,
+    const AirconControlResult& result,
+    double humidityAbsTol,
+    bool& allControlled,
+    bool* supplyHumidityChanged,
+    std::vector<AirconStateProposal>* outProposals) const {
+    AirconRecomputeReason unitReasons = AirconRecomputeReason::None;
+    if (result.stateChanged) {
+        allControlled = false;
+        nodeProps.on = result.on;
+        unitReasons |= AirconRecomputeReason::OnOffChanged;
+        if (!nodeProps.on) {
+            nodeProps.required_heat_w = std::numeric_limits<double>::quiet_NaN();
+        }
+        // NOTE:
+        // set_node の calc_t を ON/OFF で切り替えると、
+        // 熱ソルバ側の「固定温度行（fixed row）」の適用条件（= set_node が未知数）を満たさず、
+        // エアコンON直後に未収束/バランス超過になりやすい。
+        //
+        // setpoint 制御は thermal_solver_linear_direct.cpp の fixed row ロジックで行うため、
+        // ここでは set_node.calc_t を変更しない。
+    }
+
+    if (!nodeProps.on) {
+        nodeProps.aircon_control_state = AirconControlState::Off;
+        // OFF 中は実効設定を要求値へ戻す（次に ON したときの起点を明確化）
+        nodeProps.current_pre_temp = nodeProps.current_requested_pre_temp;
+        // OFF 中（遷移直後含む）は吹出湿度を入口へ追従。送風継続時の乾燥空気残留を防ぐ。
+        if (aircon::latent::applyPassthroughHumidityToAirconNode(
+                thermalNetwork, airconKey, humidityAbsTol)) {
+            if (supplyHumidityChanged) *supplyHumidityChanged = true;
+            unitReasons |= AirconRecomputeReason::SupplyHumidityChanged;
+        }
+    } else if (nodeProps.aircon_control_state != AirconControlState::CapacityLimited) {
+        nodeProps.aircon_control_state = AirconControlState::SetpointControlled;
+        // 能力制限中でなければ実効設定=要求設定
+        nodeProps.current_pre_temp = nodeProps.current_requested_pre_temp;
+    }
+
+    if (outProposals) {
+        auto proposal = makeAirconStateProposalBase(airconKey, nodeProps);
+        proposal.reasons = unitReasons;
+        outProposals->push_back(std::move(proposal));
+    }
 }
 
 bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,

@@ -1,6 +1,7 @@
 #include "aircon/aircon_network_utils.h"
 
 #include <cmath>
+#include <stdexcept>
 
 namespace aircon::network_utils {
 
@@ -38,6 +39,23 @@ bool tryGetTempFromThermalNetwork(const ThermalNetwork& thermalNetwork,
     if (it == keyToV.end()) return false;
     outTemp = thermalNetwork.getGraph()[it->second].current_t;
     return true;
+}
+
+double getControlledRoomTemperature(const ThermalNetwork& thermalNetwork,
+                                    const VertexProperties& airconNode) {
+    double currentTemp = 0.0;
+    if (!airconNode.set_node.empty()) {
+        if (!tryGetTempFromThermalNetwork(thermalNetwork, airconNode.set_node, currentTemp)) {
+            throw std::runtime_error(
+                "aircon set_node temperature lookup failed: aircon=" + airconNode.key +
+                ", set_node=" + airconNode.set_node);
+        }
+        return currentTemp;
+    }
+    if (!tryGetTempFromThermalNetwork(thermalNetwork, airconNode.key, currentTemp)) {
+        return airconNode.current_t;
+    }
+    return currentTemp;
 }
 
 double getAbsoluteHumidityFromNode(const ThermalNetwork& thermalNetwork,

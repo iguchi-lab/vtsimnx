@@ -900,6 +900,15 @@ int main() {
         auto stay = controller.controlAircon(ac, 20.0, 20.0, 0.5, logs, true, ac.required_heat_w, 1.0,
                                              2706.9, /*holdAtMinimumCapacity=*/false);
         expectTrue(!stay.stateChanged && stay.on, "heating above min_process stays ON");
+
+        // 暖房で負の Qreq は min_process ホールド対象外（誤って hold しても OFF）。
+        ac.required_heat_w = -65.9;
+        auto neg = controller.controlAircon(ac, 20.0, 20.0, 0.5, logs, true, ac.required_heat_w, 1.0,
+                                            773.4, /*holdAtMinimumCapacity=*/true);
+        expectTrue(neg.stateChanged && !neg.on,
+                   "heating negative Qreq must turn OFF even if hold flag is set");
+        expectTrue(neg.logMessage.find("最低能力で処理") == std::string::npos,
+                   "negative heating Qreq must not cite min-process hold");
     }
     // RAC / CRIEPI / DUCT: カタログ Q.min だけでは最低能力停止しない。
     // 明示 min_process が無ければ Q.rtd の 10% を既定とし、小負荷はそれを処理する。
@@ -963,6 +972,66 @@ int main() {
         runMinProcess("RAC1C", "RAC", racWithMinProcess, 800.0, false, 0.0,
                       "RAC with min_process keeps load above threshold");
 
+        // 暖房で負の Qreq（過昇温・日射など）は最低能力ホールドせず OFF。
+        {
+            ThermalNetwork net;
+            auto room = makeNode("ROOM", "normal", 20.0);
+            auto ac = makeNode("RAC_NEG", "aircon", 22.0);
+            ac.model = "RAC";
+            ac.current_mode = "HEATING";
+            ac.on = true;
+            ac.set_node = "ROOM";
+            ac.in_node = "ROOM";
+            ac.current_pre_temp = 20.0;
+            ac.current_requested_pre_temp = 20.0;
+            ac.required_heat_w = -65.9;
+            ac.ac_spec = racWithMinProcess;
+            ac.initializeAirconSpec();
+            net.addNode(room);
+            net.addNode(ac);
+            AirconController local;
+            std::ostringstream logs;
+            local.initializeModels(net, logs, 0);
+            FlowRateMap flows;
+            flows[{"ROOM", "RAC_NEG"}] = 0.1;
+            (void)local.controlAllAircons(net, 0.5, logs, nullptr, 1e-9, nullptr, &flows);
+            auto& held = net.getNode("RAC_NEG");
+            expectTrue(!held.on, "heating negative Qreq turns OFF (no abs min_process hold)");
+            expectTrue(logs.str().find("最低能力で処理") == std::string::npos,
+                       "heating negative Qreq must not log min-process hold");
+            expectTrue(!std::isfinite(held.required_heat_w),
+                       "heating negative Qreq clears required heat on OFF");
+        }
+
+        // 冷房で正の Qreq も同様にホールドせず OFF。
+        {
+            ThermalNetwork net;
+            auto room = makeNode("ROOM", "normal", 26.0);
+            auto ac = makeNode("RAC_POS_COOL", "aircon", 22.0);
+            ac.model = "RAC";
+            ac.current_mode = "COOLING";
+            ac.on = true;
+            ac.set_node = "ROOM";
+            ac.in_node = "ROOM";
+            ac.current_pre_temp = 26.0;
+            ac.current_requested_pre_temp = 26.0;
+            ac.required_heat_w = 65.9;
+            ac.ac_spec = racWithMinProcess;
+            ac.initializeAirconSpec();
+            net.addNode(room);
+            net.addNode(ac);
+            AirconController local;
+            std::ostringstream logs;
+            local.initializeModels(net, logs, 0);
+            FlowRateMap flows;
+            flows[{"ROOM", "RAC_POS_COOL"}] = 0.1;
+            (void)local.controlAllAircons(net, 0.5, logs, nullptr, 1e-9, nullptr, &flows);
+            auto& held = net.getNode("RAC_POS_COOL");
+            expectTrue(!held.on, "cooling positive Qreq turns OFF (no abs min_process hold)");
+            expectTrue(logs.str().find("最低能力で処理") == std::string::npos,
+                       "cooling positive Qreq must not log min-process hold");
+        }
+
         const auto criepi = nlohmann::json{
             {"Q", {{"heating", {{"min", 0.7}, {"rtd", 2.5}, {"max", 5.4}}},
                    {"cooling", {{"min", 0.7}, {"rtd", 2.2}, {"max", 3.3}}}}},
@@ -1004,6 +1073,43 @@ int main() {
         expectTrue(!r.stateChanged && r.on, "hold must stay ON at minimum capacity");
         expectTrue(r.logMessage.find("最低能力で処理") != std::string::npos,
                    "hold-min log should cite min process");
+    }
+
+    // inMinProcessHoldBand の符号表（コントローラを通さない単体）。
+    {
+        using aircon::onoff::inMinProcessHoldBand;
+        using aircon::onoff::signedMinProcessHeatW;
+        using aircon::onoff::buildRequiredHeatTrust;
+        using aircon::onoff::resolveMinProcessHeatW;
+        expectTrue(inMinProcessHoldBand("heating", 160.0, 773.4),
+                   "heating small positive is in hold band");
+        expectTrue(!inMinProcessHoldBand("heating", -65.9, 773.4),
+                   "heating negative is outside hold band");
+        expectTrue(!inMinProcessHoldBand("heating", 0.0, 773.4),
+                   "heating zero is outside hold band");
+        expectTrue(!inMinProcessHoldBand("heating", 800.0, 773.4),
+                   "heating above min_process is outside hold band");
+        expectTrue(inMinProcessHoldBand("cooling", -160.0, 773.4),
+                   "cooling small negative is in hold band");
+        expectTrue(!inMinProcessHoldBand("cooling", 65.9, 773.4),
+                   "cooling positive is outside hold band");
+        expectNear(signedMinProcessHeatW("heating", 773.4), 773.4, 1e-12,
+                   "heating signed min is positive");
+        expectNear(signedMinProcessHeatW("cooling", 773.4), -773.4, 1e-12,
+                   "cooling signed min is negative");
+        expectNear(resolveMinProcessHeatW(0.7), 700.0, 1e-12,
+                   "resolveMinProcessHeatW converts kW to W");
+        expectNear(resolveMinProcessHeatW(std::nullopt), 0.0, 0.0,
+                   "resolveMinProcessHeatW nullopt is 0");
+        const auto trustOk = buildRequiredHeatTrust(20.0, 20.0, 20.0, 1.0, false, 0.1);
+        expectTrue(trustOk.nearEffectiveSetpoint && !trustOk.capacityLimited &&
+                       !trustOk.effectiveDetunedFromRequest && !trustOk.processFlowTooLow,
+                   "buildRequiredHeatTrust healthy case");
+        const auto trustLowFlow = buildRequiredHeatTrust(20.0, 20.0, 20.0, 1.0, false, 1e-5);
+        expectTrue(trustLowFlow.processFlowTooLow, "buildRequiredHeatTrust flags tiny flow");
+        const auto trustNoFlow = buildRequiredHeatTrust(20.0, 20.0, 20.0, 1.0, true, std::nullopt);
+        expectTrue(trustNoFlow.capacityLimited && !trustNoFlow.processFlowTooLow,
+                   "buildRequiredHeatTrust skips flow check when nullopt");
     }
     {
         auto runHoldMin = [&](const std::string& mode, double freeTemp, double qReq,
@@ -1057,8 +1163,12 @@ int main() {
                    "heating below min_process processes minimum");
         runHoldMin("HEATING", 19.5, 0.0, false,
                    "heating with near-zero load turns OFF");
+        runHoldMin("HEATING", 20.0, -65.9, false,
+                   "heating with negative Qreq turns OFF (not abs hold)");
         runHoldMin("COOLING", 21.2, -160.0, true,
                    "cooling below min_process processes minimum");
+        runHoldMin("COOLING", 20.0, 65.9, false,
+                   "cooling with positive Qreq turns OFF (not abs hold)");
     }
 
     // AirconStateProposal: ON/OFF 変化で OnOffChanged が立つ

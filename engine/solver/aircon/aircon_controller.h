@@ -91,6 +91,17 @@ private:
                                          const VertexProperties& nodeProps,
                                          const FlowRateMap& flowRates) const;
 
+    // controlAllAircons の decide 後処理（ON/OFF 反映・湿度パススルー・proposal）。
+    // set_node.calc_t は変更しない（fixed-row 条件を壊さないため）。
+    void applyOnOffControlResult(ThermalNetwork& thermalNetwork,
+                                 const std::string& airconKey,
+                                 VertexProperties& nodeProps,
+                                 const AirconControlResult& result,
+                                 double humidityAbsTol,
+                                 bool& allControlled,
+                                 bool* supplyHumidityChanged,
+                                 std::vector<AirconStateProposal>* outProposals) const;
+
     /** 1台分の電力[W]とCOPを推定する。logDetail が true のときのみ WARN と詳細1行を出力。失敗時は例外。 */
     std::pair<double, double> estimatePowerAndCOPForAircon(const std::string& airconKey,
                                                            ThermalNetwork& thermalNetwork,
@@ -197,8 +208,8 @@ public:
 
     // DUCT_CENTRAL 用: 処理熱量に応じて送風量を補正する。
     // - 基準熱量=0 -> vol_zero（既定 0）
-    // - min_process 運転中（0 < 基準熱量 <= min_process）-> V_inner.dsgn * min_process/Q.rtd
-    //   min_process 未指定時は Q.rtd（無ければ Q.max）の 10%
+    // - min_process 運転中（同符号で 0 < |基準熱量| <= min_process）-> V_inner.dsgn * min_process/Q.rtd
+    //   min_process 未指定時は Q.rtd（無ければ Q.max）の 10%。逆符号負荷ではホールドしない。
     // - それ以外は V_inner.dsgn * clamp(基準熱量/Q.rtd, 0, 1)
     // - 能力制限中・要求設定未達は Q_max
     // - 設定維持中は |required_heat_w|（無いときは Q_max。計測コイル熱では 0 へ縮小する）

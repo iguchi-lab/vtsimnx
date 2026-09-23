@@ -59,7 +59,8 @@ struct AirconSpec {
 
     // 制御用の最低処理能力 [kW]（任意上書き）。カタログ Q.min とは独立。
     // 未指定時は getMinProcess() が Q.rtd（無ければ Q.max）の 10% を返す。
-    // 設定維持中の |必要負荷| がこの値以下（かつ約 1 W 超）なら最低能力分を処理する。
+    // 設定維持中、同符号の必要負荷がこの値以下（かつ約 1 W 超）なら最低能力分を処理する。
+    // 暖房は 0<Qreq<=min、冷房は -min<=Qreq<0。逆符号では処理せず停止する。
     std::optional<double> min_process_heating;
     std::optional<double> min_process_cooling;
     static constexpr double kDefaultMinProcessRatio = 0.1;

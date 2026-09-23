@@ -3,6 +3,7 @@
 #include <cmath>
 #include <sstream>
 #include <stdexcept>
+#include <string>
 
 namespace aircon::onoff {
 
@@ -28,6 +29,60 @@ const char* minCapacityModeKey(const std::string& currentMode, double requiredHe
     return "heating";
 }
 
+RequiredHeatTrust buildRequiredHeatTrust(double controlledRoomTempC,
+                                         double effectivePreTempC,
+                                         double requestedPreTempC,
+                                         double setpointBandK,
+                                         bool capacityLimited,
+                                         std::optional<double> processFlowM3s) {
+    RequiredHeatTrust trust;
+    trust.nearEffectiveSetpoint =
+        std::isfinite(effectivePreTempC) &&
+        std::abs(controlledRoomTempC - effectivePreTempC) <= setpointBandK;
+    trust.capacityLimited = capacityLimited;
+    trust.effectiveDetunedFromRequest =
+        std::isfinite(effectivePreTempC) && std::isfinite(requestedPreTempC) &&
+        std::abs(effectivePreTempC - requestedPreTempC) > setpointBandK;
+    if (processFlowM3s.has_value()) {
+        trust.processFlowTooLow =
+            !(*processFlowM3s > kMinMeaningfulProcessFlow);
+    }
+    return trust;
+}
+
+bool shouldUseRequiredHeat(bool currentlyOn,
+                           double requiredHeatW,
+                           const RequiredHeatTrust& trust) {
+    return currentlyOn && std::isfinite(requiredHeatW) && trust.nearEffectiveSetpoint &&
+           !trust.capacityLimited && !trust.effectiveDetunedFromRequest &&
+           !trust.processFlowTooLow;
+}
+
+double resolveMinProcessHeatW(std::optional<double> qMinKW) {
+    if (!qMinKW.has_value()) return 0.0;
+    if (!std::isfinite(*qMinKW) || !(*qMinKW > 0.0)) return 0.0;
+    return (*qMinKW) * 1000.0;
+}
+
+bool inMinProcessHoldBand(const char* minModeKey,
+                          double requiredHeatW,
+                          double minProcessHeatW,
+                          double deadbandW) {
+    if (!std::isfinite(requiredHeatW) || !std::isfinite(minProcessHeatW)) return false;
+    const double qTol = std::max(0.0, deadbandW);
+    if (!(minProcessHeatW > qTol)) return false;
+    const bool cooling = (minModeKey != nullptr && std::string(minModeKey) == "cooling");
+    if (cooling) {
+        return requiredHeatW < -qTol && requiredHeatW >= -minProcessHeatW;
+    }
+    return requiredHeatW > qTol && requiredHeatW <= minProcessHeatW;
+}
+
+double signedMinProcessHeatW(const char* minModeKey, double minProcessHeatW) {
+    const bool cooling = (minModeKey != nullptr && std::string(minModeKey) == "cooling");
+    return cooling ? -minProcessHeatW : minProcessHeatW;
+}
+
 namespace {
 
 bool demandKeepsOn(const std::string& mode,
@@ -51,20 +106,19 @@ Decision decideFromRequiredHeat(const std::string& mode,
                                 double minProcessHeatW,
                                 bool holdAtMinimumCapacity) {
     const double qTol = std::max(0.0, loadDeadbandW);
-    const bool useMinProcess = std::isfinite(minProcessHeatW) && minProcessHeatW > qTol;
+    const char* minMode = minCapacityModeKey(mode, requiredHeatW);
+    const bool demandOn = demandKeepsOn(mode, requiredHeatW, qTol);
+    // hold フラグが誤って立っていても、同符号バンド外なら無視して OFF/通常判定へ。
+    const bool holdApplies =
+        holdAtMinimumCapacity &&
+        inMinProcessHoldBand(minMode, requiredHeatW, minProcessHeatW, qTol);
 
     Decision decision;
-    // ON/OFF は負荷デッドバンドのみ。カタログ Q.min では止めない。
-    // min_process 指定時に負荷がその以下なら hold で最低能力運転を継続する。
-    if (holdAtMinimumCapacity && useMinProcess) {
-        decision.shouldBeOn = true;
-    } else {
-        decision.shouldBeOn = demandKeepsOn(mode, requiredHeatW, qTol);
-    }
+    decision.shouldBeOn = holdApplies ? true : demandOn;
 
     std::ostringstream detail;
     detail << "Qreq=" << requiredHeatW << "W";
-    if (holdAtMinimumCapacity && useMinProcess) {
+    if (holdApplies) {
         detail << " <= min_process=" << minProcessHeatW << "W, 最低能力で処理";
     }
     decision.detail = detail.str();
