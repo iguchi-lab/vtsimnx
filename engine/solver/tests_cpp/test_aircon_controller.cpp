@@ -902,11 +902,11 @@ int main() {
         expectTrue(!stay.stateChanged && stay.on, "heating above min_process stays ON");
     }
     // RAC / CRIEPI / DUCT: カタログ Q.min だけでは最低能力停止しない。
-    // min_process があるときだけ小負荷を最低能力で処理する。
+    // 明示 min_process が無ければ Q.rtd の 10% を既定とし、小負荷はそれを処理する。
     {
         auto runMinProcess = [&](const std::string& key, const std::string& model,
                                  const nlohmann::json& spec, double qReq, bool expectHold,
-                                 const std::string& msg) {
+                                 double expectedHoldW, const std::string& msg) {
             ThermalNetwork net;
             auto room = makeNode("ROOM", "normal", 20.0);
             auto ac = makeNode(key, "aircon", 22.0);
@@ -931,7 +931,7 @@ int main() {
             auto& held = net.getNode(key);
             if (expectHold) {
                 expectTrue(held.on, msg + " stays ON");
-                expectNear(held.required_heat_w, 700.0, 1e-6, msg + " processes min_process");
+                expectNear(held.required_heat_w, expectedHoldW, 1e-6, msg + " processes min_process");
                 expectTrue(logs.str().find("min_process=") != std::string::npos,
                            msg + " should cite min_process");
             } else {
@@ -945,8 +945,11 @@ int main() {
             {"P", {{"heating", {{"min", 0.095}, {"rtd", 0.39}, {"max", 1.36}}},
                    {"cooling", {{"min", 0.095}, {"rtd", 0.395}, {"max", 0.78}}}}},
         };
-        runMinProcess("RAC1", "RAC", racCatalogMinOnly, 160.0, false,
-                      "RAC with catalog Q.min only must not stop or clamp");
+        // 既定 10% of Q.rtd = 0.25 kW。カタログ Q.min=0.7 は使わない。
+        runMinProcess("RAC1", "RAC", racCatalogMinOnly, 160.0, true, 250.0,
+                      "RAC default min_process is 10% of Q.rtd");
+        runMinProcess("RAC1A", "RAC", racCatalogMinOnly, 300.0, false, 0.0,
+                      "RAC load above default 10% keeps Qreq");
 
         const auto racWithMinProcess = nlohmann::json{
             {"Q", {{"heating", {{"min", 0.7}, {"rtd", 2.5}, {"max", 5.4}}},
@@ -955,9 +958,9 @@ int main() {
                    {"cooling", {{"min", 0.095}, {"rtd", 0.395}, {"max", 0.78}}}}},
             {"min_process", {{"heating", 0.7}, {"cooling", 0.7}}},
         };
-        runMinProcess("RAC1B", "RAC", racWithMinProcess, 160.0, true,
+        runMinProcess("RAC1B", "RAC", racWithMinProcess, 160.0, true, 700.0,
                       "RAC with min_process clamps small load");
-        runMinProcess("RAC1C", "RAC", racWithMinProcess, 800.0, false,
+        runMinProcess("RAC1C", "RAC", racWithMinProcess, 800.0, false, 0.0,
                       "RAC with min_process keeps load above threshold");
 
         const auto criepi = nlohmann::json{
@@ -969,9 +972,9 @@ int main() {
             {"V_outer", {{"heating", {{"rtd", 0.4}}}, {"cooling", {{"rtd", 0.4}}}}},
             {"min_process", {{"heating", 0.7}, {"cooling", 0.7}}},
         };
-        runMinProcess("CR1", "CRIEPI", criepi, 160.0, true,
+        runMinProcess("CR1", "CRIEPI", criepi, 160.0, true, 700.0,
                       "CRIEPI with min_process clamps small load");
-        runMinProcess("CR1B", "CRIEPI", criepi, 700.0, true,
+        runMinProcess("CR1B", "CRIEPI", criepi, 700.0, true, 700.0,
                       "CRIEPI at min_process still clamps to min_process");
     }
 
@@ -1756,7 +1759,7 @@ int main() {
         expectNear(intake, expectedClamp, 2e-4, "room load is clamped to Q_max");
         expectNear(supply, expectedClamp, 2e-4, "clamped flow matches on supply");
 
-        // カタログ Q.min だけでは風量床をかけない（線形のまま）。
+        // カタログ Q.min だけでは風量床をかけない。明示 min_process が無ければ既定 10% of Q.rtd。
         b.current_mode = "HEATING";
         b.vol_zero = 0.0;
         b.ac_spec = nlohmann::json{
@@ -1766,21 +1769,21 @@ int main() {
         b.initializeAirconSpec();
         b.required_heat_w = 160.0;
         flows[{"IN", "B"}] = 0.16;
-        std::ostringstream logsLinear;
-        expectTrue(controller.checkAndAdjustDuctCentralAirflow(thermal, vent, flows, logsLinear),
-                   "catalog Q.min alone should not floor duct flow");
+        std::ostringstream logsDefaultMin;
+        expectTrue(controller.checkAndAdjustDuctCentralAirflow(thermal, vent, flows, logsDefaultMin),
+                   "default min_process floor should apply without explicit min_process");
         readPair(intake, supply);
-        const double expectedLinear = 0.36 * (160.0 / 7200.0);
-        expectNear(intake, expectedLinear, 2e-4, "small load without min_process stays linear");
-        expectNear(supply, expectedLinear, 2e-4, "linear flow matches on supply");
-        expectTrue(logsLinear.str().find("最低風量維持") == std::string::npos,
-                   "catalog Q.min must not log min-flow hold");
+        const double expectedDefaultMin = 0.36 * 0.1;  // 10% of Q.rtd
+        expectNear(intake, expectedDefaultMin, 2e-4, "small load floors at 10% of Q.rtd by default");
+        expectNear(supply, expectedDefaultMin, 2e-4, "default min flow matches on supply");
+        expectTrue(logsDefaultMin.str().find("最低風量維持") != std::string::npos,
+                   "default min-flow hold should be logged");
 
-        // min_process があるとき、その以下の負荷は最低能力相当風量。
+        // 明示 min_process があるとき、その以下の負荷は最低能力相当風量。
         b.ac_spec["min_process"] = nlohmann::json{{"heating", 2.7}, {"cooling", 2.7}};
         b.initializeAirconSpec();
         b.required_heat_w = 160.0;
-        flows[{"IN", "B"}] = expectedLinear;
+        flows[{"IN", "B"}] = expectedDefaultMin;
         std::ostringstream logsMin;
         expectTrue(controller.checkAndAdjustDuctCentralAirflow(thermal, vent, flows, logsMin),
                    "min_process should hold minimum duct flow");
@@ -1790,6 +1793,25 @@ int main() {
         expectNear(supply, expectedMin, 2e-4, "minimum flow matches on supply");
         expectTrue(logsMin.str().find("最低風量維持") != std::string::npos,
                    "min-flow hold should be logged");
+
+        // 明示 min_process が勝つ（既定 10% ではなく明示値で床）。
+        // 負荷が既定 10% を超える場合は線形（明示なし）。
+        b.ac_spec = nlohmann::json{
+            {"Q", {{"heating", {{"rtd", 7.2}}}, {"cooling", {{"rtd", 7.2}}}}},
+            {"V_inner", {{"heating", {{"dsgn", 0.36}}}, {"cooling", {{"dsgn", 0.36}}}}},
+        };
+        b.initializeAirconSpec();
+        b.required_heat_w = 1200.0;  // 1.2 kW > 0.72 kW (10%)
+        flows[{"IN", "B"}] = 0.05;
+        std::ostringstream logsLinear;
+        expectTrue(controller.checkAndAdjustDuctCentralAirflow(thermal, vent, flows, logsLinear),
+                   "load above default 10% should stay linear");
+        readPair(intake, supply);
+        const double expectedLinear = 0.36 * (1200.0 / 7200.0);
+        expectNear(intake, expectedLinear, 2e-4, "load above default min stays linear");
+        expectNear(supply, expectedLinear, 2e-4, "linear flow matches on supply");
+        expectTrue(logsLinear.str().find("最低風量維持") == std::string::npos,
+                   "above-default load must not log min-flow hold");
 
         // 負荷 0 は既定で風量 0。vol_zero があればその風量。
         b.required_heat_w = 0.0;
@@ -1816,8 +1838,10 @@ int main() {
         auto& in = thermal.getNode("IN");
         auto& b = thermal.getNode("B");
         auto& out = thermal.getNode("OUT");
+        // 入口と吹出が同温なら処理熱≈0 → 目標は vol_zero（0）。
+        // 現風量 5e-5 も 1e-4 未満で 0 扱いなので、再計算を要求しない。
         in.current_t = 20.0;
-        b.current_t = 20.01;
+        b.current_t = 20.0;
         out.current_t = 7.0;
         b.current_mode = "HEATING";
         b.on = true;
@@ -1825,9 +1849,11 @@ int main() {
         b.in_node = "IN";
         b.set_node.clear();
         b.outside_node = "OUT";
+        b.vol_zero = 0.0;
         b.aircon_control_state = AirconControlState::SetpointControlled;
         b.current_pre_temp = 20.0;
         b.current_requested_pre_temp = 20.0;
+        b.required_heat_w = 0.0;
         b.ac_spec = nlohmann::json{
             {"Q", {{"heating", {{"rtd", 7.2}}}, {"cooling", {{"rtd", 7.2}}}}},
             {"V_inner", {{"heating", {{"dsgn", 0.28}}}, {"cooling", {{"dsgn", 0.28}}}}},

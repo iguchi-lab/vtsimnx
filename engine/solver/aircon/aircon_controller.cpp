@@ -343,8 +343,8 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
         if (!useRequiredHeat && std::isfinite(currentTemp)) {
             lastFreeSetTempC_[airconKey] = currentTemp;
         }
-        // 設定を保持できているとき、制御用 min_process があれば
-        // |Qreq| がその以下（かつデッドバンド超）なら最低能力分を処理する。
+        // 設定を保持できているとき、制御用 min_process（未指定時は Q.rtd の 10%）以下なら
+        // |Qreq| がデッドバンド超かつその以下なら最低能力分を処理する。
         // カタログ Q.min では ON/OFF も風量も決めない。
         double minProcessHeatW = 0.0;
         const char* minMode = aircon::onoff::minCapacityModeKey(

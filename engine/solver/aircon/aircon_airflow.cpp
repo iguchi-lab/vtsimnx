@@ -278,7 +278,7 @@ std::optional<double> computeTargetFlowFromProcessedHeat(const VertexProperties&
         return std::nullopt;
     }
     // 負荷 0 は零負荷風量（既定 0）。正の負荷は原則線形。
-    // 制御用 min_process があるときだけ、その以下は最低能力相当の風量に留める。
+    // min_process（未指定時は Q.rtd の 10%）以下は最低能力相当の風量に留める。
     if (!(processedHeatW > 0.0)) {
         const double v0 = std::isfinite(zeroLoadFlowM3s) ? std::max(0.0, zeroLoadFlowM3s) : 0.0;
         return v0;

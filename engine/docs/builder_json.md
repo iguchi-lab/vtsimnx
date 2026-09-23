@@ -445,7 +445,7 @@ RC/CTFの詳細は以下:
 - `pre_temp`（必須）: 目標温度（スカラー/配列）
 - `model`（任意）: エアコンモデル種別。`CRIEPI` / `RAC` / `DUCT_CENTRAL` / `LATENT_EVALUATE`。**未指定時は RAC**
 - `mode`（必須）: 運転モード（時系列）
-- `ac_spec`（任意）: 能力・電力・風量などの仕様JSON。モデル別の形は `docs/aircon_spec_reference.md` を参照。制御用最低能力は `ac_spec.min_process.{heating,cooling}` [kW]
+- `ac_spec`（任意）: 能力・電力・風量などの仕様JSON。モデル別の形は `docs/aircon_spec_reference.md` を参照。制御用最低能力は `ac_spec.min_process.{heating,cooling}` [kW]（未指定時は `0.1×Q.rtd`、無ければ `0.1×Q.max`）
 - `vol`（任意）: 固定風量（未指定時は既定値）。`p_max` などが無いときの既定
 - `vol_zero`（任意）: 熱処理負荷が 0 のときの循環風量 [m³/s]（DUCT_CENTRAL）。未指定は 0。換気用の下限風量に使う
 - `p_max` / `p1` / `q1` / `q_max`（任意）: 揃っていれば固定風量の代わりにファン枝を作る。`vol` はファン枝に書かない

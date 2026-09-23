@@ -53,7 +53,7 @@ API 入力スキーマ: `engine/app/schemas/config.py` の `json_schema_extra={"
 | `solar` | W/m2 |
 | `timestep` | s |
 | `aircon[].ac_spec.Q.*.*`, `P.*.*`, `P_fan.*.*` | kW |
-| `aircon[].ac_spec.min_process.*` | kW（制御用最低処理能力。任意） |
+| `aircon[].ac_spec.min_process.*` | kW（制御用最低処理能力。未指定時は `0.1×Q.rtd`、無ければ `0.1×Q.max`） |
 | `aircon[].ac_spec.V_inner.*.*`, `V_outer.*.*`, `V_vent` | m3/s |
 
 `DUCT_CENTRAL` の風量比は `Q.<mode>.rtd` [kW] を1000倍してWへ換算した値を分母に用いる。

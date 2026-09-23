@@ -57,10 +57,12 @@ struct AirconSpec {
     std::optional<AirconPerformanceSpec> V_inner; // 内部風量 [m³/s]
     std::optional<AirconPerformanceSpec> V_outer; // 外部風量 [m³/s]
 
-    // 制御用の最低処理能力 [kW]（任意）。カタログ Q.min とは独立。
-    // 指定時、設定維持中の |必要負荷| がこの値以下なら最低能力分を処理する。
+    // 制御用の最低処理能力 [kW]（任意上書き）。カタログ Q.min とは独立。
+    // 未指定時は getMinProcess() が Q.rtd（無ければ Q.max）の 10% を返す。
+    // 設定維持中の |必要負荷| がこの値以下（かつ約 1 W 超）なら最低能力分を処理する。
     std::optional<double> min_process_heating;
     std::optional<double> min_process_cooling;
+    static constexpr double kDefaultMinProcessRatio = 0.1;
 
     // 追加パラメータ
     double max_heat_capacity = 2400.0; // 最大処理熱量 [W]
@@ -109,10 +111,22 @@ struct AirconSpec {
     std::optional<double> getCapacity(const std::string& mode, const std::string& rating = "rtd") const {
         return Q.getValue(mode, rating);
     }
-    /** 制御用最低処理能力 [kW]。未指定なら nullopt（カタログ Q.min は見ない）。 */
+    /**
+     * 制御用最低処理能力 [kW]。カタログ Q.min は見ない。
+     * 明示の min_process があればそれ。無ければ Q.rtd（無ければ Q.max）の 10%。
+     * どちらも無ければ nullopt（約 1 W デッドバンドのみ）。
+     */
     std::optional<double> getMinProcess(const std::string& mode) const {
-        if (mode == "cooling") return min_process_cooling;
-        if (mode == "heating") return min_process_heating;
+        if (mode == "cooling" && min_process_cooling.has_value()) return min_process_cooling;
+        if (mode == "heating" && min_process_heating.has_value()) return min_process_heating;
+        auto rtd = Q.getValue(mode, "rtd");
+        if (rtd.has_value() && *rtd > 0.0 && std::isfinite(*rtd)) {
+            return (*rtd) * kDefaultMinProcessRatio;
+        }
+        auto mx = Q.getValue(mode, "max");
+        if (mx.has_value() && *mx > 0.0 && std::isfinite(*mx)) {
+            return (*mx) * kDefaultMinProcessRatio;
+        }
         return std::nullopt;
     }
     /** 能力上限 [kW]。max があればそれ、なければ mid を返す（DUCT_CENTRAL / LATENT_EVALUATE で mid のみの spec に対応） */

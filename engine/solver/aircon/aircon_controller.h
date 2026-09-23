@@ -198,6 +198,7 @@ public:
     // DUCT_CENTRAL 用: 処理熱量に応じて送風量を補正する。
     // - 基準熱量=0 -> vol_zero（既定 0）
     // - min_process 運転中（0 < 基準熱量 <= min_process）-> V_inner.dsgn * min_process/Q.rtd
+    //   min_process 未指定時は Q.rtd（無ければ Q.max）の 10%
     // - それ以外は V_inner.dsgn * clamp(基準熱量/Q.rtd, 0, 1)
     // - 能力制限中・要求設定未達は Q_max
     // - 設定維持中は |required_heat_w|（無いときは Q_max。計測コイル熱では 0 へ縮小する）
