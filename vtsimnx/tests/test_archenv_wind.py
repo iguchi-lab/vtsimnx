@@ -4,6 +4,15 @@ import pytest
 import vtsimnx as vt
 
 
+@pytest.mark.parametrize("direction,windward,leeward", [(4,"E","W"), (8,"S","N"), (12,"W","E"), (16,"N","S")])
+def test_wind_pressure_respects_signed_external_coefficients(direction, windward, leeward):
+    idx = pd.date_range("2026-01-01", periods=1, freq="h")
+    _, pressure = vt.make_wind(pd.Series([direction], idx), pd.Series([2.0], idx))
+    assert pressure[windward].iloc[0] > 0
+    assert pressure[leeward].iloc[0] < 0
+    assert pressure[leeward].iloc[0] / pressure[windward].iloc[0] == pytest.approx(-0.55 / 0.7)
+
+
 def test_make_wind_basic_output_shapes():
     idx = pd.date_range("2026-01-01 00:00:00", periods=3, freq="1h")
     d = pd.Series([0, 4, 8], index=idx)  # 無風, E, S

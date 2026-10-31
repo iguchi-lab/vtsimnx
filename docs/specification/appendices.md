@@ -36,7 +36,7 @@
 | heat_source | heat_generation枝 | 熱源 |
 | humidity_source | humidity_generation枝、発湿先calc_x | 水蒸気源 |
 | simulation.calc_flag | 展開後のcalc_*から再生成 | 分野別実行選択 |
-| simulation.coupling、iteration | 現行ビルダーは保持しない | C++直入力とは経路が異なる |
+| simulation.coupling、iteration | v1.8.1以降は検証して保持 | API・直接ビルダーに共通 |
 
 ノード key の && は複合ノードを展開、枝 key の A->B->C は A->B と B->C を展開、|| 以降はコメントに分離する。枝の空端点は void に置換する。根拠：[utils.py](../../engine/app/builder/utils.py)。
 
@@ -50,7 +50,7 @@
 |---|---|---|
 | 湿気解法 | Gauss–Seidelの説明をSparseLU直接法へ | 第九章 |
 | raw枝配列 | 直接ビルダーは未指定を空として受理 | 第三章 |
-| 追加simulation設定 | coupling・iterationはC++対応があってもrawビルダーで保持しない | 第三～五章 |
+| 追加simulation設定 | v1.8.1以降はcoupling・iterationもraw/API経由で引継ぎ | 第三～五章 |
 | 熱交換換気 | 排気0時は給気流量を使用する分岐を追加 | 第十一章 |
 | 電力推定失敗 | 例外を機器別に捕捉しログに記録、系列は0のまま | 第十二章 |
 | 運転点風量 | 連成側のV_outer=25.5/60、V_vent=0を明記 | 第十二章 |

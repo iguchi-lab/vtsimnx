@@ -11,6 +11,16 @@ def test_rn_returns_finite_values():
     assert v == pytest.approx(v)  # not nan
 
 
+def test_temperature_estimate_is_positive_outward_loss_in_watts():
+    idx = pd.date_range("2026-01-01", periods=2, freq="30min")
+    s = vt.nocturnal_gain_by_angles(
+        tilt_deg=0, t_out=pd.Series([5.,5.],idx), rh_out=pd.Series([70.,70.],idx)
+    )
+    assert s.tolist() == pytest.approx([66.9778054125,66.9778054125])
+    # W/m²の率であり、呼出側のサンプリング間隔では積算しない。
+    assert rn(5.,70.) * 1e6 / 3600 == pytest.approx(s.iloc[0])
+
+
 def test_nocturnal_gain_by_angles_from_t_and_rh():
     idx = pd.date_range("2026-01-01 00:00:00", periods=3, freq="1h")
     t_out = pd.Series([5.0, 6.0, 7.0], index=idx)

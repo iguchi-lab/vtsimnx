@@ -11,6 +11,8 @@ APIサーバー実装の正本は `engine/` です。
 
 最新リリース: [GitHub Releases](https://github.com/iguchi-lab/vtsimnx/releases/latest)
 
+mainのv1.8.1修正内容と移行上の注意：[領域別点検の修正記録](docs/releases/v1.8.1.md)。
+
 バージョン正本は `pyproject.toml`（API / `get_version()` / tag が参照）。運用: `docs/release_policy.md`  
 公開 API の安定性: `docs/public_api.md`　単位系: `docs/units.md`
 

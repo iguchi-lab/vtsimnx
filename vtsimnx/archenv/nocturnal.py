@@ -9,15 +9,15 @@ from .archenv import SIGMA_NOCTURNAL, MJ_to_Wh, to_kelvin, vapor_pressure_from_r
 
 
 def rn(t: pd.Series | np.ndarray | float, h: pd.Series | np.ndarray | float) -> pd.Series | np.ndarray | float:
-    """夜間放射量 [MJ/m2] を推算する。
+    """1時間の正味長波放射損失 [MJ/m2]（外向きを正）を推算する。
 
     t: 気温 [degC]
     h: 相対湿度 [%]
     """
     return (
-        94.21
-        + 39.06 * np.sqrt(vapor_pressure_from_rh_pa(t, h) / 100)
-        - 0.85 * SIGMA_NOCTURNAL * np.power(to_kelvin(t), 4)
+        0.85 * SIGMA_NOCTURNAL * np.power(to_kelvin(t), 4)
+        - 94.21
+        - 39.06 * np.sqrt(vapor_pressure_from_rh_pa(t, h) / 100)
     ) * 4.187 / 1000
 
 
@@ -30,11 +30,11 @@ def nocturnal_gain_by_angles(
     return_details: bool = False,
 ) -> pd.DataFrame | pd.Series:
     """
-    傾斜角だけ指定して、その面の夜間放射量（長波放射）[Wh/m2] を返す。
+    傾斜面の正味長波放射損失 [W/m2]（外向きを正）を返す。
 
     入力（どちらか）:
       - t_out [degC] + rh_out [%]: rn(t,h) から水平面の夜間放射量を推算
-      - rn_horizontal: 水平面の夜間放射量 [Wh/m2] を直接与える
+      - rn_horizontal: 水平面の正味長波放射損失 [W/m2] を直接与える
 
     tilt_deg: 0=水平上向き, 90=鉛直
     """

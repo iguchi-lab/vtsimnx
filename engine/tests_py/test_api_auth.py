@@ -7,6 +7,21 @@ from app.api_auth import API_KEY_HEADER  # noqa: E402
 from app.main import app  # noqa: E402
 
 
+@pytest.mark.parametrize("configured", [
+    '[{"id":"revoked","key":"test-only","revoked":true}]',
+    '[]',
+    '{invalid-json',
+])
+def test_configured_auth_never_opens_when_no_active_keys(monkeypatch, configured):
+    monkeypatch.delenv("VTSIMNX_API_KEY", raising=False)
+    monkeypatch.delenv("VTSIMNX_API_KEYS", raising=False)
+    monkeypatch.setenv("VTSIMNX_API_KEYS_JSON", configured)
+    client = TestClient(app)
+    assert client.post("/run", json={"config": {}}).status_code == 401
+    assert client.post("/run", json={"config": {}}, headers={API_KEY_HEADER: "test-only"}).status_code == 401
+    assert client.get("/health/live").status_code == 200
+
+
 def test_ping_without_api_key_when_env_unset(monkeypatch):
     monkeypatch.delenv("VTSIMNX_API_KEY", raising=False)
     monkeypatch.delenv("VTSIMNX_API_KEYS", raising=False)

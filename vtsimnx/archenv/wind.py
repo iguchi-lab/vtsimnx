@@ -72,11 +72,11 @@ def make_wind(
     for key, speed_col, press_col in _WIND_DIRS:
         speed = components[key]
         df[speed_col] = speed
-        # 風速成分の符号で風上/風下係数を切替（既存互換）
+        # 係数は符号付きの外圧係数。風下の負係数を再度反転しない。
         press = pd.Series(index=d.index, dtype="float64")
         pos = speed >= 0
         press.loc[pos] = half_rho * c_in * speed.loc[pos] ** 2
-        press.loc[~pos] = -half_rho * c_out * speed.loc[~pos] ** 2
+        press.loc[~pos] = half_rho * c_out * speed.loc[~pos] ** 2
         df[press_col] = press
         wind_pressure[key] = press
 

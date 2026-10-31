@@ -124,6 +124,16 @@ std::vector<double> VentilationNetwork::collectFlowRateValues() const {
     return values;
 }
 
+void VentilationNetwork::syncTransportState(ConstNodeStateView nodeState) {
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        const auto it = nodeState.keyToVertex.find(graph[v].key);
+        if (it == nodeState.keyToVertex.end()) continue;
+        const auto& state = nodeState.graph[it->second];
+        graph[v].current_x = state.current_x;
+        graph[v].current_c = state.current_c;
+    }
+}
+
 std::vector<double> VentilationNetwork::collectHumidityFluxValues() const {
     (void)getFlowRateKeys();
     std::vector<double> values;

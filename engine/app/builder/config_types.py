@@ -1,4 +1,4 @@
-from typing import TypedDict, List, Optional, Literal
+from typing import TypedDict, List, Optional, Literal, Any
 from typing_extensions import NotRequired
 from enum import Enum
 import numpy as np
@@ -74,6 +74,12 @@ class SimConfigType(TypedDict):
     index: IndexType
     tolerance: ToleranceType
     calc_flag: CalcFlagType
+    log: NotRequired[dict[str, Any]]
+    iteration: NotRequired[dict[str, Any]]
+    coupling: NotRequired[dict[str, Any]]
+    max_inner_iteration: NotRequired[int]
+    max_coupling_iteration: NotRequired[int]
+    max_aircon_control_iteration: NotRequired[int]
 
 
 class NodeType(TypedDict):
