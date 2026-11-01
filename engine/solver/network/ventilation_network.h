@@ -87,6 +87,8 @@ public:
     void updateNodeTemperatures(const TemperatureMap& tempMap);
     // 温度マップを作らずに ThermalNetwork の graph から反映する
     void syncTemperaturesFromThermalNetwork(const ThermalNetwork& thermalNetwork);
+    // 固定吹出・HRV境界も含め、輸送出力を共通節点状態に揃える。
+    void syncTransportState(ConstNodeStateView nodeState);
     void updatePropertiesForTimestep(const std::vector<VertexProperties>& allNodes,
                                      const std::vector<EdgeProperties>& ventilationBranches,
                                      long timestep);

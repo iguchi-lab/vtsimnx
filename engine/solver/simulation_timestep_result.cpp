@@ -20,6 +20,9 @@ void buildTimestepResult(const SimulationConstants& constants,
     using simulation::detail::convertDoublesToF32;
 
     TimestepResult timestepResult;
+    if (constants.humidityCalc || constants.concentrationCalc) {
+        ventNetwork.syncTransportState(static_cast<const ThermalNetwork&>(thermalNetwork).nodeStateView());
+    }
 
     if (constants.pressureCalc) {
         convertDoublesToF32(timestepResult.pressure, ventNetwork.collectPressureValues());

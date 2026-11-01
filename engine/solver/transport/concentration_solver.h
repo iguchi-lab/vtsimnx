@@ -17,10 +17,9 @@ struct ConcentrationSolveStats {
 };
 
 // 濃度（c）を 1 タイムステップ分だけ更新する。
-// - old_vtsim 互換の式:
-//   dc/dt = k1 - k2*c,  c(t+dt) = (c - k)*exp(-k2*dt) + k,  k=k1/k2
-//   k2 = beta + Σ(outflow)/V
-//   k1 = m/V + Σ(inflow)*(1-eta)*c_src/V
+// - 結合した未知濃度は有限体積の連立陰解法。V<=0は定常混合行。
+// - 他の未知節点と結合しない有限体積は局所解析解を保持する。
+// - HRV内部節点も同時に解き、閉鎖系のΣV*cを保存する。
 // - constants.concentrationCalc=false の場合は何もしない。
 // - 非有限・負値を含む解は反映せず converged=false。
 ConcentrationSolveStats updateConcentrationIfEnabled(const SimulationConstants& constants,

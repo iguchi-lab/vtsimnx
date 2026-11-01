@@ -31,6 +31,10 @@ def _parse_simulation(raw: Dict[str, Any]) -> SimConfigType:
         sim["index"].update(sim_data["index"])
     if "tolerance" in sim_data and isinstance(sim_data["tolerance"], dict):
         sim["tolerance"].update(sim_data["tolerance"])
+    # 計算フラグはnodeから再構成する。それ以外は検証へ渡し、設定を黙って落とさない。
+    for name, value in sim_data.items():
+        if name not in ("index", "tolerance", "calc_flag") and value is not None:
+            sim[name] = value
     return sim
 
 

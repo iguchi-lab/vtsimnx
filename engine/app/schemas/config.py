@@ -98,7 +98,28 @@ class SimulationCalcFlag(_StrictExtraBase):
 
 
 class SimulationLog(_StrictExtraBase):
-    verbosity: Optional[int] = None
+    verbosity: Optional[int] = Field(default=None, strict=True, ge=0, le=3)
+
+
+class SimulationIteration(_StrictExtraBase):
+    max_inner: Optional[int] = Field(default=None, strict=True, gt=0)
+    max_coupling: Optional[int] = Field(default=None, strict=True, gt=0)
+    max_aircon_control: Optional[int] = Field(default=None, strict=True, gt=0)
+
+
+class SimulationCoupling(_StrictExtraBase):
+    moisture_enabled: Optional[bool] = None
+    humidity_relaxation: Optional[float] = Field(default=None, gt=0, le=1, allow_inf_nan=False)
+    latent_relaxation: Optional[float] = Field(default=None, gt=0, le=1, allow_inf_nan=False)
+    latent_coupling_mode: Optional[Union[Literal[0, 1, 2], Literal[
+        "disabled", "Disabled", "DISABLED", "from_humidity_change", "FromHumidityChange",
+        "feedback_to_thermal", "FeedbackToThermal", "from_phase_change", "FromPhaseChange",
+    ]]] = None
+    latent_absolute_tolerance_w: Optional[float] = Field(default=None, ge=0, allow_inf_nan=False)
+    latent_relative_tolerance: Optional[float] = Field(default=None, ge=0, allow_inf_nan=False)
+    moist_enthalpy_enabled: Optional[bool] = None
+    humidity_solver_max_iter: Optional[int] = Field(default=None, strict=True, gt=0)
+    humidity_solver_tolerance: Optional[float] = Field(default=None, gt=0, allow_inf_nan=False)
 
 
 class SimulationSection(_StrictExtraBase):
@@ -106,6 +127,11 @@ class SimulationSection(_StrictExtraBase):
     tolerance: Optional[SimulationTolerance] = None
     calc_flag: Optional[SimulationCalcFlag] = None
     log: Optional[SimulationLog] = None
+    iteration: Optional[SimulationIteration] = None
+    coupling: Optional[SimulationCoupling] = None
+    max_inner_iteration: Optional[int] = Field(default=None, strict=True, gt=0)
+    max_coupling_iteration: Optional[int] = Field(default=None, strict=True, gt=0)
+    max_aircon_control_iteration: Optional[int] = Field(default=None, strict=True, gt=0)
 
 
 class NodeModel(_StrictExtraBase):
@@ -386,12 +412,44 @@ class AirconModel(_StrictExtraBase):
     out: Optional[str] = None
 
 
+class HeatRecoveryFanModel(_StrictExtraBase):
+    p_max: Optional[float] = None
+    p1: Optional[float] = None
+    q1: Optional[float] = None
+    q_max: Optional[float] = None
+
+
+class HeatRecoveryVentModel(_StrictExtraBase):
+    key: str
+    outdoor: Optional[str] = None
+    room: Optional[str] = None
+    set: Optional[str] = None
+    oa: Optional[str] = None
+    sa: Optional[str] = None
+    ra: Optional[str] = None
+    ea: Optional[str] = None
+    in_: Optional[str] = Field(default=None, alias="in")
+    out: Optional[str] = None
+    return_: Optional[str] = Field(default=None, alias="return")
+    exhaust_out: Optional[str] = None
+    recovery: Optional[str] = None
+    model: Optional[str] = None
+    eta_t: Optional[float] = Field(default=None, ge=0, le=1, allow_inf_nan=False)
+    eta_x: Optional[float] = Field(default=None, ge=0, le=1, allow_inf_nan=False)
+    vol: Optional[float] = None
+    area: Optional[float] = None
+    k_total: Optional[float] = None
+    supply: Optional[HeatRecoveryFanModel] = None
+    exhaust: Optional[HeatRecoveryFanModel] = None
+
+
 class BuilderOptions(_StrictExtraBase):
     surface_layer_method: Optional[str] = None
     response_method: Optional[str] = None
     response_terms: Optional[int] = None
     add_surface: Optional[bool] = None
     add_aircon: Optional[bool] = None
+    add_heat_recovery_vent: Optional[bool] = None
     add_capacity: Optional[bool] = None
     add_moisture_capacity: Optional[bool] = None
     add_surface_solar: Optional[bool] = None
@@ -413,6 +471,7 @@ class RawSimConfig(_StrictExtraBase):
     builder: Optional[BuilderOptions] = None
     surfaces: Optional[List[SurfaceModel]] = None
     aircon: Optional[List[AirconModel]] = None
+    heat_recovery_vent: Optional[List[HeatRecoveryVentModel]] = None
     heat_source: Optional[List[Dict[str, Any]]] = None
     humidity_source: Optional[List[Dict[str, Any]]] = None
     # 互換トップレベル builder オプション
@@ -421,6 +480,7 @@ class RawSimConfig(_StrictExtraBase):
     response_terms: Optional[int] = None
     add_surface: Optional[bool] = None
     add_aircon: Optional[bool] = None
+    add_heat_recovery_vent: Optional[bool] = None
     add_capacity: Optional[bool] = None
     add_moisture_capacity: Optional[bool] = None
     add_surface_solar: Optional[bool] = None

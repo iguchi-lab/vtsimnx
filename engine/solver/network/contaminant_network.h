@@ -16,6 +16,7 @@ using WeightedContaminantLinks = std::vector<std::vector<std::pair<Vertex, doubl
 struct ContaminantNetworkTerms {
     std::unordered_map<Vertex, double> genByVertex;
     std::vector<double> outSum;
+    std::vector<double> inSum; // 除去前の体積流量（ゼロ容量節点の混合分母）
     WeightedContaminantLinks inflow;
     std::vector<Vertex> updateVertices;
 };

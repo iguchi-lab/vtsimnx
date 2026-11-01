@@ -1,7 +1,29 @@
 import pytest
+import numpy as np
 
 from app.builder.surfaces import process_surfaces
 from app.builder.surfaces import _auto_response_coefficients_from_layers
+
+
+@pytest.mark.parametrize("dt", [60., 600., 3600.])
+@pytest.mark.parametrize("terms", [1, 2])
+def test_modal_reduction_preserves_steady_heat_balance_and_reciprocity(dt, terms):
+    layers = [
+        {"lambda":1.4,"t":.10,"v_capa":2e6},
+        {"lambda":.04,"t":.05,"v_capa":3e4},
+        {"lambda":.16,"t":.012,"v_capa":8e5},
+    ]
+    resp = _auto_response_coefficients_from_layers(layers,dt,response_method="modal_expsum",response_terms=terms)
+    ds = 1-sum(resp["resp_c_src"])
+    dtgt = 1-sum(resp["resp_c_tgt"])
+    gain = np.array([
+        [sum(resp["resp_a_src"])/ds, sum(resp["resp_b_src"])/ds],
+        [sum(resp["resp_b_tgt"])/dtgt, sum(resp["resp_a_tgt"])/dtgt],
+    ])
+    u = 1 / sum(layer["t"]/layer["lambda"] for layer in layers)
+    np.testing.assert_allclose(gain, u*np.array([[1,-1],[-1,1]]),rtol=1e-8,atol=1e-8)
+    np.testing.assert_allclose(gain @ [20,20], [0,0], atol=1e-7)
+    assert resp["resp_b_src"] == pytest.approx(resp["resp_b_tgt"])
 
 
 def test_surfaces_response_conduction_generates_two_surface_nodes_and_response_branch():

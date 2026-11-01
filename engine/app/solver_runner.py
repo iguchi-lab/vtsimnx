@@ -27,7 +27,7 @@ SOLVER_EXE = (BASE_DIR / "build" / "vtsimnx_solver").resolve()
 def force_log_verbosity(config: Dict[str, Any], *, debug: bool, debug_verbosity: int, default_verbosity: int = 1) -> None:
     """
     API/CLI 共通: ログ冗長度を統制する。
-    - debug=false: 常に verbosity=default_verbosity に落とす（指定があっても上書き）
+    - debug=false: 明示されたverbosityを保持し、未指定時だけdefault_verbosityを使う
     - debug=true : verbosity を debug_verbosity まで引き上げ（既に高い場合は維持）
     """
     sim = config.get("simulation")
@@ -46,7 +46,7 @@ def force_log_verbosity(config: Dict[str, Any], *, debug: bool, debug_verbosity:
             current = 0
         log["verbosity"] = max(current, int(debug_verbosity))
     else:
-        log["verbosity"] = int(default_verbosity)
+        log.setdefault("verbosity", int(default_verbosity))
 
 def set_log_verbosity(config: Dict[str, Any], verbosity: int) -> None:
     """API/CLI 共通: verbosity を明示的にセットする。"""

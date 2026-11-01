@@ -106,13 +106,22 @@ def _auto_response_coefficients_from_layers(
                     idx = np.argsort(weight)[::-1][:m]
                     idx = np.array(sorted(idx.tolist()))  # 安定のため昇順にそろえる
 
-                    Ad_use = np.diag(w[idx])
-                    Bd_use = Bin[idx, :]
-                    C_use = Cv[:, idx]
-                    D_use = Dmat
-
-                    # 次数が変わる
-                    n = m
+                    reduced_a = np.diag(w[idx])
+                    reduced_b = Bin[idx, :]
+                    reduced_c = Cv[:, idx]
+                    # 省略した高速モードは定常応答として直接項へ戻す。
+                    # U[[1,-1],[-1,1]]を保ち、等温時の架空の熱源を防ぐ。
+                    u_steady = 1.0 / float(np.sum(thk / lam))
+                    steady = u_steady * np.array([[1.0, -1.0], [-1.0, 1.0]])
+                    try:
+                        reduced_d = steady - reduced_c @ np.linalg.solve(
+                            np.eye(m) - reduced_a, reduced_b
+                        )
+                    except np.linalg.LinAlgError:
+                        logger.warning("auto response: singular reduced DC gain; falling back to full-order ARX")
+                    else:
+                        Ad_use, Bd_use, C_use, D_use = reduced_a, reduced_b, reduced_c, reduced_d
+                        n = m
 
     # 伝達関数の分母（共通）: det(zI - Ad_use)
     den = np.poly(Ad_use)  # len=n+1, den[0]=1

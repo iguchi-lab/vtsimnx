@@ -3,6 +3,7 @@
 #include "network/ventilation_network.h"
 
 #include <algorithm>
+#include <unordered_set>
 
 #include <boost/range/iterator_range.hpp>
 
@@ -32,6 +33,7 @@ void ContaminantNetwork::buildTerms(ConstNodeStateView nodeState,
 
     // 流量（m3/s）から inflow/outflow を構築（eta は inflow のみに適用）
     terms.outSum.assign(nV, 0.0); // Σ(outflow) [m3/s]
+    terms.inSum.assign(nV, 0.0);
     terms.inflow.assign(nV, {});
     terms.inflow.reserve(nV);
 
@@ -65,6 +67,7 @@ void ContaminantNetwork::buildTerms(ConstNodeStateView nodeState,
         }
 
         terms.outSum[idxOf(src)] += q;
+        terms.inSum[idxOf(dst)] += q;
         // 同一 source→dst の複数枝は合算（湿度側と同様。連鎖展開の重複キー対策）
         const double qEff = q * (1.0 - eta);
         auto& ins = terms.inflow[idxOf(dst)];
@@ -81,11 +84,25 @@ void ContaminantNetwork::buildTerms(ConstNodeStateView nodeState,
         }
     }
 
-    // 更新対象（calc_c=true）の頂点を key でソートして決定性を確保
+    // HRV内部のゼロ容量節点も連立する。公開出力のcalc_cフラグは変えず、
+    // OA→SA / RA→EAを遅れや濃度0の固定境界なしで接続する。
+    std::unordered_set<Vertex> hrvVertices;
+    for (auto v : boost::make_iterator_range(boost::vertices(tGraph))) {
+        const auto& node = tGraph[v];
+        if (node.type != "hrv") continue;
+        hrvVertices.insert(v);
+        if (node.ac_spec.is_object() && node.ac_spec.contains("exhaust_node") &&
+            node.ac_spec["exhaust_node"].is_string()) {
+            auto it = tKeyToV.find(node.ac_spec["exhaust_node"].get<std::string>());
+            if (it != tKeyToV.end()) hrvVertices.insert(it->second);
+        }
+    }
+
+    // 更新対象をkeyでソートして決定性を確保
     terms.updateVertices.clear();
     terms.updateVertices.reserve(nV / 4 + 1);
     for (auto v : boost::make_iterator_range(boost::vertices(tGraph))) {
-        if (tGraph[v].calc_c) terms.updateVertices.push_back(v);
+        if (tGraph[v].calc_c || hrvVertices.count(v)) terms.updateVertices.push_back(v);
     }
     std::sort(terms.updateVertices.begin(), terms.updateVertices.end(), [&](Vertex a, Vertex b) {
         return tGraph[a].key < tGraph[b].key;

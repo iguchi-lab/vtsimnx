@@ -929,6 +929,37 @@ int main() {
         }
     }
 
+    // A rejected concentration candidate must leave ALL nodes unchanged.
+    {
+        auto A = makeNode("A");
+        auto B = makeNode("B");
+        A.calc_c = B.calc_c = true;
+        A.current_c = B.current_c = 10.0;
+        auto genA = makeFixedFlowEdge("void->A", "void", "A", 0.0);
+        auto genB = makeFixedFlowEdge("void->B", "void", "B", 0.0);
+        genA.current_dust_generation = 1.0;
+        genB.current_dust_generation = -100.0;
+        genA.dust_generation = {1.0};
+        genB.dust_generation = {-100.0};
+        auto V0 = makeNode("void");
+        V0.v = 0.0;
+        std::vector<VertexProperties> nodes{V0, A, B};
+        std::vector<EdgeProperties> vents{genA, genB};
+        VentilationNetwork vent;
+        ThermalNetwork thermal;
+        ContaminantNetwork contaminant;
+        vent.buildFromData(nodes, vents, constants, logs);
+        thermal.buildFromData(nodes, {}, vents, constants, logs);
+        vent.updatePropertiesForTimestep(nodes, vents, 0);
+        auto stats = transport::updateConcentrationIfEnabled(
+            constants, vent, thermal.getGraph(),
+            static_cast<const ThermalNetwork&>(thermal).nodeStateView(),
+            contaminant, logs, timings, "reject-atomic");
+        if (stats.converged || stats.updated) throw std::runtime_error("negative solution must be rejected");
+        expectNear(thermal.getNode("A").current_c, 10.0, 0.0, "no partial update A");
+        expectNear(thermal.getNode("B").current_c, 10.0, 0.0, "no partial update B");
+    }
+
     std::cout << "[OK] all tests passed\n";
     return 0;
 }

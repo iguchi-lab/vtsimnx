@@ -27,20 +27,20 @@ start・end は文字列、timestep・length は数値として読み込む。to
 
 thermal は、aircon_temperature [K]、thermal_balance [W]、thermal_linear_residual [相対値] の初期値へコピーする。個別キーがある場合は個別値で上書きする。同じ数値から始まっても、三者の次元は異なる。
 
-## 4. ビルダー外の追加設定
+## 4. 追加計算設定（v1.8.1以降はraw/APIからも引継ぎ）
 
 | 計算用 JSON の項目 | C++ 側の取扱い | raw ビルダー |
 |---|---|---|
-| simulation.iteration.max_inner | 正の整数、既定100 | 引継ぎなし |
-| simulation.iteration.max_coupling | 正の整数、未指定は max_inner | 引継ぎなし |
-| simulation.iteration.max_aircon_control | 正の整数、未指定は max_inner | 引継ぎなし |
-| simulation.max_inner_iteration | iteration 自体がない場合の旧形式 | 引継ぎなし |
-| simulation.max_coupling_iteration | 読込み順で新形式の値より後に上書き | 引継ぎなし |
-| simulation.max_aircon_control_iteration | 同上 | 引継ぎなし |
-| simulation.coupling | 湿気・潜熱・エンタルピー等の連成設定 | 引継ぎなし |
-| simulation.log | ログの設定 | raw 値の引継ぎなし。サービスで別設定 |
+| simulation.iteration.max_inner | 正の整数、既定100 | 引継ぎ・型検証 |
+| simulation.iteration.max_coupling | 正の整数、未指定は max_inner | 引継ぎ・型検証 |
+| simulation.iteration.max_aircon_control | 正の整数、未指定は max_inner | 引継ぎ・型検証 |
+| simulation.max_inner_iteration | iteration 自体がない場合の旧形式 | 引継ぎ・型検証 |
+| simulation.max_coupling_iteration | 読込み順で新形式の値より後に上書き | 引継ぎ・型検証 |
+| simulation.max_aircon_control_iteration | 同上 | 引継ぎ・型検証 |
+| simulation.coupling | 湿気・潜熱・エンタルピー等の連成設定 | 引継ぎ・範囲検証 |
+| simulation.log | ログの設定 | verbosityを保持。debugは指定レベル以上へ引上げ |
 
-C++ の機能を直接調査する場合は、ビルド済み JSON にこれらを加えたことを記録する。通常の run_calc がビルダーを迂回するという意味ではない。
+通常のrun_calcもAPI・ビルダーの同じスキーマを経由する。反復上限は正の整数、緩和係数は0より大きく1以下、log.verbosityは0～3。未知キーはstrip/errorに従う。湿り空気エンタルピー連成と潜熱モードの組合せ制約はC++パーサでも検査する。
 
 ## 5. 未知量と境界
 

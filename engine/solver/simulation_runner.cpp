@@ -192,7 +192,7 @@ void runSimulation(VentilationNetwork& ventNetwork,
     if (!concStats.converged) {
         throw simulation::Error(
             simulation::ErrorCode::ConcentrationNotConverged,
-            "Concentration solver produced non-finite or negative values");
+            "Concentration transport solve failed (singular, non-finite or negative solution)");
     }
 
     buildTimestepResult(ctx.constants,

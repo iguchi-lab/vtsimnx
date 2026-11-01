@@ -201,8 +201,12 @@ class ApiKeyMiddleware:
         client_ip = _client_ip(scope)
 
         records = load_api_key_records()
-        active = [r for r in records if not r.revoked]
-        if not active:
+        configured = any(
+            os.getenv(name, "").strip()
+            for name in ("VTSIMNX_API_KEY", "VTSIMNX_API_KEYS", "VTSIMNX_API_KEYS_JSON")
+        )
+        # 全失効・設定不正を「認証未設定」として扱わない。
+        if not configured:
             scope["vtsimnx_key_id"] = None
             return await self.app(scope, receive, send)
 
