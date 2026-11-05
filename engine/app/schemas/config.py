@@ -5,9 +5,9 @@ OpenAPI に主要構造を出しつつ、未知キーは extra="allow" + 明示�
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Sequence, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.schemas.units import (
     AREA_M2,
@@ -187,7 +187,7 @@ class NodeModel(_StrictExtraBase):
     )
     model: Optional[str] = None
     mode: Optional[ScalarOrSeries] = None
-    ac_spec: Optional[Dict[str, Any]] = None
+    ac_spec: Optional["AcSpecModel"] = None
     vol_zero: Optional[float] = Field(
         default=None,
         description="熱処理負荷が0のときの循環風量（DUCT_CENTRAL）。未指定は0",
@@ -367,6 +367,129 @@ class SurfaceModel(_StrictExtraBase):
     response: Optional[Dict[str, Any]] = None
 
 
+POWER_KW = "kW"
+
+
+class CapacityRatingModel(_StrictExtraBase):
+    """min/mid/rtd/max/dsgn。Q/P では kW、V_inner/V_outer では m³/s。"""
+
+    min: Optional[float] = None
+    mid: Optional[float] = None
+    rtd: Optional[float] = None
+    max: Optional[float] = None
+    dsgn: Optional[float] = Field(default=None, description="設計値（V_inner.dsgn は m³/s）")
+
+
+class ModeCapacityModel(_StrictExtraBase):
+    cooling: Optional[CapacityRatingModel] = None
+    heating: Optional[CapacityRatingModel] = None
+
+
+class MinProcessModel(_StrictExtraBase):
+    heating: Optional[float] = Field(
+        default=None,
+        description="制御用最低処理能力",
+        json_schema_extra=field_extra(POWER_KW),
+    )
+    cooling: Optional[float] = Field(
+        default=None,
+        description="制御用最低処理能力",
+        json_schema_extra=field_extra(POWER_KW),
+    )
+
+
+class AcSpecModel(_StrictExtraBase):
+    """
+    空調機器仕様。カタログ値（Q/P/V_*）と制御用 min_process を分離する。
+    モデル種別ごとの必須キーは OpenAPI description と aircon_spec_reference.md を参照。
+    """
+
+    Q: Optional[ModeCapacityModel] = Field(default=None, description="能力 [kW]")
+    P: Optional[ModeCapacityModel] = Field(default=None, description="消費電力 [kW]")
+    P_fan: Optional[ModeCapacityModel] = Field(default=None, description="ファン消費電力 [kW]")
+    V_inner: Optional[ModeCapacityModel] = Field(default=None, description="室内機風量 [m³/s]")
+    V_outer: Optional[ModeCapacityModel] = Field(default=None, description="室外機風量 [m³/s]")
+    min_process: Optional[MinProcessModel] = Field(
+        default=None,
+        description="制御用最低処理能力 [kW]。カタログ Q.min とは独立",
+    )
+    latent_method: Optional[str] = Field(
+        default=None,
+        description="潜熱処理方式: rh95 / bf / coil_aoaf / none",
+    )
+    bf: Optional[float] = None
+    BF: Optional[float] = None
+    bypass_factor: Optional[float] = None
+    Af: Optional[float] = Field(default=None, json_schema_extra=field_extra(AREA_M2))
+    coil_face_area: Optional[float] = Field(default=None, json_schema_extra=field_extra(AREA_M2))
+    Ao: Optional[float] = Field(default=None, json_schema_extra=field_extra(AREA_M2))
+    coil_surface_area: Optional[float] = Field(default=None, json_schema_extra=field_extra(AREA_M2))
+    dualcompressor: Optional[bool] = None
+    max_heat_capacity: Optional[float] = Field(
+        default=None,
+        description="最大処理熱量（互換）",
+        json_schema_extra=field_extra(HEAT_RATE_W),
+    )
+
+
+class HeatSourceModel(_StrictExtraBase):
+    key: Optional[str] = Field(default=None, description="ログ用識別名")
+    room: str = Field(description="対象室ノード（nodes[].key）")
+    generation_rate: ScalarOrSeries = Field(
+        description="発熱量（顕熱）",
+        json_schema_extra=field_extra(HEAT_RATE_W),
+    )
+    convection: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=1,
+        description="対流成分比。未指定かつ radiation 未指定なら 1",
+    )
+    radiation: Optional[float] = Field(
+        default=None,
+        ge=0,
+        le=1,
+        description="放射成分比。未指定かつ convection 未指定なら 0",
+    )
+
+    @model_validator(mode="after")
+    def _fractions(self) -> "HeatSourceModel":
+        if self.convection is not None and self.radiation is not None:
+            if (self.convection + self.radiation) > 1.0 + 1e-9:
+                raise ValueError("heat_source.convection + radiation は 1 以下である必要があります")
+        return self
+
+
+class HumiditySourceModel(_StrictExtraBase):
+    key: Optional[str] = Field(default=None, description="ログ用識別名")
+    room: Optional[str] = Field(default=None, description="対象室ノード（推奨キー）")
+    target_node: Optional[str] = Field(default=None, description="対象室（room の別名）")
+    generation_rate: Optional[ScalarOrSeries] = Field(
+        default=None,
+        description="発湿量",
+        json_schema_extra=field_extra(MOISTURE_GEN_KG_S),
+    )
+    set: Optional[str] = Field(default=None, description="対象室（旧形式）")
+    mx: Optional[ScalarOrSeries] = Field(
+        default=None,
+        description="発湿量（旧形式）",
+        json_schema_extra=field_extra(MOISTURE_GEN_KG_S),
+    )
+
+    @model_validator(mode="after")
+    def _require_target_and_rate(self) -> "HumiditySourceModel":
+        room = self.room or self.target_node or self.set
+        generation_rate = self.generation_rate if self.generation_rate is not None else self.mx
+        if generation_rate is not None and room:
+            if room != self.room or generation_rate != self.generation_rate:
+                return self.model_copy(update={"room": room, "generation_rate": generation_rate})
+            return self
+        raise ValueError(
+            "humidity_source には room（または target_node）と generation_rate、"
+            "あるいは旧形式の set と mx が必要です"
+        )
+
+
 class AirconModel(_StrictExtraBase):
     key: str
     set: Optional[str] = None
@@ -382,8 +505,11 @@ class AirconModel(_StrictExtraBase):
         json_schema_extra=field_extra("%"),
     )
     mode: Optional[ScalarOrSeries] = None
-    model: Optional[str] = None
-    ac_spec: Optional[Dict[str, Any]] = None
+    model: Optional[str] = Field(
+        default=None,
+        description="CRIEPI / RAC / DUCT_CENTRAL / LATENT_EVALUATE。未指定時 RAC",
+    )
+    ac_spec: Optional[AcSpecModel] = None
     vol: Optional[ScalarOrSeries] = Field(
         default=None,
         description="送風量",
@@ -459,10 +585,7 @@ class BuilderOptions(_StrictExtraBase):
 
 
 class RawSimConfig(_StrictExtraBase):
-    """
-    API / builder が受け取る raw_config。
-    heat_source / humidity_source は当面ゆるい dict リスト。
-    """
+    """API / builder が受け取る raw_config。"""
 
     simulation: SimulationSection
     nodes: List[NodeModel]
@@ -472,8 +595,8 @@ class RawSimConfig(_StrictExtraBase):
     surfaces: Optional[List[SurfaceModel]] = None
     aircon: Optional[List[AirconModel]] = None
     heat_recovery_vent: Optional[List[HeatRecoveryVentModel]] = None
-    heat_source: Optional[List[Dict[str, Any]]] = None
-    humidity_source: Optional[List[Dict[str, Any]]] = None
+    heat_source: Optional[List[HeatSourceModel]] = None
+    humidity_source: Optional[List[HumiditySourceModel]] = None
     # 互換トップレベル builder オプション
     surface_layer_method: Optional[str] = None
     response_method: Optional[str] = None
@@ -488,6 +611,37 @@ class RawSimConfig(_StrictExtraBase):
     add_surface_radiation: Optional[bool] = None
     add_surface_radiation_exclude_glass: Optional[bool] = None
 
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_source_aliases(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        data = dict(data)
+        if "heat_source" not in data and "heat_sources" in data:
+            data["heat_source"] = data.pop("heat_sources")
+        else:
+            data.pop("heat_sources", None)
+        if "humidity_source" not in data and "humidity_sources" in data:
+            data["humidity_source"] = data.pop("humidity_sources")
+        else:
+            data.pop("humidity_sources", None)
+
+        hs = data.get("humidity_source")
+        if isinstance(hs, dict):
+            converted: List[Dict[str, Any]] = []
+            for key, item in hs.items():
+                if not isinstance(item, dict):
+                    converted.append({"key": str(key)})
+                    continue
+                row = {"key": str(key), **item}
+                if row.get("room") is None and row.get("set"):
+                    row["room"] = row["set"]
+                if row.get("generation_rate") is None and "mx" in row:
+                    row["generation_rate"] = row["mx"]
+                converted.append(row)
+            data["humidity_source"] = converted
+        return data
+
 
 class UnknownFieldError(ValueError):
     """未知キーを error モードで拒否したとき（HTTP 422 向け）。"""
@@ -497,23 +651,34 @@ class UnknownFieldError(ValueError):
         self.details = details or []
 
 
-def collect_unknown_fields(model: BaseModel, *, path: str = "") -> List[Dict[str, str]]:
+def format_field_path(parts: Sequence[Any]) -> str:
+    """['heat_source', 0, 'foo'] を heat_source[0].foo にする。"""
+    out = ""
+    for part in parts:
+        if isinstance(part, int):
+            out += f"[{part}]"
+        else:
+            token = str(part)
+            out = f"{out}.{token}" if out else token
+    return out or "config"
+
+
+def collect_unknown_fields(model: BaseModel, *, path: tuple[Any, ...] = ()) -> List[Dict[str, Any]]:
     """Pydantic model_extra を再帰走査して未知キー一覧を返す。"""
-    found: List[Dict[str, str]] = []
+    found: List[Dict[str, Any]] = []
     extras = getattr(model, "__pydantic_extra__", None) or {}
-    ctx = path or "config"
     for key in extras:
-        found.append({"path": ctx, "field": str(key)})
+        found.append({"path": list(path), "field": str(key)})
 
     for name in type(model).model_fields:
         value = getattr(model, name, None)
-        child = f"{path}.{name}" if path else name
+        child = path + (name,)
         if isinstance(value, BaseModel):
             found.extend(collect_unknown_fields(value, path=child))
         elif isinstance(value, list):
             for i, item in enumerate(value):
                 if isinstance(item, BaseModel):
-                    found.extend(collect_unknown_fields(item, path=f"{child}[{i}]"))
+                    found.extend(collect_unknown_fields(item, path=child + (i,)))
     return found
 
 
@@ -593,8 +758,11 @@ def prepare_raw_config(
         details = [
             {
                 "type": "unknown_field",
-                "loc": ["config", u["path"], u["field"]],
-                "msg": f"{u['path']} に未定義のフィールド '{u['field']}' があります",
+                "loc": ["config", *u["path"], u["field"]],
+                "msg": (
+                    f"{format_field_path(u['path'])} に未定義のフィールド "
+                    f"'{u['field']}' があります"
+                ),
                 "input": u["field"],
             }
             for u in unknowns
@@ -607,14 +775,17 @@ def prepare_raw_config(
     warnings: List[str] = []
     warning_details: List[Dict[str, Any]] = []
     for u in unknowns:
-        msg = f"{u['path']} に未定義のフィールド '{u['field']}' が指定されました。無視しました。"
+        ctx = format_field_path(u["path"])
+        msg = f"{ctx} に未定義のフィールド '{u['field']}' が指定されました。無視しました。"
         warnings.append(msg)
         warning_details.append(
             {
                 "code": "unknown_field_stripped",
                 "message": msg,
-                "context": u["path"],
+                "context": ctx,
                 "field": u["field"],
+                "path": list(u["path"]) + [u["field"]],
+                "severity": "warning",
             }
         )
 
@@ -625,8 +796,11 @@ def prepare_raw_config(
 
 
 __all__ = [
+    "AcSpecModel",
     "AirconModel",
     "BuilderOptions",
+    "HeatSourceModel",
+    "HumiditySourceModel",
     "NodeModel",
     "RawSimConfig",
     "SimulationCalcFlag",
@@ -641,5 +815,6 @@ __all__ = [
     "VentilationBranchModel",
     "collect_unknown_fields",
     "dump_config_without_extras",
+    "format_field_path",
     "prepare_raw_config",
 ]

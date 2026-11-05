@@ -1,6 +1,8 @@
 ### 壁モデル（RC法）入力仕様（VTSimNX）
 
-このドキュメントは、熱計算で **RCネットワーク（層分割）**を使うための入力 JSON の書き方と、builder が生成するノード/ブランチ、単位の約束、精度上の注意点をまとめたものです。
+> **実装契約** — 使い方は [surfaces](../../docs/surface_usage.md)。入力の意味は [入力JSONの組み立て](../../docs/ai_input_guide.md)。
+
+熱計算で RC ネットワーク（層分割）を使うときの入力、builder が作るノード／枝、単位、精度上の注意です。
 
 比較: [`thermal_response_factor.md`](thermal_response_factor.md)（応答係数法）。物理背景: [`theory_basics.md`](theory_basics.md)。
 

@@ -1,7 +1,6 @@
 ### エアコン制御の概要
 
-考え方（何を同時に揃えるか）は [`aircon_control_principles.md`](aircon_control_principles.md) を参照してください。
-物理モデルから順に読む解説は [`../../docs/aircon_model_and_control.md`](../../docs/aircon_model_and_control.md) にまとめています。
+> **実装契約** — 使い方は [空調のモデルと制御](../../docs/aircon_model_and_control.md)。考え方は [aircon_control_principles.md](aircon_control_principles.md)。
 
 このドキュメントは、solver 側のエアコン制御が
 

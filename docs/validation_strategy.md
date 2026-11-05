@@ -121,9 +121,11 @@ baseline 更新: `tests_py/perf/baselines/representative.json` を意図的な�
 
 ## ドキュメントとの対応
 
-- 利用者向け入力導線: `builder_input_quickstart.md`
-- ノード/ブランチ仕様: `node_branch_schema.md`
-- engine 実装仕様: `../engine/docs/README.md`
+- 文書の層: `README.md`
+- 入力の意味: `ai_input_guide.md`
+- 実行の最短コード: `builder_input_quickstart.md`
+- ノード/ブランチ早見表: `node_branch_schema.md`
+- engine 実装契約: `../engine/docs/README.md`
 - C++テストの具体例: `../engine/docs/cpp_test_catalog.md`
 - Python 物理スイート: `../engine/tests_py/README.md`
 - リリース方針: `release_policy.md`

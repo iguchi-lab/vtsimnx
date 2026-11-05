@@ -1,8 +1,8 @@
 # 単位系
 
-建築シミュレーション向けに、入力フィールドと成果物系列の単位を明示します。
-コード正本: `vtsimnx.units`（`FIELD_UNITS` / `SERIES_UNITS`）。
-API 入力スキーマ: `engine/app/schemas/config.py` の `json_schema_extra={"unit": ...}`。
+> **使い方** — 先に [入力JSONの組み立て](ai_input_guide.md)。案内は [ドキュメント案内](README.md)。
+
+入力フィールドと成果物系列の単位の正本です。コードは `vtsimnx.units`（`FIELD_UNITS` / `SERIES_UNITS`）、API スキーマは `engine/app/schemas/config.py` の `json_schema_extra.unit` です。風量は m³/s、発熱は W、空調カタログ能力 `ac_spec.Q` は kW です。
 
 ## 基本単位
 

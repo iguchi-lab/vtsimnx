@@ -11,7 +11,7 @@
       "id": "SPEC-03-002",
       "method": "actual_builder",
       "status": "passed",
-      "details": "simulation extras not propagated; flags derived; raw unchanged"
+      "details": "coupling and iteration propagated; flags derived; raw unchanged"
     },
     {
       "id": "SPEC-04-002",

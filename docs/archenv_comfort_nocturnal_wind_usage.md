@@ -1,6 +1,10 @@
-# `vtsimnx.archenv`（comfort / nocturnal / ground / wind）使い方ガイド
+# 風圧・夜間放射・地盤・快適性
 
-このドキュメントは、次の関数の実務的な使い方をまとめたものです。
+> **使い方（Python 前処理）** — JSON の意味は [入力JSONの組み立て](ai_input_guide.md)。日射は [solar_usage.md](solar_usage.md)。
+
+建物まわりの境界条件と、PMV などの評価指標を Python で求める案内です。結果は外気ノードの圧力、`surfaces` の夜間放射、地盤温度などに渡します。
+
+対象の関数は次です。
 
 - 風圧: `make_wind`（`wind.py`）
 - 夜間放射: `nocturnal_gain_by_angles`（`nocturnal.py`）

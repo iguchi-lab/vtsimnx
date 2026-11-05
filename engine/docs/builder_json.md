@@ -1,6 +1,6 @@
-### builder入力JSON（raw_config）の作り方（VTSimNX）
+### builder入力JSON（raw_config）の正本
 
-このドキュメントは `app/builder` が受け取る **生JSON（raw_config）** の書き方を、実装に沿って整理したものです。
+この文書は `app/builder` が受け取る **生JSON（raw_config）** のフィールド定義です。初めて書く人向けの説明ではありません。意味と最小例は [`../../docs/ai_input_guide.md`](../../docs/ai_input_guide.md)、読み順は [`../../docs/README.md`](../../docs/README.md) です。
 
 builder は raw_config を **正規化/展開**して、C++ solver が読める形式（`simulation/nodes/ventilation_branches/thermal_branches`）へ変換します。
 
@@ -419,7 +419,7 @@ builder の raw_config では `key` 記法（`A->B` / `->外部` 等）から `s
 - `response_method` / `response_terms`（任意）: 当該 surface だけ応答係数生成を上書き
 - `comment`（任意）
 
-HTTP `/run` や `prepare_raw_config()` 経由でも、上記の既知フィールドは strip されません（未定義キーだけ除去）。
+HTTP `/run` や `prepare_raw_config()` 経由でも、上記の既知フィールドは strip されません（未定義キーだけ除去）。`ac_spec` / `heat_source` / `humidity_source` の内部キーも同じ扱いです。計算せずに検査する場合は `POST /validate`、展開だけ見る場合は `POST /build` を使います。
 
 RC/CTFの詳細は以下:
 
@@ -508,7 +508,7 @@ RA ──► {key}_exhaust       ──► EA
 ```json
 {
   "humidity_source": [
-    {"key": "加湿器", "target_node": "室A", "generation_rate": [0.0, 0.001, 0.0]}
+    {"key": "加湿器", "room": "室A", "generation_rate": [0.0, 0.001, 0.0]}
   ]
 }
 ```
@@ -516,8 +516,10 @@ RA ──► {key}_exhaust       ──► EA
 フィールド:
 
 - `key`（任意）: ログ/コメント用途
-- `target_node`（必須）: 対象室ノード（`nodes[].key`）
+- `room`（必須、推奨）: 対象室ノード（`nodes[].key`）
+- `target_node`（任意）: `room` の別名。API 正規化時に `room` へコピーする
 - `generation_rate`（必須）: 発湿量 \([kg/s]\)（スカラー or 配列）
+- 旧形式（dict）: `{ "名前": { "set": "室A", "mx": ... } }` も list へ正規化する
 
 注意:
 

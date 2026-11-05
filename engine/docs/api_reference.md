@@ -2,9 +2,12 @@
 
 このドキュメントは `app/main.py` の FastAPI エンドポイント仕様をまとめたものです。
 
+入力の意味は [`../../docs/ai_input_guide.md`](../../docs/ai_input_guide.md)、文書の層は [`../../docs/README.md`](../../docs/README.md) です。この文書は HTTP の契約です。
+
 ```mermaid
 flowchart LR
     CLI["client / SDK"] --> API["FastAPI"]
+    API --> VAL["/validate /build"]
     API --> JOB["/runs 非同期"]
     API --> SYNC["/run 同期"]
     JOB --> SOL["C++ solver"]
@@ -44,6 +47,8 @@ flowchart LR
 | GET | `/runs/{run_id}/result` | 完了時の結果取得 |
 | DELETE | `/runs/{run_id}` | ジョブキャンセル |
 | POST | `/run` | 同期シミュレーション（互換・デバッグ用） |
+| POST | `/validate` | 入力検査のみ（ソルバなし） |
+| POST | `/build` | builder 展開のみ（ソルバなし） |
 | GET | `/artifacts/{artifact_dir}/manifest` | 実行結果メタ情報取得 |
 | GET | `/artifacts/{artifact_dir}/files` | ダウンロード可能キー一覧取得 |
 | GET | `/artifacts/{artifact_dir}/download/{key}` | artifact ファイル実体ダウンロード |
@@ -116,6 +121,50 @@ solver が `status=error` / `error` を返した場合、ジョブ API 上は **
 ```json
 {"status":"ok"}
 ```
+
+---
+
+## POST /validate
+
+入力 JSON を検査する（ソルバは起動しない）。要求ボディは `POST /run` と同じ `SimulationRequest`。
+
+未知キー・必須項目・参照・意図のずれを、同じ形の `issues` で返す。`ok=false` でも HTTP は 200（リクエスト自体の型不正は 422）。
+
+```json
+{
+  "ok": false,
+  "issues": [
+    {
+      "code": "unknown_field",
+      "message": "heat_source[0] に未定義のフィールド 'typo_watt' があります",
+      "path": ["heat_source", 0, "typo_watt"],
+      "severity": "error",
+      "hint": "未定義キーを削除してください。"
+    }
+  ]
+}
+```
+
+`unknown_keys=error` を付けると、`ac_spec` / `heat_source` / `humidity_source` 内部の未知キーも error になります。入力の意味と警告コードは [`../../docs/ai_input_guide.md`](../../docs/ai_input_guide.md) です。
+
+## POST /build
+
+builder で展開した計算用 JSON と生成件数を返す（ソルバは起動しない）。要求ボディは `POST /run` と同じ。
+
+```json
+{
+  "ok": true,
+  "issues": [],
+  "stats": {
+    "nodes": 12,
+    "thermal_branches": 20,
+    "ventilation_branches": 8
+  },
+  "config": {}
+}
+```
+
+`ok=false` のとき `config` と `stats` は null です。
 
 ---
 

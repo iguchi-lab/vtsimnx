@@ -20,7 +20,7 @@ def build_input_data() -> Dict[str, Any]:
         },
         "nodes": [
             {"key": "外部", "t": 5.0},
-            {"key": "室1", "calc_t": True, "v": 30.0},
+            {"key": "室1", "calc_t": True, "t": 20.0, "v": 30.0, "thermal_mass": 36216.0},
         ],
         "ventilation_branches": [
             {
@@ -29,7 +29,14 @@ def build_input_data() -> Dict[str, Any]:
                 "target": "室1",
                 "type": "fixed_flow",
                 "vol": 30.0 / 3600.0,  # m3/s (= 30 m3/h)
-            }
+            },
+            {
+                "key": "室1->外部",
+                "source": "室1",
+                "target": "外部",
+                "type": "fixed_flow",
+                "vol": 30.0 / 3600.0,
+            },
         ],
         "thermal_branches": [
             {

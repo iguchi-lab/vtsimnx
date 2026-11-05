@@ -35,9 +35,30 @@ def test_openapi_exposes_simulation_index():
     for key in ("start", "end", "timestep", "length"):
         assert key in idx
     raw = components["RawSimConfig"]["properties"]
-    for key in ("simulation", "nodes", "ventilation_branches", "thermal_branches", "surfaces", "aircon", "builder"):
+    for key in (
+        "simulation",
+        "nodes",
+        "ventilation_branches",
+        "thermal_branches",
+        "surfaces",
+        "aircon",
+        "builder",
+        "heat_source",
+        "humidity_source",
+    ):
         assert key in raw
+    for name in ("AcSpecModel", "HeatSourceModel", "HumiditySourceModel"):
+        assert name in components
+    hs = components["HeatSourceModel"]["properties"]
+    assert "room" in hs
+    assert "generation_rate" in hs
+    ac = components["AcSpecModel"]["properties"]
+    for key in ("Q", "P", "V_inner", "min_process"):
+        assert key in ac
     assert "unknown_keys" in components["SimulationRequest"]["properties"]
+    paths = schema["paths"]
+    assert "/validate" in paths
+    assert "/build" in paths
 
 
 def test_prepare_raw_config_strip_unknown_node_field():
@@ -171,3 +192,53 @@ def test_prepare_then_build_keeps_nocturnal_branch():
     assert "nocturnal" in prepared["surfaces"][0]
     out = build_config(prepared, add_aircon=False, add_capacity=False)
     assert any(b.get("subtype") == "nocturnal_loss" for b in out.get("thermal_branches", []))
+
+
+def test_unknown_keys_error_rejects_heat_source_extra_field():
+    cfg = {
+        **MIN_CFG,
+        "nodes": [{"key": "N1", "t": 20.0}],
+        "heat_source": [
+            {"room": "N1", "generation_rate": 100.0, "typo_watt": 1},
+        ],
+    }
+    with pytest.raises(UnknownFieldError) as exc:
+        prepare_raw_config(cfg, unknown_keys="error")
+    loc = exc.value.details[0]["loc"]
+    assert "typo_watt" in loc
+    assert "heat_source" in loc
+
+
+def test_unknown_keys_error_rejects_ac_spec_extra_field():
+    cfg = {
+        **MIN_CFG,
+        "nodes": [{"key": "室1", "t": 20.0}, {"key": "外気", "t": 0.0}],
+        "aircon": [
+            {
+                "key": "AC1",
+                "set": "室1",
+                "outside": "外気",
+                "pre_temp": 20.0,
+                "mode": "HEATING",
+                "ac_spec": {"Q": {"heating": {"rtd": 2.8}}, "catalog_typo": 1},
+            }
+        ],
+    }
+    with pytest.raises(UnknownFieldError) as exc:
+        prepare_raw_config(cfg, unknown_keys="error")
+    loc = exc.value.details[0]["loc"]
+    assert "catalog_typo" in loc
+    assert "ac_spec" in loc
+
+
+def test_humidity_source_legacy_dict_is_normalized_to_list():
+    cfg = {
+        **MIN_CFG,
+        "nodes": [{"key": "BR", "v": 20.0, "calc_x": True}],
+        "humidity_source": {"BR_mx": {"set": "BR", "mx": 3.0e-5}},
+    }
+    data, warnings, _details = prepare_raw_config(cfg, unknown_keys="error")
+    assert warnings == []
+    assert isinstance(data["humidity_source"], list)
+    assert data["humidity_source"][0]["room"] == "BR"
+    assert data["humidity_source"][0]["generation_rate"] == 3.0e-5

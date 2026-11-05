@@ -37,7 +37,7 @@ python docs/specification/examples/verify_examples.py
 | SPEC-02-002 | JST付きindexがUTC相当のnaive時刻へ変わる、不等間隔を拒否 | 正規化関数を呼出す |
 | SPEC-02-PRECISION | ns精度は3600秒、us精度は4秒になる実装上の制約 | 正規化関数を呼出す |
 | SPEC-03-001 | 枝配列省略を空配列として処理 | build_config を呼出す |
-| SPEC-03-002 | raw coupling・iterationは生成JSONに残らない | build_config を呼出す |
+| SPEC-03-002 | raw coupling・iterationは生成JSONに残る | build_config を呼出す |
 | SPEC-03-003 | 長さ1の展開と不一致の拒否 | 実装ユーティリティを呼出す |
 | SPEC-04-002 | 空気・残余容量への分割、容量不足の拒否 | build_config を呼出す |
 | SPEC-04-003 | 湿気容量の単位換算・枝係数・無効化 | build_config を呼出す |

@@ -1,8 +1,8 @@
 ### 建築環境工学の基礎（VTSimNX向け）
 
-このドキュメントは、VTSimNX で扱う主要な物理現象を、建築環境工学の観点から「実装につながる粒度」で整理したものです。  
-利用者向けの背景説明は [`../../docs/building_environment_engineering_basics.md`](../../docs/building_environment_engineering_basics.md) を先に読んでください。  
-実装仕様は [`builder_json.md`](builder_json.md)、計算順は [`simulation_overview.md`](simulation_overview.md)、ループ図解は [`simulation_loops.md`](simulation_loops.md) を参照してください。
+> **実装契約（背景）** — 利用者向けの説明は [建築環境の基礎](../../docs/building_environment_engineering_basics.md)。入力は [入力JSONの組み立て](../../docs/ai_input_guide.md)。
+
+実装につながる粒度で、換気・熱・湿気・濃度の連成を整理します。計算順は [simulation_overview.md](simulation_overview.md)、ループは [simulation_loops.md](simulation_loops.md) です。
 
 ---
 

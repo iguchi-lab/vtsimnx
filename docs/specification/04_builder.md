@@ -75,7 +75,7 @@ add_moisture_capacity=False は容量を削除して無効化する。ソルバ�
 
 output_path の末尾が .gz なら UTF-8 の gzip JSON、それ以外は字下げ4の UTF-8 JSON とする。ファイル出力は検証後に行う。
 
-風量の換算は行わない。raw_config の coupling 等を引き継がないこと、空調湿度を固定境界にすることも現行の変換仕様である。
+風量の換算は行わない。raw_config の coupling・iteration・log は検証して引き継ぐ。空調湿度は固定境界とする。
 
 ## 7. 照合例と根拠
 

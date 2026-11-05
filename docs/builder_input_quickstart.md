@@ -1,19 +1,17 @@
-# `vt.run_calc` 入力JSONクイックスタート（ユーザー向け）
+# `vt.run_calc` クイックスタート
 
-このページは、`vtsimnx` の利用者が
-**`vt.run_calc(base_url, input_data)` に渡す `input_data` をどう作るか**を最短で把握するためのガイドです。
+Python から最小の一室モデルを動かす手順です。入力の意味（ノード、給排気、単位、検査）は先に [入力JSONの組み立て](ai_input_guide.md) を読んでください。
 
-- 対象: Python から `vtsimnx` を呼ぶ利用者
-- ゴール: engine 内部設定ではなく、**利用者が書く JSON（dict）** の構造を理解する
+- 対象: `vt.run_calc(base_url, input_data)` を呼ぶ利用者
+- このページのゴール: コピーできる最小コードと、典型的な失敗
 
 ---
 
-## 1. まず押さえる前提
+## 1. 前提
 
-- 計算実行は `vt.run_calc(...)` で行います。
-- 入力は Python の `dict`（JSON互換）で組み立て、`config_json` として渡します。
-- `surfaces`, `aircon`, `heat_recovery_vent`, `heat_source` などを含むと、builder が展開して solver 入力を構成します。
-- 利用者は通常、engine 側コードを編集せずに `input_data` 側を調整して運用します。
+- 計算は `vt.run_calc(...)` です。engine の API サーバーが起動している必要があります。
+- 入力は JSON 互換の `dict` です。壁・空調・発熱などを足すと、builder が計算用 JSON へ展開します。
+- 文書の層と読み順は [ドキュメント案内](README.md) です。
 
 ---
 
@@ -128,11 +126,12 @@ result = vt.run_calc("http://127.0.0.1:8000", input_data)
 
 ## 9. 関連ドキュメント
 
-- 全体導線: `README.md`
-- 実サンプルコード: `../examples/README.md`, `../examples/run_calc_minimal.py`, `../examples/vs_simheat_sample.py`
-- ノード/ブランチ早見表: `node_branch_schema.md`
-- `surfaces` の実務ガイド: `surface_usage.md`
-- スケジュール作成: `schedule_usage.md`
+- 入力の意味: [入力JSONの組み立て](ai_input_guide.md)
+- 文書案内: [README.md](README.md)
+- 実行サンプル: [`../examples/README.md`](../examples/README.md)
+- ノード/ブランチ早見表: [node_branch_schema.md](node_branch_schema.md)
+- `surfaces`: [surface_usage.md](surface_usage.md)
+- スケジュール: [schedule_usage.md](schedule_usage.md)
 
 ### 空調を使う場合
 

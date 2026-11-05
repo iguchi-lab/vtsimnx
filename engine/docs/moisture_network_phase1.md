@@ -1,5 +1,7 @@
 # 湿気回路網（Phase1: 線形RC）
 
+> **実装契約** — 使い方は [入力JSONの組み立て](../../docs/ai_input_guide.md) と [空調湿度](../../docs/aircon_humidity_control.md)。計算位置は [simulation_loops.md](simulation_loops.md)。
+
 Phase1 では、既存の移流ベース湿度計算に加えて、線形RC型の湿気回路網を導入します。
 
 > 方針: 現段階の完成範囲は「Phase1（線形RC）」までとし、非線形HAMは将来課題として扱います。  

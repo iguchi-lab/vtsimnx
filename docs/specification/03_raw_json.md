@@ -11,7 +11,7 @@
 
 | 項目 | 型 | 現行ビルダーでの取扱い |
 |---|---|---|
-| simulation | object | index と tolerance を読み込む |
+| simulation | object | index と tolerance を読み込み、coupling・iteration・log 等も引き継ぐ |
 | nodes | array of object | 必須。各要素に key が必要 |
 | ventilation_branches | array | 未指定／None は空。旧資料の「必須」と異なる |
 | thermal_branches | array | 未指定／None は空 |
@@ -30,7 +30,7 @@ simulation.index は start、end（日時文字列）、timestep（s）、length
 
 tolerance.ventilation、thermal、convergence のパーサ既定値は各 1e-6 とする。用途別の aircon_temperature、thermal_balance、thermal_linear_residual、coupling_pressure、coupling_temperature、coupling_humidity は保持する。
 
-**実装上の受渡し制限：** _parse_simulation が raw からコピーするのは index と tolerance だけである。raw の calc_flag はノードから再計算される。coupling、iteration、max_*、log 等を raw に追加しても、このビルダーでは引き継がれない。HTTP サービスはビルド後にログ冗長度を別途設定する。C++ が読む追加設定は第五章に分ける。
+**実装上の受渡し：** `_parse_simulation` は index と tolerance を読み込み、calc_flag 以外の追加キー（coupling、iteration、log、max_* 等）も値があれば引き継ぐ。calc_flag はノードから再計算される。HTTP サービスはビルド後にログ冗長度を別途設定することがある。C++ が読む追加設定の検証は第五章を参照する。
 
 ## 4. ノード
 
