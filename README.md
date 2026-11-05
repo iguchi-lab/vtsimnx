@@ -43,6 +43,7 @@ HTTP Engine (engine/)
 
 - 文書の層と読み順: [`docs/README.md`](docs/README.md)
 - 入力の意味: [`docs/ai_input_guide.md`](docs/ai_input_guide.md)
+- AI にモデル作成を頼むとき: [`docs/ai_authoring.md`](docs/ai_authoring.md)
 - 実行コード: [`docs/builder_input_quickstart.md`](docs/builder_input_quickstart.md)
 
 ### 2) ローカルで engine を起動する
@@ -76,6 +77,7 @@ python examples/run_calc_minimal.py
 | 解説・記録 | [技術解説書 v3.3](docs/vtsimnx_calculation_model_and_implementation_flow_ja_v3.3.pdf) | モデル解説と点検メモ |
 
 入力 JSON の入口: [`docs/ai_input_guide.md`](docs/ai_input_guide.md)  
+AI への指令: [`docs/ai_authoring.md`](docs/ai_authoring.md)  
 単位: [`docs/units.md`](docs/units.md)　公開 API: [`docs/public_api.md`](docs/public_api.md)
 
 ## CI（公開チェック）

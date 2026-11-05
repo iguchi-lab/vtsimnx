@@ -1,6 +1,6 @@
 # examples
 
-実行できるサンプルです。入力の意味は [`../docs/ai_input_guide.md`](../docs/ai_input_guide.md) を先に見てください。
+実行できるサンプルです。入力の意味は [`../docs/ai_input_guide.md`](../docs/ai_input_guide.md) を先に見てください。部品の JSON と住宅1棟の Python をどう使い分けるかは [`../docs/ai_authoring.md`](../docs/ai_authoring.md) です。
 
 ## 収録
 
@@ -8,8 +8,8 @@
 |---|---|
 | `run_calc_minimal.py` | 一室・給排気バランスの最小実行（`vt.run_calc`） |
 | `run_calc_humidity_moisture_minimal.py` | 湿気（`calc_x`）と壁材の吸放出 |
-| `vs_simheat_sample.py` | SimHeat 比較の大規模例 |
-| `ai_input/` | 用途別の入力 JSON 雛形（実行コードではない） |
+| `vs_simheat_sample.py` | よく使う2階建の大規模例。層構成と接続面積に分けて書く（展開 JSON ではない） |
+| `ai_input/` | 一室・発熱・壁1面などの JSON 雛形（実行コードではない） |
 
 ## 置き方の目安
 
