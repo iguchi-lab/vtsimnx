@@ -1,12 +1,12 @@
-# Nodes / Branches 入力仕様メモ（ユーザー向け）
+# ノード／枝の早見表
 
-> このページは `vt.run_calc(base_url, input_data)` で使う `input_data` のうち、`nodes` / `ventilation_branches` / `thermal_branches` を素早く確認するための早見表です。
+`nodes` / `ventilation_branches` / `thermal_branches` / `aircon` の主要キー一覧です。
 
-このドキュメントは、入力JSON（`input_data`）内の **nodes / ventilation_branches / thermal_branches / aircon** の主要キーを、ユーザーが迷わない形でまとめたものです。
+意味と組み立て順は [入力JSONの組み立て](ai_input_guide.md)、実行コードは [クイックスタート](builder_input_quickstart.md) です。項目の定義が必要なときだけ [builder 入力正本](../engine/docs/builder_json.md) を見てください。
 
-## 使い方（最初にここだけ）
+## 最小形
 
-まずは次の最小形で `vt.run_calc` を通し、必要な項目を段階的に追加してください。
+キー確認用の一室モデルです。意味は [入力JSONの組み立て](ai_input_guide.md) を見てください。
 
 ```json
 {

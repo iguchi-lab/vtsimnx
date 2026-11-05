@@ -1,6 +1,9 @@
 from .config import (
+    AcSpecModel,
     AirconModel,
     BuilderOptions,
+    HeatSourceModel,
+    HumiditySourceModel,
     NodeModel,
     RawSimConfig,
     SimulationCalcFlag,
@@ -18,11 +21,16 @@ from .config import (
     prepare_raw_config,
 )
 from .request import SimulationRequest
-from .response import SimulationResponse
+from .response import BuildResponse, Issue, SimulationResponse, ValidateResponse
 
 __all__ = [
+    "AcSpecModel",
     "AirconModel",
+    "BuildResponse",
     "BuilderOptions",
+    "HeatSourceModel",
+    "HumiditySourceModel",
+    "Issue",
     "NodeModel",
     "RawSimConfig",
     "SimulationCalcFlag",
@@ -36,6 +44,7 @@ __all__ = [
     "ThermalBranchModel",
     "UnknownFieldError",
     "UnknownKeysMode",
+    "ValidateResponse",
     "VentilationBranchModel",
     "collect_unknown_fields",
     "dump_config_without_extras",

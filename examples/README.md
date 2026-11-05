@@ -1,15 +1,15 @@
 # examples
 
-このディレクトリは、`vtsimnx` 利用者向けのサンプル Python コード置き場です。
+実行できるサンプルです。入力の意味は [`../docs/ai_input_guide.md`](../docs/ai_input_guide.md) を先に見てください。
 
-## 収録サンプル
+## 収録
 
-- `run_calc_minimal.py`
-  - ローカル環境でそのまま実行しやすい最小 `vt.run_calc` サンプルです。
-- `run_calc_humidity_moisture_minimal.py`
-  - 湿気計算（`calc_x`）と壁材の吸放出（`moisture_capacity` + `moisture_conductance`）の最小サンプルです。
-- `vs_simheat_sample.py`
-  - SimHeat 比較ケースの入力作成〜`vt.run_calc` 実行〜結果比較までを含む大規模サンプルです。
+| パス | 内容 |
+|---|---|
+| `run_calc_minimal.py` | 一室・給排気バランスの最小実行（`vt.run_calc`） |
+| `run_calc_humidity_moisture_minimal.py` | 湿気（`calc_x`）と壁材の吸放出 |
+| `vs_simheat_sample.py` | SimHeat 比較の大規模例 |
+| `ai_input/` | 用途別の入力 JSON 雛形（実行コードではない） |
 
 ## 置き方の目安
 

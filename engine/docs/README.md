@@ -1,82 +1,66 @@
-# engine docs index（実装仕様）
+# engine 実装契約
 
-`engine/`（FastAPI / builder / C++ solver）の仕様正本です。  
-Python クライアント利用者向けガイドは [`../../docs/README.md`](../../docs/README.md) を先に読んでください。
+ここは FastAPI / builder / C++ solver の**契約と内部説明**です。入力の意味や使い方は先に [`../../docs/README.md`](../../docs/README.md) を読んでください。
 
-> このディレクトリ内の相対パス `docs/foo.md` は **本ディレクトリ**（`engine/docs/`）を指します。  
-> リポジトリ直下の利用者 doc は `../../docs/foo.md` と書いてください。
+このディレクトリ内の相対パス `docs/foo.md` は **本ディレクトリ**（`engine/docs/`）を指します。利用者向け文書は `../../docs/foo.md` です。
 
-図（mermaid）を多用した入口は [`simulation_loops.md`](simulation_loops.md) です。他文書も同形式で概要図を入れています。
-
-## まず読む
+## まず読む（実装を追うとき）
 
 | 順序 | 文書 | 内容 |
 |---|---|---|
-| 1 | [`theory_basics.md`](theory_basics.md) | 実装につながる物理の全体像 |
-| 2 | [`simulation_overview.md`](simulation_overview.md) | builder → solver の計算順 |
-| 3 | [`simulation_loops.md`](simulation_loops.md) | 外側/内側/空調ループの図解 |
-| 4 | [`builder_json.md`](builder_json.md) | raw_config の厳密仕様（入力正本） |
+| 1 | [`builder_json.md`](builder_json.md) | raw 入力のフィールド正本 |
+| 2 | [`api_reference.md`](api_reference.md) | HTTP（`/validate`・`/build`・`/runs`） |
+| 3 | [`simulation_overview.md`](simulation_overview.md) | builder → solver の計算順 |
+| 4 | [`simulation_loops.md`](simulation_loops.md) | 外側／内側／空調ループの図 |
 
-## API / 入力 / 物理
+物理の背景から入る場合は [`theory_basics.md`](theory_basics.md) です。入力の書き方ではありません。
+
+単位の正本は利用者向けの [`../../docs/units.md`](../../docs/units.md) です。
+
+## 入力と API
 
 | 文書 | 役割 |
 |---|---|
-| [`api_reference.md`](api_reference.md) | HTTP エンドポイント契約 |
-| [`builder_json.md`](builder_json.md) | builder 入力 JSON 正本 |
-| [`simulation_overview.md`](simulation_overview.md) | 連成・タイムステップ概略 |
-| [`simulation_loops.md`](simulation_loops.md) | 計算ループ構成（図多用） |
+| [`builder_json.md`](builder_json.md) | builder が受ける JSON の正本 |
+| [`api_reference.md`](api_reference.md) | エンドポイント契約 |
+| [`solver_logging.md`](solver_logging.md) | solver.log の用語 |
+| [`constants_and_spec.md`](constants_and_spec.md) | 定数・材料テーブル |
+
+## 熱・湿気
+
+| 文書 | 役割 |
+|---|---|
+| [`thermal_rc.md`](thermal_rc.md) | 壁（RC） |
+| [`thermal_response_factor.md`](thermal_response_factor.md) | 壁（応答係数／CTF） |
 | [`moisture_network_phase1.md`](moisture_network_phase1.md) | 湿気回路網 Phase1 |
-| [`physics_math_notes.md`](physics_math_notes.md) | 符号・単位・離散化の注意 |
-| [`solver_logging.md`](solver_logging.md) | solver.log の用語・タグ・重大度規約 |
-| [`constants_and_spec.md`](constants_and_spec.md) | 定数・材料テーブル対応 |
-| [`thermal_rc.md`](thermal_rc.md) | 壁モデル（RC） |
-| [`thermal_response_factor.md`](thermal_response_factor.md) | 壁モデル（応答係数/CTF） |
+| [`physics_math_notes.md`](physics_math_notes.md) | 符号・離散化の注意 |
 
-単位の利用者向け正本は [`../../docs/units.md`](../../docs/units.md) です。
+## 空調・熱交換換気
 
-## 空調
-
-特徴: **エアコンの吸込・吹出空間と、温度制御対象（`set`）を分離できる**（遠隔 set）。階間空調などで LDK など未設置室を制御する構成が中核機能です。詳細は [`aircon_control_overview.md`](aircon_control_overview.md) 冒頭。
+エアコンの吸込・吹出と、温度制御対象（`set`）は分けられます（遠隔 set）。詳細は [`aircon_control_overview.md`](aircon_control_overview.md) 冒頭。
 
 | 文書 | 役割 |
 |---|---|
-| [`aircon_control_principles.md`](aircon_control_principles.md) | 制御の考え方（ON/OFF・温度・処理熱・風量の揃え方） |
-| [`aircon_control_overview.md`](aircon_control_overview.md) | solver 側制御ロジック（遠隔 set 含む） |
-| [`acmodel_overview.md`](acmodel_overview.md) | COP / 電力モデル |
-| [`aircon_spec_reference.md`](aircon_spec_reference.md) | `ac_spec` キー一覧 |
-| [`duct_central_model_validation.md`](duct_central_model_validation.md) | DUCT_CENTRAL 検証観点 |
-
-## 熱交換換気
-
-| 文書 | 役割 |
-|---|---|
-| [`builder_json.md`](builder_json.md) §11.0 | `heat_recovery_vent` 入力正本 |
-| [`../../docs/heat_recovery_vent.md`](../../docs/heat_recovery_vent.md) | 顕熱・全熱の利用者ガイド |
+| [`aircon_control_principles.md`](aircon_control_principles.md) | 制御の考え方 |
+| [`aircon_control_overview.md`](aircon_control_overview.md) | solver 側の制御 |
+| [`acmodel_overview.md`](acmodel_overview.md) | COP / 電力 |
+| [`aircon_spec_reference.md`](aircon_spec_reference.md) | `ac_spec` キー |
+| [`duct_central_model_validation.md`](duct_central_model_validation.md) | DUCT_CENTRAL の検証観点 |
+| [`builder_json.md`](builder_json.md) §11.0 | `heat_recovery_vent` 入力 |
+| [`../../docs/heat_recovery_vent.md`](../../docs/heat_recovery_vent.md) | 熱交換換気の利用者ガイド |
 
 ## 仕様の保守
 
-[仕様・実装・テスト対応表](specification_traceability.md) に、主要な変更箇所の参照先、既存テストの検証範囲、文書更新手順をまとめています。仕様、現在の実装説明、制約・近似、将来案を区別して記述してください。文書とコードに差がある場合の扱いも同表を参照してください。
+[仕様・実装・テスト対応表](specification_traceability.md) に、参照先、テスト範囲、文書の直し方をまとめています。仕様、現行の実装説明、制約、将来案を混ぜないでください。
 
-## テスト
+## テスト・内部メモ
 
 | 文書 | 役割 |
 |---|---|
 | [`cpp_test_catalog.md`](cpp_test_catalog.md) | C++ テスト観点 |
 | [`../tests_py/README.md`](../tests_py/README.md) | Python テスト |
-| [`../solver/tests_cpp/README.md`](../solver/tests_cpp/README.md) | C++ テスト最小 README |
+| [`internal/`](internal/README.md) | 公開しない作業メモ |
 
-## 内部作業メモ
+起動: [`../RUN_FASTAPI.md`](../RUN_FASTAPI.md)　開発: [`../CONTRIBUTING.md`](../CONTRIBUTING.md)　リポジトリ入口: [`../../README.md`](../../README.md)
 
-公開仕様ではありません。[`internal/`](internal/README.md) を参照してください。
-
-## 導線
-
-- 利用者向け: [`../../docs/README.md`](../../docs/README.md)
-- リポジトリ入口: [`../../README.md`](../../README.md)
-- 起動・運用: [`../RUN_FASTAPI.md`](../RUN_FASTAPI.md)
-- 開発参加: [`../CONTRIBUTING.md`](../CONTRIBUTING.md)
-
-## 低負荷ビルド（メモ）
-
-- build: `cmake --build build-solver -j1`（cwd: `engine/`）
-- test: `ctest --test-dir build-solver -j1 --output-on-failure`
+低負荷ビルドの目安: `cmake --build build-solver -j1`（cwd: `engine/`）、`ctest --test-dir build-solver -j1 --output-on-failure`。

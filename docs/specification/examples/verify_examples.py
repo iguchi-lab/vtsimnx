@@ -66,9 +66,10 @@ def main():
         built = build_config(raw)
         assert raw == before
         sim = built["simulation"]
-        assert "coupling" not in sim and "iteration" not in sim
+        assert sim.get("coupling") == {"moisture_enabled": False}
+        assert sim.get("iteration") == {"max_inner": 3}
         assert sim["calc_flag"] == {"p": False, "t": True, "x": True, "c": False}
-        passed("SPEC-03-002", "actual_builder", "simulation extras not propagated; flags derived; raw unchanged")
+        passed("SPEC-03-002", "actual_builder", "coupling and iteration propagated; flags derived; raw unchanged")
         nodes = {n["key"]: n for n in built["nodes"]}
         air = next(b for b in built["thermal_branches"] if b.get("subtype") == "air_capacity")
         furniture = next(b for b in built["thermal_branches"] if b.get("subtype") == "capacity")

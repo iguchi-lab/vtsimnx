@@ -16,6 +16,12 @@
       "t": true,
       "x": true,
       "c": false
+    },
+    "coupling": {
+      "moisture_enabled": false
+    },
+    "iteration": {
+      "max_inner": 3
     }
   },
   "nodes": [

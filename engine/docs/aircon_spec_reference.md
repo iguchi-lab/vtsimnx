@@ -1,6 +1,8 @@
 # エアコン仕様（ac_spec）リファレンス
 
-このドキュメントは、エアコンモデル別の **ac_spec（仕様JSON）** の形と、solver が参照する **能力上限キー** を一覧にしたものです。
+> **実装契約** — 使い方は [空調のモデルと制御](../../docs/aircon_model_and_control.md)。入力の意味は [入力JSONの組み立て](../../docs/ai_input_guide.md)。
+
+エアコンモデル別の `ac_spec` の形と、solver が参照する能力上限キーの一覧です。
 
 - 制御の流れ・能力超過時の補正: [`aircon_control_overview.md`](aircon_control_overview.md)
 - 各モデルの式・入力出力: [`acmodel_overview.md`](acmodel_overview.md)

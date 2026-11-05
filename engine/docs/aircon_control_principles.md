@@ -1,6 +1,8 @@
 # 空調制御の考え方
 
-この文書は、solver のエアコン制御が **何を同時に揃えたいか** と、そのために **どの量を外生として固定し、どの量を解き直すか** を残すためのものです。手順の正本は [`aircon_control_overview.md`](aircon_control_overview.md)、ループの位置は [`simulation_loops.md`](simulation_loops.md) です。
+> **実装契約** — 使い方は [空調のモデルと制御](../../docs/aircon_model_and_control.md)。手順は [aircon_control_overview.md](aircon_control_overview.md)。
+
+solver が何を同時に揃えたいか、どの量を固定し、どれを解き直すかを残す文書です。ループの位置は [simulation_loops.md](simulation_loops.md) です。
 
 ON/OFF と最低能力の扱いは `RAC`・`CRIEPI`・`DUCT_CENTRAL` で共通です。送風量を処理熱へ追従させるのは `DUCT_CENTRAL` だけです。
 

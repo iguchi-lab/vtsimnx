@@ -1,7 +1,8 @@
 # 公開 API の安定性
 
-`vtsimnx` ルートから再エクスポートする記号の安定性区分です。
-機械可読な一覧は `vtsimnx.api_stability`（`STABLE` / `EXPERIMENTAL` / `DEPRECATED`）です。
+> **方針** — 文書案内は [README.md](README.md)。入力の意味は [入力JSONの組み立て](ai_input_guide.md)。
+
+`vtsimnx` ルートから再エクスポートする記号の安定性区分です。機械可読な一覧は `vtsimnx.api_stability`（`STABLE` / `EXPERIMENTAL` / `DEPRECATED`）です。HTTP の `/validate`・`/build`・`/runs` は engine 側の契約であり、[api_reference.md](../engine/docs/api_reference.md) を見てください。
 
 ## 区分
 

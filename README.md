@@ -29,21 +29,21 @@ mainのv1.8.1修正内容と移行上の注意：[領域別点検の修正記録
 ```text
 Python Client (vtsimnx/)
   -> input_data (dict/json)
-  -> POST /run
+  -> POST /validate, /build（任意）
+  -> POST /runs
 HTTP Engine (engine/)
-  -> builder (入力正規化)
+  -> builder（展開・検証）
   -> C++ solver
-  -> artifacts / result files
-Docs (docs/, engine/docs/)
-Examples (examples/)
+  -> artifacts
 ```
 
 ## 3つの開始方法
 
-### 1) クライアント API だけ読む
+### 1) 入力の書き方を読む
 
-- 入口: `docs/README.md`
-- 最短: `docs/builder_input_quickstart.md` -> `docs/node_branch_schema.md`
+- 文書の層と読み順: [`docs/README.md`](docs/README.md)
+- 入力の意味: [`docs/ai_input_guide.md`](docs/ai_input_guide.md)
+- 実行コード: [`docs/builder_input_quickstart.md`](docs/builder_input_quickstart.md)
 
 ### 2) ローカルで engine を起動する
 
@@ -64,19 +64,19 @@ python examples/run_calc_minimal.py
 大規模ケース: `examples/vs_simheat_sample.py`  
 サンプル一覧: `examples/README.md`
 
-## ドキュメント導線
+## ドキュメント
 
-| 対象 | 入口 |
-|---|---|
-| 外部研究者向け計算モデル・実装フロー解説 | [`技術解説書 v3.3（PDF）`](docs/vtsimnx_calculation_model_and_implementation_flow_ja_v3.3.pdf) / [`Word版`](docs/vtsimnx_calculation_model_and_implementation_flow_ja_v3.3.docx) |
-| 利用者（入力の書き方） | [`docs/README.md`](docs/README.md) |
-| engine 実装仕様 | [`engine/docs/README.md`](engine/docs/README.md) |
-| 単位の正本 | [`docs/units.md`](docs/units.md) |
-| 公開 API 安定性 | [`docs/public_api.md`](docs/public_api.md) |
-| 検証方針 | [`docs/validation_strategy.md`](docs/validation_strategy.md) |
-| リリース運用 | [`docs/release_policy.md`](docs/release_policy.md) |
+文書は4層です。上から読んでください。詳細な案内は [`docs/README.md`](docs/README.md) です。
 
-入力 JSON の厳密仕様（正本）: [`engine/docs/builder_json.md`](engine/docs/builder_json.md)
+| 層 | 場所 | 用途 |
+|---|---|---|
+| 使い方 | [`docs/`](docs/README.md) | 入力の意味、単位、機能ガイド |
+| 実装契約 | [`engine/docs/`](engine/docs/README.md) | フィールド正本、HTTP、計算ループ |
+| 規範仕様 | [`docs/specification/`](docs/specification/README.md) | 章立ての仕様本文 |
+| 解説・記録 | [技術解説書 v3.3](docs/vtsimnx_calculation_model_and_implementation_flow_ja_v3.3.pdf) | モデル解説と点検メモ |
+
+入力 JSON の入口: [`docs/ai_input_guide.md`](docs/ai_input_guide.md)  
+単位: [`docs/units.md`](docs/units.md)　公開 API: [`docs/public_api.md`](docs/public_api.md)
 
 ## CI（公開チェック）
 

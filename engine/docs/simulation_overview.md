@@ -1,6 +1,8 @@
 ### シミュレーション全体の概略（VTSimNX）
 
-このドキュメントは、VTSimNX の「入力→builder→solver→出力」の流れと、1タイムステップ内で **何をどの順序で計算しているか**の概要をまとめたものです。
+> **実装契約** — 使い方は [ドキュメント案内](../../docs/README.md)。入力の意味は [入力JSONの組み立て](../../docs/ai_input_guide.md)。
+
+入力 → builder → solver → 出力の流れと、1タイムステップ内で何をどの順に計算するかの概要です。
 
 **ループの入れ子・図解の正本**は [`simulation_loops.md`](simulation_loops.md) です（外側 / 内側 / 空調の3段階を mermaid で整理）。
 

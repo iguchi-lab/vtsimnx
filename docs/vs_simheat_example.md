@@ -1,16 +1,8 @@
-## SimHeat 比較用入力例（`examples/vs_simheat_sample.py` の要約）
+# SimHeat 比較ケースの入力
 
-このドキュメントは、`examples/vs_simheat_sample.py` で行っている **SimHeat との比較ケース**のうち、
-「VTSimNX に渡している入力 JSON（`input_data`）」の組み立て方を、高レベルでまとめたものです。
+> **使い方** — 最小の一室は [入力JSONの組み立て](ai_input_guide.md) と [クイックスタート](builder_input_quickstart.md)。この文書は大規模比較の組み立てです。
 
-対応するサンプルファイルは次です。
-
-- `../examples/vs_simheat_sample.py`
-- 気象データ: 利用条件を確認したHASP形式のデータを利用者が別途用意（同梱なし）
-
-ここでは、「どの情報をどう組み合わせて builder 入力を作っているか」に絞って説明します。
-
-最小構成から入りたい場合は `builder_input_quickstart.md` を先に参照してください。
+[`examples/vs_simheat_sample.py`](../examples/vs_simheat_sample.py) が、気象・壁・スケジュールを builder 入力へどう積むかの要約です。気象ファイルは同梱しません。HASP 形式のデータを利用者が用意し、`VTSIMNX_WEATHER_FILE` にパスを置きます。
 
 ---
 

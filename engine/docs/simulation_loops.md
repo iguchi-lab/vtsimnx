@@ -1,7 +1,8 @@
 # 計算ループ構成（図解）
 
-実装の正本は `engine/solver/simulation_runner.cpp` とその周辺です。  
-この文書は **入れ子になったループ** を図で把握するためのガイドです。文章の計算順一覧は [`simulation_overview.md`](simulation_overview.md)、空調詳細は [`aircon_control_overview.md`](aircon_control_overview.md) を参照してください。
+> **実装契約** — 使い方は [ドキュメント案内](../../docs/README.md)。文章の計算順は [simulation_overview.md](simulation_overview.md)。
+
+実装の正本は `engine/solver/simulation_runner.cpp` 周辺です。入れ子のループを図で見るための文書です。空調の詳細は [aircon_control_overview.md](aircon_control_overview.md) です。
 
 ---
 

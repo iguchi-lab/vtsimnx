@@ -1,6 +1,8 @@
-# `surfaces` 入力と表面熱収支
+# 壁・床・窓（`surfaces`）
 
-`surfaces` は、二つの節点間にある壁・床・天井・窓を記述する builder 入力である。builder が表面・層境界の温度節点、伝導・対流・放射・容量・発熱の枝へ展開し、solver が熱収支を解く。入力全体は [クイックスタート](builder_input_quickstart.md)、単位は [units.md](units.md) を参照する。
+> **使い方** — 先に [入力JSONの組み立て](ai_input_guide.md)。単位は [units.md](units.md)。フィールド正本は [builder_json.md](../engine/docs/builder_json.md) の surfaces 節。雛形は [`examples/ai_input/surfaces_wall.json`](../examples/ai_input/surfaces_wall.json)。
+
+二つのノードのあいだにある壁・床・天井・窓を書きます。自分で層ごとの温度ノードを並べる必要はありません。builder が表面と層の節点、伝導・対流・放射・容量の枝へ展開し、ソルバが熱収支を解きます。
 
 ## 1. 接続方向と層の順序
 

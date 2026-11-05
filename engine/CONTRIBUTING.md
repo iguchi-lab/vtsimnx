@@ -51,7 +51,9 @@ ctest --test-dir build-solver -j1 --output-on-failure
 
 - APIのI/Oを変えたら `docs/api_reference.md` を更新する
 - builder 入力仕様を変えたら `docs/builder_json.md` を更新する
+- 入力の意味や最小例が変わるなら `../docs/ai_input_guide.md` と `../examples/ai_input/` も更新する
 - 挙動を変えたら Python/C++ いずれかのテストを追加する
+- 文書の層（使い方 / 実装契約 / 規範仕様）は `../docs/README.md` に合わせる
 
 ## Git運用
 

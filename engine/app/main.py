@@ -21,7 +21,7 @@ from app.builder.validate import ValidationError  # noqa: F401  # テスト互�
 from app.errors import register_exception_handlers
 from app.jobs import RunManager, set_run_manager
 from app.middleware import GZipRequestMiddleware
-from app.routers import artifacts, health, runs
+from app.routers import artifacts, health, inspect, runs
 from app.routers.health import API_VERSION
 from app.services import simulation as sim_svc
 from app.services.artifact_policy import cleanup_artifacts, get_artifact_store
@@ -61,6 +61,7 @@ app.add_middleware(GZipRequestMiddleware)
 app.add_middleware(ApiKeyMiddleware)
 app.include_router(health.router)
 app.include_router(runs.router)
+app.include_router(inspect.router)
 app.include_router(artifacts.router)
 
 BASE_DIR = _Path(__file__).resolve().parent.parent

@@ -1,11 +1,13 @@
-# `vtsimnx.archenv.solar` 使い方ガイド
+# 日射（`vtsimnx.archenv.solar`）
 
-`solar` 関連モジュールは、主に次の2ステップを扱います。
+> **使い方（Python 前処理）** — JSON の意味は [入力JSONの組み立て](ai_input_guide.md)。壁への載せ方は [surfaces](surface_usage.md)。
+
+入力 JSON を書く前に、太陽位置と面・窓の日射取得 [W/m²] を Python で求めるときの案内です。結果は `surfaces[].solar` などに渡します。
+
+手順は次の2つです。
 
 1. 太陽位置（高度・方位）を求める
-2. 日射データ（全天/直達/拡散）から、任意面や窓へのsolar_gainを求める
-
-本ドキュメントでは、公開関数の使い方と、入力の考え方をまとめます。
+2. 全天／直達／拡散から、任意面や窓の `solar_gain` を求める
 
 ---
 

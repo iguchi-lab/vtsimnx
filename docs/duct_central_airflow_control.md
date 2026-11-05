@@ -1,10 +1,10 @@
-# 全館空調（DUCT_CENTRAL）の風量・最低能力制御
+# 全館空調（DUCT_CENTRAL）の風量・最低能力
 
-対象はパッケージ v1.8.0、実装 commit `ef11982`。
-全体のモデル構成は[空調機のモデルと制御](aircon_model_and_control.md)を参照する。
-このガイドは利用者入力と結果解釈を扱う。反復手順の正本は
-[engineの空調制御原則](../engine/docs/aircon_control_principles.md)と
-[空調制御手順](../engine/docs/aircon_control_overview.md)である。
+> **使い方** — 先に [空調のモデルと制御](aircon_model_and_control.md)。正本は [空調制御原則](../engine/docs/aircon_control_principles.md) と [空調制御手順](../engine/docs/aircon_control_overview.md)。
+
+処理熱に応じて循環風量を変えるモデルです。カタログの `Q.min` では停止も風量床も決まりません。制御用の最低能力は `ac_spec.min_process`、負荷ゼロ時の風量は `vol_zero` です。
+
+現行パッケージは v1.8.1 です。本文の対象実装は改訂時点の v1.8.0 / commit `ef11982` です。
 
 ## 1. 制御が揃えようとする量
 

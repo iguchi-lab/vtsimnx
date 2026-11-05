@@ -1,9 +1,10 @@
-# 応答係数法：壁体の履歴を用いた非定常熱伝導
+# 応答係数法（壁の履歴）
 
-対象はパッケージ v1.7.5更新版、実装 commit `83a724d376010a85da10163de4797636d795ea90`。
-応答係数の生成・計算実装は、前回点検したv1.7.2（commit `db107ac`）から変更されていない。
-入力の全体構成は [surface_usage.md](surface_usage.md)、解法の位置づけは
-[建築環境の基礎](building_environment_engineering_basics.md) を参照してください。
+> **使い方** — 壁の書き方は [surfaces](surface_usage.md)。背景は [建築環境の基礎](building_environment_engineering_basics.md)。実装は [thermal_response_factor.md](../engine/docs/thermal_response_factor.md)。
+
+壁には熱容量があるため、今の両面温度が同じでも、過去の加熱・冷却で今の表面熱流は変わります。応答係数法は、その履歴を係数と過去の値で表し、壁内部の全温度を建物全体の未知数にしない方法です。
+
+対象実装は v1.7.5 更新 / commit `83a724d` です。生成式は v1.7.2 から変わっていません。
 
 ## 1. 何を表す方法か
 
