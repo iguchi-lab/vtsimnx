@@ -16,6 +16,7 @@
 | 目的 | 読む場所 |
 |---|---|
 | 入力 JSON の意味を理解し、組み立てる | [入力JSONの組み立て](ai_input_guide.md) |
+| GitHub の URL を AI に渡してモデルを作らせる | [モデル作成を AI に頼むとき](ai_authoring.md) |
 | Python から最小計算を動かす | [クイックスタート](builder_input_quickstart.md) → [examples](../examples/README.md) |
 | キーと単位を確認する | [ノード／枝の早見表](node_branch_schema.md) / [単位](units.md) |
 | 壁・空調・換気などを足す | 下の機能ガイド |
@@ -26,7 +27,7 @@
 
 ## 最短の読み順
 
-1. [入力JSONの組み立て](ai_input_guide.md) — 室・枝・単位・検査
+1. [入力JSONの組み立て](ai_input_guide.md) — 室・枝・単位・検査（AI に作らせるときは [指令](ai_authoring.md)）
 2. [クイックスタート](builder_input_quickstart.md) — `vt.run_calc` の最小コード
 3. [ノード／枝の早見表](node_branch_schema.md) — キー一覧
 4. 必要になった機能だけ、下のガイドへ

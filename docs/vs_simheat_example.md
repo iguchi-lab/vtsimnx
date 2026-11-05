@@ -1,6 +1,6 @@
 # SimHeat 比較ケースの入力
 
-> **使い方** — 最小の一室は [入力JSONの組み立て](ai_input_guide.md) と [クイックスタート](builder_input_quickstart.md)。この文書は大規模比較の組み立てです。
+> **使い方** — 最小の一室は [入力JSONの組み立て](ai_input_guide.md) と [クイックスタート](builder_input_quickstart.md)。この文書は大規模比較の組み立てです。住宅1棟を AI に書かせるときは、この層構造を真似て展開 JSON は書かないでください。[モデル作成を AI に頼むとき](ai_authoring.md)。
 
 [`examples/vs_simheat_sample.py`](../examples/vs_simheat_sample.py) が、気象・壁・スケジュールを builder 入力へどう積むかの要約です。気象ファイルは同梱しません。HASP 形式のデータを利用者が用意し、`VTSIMNX_WEATHER_FILE` にパスを置きます。
 
