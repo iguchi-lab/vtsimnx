@@ -290,15 +290,17 @@ std::optional<double> computeTargetFlowFromProcessedHeat(const VertexProperties&
         return std::nullopt;
     }
     // 負荷 0 は零負荷風量（既定 0）。正の負荷は原則線形。
-    // min_process は 1.2 倍で入り、ホールド中は 1.5 倍まで床を維持する。
+    // min_process は 1.2 倍で入り、ホールド中の正の負荷はステップ内は床を維持する。
     if (!(processedHeatW > 0.0)) {
         const double v0 = std::isfinite(zeroLoadFlowM3s) ? std::max(0.0, zeroLoadFlowM3s) : 0.0;
         return v0;
     }
     double heatForRatioW = processedHeatW;
-    if (std::isfinite(minProcessHeatW) && minProcessHeatW > 0.0 &&
-        processedHeatW <= aircon::onoff::minProcessHoldCeilingW(
-            minProcessHeatW, nodeProps.aircon_min_process_hold)) {
+    const bool holdFloor =
+        std::isfinite(minProcessHeatW) && minProcessHeatW > 0.0 &&
+        (nodeProps.aircon_min_process_hold ||
+         processedHeatW <= aircon::onoff::minProcessHoldCeilingW(minProcessHeatW));
+    if (holdFloor) {
         heatForRatioW = minProcessHeatW;
         if (heldAtMinimum) *heldAtMinimum = true;
     }
