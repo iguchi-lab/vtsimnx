@@ -100,9 +100,80 @@ static nlohmann::json makeAcSpecWithMax(double coolingMaxKw, double heatingMaxKw
     };
 }
 
+// Issue #24: locate the actual dry/wet transition without duplicating its formula.
+void testCoilDewPointContinuity() {
+    struct CoilCase { double t, sensible, flow, faceArea, surfaceArea; };
+    const std::vector<CoilCase> cases = {
+        {27.5, 4725.0, 0.3, 0.133, 4.84},
+        {30.0, 3000.0, 0.2, 0.133, 4.84},
+        {24.0, 1500.0, 0.15, 0.133, 4.84},
+        {27.5, 4725.0, 0.3, 0.2, 6.0},
+    };
+    for (const auto& c : cases) {
+        for (const std::string method : {"coil_aoaf", "aoaf", "literature"}) {
+            for (const bool moist : {false, true}) {
+                VertexProperties node{};
+                node.current_pre_rh = std::numeric_limits<double>::quiet_NaN();
+                node.ac_spec = {{"latent_method", method}, {"Af", c.faceArea}, {"Ao", c.surfaceArea}};
+                AirconValidationData data{};
+                data.indoorTemp = c.t;
+                data.airconTemp = c.t - c.sensible /
+                    (archenv::SPECIFIC_HEAT_AIR * archenv::DENSITY_DRY_AIR * c.flow);
+                auto evaluate = [&](double x) {
+                    data.indoorX = x;
+                    return aircon::latent::estimateLatentProcess(
+                        data, OperationMode::Cooling, c.sensible, c.flow, node, moist);
+                };
+                const double wetX = archenv::absolute_humidity(c.t, 100.0);
+                expectNear(evaluate(0.0).latentHeatCapacity, 0.0, 1e-10, "dry air has no latent load");
+                expectTrue(evaluate(wetX).latentHeatCapacity > 1.0, "wet side of coil onset exists");
+                double low = 0.0, high = wetX;
+                for (int i = 0; i < 60; ++i) {
+                    const double mid = 0.5 * (low + high);
+                    if (evaluate(mid).latentHeatCapacity > 1e-9) high = mid;
+                    else low = mid;
+                }
+                constexpr double epsilonX = 1e-8;
+                const auto below = evaluate(low - epsilonX);
+                const auto above = evaluate(high + epsilonX);
+                expectNear(below.latentHeatCapacity, 0.0, 1e-7, "below dew boundary stays dry");
+                expectTrue(above.latentHeatCapacity > 0.0 && above.latentHeatCapacity < 0.1,
+                           "latent load must start continuously at zero: " + method +
+                           " above_W=" + std::to_string(above.latentHeatCapacity));
+                expectTrue(std::abs(above.supplyX - below.supplyX) < 1e-7,
+                           "supply humidity must be continuous across dew boundary");
+                const double saturationX = archenv::absolute_humidity(data.airconTemp, 100.0);
+                expectTrue(std::abs(evaluate(saturationX + epsilonX).latentHeatCapacity -
+                                    evaluate(saturationX - epsilonX).latentHeatCapacity) < 0.1,
+                           "latent load stays continuous across outlet saturation limit");
+                double previousLoad = 0.0;
+                for (int i = 0; i <= 64; ++i) {
+                    const double x = wetX * i / 64.0;
+                    const auto result = evaluate(x);
+                    expectTrue(std::isfinite(result.latentHeatCapacity) && result.latentHeatCapacity >= 0.0,
+                               "coil latent load is finite and nonnegative");
+                    expectTrue(result.latentHeatCapacity + 1e-7 >= previousLoad,
+                               "coil latent load increases with inlet humidity");
+                    expectTrue(result.supplyX >= 0.0 && result.supplyX <= x,
+                               "cooling coil cannot create water or return negative humidity");
+                    expectNear(result.condensationRateKgPerS,
+                               archenv::DENSITY_DRY_AIR * c.flow * (x - result.supplyX), 1e-12,
+                               "condensate matches air-side water removal");
+                    previousLoad = result.latentHeatCapacity;
+                }
+                if (method == "coil_aoaf" && !moist) {
+                    std::cout << "coil onset: T=" << c.t << " sensible_W=" << c.sensible
+                              << " x=" << high << " latent_just_above_W=" << above.latentHeatCapacity << "\n";
+                }
+            }
+        }
+    }
+}
+
 } // namespace
 
 int main() {
+    testCoilDewPointContinuity();
     // 正味流量: 正方向と逆方向の両方があれば direct - reverse
     {
         FlowRateMap flows;

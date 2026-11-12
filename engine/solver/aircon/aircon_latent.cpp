@@ -258,7 +258,11 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
                 const double trDp = dewPointFromAbsoluteHumidity(xr);
 
                 const double te = tr - HsW / (kAirSpecificHeat * kAirDensity * V);
-                const double xe = std::max(0.0, archenv::absolute_humidity(te, 100.0));
+                // A cooling coil cannot humidify its tentative outlet state.
+                // At the dew-point boundary xr == x_sat(td), this makes
+                // xStar <= xr, so the positive latent driving difference
+                // approaches zero instead of jumping to a finite load.
+                const double xe = std::min(xr, std::max(0.0, archenv::absolute_humidity(te, 100.0)));
 
                 const double tStar = 0.5 * (tr + te);
                 const double xStar = 0.5 * (xr + xe);

@@ -91,6 +91,8 @@ def test_latent_trace_identifies_branch_and_writer(isolated_solver):
     log = (sr.resolve_artifact_path(out["artifact_dir"]) / "solver.log").read_text()
     assert "latent_boundary stage=capacity key=AC1" in log
     assert "regime=non_cooling_passthrough" in log
+    assert "pre_rh=unset" in log
+    assert "pre_rh=nan" not in log
     assert all(key in log for key in ("x_in=", "x_old=", "x_new=", "removal_kg_s=", "recompute="))
 
 

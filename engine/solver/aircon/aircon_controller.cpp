@@ -38,7 +38,11 @@ void logLatentBoundary(std::ostream& logs, const char* stage, const std::string&
         << " mode=" << node.current_mode << " regime=" << loads.regime
         << " T_in=" << data.indoorTemp << " T_supply=" << data.airconTemp
         << " x_in=" << data.indoorX << " x_old=" << oldX << " x_new=" << loads.supplyX
-        << " pre_rh=" << node.current_pre_rh << " flow=" << flow
+        << " pre_rh=";
+    // NaN is the documented sentinel for an omitted RH setpoint, not a failed solve.
+    if (std::isnan(node.current_pre_rh)) out << "unset";
+    else out << node.current_pre_rh;
+    out << " flow=" << flow
         << " sensible_W=" << loads.sensibleHeatCapacity << " latent_W=" << loads.latentHeatCapacity
         << " removal_kg_s=" << loads.condensationRateKgPerS
         << " recompute=" << changed;

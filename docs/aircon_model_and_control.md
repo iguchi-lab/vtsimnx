@@ -129,9 +129,9 @@ $$x_{\mathrm{sup}}=\min\{x_{\mathrm{in}},\max[0,\mathrm{BF}x_{\mathrm{in}}+(1-\m
 
 ### 10.4.5　コイル面積法
 
-コイル面積法は、前面面積 $A_{\mathrm{f}}$、有効表面積 $A_{\mathrm{o}}$、風量から熱・物質移動を推定する。顕熱処理量から暫定出口温度 $T_{\mathrm{e}}$ と、その温度での飽和絶対湿度 $x_{\mathrm{e}}$ を求め、吸込との中間状態を定義する。
+コイル面積法は、前面面積 $A_{\mathrm{f}}$、有効表面積 $A_{\mathrm{o}}$、風量から熱・物質移動を推定する。顕熱処理量から暫定出口温度 $T_{\mathrm{e}}$ を求める。暫定出口絶対湿度 $x_{\mathrm{e}}$ は、その温度での飽和絶対湿度と吸込絶対湿度の小さい方とし、吸込との中間状態を定義する。
 
-$$T_{\mathrm{e}}=T_{\mathrm{in}}-\frac{Q_{\mathrm{S}}}{\rho_0 c_p\dot{V}},\quad x_{\mathrm{e}}=x_{\mathrm{sat}}(T_{\mathrm{e}})$$
+$$T_{\mathrm{e}}=T_{\mathrm{in}}-\frac{Q_{\mathrm{S}}}{\rho_0 c_p\dot{V}},\quad x_{\mathrm{e}}=\min\{x_{\mathrm{in}},x_{\mathrm{sat}}(T_{\mathrm{e}})\}$$
 
 $$T^*=(T_{\mathrm{in}}+T_{\mathrm{e}})/2,\quad x^*=(x_{\mathrm{in}}+x_{\mathrm{e}})/2,\quad v_{\mathrm{f}}=\dot{V}/A_{\mathrm{f}}$$
 
@@ -144,6 +144,8 @@ $$\alpha_{\mathrm{c}}=k_{\mathrm{m}}(c_{p,\mathrm{a}}+c_{p,\mathrm{v}}x^*),\qqua
 表面温度が吸込空気の露点より低いとき、湿度差の正の部分から潜熱量を求める。
 
 $$Q_{\mathrm{L}}=(h_{\mathrm{fg},0}+c_{p,\mathrm{v}}T_{\mathrm{d}})k_{\mathrm{m}}\max\{0,x^*-x_{\mathrm{sat}}(T_{\mathrm{d}})\}A_{\mathrm{o}}$$
+
+暫定出口湿度を吸込以下に制限するのは、冷却だけで空気に水分を加えないためである。露点境界では $x_{\mathrm{sat}}(T_{\mathrm{d}})=x_{\mathrm{in}}$ かつ $x^*\le x_{\mathrm{in}}$ なので、上式の正の湿度差は0となり、潜熱量は0から連続に立ち上がる。出口湿度を常に飽和値とすると、吸込より大きい暫定湿度が混合され、この境界で有限の潜熱量へ跳ぶ場合がある（[Issue #24](https://github.com/iguchi-lab/vtsimnx/issues/24)）。
 
 露点以下にならない場合は潜熱量を0とする。算定潜熱を凝縮水量へ換算し、吹出絶対湿度を0以上かつ吸込以下へ制限する。既定面積は $A_{\mathrm{f}}=0.133$ m²、$A_{\mathrm{o}}=4.84$ m²で、正の有限値に変更できる。湿りエンタルピー連成時は、得た吹出状態から10.3節の全熱と顕潜熱分解を再評価する。
 
