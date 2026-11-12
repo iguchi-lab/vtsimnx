@@ -208,6 +208,47 @@ void testUnphysicalTemperatureDetection() {
                "unphysical T: non-aircon Qreq is unchanged");
 }
 
+void testUnphysicalHumidityDetection() {
+    using simulation::detail::anyUnphysicalCalcHumidity;
+    using simulation::detail::couplingHumidityUnphysical;
+    using simulation::detail::kCouplingHumidityAbsMax;
+    using simulation::detail::kCouplingHumidityAbsMin;
+
+    expectTrue(!couplingHumidityUnphysical(0.0), "x-bound: 0 is physical");
+    expectTrue(!couplingHumidityUnphysical(0.01), "x-bound: room humidity is physical");
+    expectTrue(!couplingHumidityUnphysical(kCouplingHumidityAbsMax),
+               "x-bound: max is physical");
+    expectTrue(!couplingHumidityUnphysical(-1e-9),
+               "x-bound: tiny negative is numerical noise");
+    expectTrue(couplingHumidityUnphysical(kCouplingHumidityAbsMin - 1e-9),
+               "x-bound: below min is unphysical");
+    expectTrue(couplingHumidityUnphysical(kCouplingHumidityAbsMax + 0.01),
+               "x-bound: above max is unphysical");
+    expectTrue(couplingHumidityUnphysical(-0.01), "x-bound: clearly negative is unphysical");
+    expectTrue(couplingHumidityUnphysical(std::numeric_limits<double>::quiet_NaN()),
+               "x-bound: NaN is unphysical");
+    expectTrue(couplingHumidityUnphysical(std::numeric_limits<double>::infinity()),
+               "x-bound: Inf is unphysical");
+
+    Graph g;
+    const auto room = boost::add_vertex(g);
+    g[room].key = "ROOM";
+    g[room].type = "normal";
+    g[room].calc_x = true;
+    g[room].current_x = 0.008;
+    const auto supply = boost::add_vertex(g);
+    g[supply].key = "AC";
+    g[supply].type = "aircon";
+    g[supply].calc_x = false;
+    g[supply].current_x = 2.0;
+    expectTrue(!anyUnphysicalCalcHumidity(g),
+               "unphysical x: calc_x=false outliers are ignored");
+
+    g[room].current_x = 0.8;
+    expectTrue(anyUnphysicalCalcHumidity(g),
+               "unphysical x: calc_x node at 0.8 kg/kg is rejected");
+}
+
 void testInnerCouplingMaxIterations() {
     auto c = baseConstants();
     c.maxCouplingIterations = 2;
@@ -563,6 +604,7 @@ int main() {
     testInnerCouplingMaxIterations();
     testTemperatureRelaxationAlpha();
     testUnphysicalTemperatureDetection();
+    testUnphysicalHumidityDetection();
     testHumidityCouplingFlags();
     testAirconDecideActions();
     testOuterMaxIterationsThrow();

@@ -3,6 +3,7 @@
 #include "aircon/aircon_operation_mode.h"
 #include "vtsim_solver.h"
 
+#include <cmath>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -10,6 +11,23 @@
 #include <utility>
 
 namespace aircon::capacity {
+
+constexpr double kCapacityConvergenceRelTol = 0.001;
+constexpr double kCapacityConvergenceAbsTol = 1.0;  // [W]
+
+inline double capacityToleranceW(double maxQ) {
+    return std::abs(maxQ) * kCapacityConvergenceRelTol + kCapacityConvergenceAbsTol;
+}
+
+inline bool capacityExceedsLimit(double currentQ, double maxQ) {
+    return std::isfinite(currentQ) && std::isfinite(maxQ) &&
+           currentQ > maxQ + capacityToleranceW(maxQ);
+}
+
+inline bool capacityWellBelowLimit(double currentQ, double maxQ) {
+    return std::isfinite(currentQ) && std::isfinite(maxQ) &&
+           currentQ < maxQ - capacityToleranceW(maxQ);
+}
 
 /** 能力制限の設定温度探索 bracket。 */
 struct CapacityBracket {

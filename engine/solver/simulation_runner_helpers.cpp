@@ -344,6 +344,14 @@ bool anyUnphysicalCalcTemperature(const Graph& graph) {
     return false;
 }
 
+bool anyUnphysicalCalcHumidity(const Graph& graph) {
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        if (!graph[v].calc_x) continue;
+        if (couplingHumidityUnphysical(graph[v].current_x)) return true;
+    }
+    return false;
+}
+
 void invalidateAirconRequiredHeat(Graph& graph) {
     for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
         if (graph[v].getTypeCode() != VertexProperties::TypeCode::Aircon) continue;

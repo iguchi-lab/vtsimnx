@@ -159,7 +159,8 @@ public:
                                       double requiredHeatW = 0.0,
                                       double loadDeadbandW = 1.0,
                                       double minProcessHeatW = 0.0,
-                                      bool holdAtMinimumCapacity = false) const {
+                                      bool holdAtMinimumCapacity = false,
+                                      bool previouslyHeldAtMinimum = false) const {
         AirconControlResult result{false, nodeProps.on, ""};
         const std::string targetName = nodeProps.set_node.empty() ? nodeProps.key : nodeProps.set_node;
         if (nodeProps.current_mode == "OFF") {
@@ -176,7 +177,8 @@ public:
 
         const auto decision = aircon::onoff::decide(
             nodeProps.current_mode, nodeProps.on, currentTemp, targetTemp, tolerance,
-            useRequiredHeat, requiredHeatW, loadDeadbandW, minProcessHeatW, holdAtMinimumCapacity);
+            useRequiredHeat, requiredHeatW, loadDeadbandW, minProcessHeatW, holdAtMinimumCapacity,
+            previouslyHeldAtMinimum);
         result.on = decision.shouldBeOn;
         result.stateChanged = decision.shouldBeOn != nodeProps.on;
         result.logMessage = aircon::onoff::formatLog(
@@ -208,8 +210,9 @@ public:
 
     // DUCT_CENTRAL 用: 処理熱量に応じて送風量を補正する。
     // - 基準熱量=0 -> vol_zero（既定 0）
-    // - min_process 運転中（同符号で 0 < |基準熱量| <= min_process）-> V_inner.dsgn * min_process/Q.rtd
-    //   min_process 未指定時は Q.rtd（無ければ Q.max）の 10%。逆符号負荷ではホールドしない。
+    // - min_process 運転中（同符号で 0 < |基準熱量| <= 入る 1.2 / 出る 1.5 * min_process）
+    //   -> V_inner.dsgn * min_process/Q.rtd。未指定時は Q.rtd（無ければ Q.max）の 10%。
+    //   逆符号負荷ではホールドしない。一度入ったらステップ内は 1.5 倍まで維持する。
     // - それ以外は V_inner.dsgn * clamp(基準熱量/Q.rtd, 0, 1)
     // - 能力制限中・要求設定未達は Q_max
     // - 設定維持中は |required_heat_w|（無いときは Q_max。計測コイル熱では 0 へ縮小する）

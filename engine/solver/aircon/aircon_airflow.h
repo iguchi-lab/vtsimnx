@@ -1,5 +1,6 @@
 #pragma once
 
+#include "aircon/aircon_onoff.h"
 #include "aircon/aircon_operation_mode.h"
 #include "network/ventilation_network.h"
 
@@ -41,16 +42,29 @@ struct FlowHeatBasis {
     double heatW = 0.0;
     const char* label = "計測処理熱";
     bool exogenous = false;
+    bool unmetBoost = false;
 };
+
+// 未達で Q_max 風量へ入る温度差、およびその状態を維持する温度差。
+// 入る側は 0.5 K を超えた未達。出る側は設定に届くまで Q_max を維持し、
+// 19.4°C↔19.6°C で |Qreq|↔Q_max が入れ替わるのを防ぐ。
+constexpr double kUnmetEnterK = 0.5;
+constexpr double kUnmetExitK = 0.0;
 
 FlowHeatBasis selectFlowHeatBasis(const VertexProperties& nodeProps,
                                   OperationMode operationMode,
                                   double measuredHeatW,
-                                  double controlledRoomTemp);
+                                  double controlledRoomTemp,
+                                  bool previouslyUnmetBoost = false);
+
+// 最低能力付近の風量床。入る倍率・出る倍率は ON/OFF ホールドと同じ。
+// node.aircon_min_process_hold が立っていれば exit 倍率まで床を維持する。
+constexpr double kMinProcessFlowHoldRatio = aircon::onoff::kMinProcessHoldRatio;
+constexpr double kMinProcessFlowExitRatio = aircon::onoff::kMinProcessExitRatio;
 
 // 基準熱量から目標風量 [m3/s] を求める。
 // - 熱量 <= 0 → zeroLoadFlowM3s（既定 0。換気用の零負荷風量）
-// - minProcessHeatW > 0 かつ 0 < 熱量 <= minProcessHeatW
+// - minProcessHeatW > 0 かつ 0 < 熱量 <= 入る/出る天井
 //     → V_dsgn * minProcessHeatW/Q.rtd（最低能力時の最低風量）
 // - それ以上は V_dsgn * clamp(熱量/Q.rtd, 0, 1)
 // カタログ Q.min は使わない。heldAtMinimum が非 null なら最低能力風量のとき true。
