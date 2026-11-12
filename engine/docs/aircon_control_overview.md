@@ -385,13 +385,17 @@ Q = \dot m\,|h_\mathrm{in}-h_\mathrm{out}|
 
 ```mermaid
 flowchart TD
-    OVER["全熱 > Qmax"] --> F["公式 findCapacityLimitedSetpoint"]
+    OVER["全熱 > Qmax"] --> U{"処理熱量が非物理?<br/>Q > 2 Qmax かつ<br/>入口・設定・風量の見積 ≤ Qmax"}
+    U -->|Yes| SKIP["設定補正スキップ"]
+    U -->|No| F["公式 findCapacityLimitedSetpoint"]
     F -->|有効| APPLY["effectiveSetpoint 更新<br/>再計算要求"]
     F -->|無効| BR["bracket 二分探索"]
     BR --> CH{"setpoint 変化?"}
     CH -->|Yes| APPLY
     CH -->|No・収束| DONE["bracket 消去 / Accept 候補"]
 ```
+
+処理熱量が能力上限の 2 倍を超え、入口温度・設定・風量から見た顕熱見積が上限以内なら、熱解が非物理とみなして設定補正しません。Picard が数千 K へ歩いたあとの Qreq/コイル熱で設定を下げ続けないためです。
 
 1. **公式による補正**  
    `findCapacityLimitedSetpoint(...)` で、入口温度・風量・運転モードを固定した近似のもと、`heatCapacity <= maxHeatCapacity` となる setpoint を算出。有効な setpoint が得られればそれを適用。

@@ -756,6 +756,65 @@ int main() {
         expectNear(node.current_pre_temp, 28.0, 1e-12, "final OK keeps verified setpoint");
     }
 
+    // 非物理な処理熱量（数千Kの熱解由来）では設定温度を下げない
+    {
+        VertexProperties node;
+        node.key = "AC_UNPHYS";
+        node.on = true;
+        node.current_mode = "HEATING";
+        node.current_requested_pre_temp = 20.0;
+        node.current_pre_temp = 20.0;
+        node.aircon_control_state = AirconControlState::SetpointControlled;
+        aircon::capacity::CapacityBracketMap brackets;
+        bool adjustmentMade = false;
+        std::ostringstream oss;
+        aircon::capacity::applyExceededCapacityAdjustment(
+            "AC_UNPHYS",
+            node,
+            OperationMode::Heating,
+            /*indoorTemp=*/18.84,
+            /*airFlowRate=*/0.05,
+            /*maxHeatCapacity=*/7734.0,
+            /*currentTotal=*/61198.1,
+            brackets,
+            oss,
+            adjustmentMade);
+        expectNear(node.current_pre_temp, 20.0, 1e-12,
+                   "unphysical Q must not lower heating setpoint");
+        expectTrue(!adjustmentMade, "unphysical Q must not request setpoint recompute");
+        expectTrue(brackets.empty(), "unphysical Q must not open a capacity bracket");
+        expectTrue(oss.str().find("不整合") != std::string::npos,
+                   "unphysical Q log should mention inconsistency");
+    }
+
+    // 入口・設定・風量からも超過するときは、従来どおり設定探索する
+    {
+        VertexProperties node;
+        node.key = "AC_REAL";
+        node.on = true;
+        node.current_mode = "HEATING";
+        node.current_requested_pre_temp = 20.0;
+        node.current_pre_temp = 20.0;
+        node.aircon_control_state = AirconControlState::SetpointControlled;
+        aircon::capacity::CapacityBracketMap brackets;
+        bool adjustmentMade = false;
+        std::ostringstream oss;
+        aircon::capacity::applyExceededCapacityAdjustment(
+            "AC_REAL",
+            node,
+            OperationMode::Heating,
+            /*indoorTemp=*/0.0,
+            /*airFlowRate=*/0.5,
+            /*maxHeatCapacity=*/5000.0,
+            /*currentTotal=*/12000.0,
+            brackets,
+            oss,
+            adjustmentMade);
+        expectTrue(adjustmentMade, "physical over-capacity still searches setpoint");
+        expectTrue(node.current_pre_temp < 20.0,
+                   "physical over-capacity lowers heating setpoint");
+    }
+
     // 符号付き必要負荷: 暖房ONでも冷房需要ならOFFへ
     {
         VertexProperties ac;

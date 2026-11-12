@@ -319,6 +319,38 @@ double couplingTemperatureRelaxation(double configured,
     return alpha;
 }
 
+void restoreTemperaturesByVertex(Graph& graph,
+                                 VentilationNetwork& ventNetwork,
+                                 const std::vector<double>& prevTemps) {
+    const auto& vKeyToV = ventNetwork.getKeyToVertex();
+    auto& vGraph = ventNetwork.getGraph();
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        const size_t idx = static_cast<size_t>(v);
+        if (idx >= prevTemps.size()) continue;
+        if (!graph[v].calc_t) continue;
+        graph[v].current_t = prevTemps[idx];
+        const auto itV = vKeyToV.find(graph[v].key);
+        if (itV != vKeyToV.end()) {
+            vGraph[itV->second].current_t = prevTemps[idx];
+        }
+    }
+}
+
+bool anyUnphysicalCalcTemperature(const Graph& graph) {
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        if (!graph[v].calc_t) continue;
+        if (couplingTemperatureUnphysical(graph[v].current_t)) return true;
+    }
+    return false;
+}
+
+void invalidateAirconRequiredHeat(Graph& graph) {
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        if (graph[v].getTypeCode() != VertexProperties::TypeCode::Aircon) continue;
+        graph[v].required_heat_w = std::numeric_limits<double>::quiet_NaN();
+    }
+}
+
 void relaxTemperatureByVertex(Graph& graph,
                               VentilationNetwork& ventNetwork,
                               const std::vector<double>& prevTemps,

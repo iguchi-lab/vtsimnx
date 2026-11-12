@@ -3,6 +3,7 @@
 #include "network/humidity_network.h"
 #include "vtsim_solver.h"
 
+#include <cmath>
 #include <cstddef>
 #include <vector>
 
@@ -67,17 +68,29 @@ void relaxTemperatureByVertex(Graph& graph,
                               VentilationNetwork& ventNetwork,
                               const std::vector<double>& prevTemps,
                               double relaxation);
+void restoreTemperaturesByVertex(Graph& graph,
+                                 VentilationNetwork& ventNetwork,
+                                 const std::vector<double>& prevTemps);
+void invalidateAirconRequiredHeat(Graph& graph);
 // 圧力–温度 Picard の温度緩和係数。configured を上限にし、
 // 1K 超で前反復から減らないとき 0.5、1回の混合変化は 20K まで。
-// 許容付近の単調減少には緩和しない。
+// 許容付近の単調減少には緩和しない。内側連成が 1 回で終わる
+// （状態量が温度だけのときなど）には掛けない。
+// 熱解が非物理（NaN/Inf または current_t が絶対範囲外）なら混合せず前反復へ戻す。
 constexpr double kCouplingTemperatureMaxMixedStepK = 20.0;
 constexpr double kCouplingTemperatureStallFloorK = 1.0;
 constexpr double kCouplingTemperatureStallRelaxation = 0.5;
+constexpr double kCouplingTemperatureAbsMin = -80.0;  // current_t と同じ単位（°C）
+constexpr double kCouplingTemperatureAbsMax = 120.0;
 double couplingTemperatureRelaxation(double configured,
                                      std::size_t coupledIter,
                                      double temperatureChange,
                                      double prevTemperatureChange,
                                      double temperatureTol);
+inline bool couplingTemperatureUnphysical(double t) {
+    return !std::isfinite(t) || t < kCouplingTemperatureAbsMin || t > kCouplingTemperatureAbsMax;
+}
+bool anyUnphysicalCalcTemperature(const Graph& graph);
 // 湿気未知ノード（calc_x=true）だけ x を xPrev に戻す。
 // 空調吹出・外気など calc_x=false の固定境界は触らない（外側反復で更新した supplyX を保持する）。
 void restoreUnknownHumidityStateToGraph(Graph& graph,
