@@ -60,7 +60,7 @@ flowchart LR
   - 容量ノード: `<key>_mx`（`calc_x=true`）
   - 湿気伝達枝: `<key>_mx-><key>` (`moisture_conductance = moisture_capacity / timestep`)
   - 元ノードからも `moisture_capacity` を除去し、`calc_x=true` を立てる
-- 空調ノードは `supplyX` / パススルー湿度の**固定境界**のため `calc_x=false` のまま（設定ノードの `calc_x` を空調へ伝播しない）。停止中・非冷房の空調に直接接続する吸込・吹出両側の枝を湿度移流から除外し、冷房 ON のみ両側の枝を含める
+- 空調ノードは `supplyX` / パススルー湿度の**固定境界**のため `calc_x=false` のまま（設定ノードの `calc_x` を空調へ伝播しない）。吸込・吹出の換気枝は湿気移流に含める。暖房・停止は求解前に吸込湿度へ同期し、冷房 ON は吹出 `supplyX` を境界にする
 - builder オプション:
   - `builder.add_moisture_capacity`（既定: `true`）
     - `true`: 上記の材料側ノード展開を行う
@@ -158,8 +158,7 @@ flowchart TB
 - 空調処理熱（能力・COP・DUCT 風量連動の全熱）も \(\dot m |h_\mathrm{in}-h_\mathrm{out}|\) に統一（顕熱/潜熱は acmodel 互換のため分解）
 - 吹出絶対湿度 `supplyX` を空調ノード `current_x` に反映し、除湿量 \(\dot m(x_\mathrm{in}-x_\mathrm{supply})\) を `airconCondensation` 診断へ記録（湿気移流境界と能力計算を一致）
 - 空調ノードは湿度の**固定境界**（`calc_x=false`）。湿度ソルバは `type=aircon` を未知数から除外する
-- 停止中または `current_mode != "COOLING"` の空調に直接接続する吸込・吹出両側の換気枝は**湿度移流から除外**する。換気・熱の風量は維持する。異室間の湿気混合も省く近似であり、`AUTO` も除外される点に注意する
-- 冷房 ON（`current_mode=COOLING`）は還気枝を残し、吹出を固定境界として除湿する
+- 空調に直接接続する吸込・吹出の換気枝は**湿度移流に含める**。暖房・停止は吸込湿度へ同期して除湿せず運び、冷房 ON は吹出 `supplyX` を固定境界として除湿する。枝を切ると異室回路で水分が保存されない
 - 各外側ループの物理求解前に、停止中・非冷房、または非有限値もしくは `1e-4 kg/kg(DA)` 以下の空調 `current_x` を吸込湿度へ同期する
 - 再計算判定には床 `max(連成湿度tol, 1e-4 kg/kg(DA))` を使う（微小ドリフトで外側ループが数十回回るのを防ぐ。`current_x` 自体は常に最新値へ更新）
 - 吹出湿度の変化が上記閾値を超えた場合、外側ループで再計算し、**同一タイムステップの湿度・エンタルピー連成へ反映**する。閾値以下では境界更新だけを理由に再計算しない

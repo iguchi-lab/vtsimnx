@@ -21,16 +21,14 @@ builderは `calc_x=false` とする。solverへ直接 `calc_x=true` を渡して
 
 ## 2. 空調接続枝の扱い
 
-湿気移流を組み立てる際、停止中または `current_mode != "COOLING"` の空調ノードに
-**直接接続する換気枝は、吸込側・吹出側とも除外**する。換気・熱計算の風量自体は除去しない。
-冷房ONのときに限り、これらの枝を湿気移流へ含め、吹出 `current_x` を境界として用いる。
+空調ノードに直接接続する換気枝は、吸込側・吹出側とも湿気移流に含める。
+換気・熱計算の風量と、湿気の搬送を切り離さない。冷房 ON では吹出 `current_x`
+（`supplyX`）を固定境界として除湿を反映する。暖房・停止では求解前に吸込絶対湿度へ
+同期し、除湿せずに還気の湿気をそのまま吹出へ渡す。
 
-これは空調境界による過乾燥を抑える実装上の近似である。同一室内の循環では
-吸込・吹出の水分移動が相殺するが、`in` と `out` が異なる室の場合は室間の水分移動を省略する。
-暖房時にも多室間の湿気混合を評価したい場合、この近似の影響を確認する必要がある。
-また、枝の選別は文字列 `COOLING` との比較であり、`AUTO` は冷房相当の処理熱量が
-算定される場合も除外される。湿気輸送の評価には明示的な `COOLING` / `HEATING` を用い、
-`AUTO` の空調熱量と湿気移流の整合は別途点検する。
+同一室内の循環では吸込と吹出の水分移動が打ち消し合う。`in` と `out` が異なる室
+（全館空調のホール還気→各室吹出など）でも、風量に乗った室間の湿気混合は残る。
+古い低湿度 `supplyX` による過乾燥は、枝を切るのではなく吸込同期で防ぐ。
 
 同一の上流・下流ノード間に複数枝がある場合、湿気の質量流量は合算する。
 濃度計算でも枝ごとの除去率を掛けた有効流量を合算する。
@@ -108,7 +106,7 @@ $$
 
 - `engine/app/builder/builder.py`, `aircon.py`, `validate.py`: 空調展開と `pre_rh` 検証
 - `engine/solver/parser/nodes_parser.cpp`: 空調 `calc_x` の固定境界化
-- `engine/solver/network/humidity_network.cpp`: 接続枝の選別と流量合算
+- `engine/solver/network/humidity_network.cpp`: 湿気移流の組み立てと流量合算
 - `engine/solver/aircon/aircon_controller.cpp`, `.h`: 境界同期、ON/OFF、全熱能力判定
 - `engine/solver/aircon/aircon_latent.cpp`: 理想除湿と吹出湿度の再計算判定
 - `engine/solver/simulation_runner_helpers.cpp`: 未知湿度のみの前時刻復元
