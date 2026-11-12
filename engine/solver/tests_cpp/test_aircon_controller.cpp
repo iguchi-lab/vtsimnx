@@ -1159,8 +1159,16 @@ int main() {
                    "heating 1.25x min_process stays in hold once entered");
         expectTrue(!inMinProcessHoldBand("heating", 963.4, 773.4),
                    "heating 1.25x min_process does not enter hold");
-        expectTrue(!inMinProcessHoldBand("heating", 1200.0, 773.4, aircon::onoff::kLoadDeadbandW, true),
-                   "heating 1.55x min_process exits hold");
+        expectTrue(inMinProcessHoldBand("heating", 1200.0, 773.4, aircon::onoff::kLoadDeadbandW, true),
+                   "heating 1.55x min_process stays in hold until timestep end");
+        expectTrue(inMinProcessHoldBand("heating", 1254.18, 773.4, aircon::onoff::kLoadDeadbandW, true),
+                   "heating 1.62x min_process (year-run period-2) stays in hold");
+        expectTrue(!inMinProcessHoldBand("heating", 1254.18, 773.4),
+                   "heating 1.62x min_process does not enter hold");
+        expectTrue(!inMinProcessHoldBand("heating", -65.9, 773.4, aircon::onoff::kLoadDeadbandW, true),
+                   "heating opposite-sign Qreq exits hold even if previously held");
+        expectTrue(inMinProcessHoldBand("cooling", -1254.18, 773.4, aircon::onoff::kLoadDeadbandW, true),
+                   "cooling 1.62x min_process stays in hold once entered");
         expectTrue(inMinProcessHoldBand("cooling", -160.0, 773.4),
                    "cooling small negative is in hold band");
         expectTrue(!inMinProcessHoldBand("cooling", 65.9, 773.4),
@@ -1978,6 +1986,8 @@ int main() {
 
         // 明示 min_process が勝つ（既定 10% ではなく明示値で床）。
         // 負荷が既定 10% を超える場合は線形（明示なし）。
+        // 直前の小負荷でホールドが立っているので、タイムステップ先頭相当で落とす。
+        b.aircon_min_process_hold = false;
         b.ac_spec = nlohmann::json{
             {"Q", {{"heating", {{"rtd", 7.2}}}, {"cooling", {{"rtd", 7.2}}}}},
             {"V_inner", {{"heating", {{"dsgn", 0.36}}}, {"cooling", {{"dsgn", 0.36}}}}},
@@ -2045,13 +2055,23 @@ int main() {
 
             held = false;
             specNode.aircon_min_process_hold = true;
-            const auto exitHold = aircon::airflow::computeTargetFlowFromProcessedHeat(
-                specNode, OperationMode::Heating, 1200.0, 0.0, minProcessW, &held);
-            expectTrue(exitHold.has_value(), "Qreq 1.55x min_process has a target flow");
-            expectTrue(!held, "Qreq 1.55x min_process exits min-flow hold");
-            const double linear1200 = 0.4 * (1200.0 / 7733.99);
-            expectNear(*exitHold, linear1200, 1e-12,
-                       "after 1.5x the flow returns to linear");
+            const auto stayHigh = aircon::airflow::computeTargetFlowFromProcessedHeat(
+                specNode, OperationMode::Heating, 1254.18, 0.0, minProcessW, &held);
+            expectTrue(stayHigh.has_value() && atMin.has_value(),
+                       "Qreq 1.62x min_process with prior hold still has a target flow");
+            expectTrue(held, "Qreq 1.62x min_process stays on min-flow hold until timestep end");
+            expectNear(*stayHigh, *atMin, 1e-12,
+                       "851-1254W period-2 must keep the same min flow once held");
+
+            held = false;
+            specNode.aircon_min_process_hold = false;
+            const auto linearHigh = aircon::airflow::computeTargetFlowFromProcessedHeat(
+                specNode, OperationMode::Heating, 1254.18, 0.0, minProcessW, &held);
+            expectTrue(linearHigh.has_value(), "Qreq 1.62x without hold has a target flow");
+            expectTrue(!held, "Qreq 1.62x without hold does not enter min-flow hold");
+            const double linear1254 = 0.4 * (1254.18 / 7733.99);
+            expectNear(*linearHigh, linear1254, 1e-12,
+                       "without prior hold, 1254W stays on the linear flow");
         }
 
         // 未達 0.5 K 縁: 一度 Q_max に入ったら設定到達まで維持する。

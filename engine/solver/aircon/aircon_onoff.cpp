@@ -73,7 +73,12 @@ bool inMinProcessHoldBand(const char* minModeKey,
     const double qTol = std::max(0.0, deadbandW);
     if (!(minProcessHeatW > qTol)) return false;
     const bool cooling = (minModeKey != nullptr && std::string(minModeKey) == "cooling");
-    const double holdCeil = minProcessHoldCeilingW(minProcessHeatW, previouslyHeld);
+    // 一度入ったら、同符号でデッドバンド超ならステップ内は出ない。
+    // 風量を落とすと Qreq が増えるため、倍率の出口は固定点にならない。
+    if (previouslyHeld) {
+        return cooling ? (requiredHeatW < -qTol) : (requiredHeatW > qTol);
+    }
+    const double holdCeil = minProcessHoldCeilingW(minProcessHeatW);
     if (cooling) {
         return requiredHeatW < -qTol && requiredHeatW >= -holdCeil;
     }
@@ -111,7 +116,7 @@ Decision decideFromRequiredHeat(const std::string& mode,
     const double qTol = std::max(0.0, loadDeadbandW);
     const char* minMode = minCapacityModeKey(mode, requiredHeatW);
     const bool demandOn = demandKeepsOn(mode, requiredHeatW, qTol);
-    // hold フラグが誤って立っていても、同符号バンド外なら無視して OFF/通常判定へ。
+    // 逆符号・ほぼ零では hold を無視して OFF/通常判定へ。同符号ならステップ内は維持。
     const bool holdApplies =
         holdAtMinimumCapacity &&
         inMinProcessHoldBand(minMode, requiredHeatW, minProcessHeatW, qTol,

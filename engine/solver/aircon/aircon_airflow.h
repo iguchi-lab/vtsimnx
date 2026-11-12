@@ -48,6 +48,7 @@ struct FlowHeatBasis {
 // 未達で Q_max 風量へ入る温度差、およびその状態を維持する温度差。
 // 入る側は 0.5 K を超えた未達。出る側は設定に届くまで Q_max を維持し、
 // 19.4°C↔19.6°C で |Qreq|↔Q_max が入れ替わるのを防ぐ。
+// 暖房では風量を上げると室温も上がるので、min_process と違いステップ内固定はしない。
 constexpr double kUnmetEnterK = 0.5;
 constexpr double kUnmetExitK = 0.0;
 
@@ -57,14 +58,13 @@ FlowHeatBasis selectFlowHeatBasis(const VertexProperties& nodeProps,
                                   double controlledRoomTemp,
                                   bool previouslyUnmetBoost = false);
 
-// 最低能力付近の風量床。入る倍率・出る倍率は ON/OFF ホールドと同じ。
-// node.aircon_min_process_hold が立っていれば exit 倍率まで床を維持する。
+// 最低能力付近の風量床。入る倍率は ON/OFF ホールドと同じ。
+// node.aircon_min_process_hold が立っていれば、正の負荷ではステップ内は床を維持する。
 constexpr double kMinProcessFlowHoldRatio = aircon::onoff::kMinProcessHoldRatio;
-constexpr double kMinProcessFlowExitRatio = aircon::onoff::kMinProcessExitRatio;
 
 // 基準熱量から目標風量 [m3/s] を求める。
 // - 熱量 <= 0 → zeroLoadFlowM3s（既定 0。換気用の零負荷風量）
-// - minProcessHeatW > 0 かつ 0 < 熱量 <= 入る/出る天井
+// - minProcessHeatW > 0 かつ (0 < 熱量 <= 入る天井、またはホールド中の正の負荷)
 //     → V_dsgn * minProcessHeatW/Q.rtd（最低能力時の最低風量）
 // - それ以上は V_dsgn * clamp(熱量/Q.rtd, 0, 1)
 // カタログ Q.min は使わない。heldAtMinimum が非 null なら最低能力風量のとき true。
