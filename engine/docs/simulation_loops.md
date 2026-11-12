@@ -161,6 +161,12 @@ flowchart LR
 - 潜熱有効時はさらに `ΔQ <= max(0, absTol) + max(0, relTol) * max(|Q前反復|, |Q現反復|)` を要求します。Q の絶対値は全ノードの最大値、absTol/relTol は `couplingLatentAbsoluteToleranceW` / `couplingLatentRelativeTolerance` です。
 - 上限回でも先に収束を判定し、未収束の場合のみ `CouplingMaxIterations` で終了します。
 
+内側の圧力→温度は Picard（Gauss–Seidel）です。空調 ON や風量の急変で温度と圧力が周期 2 振動・発散することがあるため、**湿気移流は切らず**、熱ソルバ後の温度だけを緩和します。圧力は緩和した温度（密度・浮力）から次反復で解き直します。
+
+- `simulation.coupling.temperature_relaxation`: 温度緩和の上限 `(0,1]`（既定 `1.0`）
+- 温度変化が 1 K を超え、かつ前反復から減っていないときだけ係数を 0.5 にする（許容付近の単調減少は緩和しない）
+- 1 回の混合変化量は 20 K まで（生の ΔT が大きいときの発散防止）
+
 ### 5.2 湿度・潜熱の分岐（概念）
 
 ```mermaid

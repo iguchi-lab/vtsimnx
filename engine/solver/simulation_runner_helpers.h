@@ -3,6 +3,7 @@
 #include "network/humidity_network.h"
 #include "vtsim_solver.h"
 
+#include <cstddef>
 #include <vector>
 
 class VentilationNetwork;
@@ -62,6 +63,21 @@ void relaxHumidityByVertex(Graph& graph,
                            VentilationNetwork& ventNetwork,
                            const std::vector<double>& prevHumidityByVertex,
                            double relaxation);
+void relaxTemperatureByVertex(Graph& graph,
+                              VentilationNetwork& ventNetwork,
+                              const std::vector<double>& prevTemps,
+                              double relaxation);
+// 圧力–温度 Picard の温度緩和係数。configured を上限にし、
+// 1K 超で前反復から減らないとき 0.5、1回の混合変化は 20K まで。
+// 許容付近の単調減少には緩和しない。
+constexpr double kCouplingTemperatureMaxMixedStepK = 20.0;
+constexpr double kCouplingTemperatureStallFloorK = 1.0;
+constexpr double kCouplingTemperatureStallRelaxation = 0.5;
+double couplingTemperatureRelaxation(double configured,
+                                     std::size_t coupledIter,
+                                     double temperatureChange,
+                                     double prevTemperatureChange,
+                                     double temperatureTol);
 // 湿気未知ノード（calc_x=true）だけ x を xPrev に戻す。
 // 空調吹出・外気など calc_x=false の固定境界は触らない（外側反復で更新した supplyX を保持する）。
 void restoreUnknownHumidityStateToGraph(Graph& graph,

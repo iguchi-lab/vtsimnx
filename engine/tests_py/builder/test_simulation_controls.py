@@ -31,6 +31,7 @@ def test_controls_survive_api_and_direct_builder():
         "coupling": {
             "moisture_enabled": False,
             "humidity_relaxation": 0.7,
+            "temperature_relaxation": 0.5,
             "latent_coupling_mode": "disabled",
             "moist_enthalpy_enabled": False,
         },
@@ -54,6 +55,7 @@ def test_controls_survive_api_and_direct_builder():
     "field,value",
     [
         ("humidity_relaxation", 0),
+        ("temperature_relaxation", 0),
         ("latent_relaxation", 1.1),
         ("humidity_solver_tolerance", -1),
     ],

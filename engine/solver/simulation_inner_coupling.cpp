@@ -44,6 +44,9 @@ using detail::logPressureFallbackStop;
 using detail::makeSharedNodeStateArgs;
 using detail::maxAbsLatentHeatChange;
 using detail::relaxHumidityByVertex;
+using detail::relaxTemperatureByVertex;
+using detail::couplingTemperatureRelaxation;
+using detail::couplingTemperatureTol;
 using detail::restoreWPrevToGraph;
 using detail::updateLatentFromHumidityChange;
 using detail::updateLatentFromPhaseChange;
@@ -166,6 +169,7 @@ void runInnerCoupling(InnerCouplingContext& ctx,
 
     const size_t nV = static_cast<size_t>(boost::num_vertices(ctx.thermal.getGraph()));
     detail::ensureHeatSourceVectors(heatSources, nV);
+    double prevRawTemperatureChange = 0.0;
 
     while (true) {
         ++coupledIter;
@@ -205,6 +209,30 @@ void runInnerCoupling(InnerCouplingContext& ctx,
         }
         if (!ctx.constants.pressureCalc) {
             step.flowRates = ctx.ventilation.collectFlowRateMap();
+        }
+
+        if (ctx.constants.temperatureCalc) {
+            const double rawTemperatureChange =
+                calculateTemperatureChangeByVertex(ctx.thermal.getGraph(), snap.temperature);
+            const double temperatureAlpha = couplingTemperatureRelaxation(
+                ctx.constants.temperatureRelaxation,
+                coupledIter,
+                rawTemperatureChange,
+                prevRawTemperatureChange,
+                couplingTemperatureTol(ctx.constants));
+            relaxTemperatureByVertex(ctx.thermal.getGraph(), ctx.ventilation, snap.temperature,
+                                     temperatureAlpha);
+            if (ctx.constants.pressureCalc) {
+                ctx.ventilation.syncTemperaturesFromThermalNetwork(ctx.thermal);
+            }
+            if (logEnabled && temperatureAlpha < 1.0) {
+                writeDomainLog(
+                    ctx.logs,
+                    "連成",
+                    "温度緩和: alpha=" + std::to_string(temperatureAlpha) +
+                        ", 生温度変化量: " + std::to_string(rawTemperatureChange) + " K");
+            }
+            prevRawTemperatureChange = rawTemperatureChange;
         }
 
         if (humidityActive) {
