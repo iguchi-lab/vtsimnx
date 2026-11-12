@@ -17,8 +17,6 @@ constexpr double kSetpointFloor = 0.0;
 constexpr double kSetpointCeiling = 50.0;
 constexpr double kCapacityLimitInitialBracketWidth = 10.0;        // [degC]
 constexpr int kCapacityLimitMaxBracketExpansions = 8;
-constexpr double kCapacityConvergenceRelTol = 0.001;
-constexpr double kCapacityConvergenceAbsTol = 1.0;                // [W]
 // 実測処理熱量が上限の何倍を超えたら、入口温度・設定・風量から見た能力と
 // 矛盾する（非物理な熱解の持ち込み）とみなして設定探索しない。
 constexpr double kUnphysicalProcessedHeatMultiple = 2.0;
@@ -30,17 +28,13 @@ inline double clampHeatCapacity(double value) {
     return value;
 }
 
-inline double capacityTol(double maxQ) {
-    return maxQ * kCapacityConvergenceRelTol + kCapacityConvergenceAbsTol;
-}
-
 inline bool capacityNearMax(double currentQ, double maxQ) {
-    return std::abs(currentQ - maxQ) <= capacityTol(maxQ);
+    return std::abs(currentQ - maxQ) <= aircon::capacity::capacityToleranceW(maxQ);
 }
 
 /** 最終検証用: わずかな超過も許容し、不足は成功扱い。 */
 inline bool capacityNotExceeded(double currentQ, double maxQ) {
-    return currentQ <= maxQ + capacityTol(maxQ);
+    return currentQ <= maxQ + aircon::capacity::capacityToleranceW(maxQ);
 }
 
 inline double estimateHeatCapacityForSetpoint(OperationMode operationMode,

@@ -67,15 +67,17 @@ double resolveMinProcessHeatW(std::optional<double> qMinKW) {
 bool inMinProcessHoldBand(const char* minModeKey,
                           double requiredHeatW,
                           double minProcessHeatW,
-                          double deadbandW) {
+                          double deadbandW,
+                          bool previouslyHeld) {
     if (!std::isfinite(requiredHeatW) || !std::isfinite(minProcessHeatW)) return false;
     const double qTol = std::max(0.0, deadbandW);
     if (!(minProcessHeatW > qTol)) return false;
     const bool cooling = (minModeKey != nullptr && std::string(minModeKey) == "cooling");
+    const double holdCeil = minProcessHoldCeilingW(minProcessHeatW, previouslyHeld);
     if (cooling) {
-        return requiredHeatW < -qTol && requiredHeatW >= -minProcessHeatW;
+        return requiredHeatW < -qTol && requiredHeatW >= -holdCeil;
     }
-    return requiredHeatW > qTol && requiredHeatW <= minProcessHeatW;
+    return requiredHeatW > qTol && requiredHeatW <= holdCeil;
 }
 
 double signedMinProcessHeatW(const char* minModeKey, double minProcessHeatW) {
@@ -104,14 +106,16 @@ Decision decideFromRequiredHeat(const std::string& mode,
                                 double requiredHeatW,
                                 double loadDeadbandW,
                                 double minProcessHeatW,
-                                bool holdAtMinimumCapacity) {
+                                bool holdAtMinimumCapacity,
+                                bool previouslyHeldAtMinimum) {
     const double qTol = std::max(0.0, loadDeadbandW);
     const char* minMode = minCapacityModeKey(mode, requiredHeatW);
     const bool demandOn = demandKeepsOn(mode, requiredHeatW, qTol);
     // hold フラグが誤って立っていても、同符号バンド外なら無視して OFF/通常判定へ。
     const bool holdApplies =
         holdAtMinimumCapacity &&
-        inMinProcessHoldBand(minMode, requiredHeatW, minProcessHeatW, qTol);
+        inMinProcessHoldBand(minMode, requiredHeatW, minProcessHeatW, qTol,
+                             previouslyHeldAtMinimum);
 
     Decision decision;
     decision.shouldBeOn = holdApplies ? true : demandOn;
@@ -162,10 +166,11 @@ Decision decide(const std::string& mode,
                 double requiredHeatW,
                 double loadDeadbandW,
                 double minProcessHeatW,
-                bool holdAtMinimumCapacity) {
+                bool holdAtMinimumCapacity,
+                bool previouslyHeldAtMinimum) {
     if (useRequiredHeat && currentlyOn && std::isfinite(requiredHeatW)) {
         return decideFromRequiredHeat(mode, requiredHeatW, loadDeadbandW, minProcessHeatW,
-                                      holdAtMinimumCapacity);
+                                      holdAtMinimumCapacity, previouslyHeldAtMinimum);
     }
     return decideFromTemperature(mode, currentlyOn, currentTemp, targetTemp, tolerance);
 }

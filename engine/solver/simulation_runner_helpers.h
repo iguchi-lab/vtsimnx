@@ -82,6 +82,9 @@ constexpr double kCouplingTemperatureStallFloorK = 1.0;
 constexpr double kCouplingTemperatureStallRelaxation = 0.5;
 constexpr double kCouplingTemperatureAbsMin = -80.0;  // current_t と同じ単位（°C）
 constexpr double kCouplingTemperatureAbsMax = 120.0;
+// 湿気未知ノードの絶対湿度 [kg/kg(DA)]。微小な負値は数値誤差として許容する。
+constexpr double kCouplingHumidityAbsMin = -1e-6;
+constexpr double kCouplingHumidityAbsMax = 0.5;
 double couplingTemperatureRelaxation(double configured,
                                      std::size_t coupledIter,
                                      double temperatureChange,
@@ -90,7 +93,11 @@ double couplingTemperatureRelaxation(double configured,
 inline bool couplingTemperatureUnphysical(double t) {
     return !std::isfinite(t) || t < kCouplingTemperatureAbsMin || t > kCouplingTemperatureAbsMax;
 }
+inline bool couplingHumidityUnphysical(double x) {
+    return !std::isfinite(x) || x < kCouplingHumidityAbsMin || x > kCouplingHumidityAbsMax;
+}
 bool anyUnphysicalCalcTemperature(const Graph& graph);
+bool anyUnphysicalCalcHumidity(const Graph& graph);
 // 湿気未知ノード（calc_x=true）だけ x を xPrev に戻す。
 // 空調吹出・外気など calc_x=false の固定境界は触らない（外側反復で更新した supplyX を保持する）。
 void restoreUnknownHumidityStateToGraph(Graph& graph,

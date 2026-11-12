@@ -7,6 +7,7 @@
 #include <algorithm>
 
 #include "aircon/aircon_controller.h"
+#include "aircon/aircon_airflow.h"
 #include "aircon/aircon_capacity.h"
 #include "aircon/aircon_latent.h"
 #include "aircon/aircon_network_utils.h"
@@ -1016,8 +1017,8 @@ int main() {
         // 既定 10% of Q.rtd = 0.25 kW。カタログ Q.min=0.7 は使わない。
         runMinProcess("RAC1", "RAC", racCatalogMinOnly, 160.0, true, 250.0,
                       "RAC default min_process is 10% of Q.rtd");
-        runMinProcess("RAC1A", "RAC", racCatalogMinOnly, 300.0, false, 0.0,
-                      "RAC load above default 10% keeps Qreq");
+        runMinProcess("RAC1A", "RAC", racCatalogMinOnly, 400.0, false, 0.0,
+                      "RAC load above 1.2x default 10% keeps Qreq");
 
         const auto racWithMinProcess = nlohmann::json{
             {"Q", {{"heating", {{"min", 0.7}, {"rtd", 2.5}, {"max", 5.4}}},
@@ -1028,8 +1029,10 @@ int main() {
         };
         runMinProcess("RAC1B", "RAC", racWithMinProcess, 160.0, true, 700.0,
                       "RAC with min_process clamps small load");
-        runMinProcess("RAC1C", "RAC", racWithMinProcess, 800.0, false, 0.0,
-                      "RAC with min_process keeps load above threshold");
+        runMinProcess("RAC1C", "RAC", racWithMinProcess, 900.0, false, 0.0,
+                      "RAC with min_process keeps load above 1.2x threshold");
+        runMinProcess("RAC1D", "RAC", racWithMinProcess, 800.0, true, 700.0,
+                      "RAC 1.14x min_process still holds minimum");
 
         // 暖房で負の Qreq（過昇温・日射など）は最低能力ホールドせず OFF。
         {
@@ -1146,8 +1149,18 @@ int main() {
                    "heating negative is outside hold band");
         expectTrue(!inMinProcessHoldBand("heating", 0.0, 773.4),
                    "heating zero is outside hold band");
-        expectTrue(!inMinProcessHoldBand("heating", 800.0, 773.4),
-                   "heating above min_process is outside hold band");
+        expectTrue(inMinProcessHoldBand("heating", 800.0, 773.4),
+                   "heating 1.03x min_process stays in hold band");
+        expectTrue(inMinProcessHoldBand("heating", 844.34, 773.4),
+                   "heating 1.09x min_process stays in hold band");
+        expectTrue(!inMinProcessHoldBand("heating", 1000.0, 773.4),
+                   "heating above 1.2x min_process is outside hold band");
+        expectTrue(inMinProcessHoldBand("heating", 963.4, 773.4, aircon::onoff::kLoadDeadbandW, true),
+                   "heating 1.25x min_process stays in hold once entered");
+        expectTrue(!inMinProcessHoldBand("heating", 963.4, 773.4),
+                   "heating 1.25x min_process does not enter hold");
+        expectTrue(!inMinProcessHoldBand("heating", 1200.0, 773.4, aircon::onoff::kLoadDeadbandW, true),
+                   "heating 1.55x min_process exits hold");
         expectTrue(inMinProcessHoldBand("cooling", -160.0, 773.4),
                    "cooling small negative is in hold band");
         expectTrue(!inMinProcessHoldBand("cooling", 65.9, 773.4),
@@ -1981,6 +1994,111 @@ int main() {
         expectNear(supply, expectedLinear, 2e-4, "linear flow matches on supply");
         expectTrue(logsLinear.str().find("最低風量維持") == std::string::npos,
                    "above-default load must not log min-flow hold");
+
+        // min_process のすぐ上（例: 771W↔844W）は最低風量のまま。外側ループの 0.05↔0.04 振動を止める。
+        {
+            VertexProperties specNode;
+            specNode.model = "DUCT_CENTRAL";
+            specNode.current_mode = "HEATING";
+            specNode.ac_spec = nlohmann::json{
+                {"Q", {{"heating", {{"rtd", 7.73399}}}}},
+                {"V_inner", {{"heating", {{"dsgn", 0.4}}}}},
+            };
+            specNode.initializeAirconSpec();
+            const double minProcessW = 773.399;
+            bool held = false;
+            const auto atMin = aircon::airflow::computeTargetFlowFromProcessedHeat(
+                specNode, OperationMode::Heating, 771.815, 0.0, minProcessW, &held);
+            expectTrue(atMin.has_value(), "Qreq just below min_process has a target flow");
+            expectTrue(held, "Qreq just below min_process holds min flow");
+            held = false;
+            const auto justAbove = aircon::airflow::computeTargetFlowFromProcessedHeat(
+                specNode, OperationMode::Heating, 844.34, 0.0, minProcessW, &held);
+            expectTrue(justAbove.has_value() && atMin.has_value(),
+                       "Qreq 9% above min_process still has a target flow");
+            expectTrue(held, "Qreq 9% above min_process stays on min-flow hold");
+            expectNear(*justAbove, *atMin, 1e-12,
+                       "Qreq 771W and 844W must request the same min flow");
+            const double linear844 = 0.4 * (844.34 / 7733.99);
+            expectTrue(std::abs(*justAbove - linear844) > 1e-4,
+                       "hysteresis must not use the linear 844W flow");
+
+            held = false;
+            specNode.aircon_min_process_hold = false;
+            const auto acrossEdge = aircon::airflow::computeTargetFlowFromProcessedHeat(
+                specNode, OperationMode::Heating, 963.4, 0.0, minProcessW, &held);
+            expectTrue(acrossEdge.has_value(), "Qreq 1.25x min_process has a target flow");
+            expectTrue(!held, "Qreq 1.25x min_process does not enter min-flow hold");
+            const double linear963 = 0.4 * (963.4 / 7733.99);
+            expectNear(*acrossEdge, linear963, 1e-12,
+                       "without prior hold, 963W stays on the linear flow");
+
+            held = false;
+            specNode.aircon_min_process_hold = true;
+            const auto stayMin = aircon::airflow::computeTargetFlowFromProcessedHeat(
+                specNode, OperationMode::Heating, 963.4, 0.0, minProcessW, &held);
+            expectTrue(stayMin.has_value() && atMin.has_value(),
+                       "Qreq 963W with prior hold still has a target flow");
+            expectTrue(held, "Qreq 963W stays on min-flow hold after entering");
+            expectNear(*stayMin, *atMin, 1e-12,
+                       "851-963W period-2 must keep the same min flow once held");
+
+            held = false;
+            specNode.aircon_min_process_hold = true;
+            const auto exitHold = aircon::airflow::computeTargetFlowFromProcessedHeat(
+                specNode, OperationMode::Heating, 1200.0, 0.0, minProcessW, &held);
+            expectTrue(exitHold.has_value(), "Qreq 1.55x min_process has a target flow");
+            expectTrue(!held, "Qreq 1.55x min_process exits min-flow hold");
+            const double linear1200 = 0.4 * (1200.0 / 7733.99);
+            expectNear(*exitHold, linear1200, 1e-12,
+                       "after 1.5x the flow returns to linear");
+        }
+
+        // 未達 0.5 K 縁: 一度 Q_max に入ったら設定到達まで維持する。
+        {
+            VertexProperties node;
+            node.type = "aircon";
+            node.on = true;
+            node.set_node = "ROOM";
+            node.aircon_control_state = AirconControlState::SetpointControlled;
+            node.current_requested_pre_temp = 20.0;
+            node.current_pre_temp = 20.0;
+            node.required_heat_w = 1800.0;
+            node.ac_spec = nlohmann::json{
+                {"Q", {{"heating", {{"rtd", 7.2}, {"max", 3.867}}}}},
+            };
+            node.initializeAirconSpec();
+            const auto enter = aircon::airflow::selectFlowHeatBasis(
+                node, OperationMode::Heating, 400.0, 19.4, /*previouslyUnmetBoost=*/false);
+            expectTrue(enter.unmetBoost, "T=19.4 enters unmet Q_max boost");
+            expectNear(enter.heatW, 3867.0, 1e-9, "enter unmet uses Q_max");
+
+            const auto hold = aircon::airflow::selectFlowHeatBasis(
+                node, OperationMode::Heating, 400.0, 19.7, /*previouslyUnmetBoost=*/true);
+            expectTrue(hold.unmetBoost, "T=19.7 after unmet still holds Q_max");
+            expectNear(hold.heatW, 3867.0, 1e-9, "hold unmet uses Q_max");
+
+            const auto noEnter = aircon::airflow::selectFlowHeatBasis(
+                node, OperationMode::Heating, 400.0, 19.7, /*previouslyUnmetBoost=*/false);
+            expectTrue(!noEnter.unmetBoost, "T=19.7 without prior unmet does not enter");
+            expectNear(noEnter.heatW, 1800.0, 1e-9, "inside 0.5K uses |Qreq|");
+
+            const auto exitBoost = aircon::airflow::selectFlowHeatBasis(
+                node, OperationMode::Heating, 400.0, 20.0, /*previouslyUnmetBoost=*/true);
+            expectTrue(!exitBoost.unmetBoost, "T=setpoint exits unmet boost");
+            expectNear(exitBoost.heatW, 1800.0, 1e-9, "exit unmet uses |Qreq|");
+        }
+
+        {
+            expectTrue(!aircon::capacity::capacityExceedsLimit(7734.5, 7734.0),
+                       "0.5W over capacity is within abs tol");
+            expectTrue(aircon::capacity::capacityExceedsLimit(7800.0, 7734.0),
+                       "66W over capacity exceeds limit");
+            expectTrue(!aircon::capacity::capacityWellBelowLimit(7733.5, 7734.0),
+                       "0.5W under capacity is not well below");
+            expectTrue(aircon::capacity::capacityWellBelowLimit(7700.0, 7734.0),
+                       "34W under capacity is well below");
+        }
 
         // 負荷 0 は既定で風量 0。vol_zero があればその風量。
         b.required_heat_w = 0.0;

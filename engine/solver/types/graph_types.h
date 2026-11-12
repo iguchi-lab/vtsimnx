@@ -69,6 +69,12 @@ struct VertexProperties {
     double vol_zero = 0.0;
     bool on = false;
     AirconControlState aircon_control_state = AirconControlState::Off;
+    // DUCT 風量の未達ブースト（Q_max 基準）をステップ内で保持する。
+    // タイムステップ先頭で落とす。0.5 K 縁での |Qreq|↔Q_max 振動を防ぐ。
+    bool aircon_flow_unmet_boost = false;
+    // 最低能力ホールド（風量床・ON/OFF の min_process）。ステップ内で維持し、
+    // 1.2 倍で入り 1.5 倍まで出ない。タイムステップ先頭で落とす。
+    bool aircon_min_process_hold = false;
     // fixed-row 拘束時、設定温度維持に必要な符号付き空調負荷 [W]
     // （暖房正・冷房負。set_node の AC 以外熱収支の符号反転。未評価は NaN）
     double required_heat_w = std::numeric_limits<double>::quiet_NaN();
@@ -80,6 +86,8 @@ struct VertexProperties {
     mutable TypeCode type_code = TypeCode::Unknown;
 
     void updateForTimestep(int timestep) {
+        aircon_flow_unmet_boost = false;
+        aircon_min_process_hold = false;
         if (!p.empty() && static_cast<size_t>(timestep) < p.size()) {
             current_p = p[timestep];
         }

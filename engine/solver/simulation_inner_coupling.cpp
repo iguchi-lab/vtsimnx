@@ -48,6 +48,8 @@ using detail::relaxTemperatureByVertex;
 using detail::restoreTemperaturesByVertex;
 using detail::invalidateAirconRequiredHeat;
 using detail::anyUnphysicalCalcTemperature;
+using detail::anyUnphysicalCalcHumidity;
+using detail::restoreUnknownHumidityStateToGraph;
 using detail::couplingTemperatureRelaxation;
 using detail::couplingTemperatureTol;
 using detail::needsInnerCoupledIteration;
@@ -286,8 +288,19 @@ void runInnerCoupling(InnerCouplingContext& ctx,
                     ErrorCode::HumidityNotConverged,
                     "Humidity solver did not converge during inner coupling");
             }
-            relaxHumidityByVertex(ctx.thermal.getGraph(), ctx.ventilation, snap.humidity,
-                                  ctx.constants.humidityRelaxation);
+            if (anyUnphysicalCalcHumidity(ctx.thermal.getGraph())) {
+                restoreUnknownHumidityStateToGraph(
+                    ctx.thermal.getGraph(), ctx.ventilation, snap.humidity);
+                if (logEnabled) {
+                    writeDomainLog(
+                        ctx.logs,
+                        "連成",
+                        "湿気解が非物理絶対湿度のため棄却（前反復湿度を保持）");
+                }
+            } else {
+                relaxHumidityByVertex(ctx.thermal.getGraph(), ctx.ventilation, snap.humidity,
+                                      ctx.constants.humidityRelaxation);
+            }
         }
 
         // 湿気更新＋緩和の直後に latent を更新。湿度未更新の内側パスでは持ち越し値を維持。

@@ -222,18 +222,30 @@ bool updateDuctCentralFanAffinity(VentilationNetwork& ventNetwork,
 FlowHeatBasis selectFlowHeatBasis(const VertexProperties& nodeProps,
                                   OperationMode operationMode,
                                   double measuredHeatW,
-                                  double controlledRoomTemp) {
+                                  double controlledRoomTemp,
+                                  bool previouslyUnmetBoost) {
     FlowHeatBasis basis;
     basis.heatW = measuredHeatW;
-    constexpr double kUnmetBandK = 0.5;
-    const bool heatingUnmet =
+    const bool heatingDemand =
         isHeating(operationMode) &&
         std::isfinite(nodeProps.current_requested_pre_temp) &&
-        (controlledRoomTemp < nodeProps.current_requested_pre_temp - kUnmetBandK);
-    const bool coolingUnmet =
+        std::isfinite(controlledRoomTemp);
+    const bool coolingDemand =
         !isHeating(operationMode) &&
         std::isfinite(nodeProps.current_requested_pre_temp) &&
-        (controlledRoomTemp > nodeProps.current_requested_pre_temp + kUnmetBandK);
+        std::isfinite(controlledRoomTemp);
+    const double tSet = nodeProps.current_requested_pre_temp;
+    const bool heatingEnter =
+        heatingDemand && (controlledRoomTemp < tSet - kUnmetEnterK);
+    const bool heatingHold = heatingDemand && previouslyUnmetBoost &&
+                             (controlledRoomTemp < tSet - kUnmetExitK);
+    const bool coolingEnter =
+        coolingDemand && (controlledRoomTemp > tSet + kUnmetEnterK);
+    const bool coolingHold = coolingDemand && previouslyUnmetBoost &&
+                             (controlledRoomTemp > tSet + kUnmetExitK);
+    const bool heatingUnmet = heatingEnter || heatingHold;
+    const bool coolingUnmet = coolingEnter || coolingHold;
+    basis.unmetBoost = heatingUnmet || coolingUnmet;
     const bool capacityLimited =
         nodeProps.aircon_control_state == AirconControlState::CapacityLimited;
     const bool setpointHeld = nodeProps.on && !nodeProps.set_node.empty() &&
@@ -278,14 +290,15 @@ std::optional<double> computeTargetFlowFromProcessedHeat(const VertexProperties&
         return std::nullopt;
     }
     // 負荷 0 は零負荷風量（既定 0）。正の負荷は原則線形。
-    // min_process（未指定時は Q.rtd の 10%）以下は最低能力相当の風量に留める。
+    // min_process は 1.2 倍で入り、ホールド中は 1.5 倍まで床を維持する。
     if (!(processedHeatW > 0.0)) {
         const double v0 = std::isfinite(zeroLoadFlowM3s) ? std::max(0.0, zeroLoadFlowM3s) : 0.0;
         return v0;
     }
     double heatForRatioW = processedHeatW;
     if (std::isfinite(minProcessHeatW) && minProcessHeatW > 0.0 &&
-        processedHeatW <= minProcessHeatW) {
+        processedHeatW <= aircon::onoff::minProcessHoldCeilingW(
+            minProcessHeatW, nodeProps.aircon_min_process_hold)) {
         heatForRatioW = minProcessHeatW;
         if (heldAtMinimum) *heldAtMinimum = true;
     }

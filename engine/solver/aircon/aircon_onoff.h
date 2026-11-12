@@ -8,6 +8,10 @@ namespace aircon::onoff {
 // 停止後の再起動ヒステリシス。数値 tol が極小でも 1 K 未満では再起動しない。
 constexpr double kRestartBandK = 1.0;
 constexpr double kLoadDeadbandW = 1.0;
+// 最低能力ホールド。入るのは 1.2 倍、一度入ったら 1.5 倍まで維持する。
+// 851 W ↔ 963 W が 1.2 倍の縁（928 W）をまたいで風量 0.04↔0.05 と振動するのを防ぐ。
+constexpr double kMinProcessHoldRatio = 1.2;
+constexpr double kMinProcessExitRatio = 1.5;
 // 処理風量がこれ以下ならコイル由来の Qreq を信頼しない [m3/s]。
 constexpr double kMinMeaningfulProcessFlow = 1e-4;
 
@@ -53,13 +57,18 @@ bool shouldUseRequiredHeat(bool currentlyOn,
 double resolveMinProcessHeatW(std::optional<double> qMinKW);
 
 // 同符号の小負荷だけ最低能力ホールドする。
-// 暖房/加熱側: deadband < Qreq <= minProcess
-// 冷房側:     -minProcess <= Qreq < -deadband
-// minModeKey は "heating" / "cooling"（minCapacityModeKey の戻り）。
+// 入る: |Qreq| <= minProcess * kMinProcessHoldRatio（かつデッドバンド超）
+// 維持: previouslyHeld なら |Qreq| <= minProcess * kMinProcessExitRatio
+// 暖房は正、冷房は負。minModeKey は "heating" / "cooling"。
+inline double minProcessHoldCeilingW(double minProcessHeatW, bool previouslyHeld) {
+    return minProcessHeatW * (previouslyHeld ? kMinProcessExitRatio : kMinProcessHoldRatio);
+}
+
 bool inMinProcessHoldBand(const char* minModeKey,
                           double requiredHeatW,
                           double minProcessHeatW,
-                          double deadbandW = kLoadDeadbandW);
+                          double deadbandW = kLoadDeadbandW,
+                          bool previouslyHeld = false);
 
 // ホールド時に required_heat_w へ書き込む符号付き最低能力 [W]。
 double signedMinProcessHeatW(const char* minModeKey, double minProcessHeatW);
@@ -77,7 +86,8 @@ Decision decide(const std::string& mode,
                 double requiredHeatW,
                 double loadDeadbandW,
                 double minProcessHeatW,
-                bool holdAtMinimumCapacity);
+                bool holdAtMinimumCapacity,
+                bool previouslyHeldAtMinimum = false);
 
 std::string formatLog(const std::string& targetName,
                       bool currentlyOn,

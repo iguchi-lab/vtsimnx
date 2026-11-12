@@ -328,12 +328,18 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
         }
         const bool holdAtMinimumCapacity = useRequiredHeat &&
             aircon::onoff::inMinProcessHoldBand(minMode, nodeProps.required_heat_w,
-                                                minProcessHeatW, aircon::onoff::kLoadDeadbandW);
+                                                minProcessHeatW, aircon::onoff::kLoadDeadbandW,
+                                                nodeProps.aircon_min_process_hold);
 
         auto result = controlAircon(nodeProps, currentTemp, targetTemp, tolerance, logFile,
                                     useRequiredHeat, nodeProps.required_heat_w,
                                     aircon::onoff::kLoadDeadbandW, minProcessHeatW,
-                                    holdAtMinimumCapacity);
+                                    holdAtMinimumCapacity, nodeProps.aircon_min_process_hold);
+        if (result.on && useRequiredHeat) {
+            nodeProps.aircon_min_process_hold = holdAtMinimumCapacity;
+        } else if (!result.on) {
+            nodeProps.aircon_min_process_hold = false;
+        }
         if (holdAtMinimumCapacity && result.on && std::isfinite(nodeProps.required_heat_w)) {
             nodeProps.required_heat_w =
                 aircon::onoff::signedMinProcessHeatW(minMode, minProcessHeatW);
@@ -445,7 +451,7 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                 << "W (顕熱=" << sensibleQ << "W, 潜熱=" << latentQ << "W)";
 
             bool unitAdjusted = false;
-            if (maxHeatCapacity && current > *maxHeatCapacity) {
+            if (maxHeatCapacity && aircon::capacity::capacityExceedsLimit(current, *maxHeatCapacity)) {
                 aircon::capacity::applyExceededCapacityAdjustment(
                     airconKey,
                     nodeProps,
@@ -457,7 +463,9 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                     capacityLimitBracket_,
                     oss,
                     unitAdjusted);
-            } else if (maxHeatCapacity && current < *maxHeatCapacity && capacityLimitBracket_.count(airconKey)) {
+            } else if (maxHeatCapacity &&
+                       aircon::capacity::capacityWellBelowLimit(current, *maxHeatCapacity) &&
+                       capacityLimitBracket_.count(airconKey)) {
                 aircon::capacity::applyUnderCapacityBracketAdjustment(
                     airconKey,
                     nodeProps,
@@ -537,7 +545,9 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
                 thermalNetwork, nodeProps.set_node, controlledRoomTemp);
         }
         const auto heatBasis = aircon::airflow::selectFlowHeatBasis(
-            nodeProps, context.operationMode, measuredHeatW, controlledRoomTemp);
+            nodeProps, context.operationMode, measuredHeatW, controlledRoomTemp,
+            nodeProps.aircon_flow_unmet_boost);
+        nodeProps.aircon_flow_unmet_boost = heatBasis.unmetBoost;
         const double heatForFlowW = heatBasis.heatW;
         const bool useExogenousHeatForFlow = heatBasis.exogenous;
 
@@ -556,6 +566,7 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
         if (!targetFlowOpt) {
             continue;
         }
+        nodeProps.aircon_min_process_hold = heldAtMinimumFlow;
         // 極小目標は 0 にスナップし、0.00→0.00 の再計算ループを防ぐ。
         // flowRates 側に数値残差が残っても、実質ゼロ同士なら更新しない。
         constexpr double kAbsFlowSnap = 1e-4;  // [m3/s]
@@ -569,13 +580,17 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
                                          std::max({targetFlow, currentFlow, kAbsFlowSnap}) * kRelativeFlowTol});
 
         // ファン枝があれば速度比だけを載せ、固定風量は触らない。無いときだけ vol を書く。
+        // 達成風量が目標と 1e-3 m3/s 以内なら速度比も触らない（0.05→0.05 の再計算防止）。
         bool fanPresent = false;
-        bool edgeUpdated = aircon::airflow::updateDuctCentralFanAffinity(
-            ventNetwork, nodeProps, context.operationMode, nodeProps.key, targetFlow,
-            kRelativeFlowTol, &fanPresent);
-        if (!fanPresent && !nodeProps.in_node.empty()) {
-            edgeUpdated = aircon::airflow::updateDuctCentralCircuitFixedFlows(
-                ventNetwork, nodeProps.in_node, nodeProps.key, targetFlow, flowTol);
+        bool edgeUpdated = false;
+        if (std::abs(currentFlow - targetFlow) > kAbsFlowMatch) {
+            edgeUpdated = aircon::airflow::updateDuctCentralFanAffinity(
+                ventNetwork, nodeProps, context.operationMode, nodeProps.key, targetFlow,
+                kRelativeFlowTol, &fanPresent);
+            if (!fanPresent && !nodeProps.in_node.empty()) {
+                edgeUpdated = aircon::airflow::updateDuctCentralCircuitFixedFlows(
+                    ventNetwork, nodeProps.in_node, nodeProps.key, targetFlow, flowTol);
+            }
         }
 
         if (!edgeUpdated) {

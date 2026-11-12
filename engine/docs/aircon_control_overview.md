@@ -328,16 +328,17 @@ Q = \dot m\,|h_\mathrm{in}-h_\mathrm{out}|
 
 ここで:
 
-- **能力制限中** (`CapacityLimited`)、または **set_node 室温が要求設定に未達**: `Q_basis = Q_max`（`Q.<mode>.max` → `rtd` → `mid`）
+- **能力制限中** (`CapacityLimited`)、または **set_node 室温が要求設定に未達**（0.5 K を超えて外れ、一度入ったら設定到達まで維持）: `Q_basis = Q_max`（`Q.<mode>.max` → `rtd` → `mid`）
 - **設定を保持できている**（ON かつ `set_node` 固定、未達でも能力制限でもない）: `Q_basis = |required_heat_w|`（上限は `Q_max`）。室負荷が非有限のときだけ `Q_max`
 - **それ以外**（`set_node` なし等で室温が自由）: `Q_basis =` 計測全熱（`Q_S + Q_L`, [W]）
 - `Q.<mode>.rtd` は `ac_spec` 上の [kW]
 - `V_inner.<mode>.dsgn` は [m3/s]
 - 目標風量が `1e-4 m3/s` 未満なら 0 にスナップし、極小差分では再計算しない
+- 基準熱量が `min_process` の 1.2 倍以下なら最低風量に入り、ホールド中は 1.5 倍まで維持する（`851 W ↔ 963 W` が 1.2 倍の縁をまたいでも `0.04 ↔ 0.05 m³/s` と再計算し続けない）
 
 能力制限後に計測コイル熱で追従すると、固定温度付近では `Q∝V` になり `V∝Q_meas` が 0 へ縮小します。  
 設定を保持できているときは、風量にほぼ比例しない室負荷 `required_heat_w` を使います。無いときだけ `Q_max` に戻します。  
-タイムステップ先頭で `CapacityLimited` が落ちても、室温が要求に未達なら引き続き `Q_max` 基準とします。
+タイムステップ先頭で `CapacityLimited` が落ちても、室温が要求に未達なら引き続き `Q_max` 基準とします。未達フラグもステップ先頭で落とします。処理熱が上限の 0.1%+1 W 以内なら能力探索に入らず、不足側の bracket 継続もしません。
 
 風量の載せ方は枝の種類で分かれる。基準熱量から求める比 `λ = V_target / V_inner.dsgn` は共通である。温度のノードはどちらも同じで、空調機ノードは供給空気、部屋は混合室温である。考え方の正本は [`aircon_control_principles.md`](aircon_control_principles.md) の §5.3。
 

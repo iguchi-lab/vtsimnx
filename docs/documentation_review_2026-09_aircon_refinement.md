@@ -28,7 +28,7 @@
 | 設定湿度の理想除湿 | `aircon_latent.cpp` の `estimateLatentProcess` | 吸込温度と設定RHから求めた吹出絶対湿度を指定。室RHを直接拘束しない |
 | 潜熱処理の実行位置 | `aircon_controller.cpp` の能力・風量判定、`simulation_aircon_iteration.cpp` | 潜熱は能力比較の前に評価。再計算理由の優先順位とは区別 |
 | 最低能力での継続 | `aircon_controller.cpp` の `holdAtMinimumCapacity` | 内部要求負荷の置換であり、全機種の実処理熱の固定ではない |
-| 要求未達の境界値 | `aircon_airflow.cpp` の `selectFlowHeatBasis` | 温度差が0.5 Kを「超える」。境界値は含まない |
+| 要求未達の境界値 | `aircon_airflow.cpp` の `selectFlowHeatBasis` | 入るのは 0.5 K を超えた未達。出るのは設定到達。境界値は入らない |
 | 最低風量の条件 | 同ファイルの `computeTargetFlowFromProcessedHeat` | `0 < Q.min < Q.rtd` のときに下限補正 |
 | 湿度目標の適用範囲 | `aircon_latent.cpp` | `none` より優先、目標以下は通常方式へ復帰、飽和制限なし、全熱能力判定は残る |
 
