@@ -301,6 +301,45 @@ double calculateHumidityChangeByVertex(const Graph& graph, const std::vector<dou
     return maxChange;
 }
 
+double couplingTemperatureRelaxation(double configured,
+                                     std::size_t coupledIter,
+                                     double temperatureChange,
+                                     double prevTemperatureChange,
+                                     double temperatureTol) {
+    double alpha = configured;
+    if (!(alpha > 0.0) || alpha > 1.0) alpha = 1.0;
+    const double stallFloor = std::max(kCouplingTemperatureStallFloorK, 10.0 * std::max(0.0, temperatureTol));
+    if (coupledIter >= 2 && temperatureChange > stallFloor &&
+        temperatureChange >= prevTemperatureChange) {
+        alpha = std::min(alpha, kCouplingTemperatureStallRelaxation);
+    }
+    if (temperatureChange > kCouplingTemperatureMaxMixedStepK && temperatureChange > 0.0) {
+        alpha = std::min(alpha, kCouplingTemperatureMaxMixedStepK / temperatureChange);
+    }
+    return alpha;
+}
+
+void relaxTemperatureByVertex(Graph& graph,
+                              VentilationNetwork& ventNetwork,
+                              const std::vector<double>& prevTemps,
+                              double relaxation) {
+    if (!(relaxation > 0.0) || relaxation >= 1.0) return;
+    const auto& vKeyToV = ventNetwork.getKeyToVertex();
+    auto& vGraph = ventNetwork.getGraph();
+    const double alpha = std::min(1.0, std::max(0.0, relaxation));
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        const size_t idx = static_cast<size_t>(v);
+        if (idx >= prevTemps.size()) continue;
+        if (!graph[v].calc_t) continue;
+        const double mixed = prevTemps[idx] + alpha * (graph[v].current_t - prevTemps[idx]);
+        graph[v].current_t = mixed;
+        const auto itV = vKeyToV.find(graph[v].key);
+        if (itV != vKeyToV.end()) {
+            vGraph[itV->second].current_t = mixed;
+        }
+    }
+}
+
 void relaxHumidityByVertex(Graph& graph,
                            VentilationNetwork& ventNetwork,
                            const std::vector<double>& prevHumidityByVertex,

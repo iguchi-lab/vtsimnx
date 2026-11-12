@@ -212,6 +212,8 @@ flowchart TD
   - 湿気収束許容誤差（未指定時は `simulation.tolerance.convergence`）
 - `simulation.coupling.humidity_relaxation`:
   - 湿気反復の緩和係数 `(0,1]`（既定 `1.0`）
+- `simulation.coupling.temperature_relaxation`:
+  - 圧力–温度 Picard の温度緩和上限 `(0,1]`（既定 `1.0`）。1 K 超で減らないときと大振幅時だけさらに下げる。湿気枝は切らない
 - `simulation.coupling.latent_relaxation`:
   - 潜熱フィードバック緩和係数 `(0,1]`（既定 `0.5`）
 - `simulation.coupling.humidity_solver_tolerance`:

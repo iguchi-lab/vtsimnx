@@ -229,6 +229,12 @@ SimulationConstants parseSimulationConstants(const nlohmann::json& config,
             }
             outConstants.humidityRelaxation = cp["humidity_relaxation"];
         }
+        if (cp.contains("temperature_relaxation")) {
+            if (!cp["temperature_relaxation"].is_number()) {
+                throw std::runtime_error("Missing or invalid 'simulation.coupling.temperature_relaxation' (number required)");
+            }
+            outConstants.temperatureRelaxation = cp["temperature_relaxation"];
+        }
         if (cp.contains("latent_relaxation")) {
             if (!cp["latent_relaxation"].is_number()) {
                 throw std::runtime_error("Missing or invalid 'simulation.coupling.latent_relaxation' (number required)");
@@ -315,6 +321,9 @@ SimulationConstants parseSimulationConstants(const nlohmann::json& config,
     if (!(outConstants.humidityRelaxation > 0.0 && outConstants.humidityRelaxation <= 1.0)) {
         throw std::runtime_error("'simulation.coupling.humidity_relaxation' must be in (0, 1]");
     }
+    if (!(outConstants.temperatureRelaxation > 0.0 && outConstants.temperatureRelaxation <= 1.0)) {
+        throw std::runtime_error("'simulation.coupling.temperature_relaxation' must be in (0, 1]");
+    }
     if (!(outConstants.latentRelaxation > 0.0 && outConstants.latentRelaxation <= 1.0)) {
         throw std::runtime_error("'simulation.coupling.latent_relaxation' must be in (0, 1]");
     }
@@ -324,6 +333,7 @@ SimulationConstants parseSimulationConstants(const nlohmann::json& config,
     logLine([&](std::ostringstream& oss) {
         oss << "  3ネットワーク連成: " << parser_utils::boolToString(outConstants.moistureCouplingEnabled)
             << ", humidity_relaxation=" << outConstants.humidityRelaxation
+            << ", temperature_relaxation=" << outConstants.temperatureRelaxation
             << ", latent_relaxation=" << outConstants.latentRelaxation
             << ", humidity_solver_tolerance=" << outConstants.humiditySolverTolerance;
     });

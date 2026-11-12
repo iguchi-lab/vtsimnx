@@ -110,6 +110,7 @@ class SimulationIteration(_StrictExtraBase):
 class SimulationCoupling(_StrictExtraBase):
     moisture_enabled: Optional[bool] = None
     humidity_relaxation: Optional[float] = Field(default=None, gt=0, le=1, allow_inf_nan=False)
+    temperature_relaxation: Optional[float] = Field(default=None, gt=0, le=1, allow_inf_nan=False)
     latent_relaxation: Optional[float] = Field(default=None, gt=0, le=1, allow_inf_nan=False)
     latent_coupling_mode: Optional[Union[Literal[0, 1, 2], Literal[
         "disabled", "Disabled", "DISABLED", "from_humidity_change", "FromHumidityChange",

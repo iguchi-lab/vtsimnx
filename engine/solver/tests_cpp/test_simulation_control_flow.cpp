@@ -129,6 +129,32 @@ void testInnerCouplingPressureFirstFail() {
                    "inner: pressure non-convergence on first iter");
 }
 
+void testTemperatureRelaxationAlpha() {
+    using simulation::detail::couplingTemperatureRelaxation;
+    using simulation::detail::kCouplingTemperatureMaxMixedStepK;
+    using simulation::detail::kCouplingTemperatureStallRelaxation;
+    const double tol = 1e-3;
+    expectNear(couplingTemperatureRelaxation(1.0, 1, 12.0, 0.0, tol), 1.0,
+               1e-12, "T-relax: first iter below cap stays 1");
+    expectNear(couplingTemperatureRelaxation(1.0, 2, 0.01, 12.0, tol), 1.0,
+               1e-12, "T-relax: decreasing delta stays 1");
+    expectNear(couplingTemperatureRelaxation(1.0, 2, 0.005, 0.0052, tol), 1.0,
+               1e-12, "T-relax: near-tol decrease is not stalled");
+    expectNear(couplingTemperatureRelaxation(1.0, 2, 5.0, 5.0, tol),
+               kCouplingTemperatureStallRelaxation, 1e-12,
+               "T-relax: period-2 below cap uses 0.5");
+    expectNear(couplingTemperatureRelaxation(1.0, 2, 59.5, 59.48, tol),
+               kCouplingTemperatureMaxMixedStepK / 59.5, 1e-12,
+               "T-relax: period-2 above cap uses step limit");
+    const double huge = 597.0;
+    const double capped = couplingTemperatureRelaxation(1.0, 1, huge, 0.0, tol);
+    expectNear(capped, kCouplingTemperatureMaxMixedStepK / huge, 1e-12,
+               "T-relax: first-iter cap on huge delta");
+    expectTrue(capped < 0.05, "T-relax: huge delta is strongly damped");
+    expectNear(couplingTemperatureRelaxation(0.3, 2, 59.5, 59.5, tol), 0.3, 1e-12,
+               "T-relax: configured ceiling is respected");
+}
+
 void testInnerCouplingMaxIterations() {
     auto c = baseConstants();
     c.maxCouplingIterations = 2;
@@ -449,6 +475,28 @@ void testParserPositiveIntegerIterations() {
         }
         expectTrue(threw, "parser: reject latent without temperatureCalc");
     }
+    {
+        auto j = minimalSimJson();
+        const auto c = parseSimulationConstants(j, logs);
+        expectNear(c.temperatureRelaxation, 1.0, 1e-12, "parser: temperature_relaxation default 1");
+    }
+    {
+        auto j = minimalSimJson();
+        j["simulation"]["coupling"] = {{"temperature_relaxation", 0.5}};
+        const auto c = parseSimulationConstants(j, logs);
+        expectNear(c.temperatureRelaxation, 0.5, 1e-12, "parser: temperature_relaxation 0.5");
+    }
+    {
+        auto j = minimalSimJson();
+        j["simulation"]["coupling"] = {{"temperature_relaxation", 0.0}};
+        bool threw = false;
+        try {
+            (void)parseSimulationConstants(j, logs);
+        } catch (const std::runtime_error&) {
+            threw = true;
+        }
+        expectTrue(threw, "parser: reject temperature_relaxation 0");
+    }
 }
 
 } // namespace
@@ -460,6 +508,7 @@ int main() {
     testInnerCouplingAllowFirstWhenMinOne();
     testInnerCouplingPressureFirstFail();
     testInnerCouplingMaxIterations();
+    testTemperatureRelaxationAlpha();
     testHumidityCouplingFlags();
     testAirconDecideActions();
     testOuterMaxIterationsThrow();
