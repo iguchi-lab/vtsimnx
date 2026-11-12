@@ -9,32 +9,6 @@
 
 #include <boost/range/iterator_range.hpp>
 
-namespace {
-// 空調の還気循環を湿度移流から除外するか。
-// - OFF: 除外（大風量 BC で室内が過乾燥するのを防ぐ）
-// - 非 COOLING（暖房等）: 除外（除湿しない運転で古い低湿度 supplyX が残ると過乾燥する）
-// - COOLING ON: 含める（吹出絶対湿度を固定境界として除湿を反映）
-bool airconEdgeIsHumidityPassthrough(const VertexProperties& ac) {
-    if (ac.type != "aircon") return false;
-    if (!ac.on || ac.current_mode == "OFF") return true;
-    if (ac.current_mode != "COOLING") return true;
-    return false;
-}
-
-bool shouldSkipHumidityVentEdge(const Graph& tGraph,
-                                const std::unordered_map<std::string, Vertex>& /*tKeyToV*/,
-                                Vertex a,
-                                Vertex b) {
-    if (tGraph[a].type == "aircon" && airconEdgeIsHumidityPassthrough(tGraph[a])) {
-        return true;
-    }
-    if (tGraph[b].type == "aircon" && airconEdgeIsHumidityPassthrough(tGraph[b])) {
-        return true;
-    }
-    return false;
-}
-} // namespace
-
 HumidityNetwork::HumidityNetwork()
     : humiditySolverContext_(std::make_unique<core::humidity::HumiditySolverContext>()) {}
 
@@ -104,11 +78,9 @@ void HumidityNetwork::buildTerms(ConstNodeStateView nodeState,
         auto itTT = tKeyToV.find(kT);
         if (itTS == tKeyToV.end() || itTT == tKeyToV.end()) continue;
 
-        // パススルー相当の空調還気は湿度移流から除外（熱・換気の流量自体は維持）
-        if (shouldSkipHumidityVentEdge(tGraph, tKeyToV, itTS->second, itTT->second)) {
-            continue;
-        }
-
+        // 空調に接する枝も湿気移流に含める。暖房・停止の過乾燥防止は
+        // 求解前の吸込湿度同期（supplyX パススルー）であり、枝を切ると
+        // 異室回路で水分が保存されない。
         addVentNeighbor(itTS->second, itTT->second);
 
         const double f = ep.flow_rate; // [m3/s]

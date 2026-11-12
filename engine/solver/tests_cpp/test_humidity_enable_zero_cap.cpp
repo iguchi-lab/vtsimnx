@@ -94,6 +94,15 @@ SimulationConstants makeConstants() {
     return c;
 }
 
+// 本番は求解前に syncHumidityBoundariesBeforeSolve が吸込湿度へ同期する。
+void copyInletHumidityToAircon(ThermalNetwork& thermal, const std::string& airconKey) {
+    auto& graph = thermal.getGraph();
+    const auto vAc = thermal.getKeyToVertex().at(airconKey);
+    const auto vIn = thermal.getKeyToVertex().at(graph[vAc].in_node);
+    graph[vAc].current_x = graph[vIn].current_x;
+    graph[vAc].aircon_moisture_removal_kg_s = 0.0;
+}
+
 } // namespace
 
 int main() {
@@ -572,7 +581,8 @@ int main() {
                        "vent-side aircon supplyX must NOT be restored");
         }
 
-        // パススルー空調の大風量還気は湿度移流から除外し、外気湿度を薄めない
+        // 停止中の大風量還気は吸込湿度へ同期したうえで移流に載せる。
+        // 同一室循環なら正味は打ち消し、室湿度は外気側へ上昇する。
         {
             auto room = makeNode("ROOM", true, 50.0, 0.005);
             auto out = makeNode("OUT", false, 0.0, 0.015);
@@ -595,6 +605,7 @@ int main() {
             HumidityNetwork humidity;
             ventNet.buildFromData(nodes, vent, c, logs);
             thermal.buildFromData(nodes, th, vent, c, logs);
+            copyInletHumidityToAircon(thermal, "AC");
             humidity.invalidateCaches();
 
             const auto stats = core::humidity::updateHumidityIfEnabled(
@@ -604,9 +615,8 @@ int main() {
             expectTrue(stats.converged && stats.updated, "passthrough-ac humidity converged");
             const double xRoom =
                 thermal.getGraph()[thermal.getKeyToVertex().at("ROOM")].current_x;
-            // 還気を載せると AC(x=0) で薄まり x→0。除外後は外気側へ上昇する。
-            // 容量・流量・1ステップでは外気へ漸近（微小な数値誤差を許容）
-            if (!(xRoom > 0.008) || !(xRoom < 0.015 + 1e-3)) {
+            // 吸込同期後の同一室循環は正味ほぼゼロ。外気でわずかに上がり、0 へ落ちない。
+            if (!(xRoom > 0.005) || !(xRoom < 0.015 + 1e-3)) {
                 std::ostringstream oss;
                 oss << "passthrough AC humidity lock check failed: xRoom=" << xRoom;
                 throw std::runtime_error(oss.str());
@@ -648,7 +658,7 @@ int main() {
         }
 
         // ------------------------------------------------------------------
-        // HEATING ON は還気を湿度から除外（過乾燥しない）／COOLING ON は除湿 BC
+        // HEATING ON は吸込湿度へ同期して移流に載せる（過乾燥しない）／COOLING ON は除湿 BC
         // ------------------------------------------------------------------
         {
             auto room = makeNode("ROOM", true, 50.0, 0.010);
@@ -672,6 +682,7 @@ int main() {
             HumidityNetwork humidity;
             ventNet.buildFromData(nodes, vent, c, logs);
             thermal.buildFromData(nodes, th, vent, c, logs);
+            copyInletHumidityToAircon(thermal, "AC");
             humidity.invalidateCaches();
 
             const auto vRoom = thermal.getKeyToVertex().at("ROOM");
@@ -687,8 +698,52 @@ int main() {
             expectTrue(s1.converged && s1.updated, "heating humidity solve");
             const double xRoom = thermal.getGraph()[vRoom].current_x;
             expectTrue(std::isfinite(xRoom), "HEATING humidity finite");
-            // 回帰: 残留 supplyX≈0 の還気で室内が過乾燥しないこと
-            expectTrue(xRoom > 0.0105, "HEATING must not dry room via stale supplyX");
+            expectTrue(xRoom > 0.0105, "HEATING must not dry room after inlet passthrough");
+        }
+
+        // 異室回路（ホール→空調→出口→室→ホール）では暖房中も湿気が回る。
+        // 枝を切ると出口絶対湿度が 0 に落ち、ホールに水分が残る。
+        {
+            auto hall = makeNode("HALL", true, 30.0, 0.015);
+            auto room = makeNode("ROOM", true, 30.0, 0.005);
+            auto outlet = makeNode("OUTLET", true, 2.0, 0.005);
+            auto ac = makeNode("AC", false, 0.0, 0.0);
+            ac.type = "aircon";
+            ac.on = true;
+            ac.current_mode = "HEATING";
+            ac.in_node = "HALL";
+            std::vector<VertexProperties> nodes = {hall, room, outlet, ac};
+            std::vector<EdgeProperties> vent = {
+                makeVent("HALL->AC", "HALL", "AC", 0.05),
+                makeVent("AC->OUTLET", "AC", "OUTLET", 0.05),
+                makeVent("OUTLET->ROOM", "OUTLET", "ROOM", 0.05),
+                makeVent("ROOM->HALL", "ROOM", "HALL", 0.05),
+            };
+            std::vector<EdgeProperties> th;
+            SimulationConstants c = constants;
+
+            VentilationNetwork ventNet;
+            ThermalNetwork thermal;
+            HumidityNetwork humidity;
+            ventNet.buildFromData(nodes, vent, c, logs);
+            thermal.buildFromData(nodes, th, vent, c, logs);
+            copyInletHumidityToAircon(thermal, "AC");
+            humidity.invalidateCaches();
+
+            const auto stats = core::humidity::updateHumidityIfEnabled(
+                c, ventNet, thermal.getGraph(),
+                static_cast<const ThermalNetwork&>(thermal).nodeStateView(), humidity, {}, logs,
+                timings, "heating-cross-room");
+            expectTrue(stats.converged && stats.updated, "heating cross-room humidity converged");
+            const auto& g = thermal.getGraph();
+            const double xHall = g[thermal.getKeyToVertex().at("HALL")].current_x;
+            const double xRoom = g[thermal.getKeyToVertex().at("ROOM")].current_x;
+            const double xOutlet = g[thermal.getKeyToVertex().at("OUTLET")].current_x;
+            expectTrue(std::isfinite(xHall) && std::isfinite(xRoom) && std::isfinite(xOutlet),
+                       "heating cross-room humidity finite");
+            expectTrue(xOutlet > 0.01, "AC outlet must not collapse toward dry air");
+            expectTrue(xRoom > 0.005 + 1e-4, "supply rooms must receive hall moisture");
+            expectTrue(xHall < 0.015 - 1e-5, "hall must export moisture through the AC path");
         }
 
         {
