@@ -5,6 +5,7 @@
 namespace aircon::latent {
 
 struct LatentProcessResult {
+    const char* regime = "unclassified"; // diagnostic branch, not a control state
     double sensibleHeatCapacity = 0.0; // [W]
     double latentHeatCapacity = 0.0;   // [W]
     double supplyX = 0.0;              // [kg/kg(DA)]

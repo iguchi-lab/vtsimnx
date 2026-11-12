@@ -6,6 +6,8 @@ C++ 製 VTSimNX ソルバの実行を担う薄いラッパーモジュール。
 - 生成された出力 JSON を読み戻して Python の辞書にして返す
 """
 import json
+import gzip
+import logging
 import subprocess
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
@@ -153,6 +155,8 @@ def cleanup_run_workdir(run_id: str, *, keep_artifacts: bool = True) -> None:
             shutil.rmtree(run_dir, ignore_errors=True)
             return
 
+        if os.getenv("VTSIMNX_KEEP_RUN_FILES") is not None:
+            return
         for pattern in ("input.*", "output.*", "builder.log.tmp", "input.cache.tmp.*"):
             for p in run_dir.glob(pattern):
                 try:
@@ -524,6 +528,34 @@ def _get_cached_input_path(
             except Exception:
                 pass
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    return digest.hexdigest()
+
+
+def _preserve_failed_run(input_path: Path, run_dir: Path, reason: str) -> None:
+    """Local-only replay bundle; never place input in public download aliases."""
+    replay = run_dir / "replay"
+    replay.mkdir(exist_ok=True)
+    with input_path.open("rb") as source, gzip.open(replay / "input.json.gz", "wb") as target:
+        shutil.copyfileobj(source, target)
+    metadata = {
+        "format_version": 1,
+        "run_id": run_dir.name,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "reason": reason,
+        "input_sha256": _sha256_file(input_path),
+        "solver_path": str(SOLVER_EXE),
+        "solver_sha256": _sha256_file(SOLVER_EXE) if SOLVER_EXE.is_file() else None,
+    }
+    (replay / "replay.json").write_text(
+        json.dumps(metadata, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+
 def run_solver(
     input_data: Dict[str, Any],
     *,
@@ -562,6 +594,7 @@ def run_solver(
         input_path = run_dir / f"input.{run_id}.json"
         _write_input_json(input_data, path=input_path, pretty=pretty_input, sort_keys=False)
 
+    failure_reason = "solver did not return a valid result"
     try:
         _invoke_solver(
             input_path,
@@ -573,7 +606,20 @@ def run_solver(
 
         with output_path.open("r", encoding="utf-8") as f:
             output_data = json.load(f)
+        if output_data.get("status") == "ok" and not output_data.get("error"):
+            failure_reason = ""
+        else:
+            failure_reason = str(output_data.get("error_code") or output_data.get("error") or failure_reason)
+    except Exception as exc:
+        failure_reason = f"{type(exc).__name__}: {exc}"
+        raise
     finally:
+        if failure_reason:
+            try:
+                _preserve_failed_run(input_path, run_dir, failure_reason)
+            except Exception:
+                # Diagnostics must not replace the original failure.
+                logging.getLogger(__name__).exception("Failed to preserve solver replay: %s", run_id)
         if not keep_run_files:
             try:
                 if (not cached_input) and input_path.exists():

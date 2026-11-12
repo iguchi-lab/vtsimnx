@@ -189,6 +189,26 @@ void solveTemperaturesLinearDirect(ThermalNetwork& network,
         throw std::runtime_error("thermal solve failed (direct absolute T solver)");
     }
 
+    // A global RHS scale mixes heat-balance rows [W] with temperature
+    // constraints [K]. Validate the latter independently before accepting or
+    // caching a solution, including reused solutions.
+    const double setpointToleranceK = effectiveAirconTemperatureToleranceK(constants);
+    for (size_t i = 0; i < n; ++i) {
+        const Vertex ac = ctx.topology.fixedRowAirconVertex[i];
+        if (ac == std::numeric_limits<Vertex>::max()) continue;
+        const double target = graph[ac].current_pre_temp;
+        const double errorK = std::abs(temperatures[i] - target);
+        if (!std::isfinite(errorK) || errorK > setpointToleranceK) {
+            ctx.solutionReuse.valid = false;
+            ctx.postprocessReuse.valid = false;
+            std::ostringstream oss;
+            oss << "thermal setpoint constraint violated: node=" << ctx.topology.nodeNames[i]
+                << " T_C=" << temperatures[i] << " target_C=" << target
+                << " error_K=" << errorK << " tolerance_K=" << setpointToleranceK;
+            throw std::runtime_error(oss.str());
+        }
+    }
+
     ctx.solutionReuse.valid = true;
     ctx.solutionReuse.graphPtr = &graph;
     ctx.solutionReuse.n = n;

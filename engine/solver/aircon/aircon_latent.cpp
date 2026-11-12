@@ -117,6 +117,7 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
     result.supplyX = std::max(0.0, validData.indoorX);
 
     if (operationMode != OperationMode::Cooling) {
+        result.regime = "non_cooling_passthrough";
         if (moistEnthalpyEnabled && airFlowRate > std::numeric_limits<double>::epsilon()) {
             const double qTotal = thermal_moist_air::processedEnthalpyHeatW(
                 validData.indoorTemp,
@@ -130,7 +131,10 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
         }
         return result;
     }
-    if (!(airFlowRate > std::numeric_limits<double>::epsilon())) return result;
+    if (!(airFlowRate > std::numeric_limits<double>::epsilon())) {
+        result.regime = "no_flow";
+        return result;
+    }
 
     const double tIn = validData.indoorTemp;
     const double tOut = validData.airconTemp;
@@ -141,6 +145,7 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
     if (std::isfinite(preRh) && preRh > 0.0 && preRh <= 100.0) {
         const double xSp = std::max(0.0, archenv::absolute_humidity(tIn, preRh));
         if (xIn > xSp) {
+            result.regime = "ideal_pre_rh";
             result.supplyX = xSp;
             result.condensationRateKgPerS =
                 kAirDensity * std::abs(airFlowRate) * (xIn - result.supplyX);
@@ -168,6 +173,7 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
     }
 
     if (!(tIn > tOut)) {
+        result.regime = "no_temperature_drop";
         result.supplyX = xIn;
         result.condensationRateKgPerS = 0.0;
         if (moistEnthalpyEnabled) {
@@ -179,6 +185,7 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
 
     const std::string latentMethod = readLatentMethod(nodeProps);
     if (latentMethod == "none") {
+        result.regime = "latent_disabled";
         result.supplyX = xIn;
         result.condensationRateKgPerS = 0.0;
         if (moistEnthalpyEnabled) {
@@ -191,6 +198,7 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
     }
 
     auto applyRh95 = [&]() {
+        result.regime = "rh95";
         const double x95 = std::max(0.0, archenv::absolute_humidity(tOut, kDefaultSupplyRhPercent));
         result.supplyX = std::min(xIn, x95);
         const double xSatOut = std::max(0.0, archenv::absolute_humidity(tOut, 100.0));
@@ -200,6 +208,7 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
     };
 
     if (latentMethod == "bf") {
+        result.regime = "bypass_factor";
         const double bf = readBypassFactor(nodeProps);
         if (!(bf < 1.0)) {
             result.supplyX = xIn;
@@ -233,6 +242,7 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
         }
     } else {
         if (latentMethod == "coil_aoaf" || latentMethod == "aoaf" || latentMethod == "literature") {
+            result.regime = "coil_dry_or_inactive";
             const double V = std::abs(airFlowRate);
             const double Af = readCoilFaceArea(nodeProps);
             const double Ao = readCoilSurfaceArea(nodeProps);
@@ -264,6 +274,7 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
 
                         double hrW = 0.0;
                         if (trDp > td) {
+                            result.regime = "coil_wet";
                             const double dx = std::max(0.0, xStar - xd);
                             hrW = std::max(0.0, (archenv::LATENT_HEAT_VAPORIZATION +
                                                  archenv::SPECIFIC_HEAT_WATER_VAPOR * td) *

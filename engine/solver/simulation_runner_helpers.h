@@ -76,7 +76,7 @@ void invalidateAirconRequiredHeat(Graph& graph);
 // 1K 超で前反復から減らないとき 0.5、1回の混合変化は 20K まで。
 // 許容付近の単調減少には緩和しない。内側連成が 1 回で終わる
 // （状態量が温度だけのときなど）には掛けない。
-// 熱解が非物理（NaN/Inf または current_t が絶対範囲外）なら混合せず前反復へ戻す。
+// 熱解が非物理なら停止する。緩和後の小さい変化を収束の根拠にしない。
 constexpr double kCouplingTemperatureMaxMixedStepK = 20.0;
 constexpr double kCouplingTemperatureStallFloorK = 1.0;
 constexpr double kCouplingTemperatureStallRelaxation = 0.5;
