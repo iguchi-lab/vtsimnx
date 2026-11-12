@@ -1,6 +1,7 @@
 #include <cmath>
 #include <cstdint>
 #include <iostream>
+#include <limits>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
@@ -153,6 +154,58 @@ void testTemperatureRelaxationAlpha() {
     expectTrue(capped < 0.05, "T-relax: huge delta is strongly damped");
     expectNear(couplingTemperatureRelaxation(0.3, 2, 59.5, 59.5, tol), 0.3, 1e-12,
                "T-relax: configured ceiling is respected");
+}
+
+void testUnphysicalTemperatureDetection() {
+    using simulation::detail::anyUnphysicalCalcTemperature;
+    using simulation::detail::couplingTemperatureUnphysical;
+    using simulation::detail::invalidateAirconRequiredHeat;
+    using simulation::detail::kCouplingTemperatureAbsMax;
+    using simulation::detail::kCouplingTemperatureAbsMin;
+
+    expectTrue(!couplingTemperatureUnphysical(kCouplingTemperatureAbsMin),
+               "T-bound: min is physical");
+    expectTrue(!couplingTemperatureUnphysical(kCouplingTemperatureAbsMax),
+               "T-bound: max is physical");
+    expectTrue(!couplingTemperatureUnphysical(20.0), "T-bound: room T is physical");
+    expectTrue(couplingTemperatureUnphysical(kCouplingTemperatureAbsMin - 0.1),
+               "T-bound: below min is unphysical");
+    expectTrue(couplingTemperatureUnphysical(kCouplingTemperatureAbsMax + 0.1),
+               "T-bound: above max is unphysical");
+    expectTrue(couplingTemperatureUnphysical(3479.0), "T-bound: 3479C is unphysical");
+    expectTrue(couplingTemperatureUnphysical(std::numeric_limits<double>::quiet_NaN()),
+               "T-bound: NaN is unphysical");
+    expectTrue(couplingTemperatureUnphysical(std::numeric_limits<double>::infinity()),
+               "T-bound: Inf is unphysical");
+
+    Graph g;
+    const auto room = boost::add_vertex(g);
+    g[room].key = "ROOM";
+    g[room].type = "normal";
+    g[room].calc_t = true;
+    g[room].current_t = 18.8;
+    const auto wall = boost::add_vertex(g);
+    g[wall].key = "WALL";
+    g[wall].type = "layer";
+    g[wall].calc_t = false;
+    g[wall].current_t = 500.0;
+    expectTrue(!anyUnphysicalCalcTemperature(g),
+               "unphysical T: calc_t=false outliers are ignored");
+
+    g[room].current_t = 206.0;
+    expectTrue(anyUnphysicalCalcTemperature(g),
+               "unphysical T: calc_t node at 206C is rejected");
+
+    const auto ac = boost::add_vertex(g);
+    g[ac].key = "AC";
+    g[ac].type = "aircon";
+    g[ac].required_heat_w = 61198.1;
+    g[room].required_heat_w = 123.0;
+    invalidateAirconRequiredHeat(g);
+    expectTrue(!std::isfinite(g[ac].required_heat_w),
+               "unphysical T: Qreq is cleared on aircon nodes");
+    expectNear(g[room].required_heat_w, 123.0, 0.0,
+               "unphysical T: non-aircon Qreq is unchanged");
 }
 
 void testInnerCouplingMaxIterations() {
@@ -509,6 +562,7 @@ int main() {
     testInnerCouplingPressureFirstFail();
     testInnerCouplingMaxIterations();
     testTemperatureRelaxationAlpha();
+    testUnphysicalTemperatureDetection();
     testHumidityCouplingFlags();
     testAirconDecideActions();
     testOuterMaxIterationsThrow();

@@ -19,6 +19,9 @@ constexpr double kCapacityLimitInitialBracketWidth = 10.0;        // [degC]
 constexpr int kCapacityLimitMaxBracketExpansions = 8;
 constexpr double kCapacityConvergenceRelTol = 0.001;
 constexpr double kCapacityConvergenceAbsTol = 1.0;                // [W]
+// 実測処理熱量が上限の何倍を超えたら、入口温度・設定・風量から見た能力と
+// 矛盾する（非物理な熱解の持ち込み）とみなして設定探索しない。
+constexpr double kUnphysicalProcessedHeatMultiple = 2.0;
 
 inline double clampHeatCapacity(double value) {
     if (!std::isfinite(value)) {
@@ -359,6 +362,18 @@ void applyExceededCapacityAdjustment(
     CapacityBracketMap& capacityLimitBracket,
     std::ostringstream& oss,
     bool& adjustmentMade) {
+    if (!std::isfinite(indoorTemp) || !std::isfinite(currentTotal) || !std::isfinite(maxHeatCapacity)) {
+        oss << " → 非有限な処理熱量/温度のため設定補正をスキップ";
+        return;
+    }
+    const double expectedQ = estimateHeatCapacityForSetpoint(
+        operationMode, indoorTemp, nodeProps.current_pre_temp, airFlowRate);
+    if (currentTotal > kUnphysicalProcessedHeatMultiple * maxHeatCapacity &&
+        expectedQ <= maxHeatCapacity) {
+        oss << " → 処理熱量が温度・風量と不整合のため設定補正をスキップ"
+            << "（処理=" << currentTotal << "W, 入口・設定からの見積=" << expectedQ << "W）";
+        return;
+    }
     auto limitedSetpoint = findCapacityLimitedSetpoint(
         operationMode,
         indoorTemp,

@@ -213,7 +213,7 @@ flowchart TD
 - `simulation.coupling.humidity_relaxation`:
   - 湿気反復の緩和係数 `(0,1]`（既定 `1.0`）
 - `simulation.coupling.temperature_relaxation`:
-  - 圧力–温度 Picard の温度緩和上限 `(0,1]`（既定 `1.0`）。1 K 超で減らないときと大振幅時だけさらに下げる。湿気枝は切らない
+  - 圧力–温度 Picard の温度緩和上限 `(0,1]`（既定 `1.0`）。1 K 超で減らないときと大振幅時だけさらに下げる。内側が 1 回で終わる温度のみ計算には掛けない。熱解が非物理温度なら混合せず棄却する。湿気枝は切らない
 - `simulation.coupling.latent_relaxation`:
   - 潜熱フィードバック緩和係数 `(0,1]`（既定 `0.5`）
 - `simulation.coupling.humidity_solver_tolerance`:

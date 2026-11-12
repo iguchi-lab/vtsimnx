@@ -45,8 +45,12 @@ using detail::makeSharedNodeStateArgs;
 using detail::maxAbsLatentHeatChange;
 using detail::relaxHumidityByVertex;
 using detail::relaxTemperatureByVertex;
+using detail::restoreTemperaturesByVertex;
+using detail::invalidateAirconRequiredHeat;
+using detail::anyUnphysicalCalcTemperature;
 using detail::couplingTemperatureRelaxation;
 using detail::couplingTemperatureTol;
+using detail::needsInnerCoupledIteration;
 using detail::restoreWPrevToGraph;
 using detail::updateLatentFromHumidityChange;
 using detail::updateLatentFromPhaseChange;
@@ -214,25 +218,46 @@ void runInnerCoupling(InnerCouplingContext& ctx,
         if (ctx.constants.temperatureCalc) {
             const double rawTemperatureChange =
                 calculateTemperatureChangeByVertex(ctx.thermal.getGraph(), snap.temperature);
-            const double temperatureAlpha = couplingTemperatureRelaxation(
-                ctx.constants.temperatureRelaxation,
-                coupledIter,
-                rawTemperatureChange,
-                prevRawTemperatureChange,
-                couplingTemperatureTol(ctx.constants));
-            relaxTemperatureByVertex(ctx.thermal.getGraph(), ctx.ventilation, snap.temperature,
-                                     temperatureAlpha);
-            if (ctx.constants.pressureCalc) {
-                ctx.ventilation.syncTemperaturesFromThermalNetwork(ctx.thermal);
+            if (anyUnphysicalCalcTemperature(ctx.thermal.getGraph())) {
+                restoreTemperaturesByVertex(ctx.thermal.getGraph(), ctx.ventilation, snap.temperature);
+                invalidateAirconRequiredHeat(ctx.thermal.getGraph());
+                ctx.thermal.invalidateDirectTSolveCache();
+                if (ctx.constants.pressureCalc) {
+                    ctx.ventilation.syncTemperaturesFromThermalNetwork(ctx.thermal);
+                }
+                if (logEnabled) {
+                    writeDomainLog(
+                        ctx.logs,
+                        "連成",
+                        "熱解が非物理温度のため棄却: 生温度変化量: " +
+                            std::to_string(rawTemperatureChange) + " K（前反復温度を保持）");
+                }
+                prevRawTemperatureChange = 0.0;
+            } else if (needsInnerCoupledIteration(ctx.constants)) {
+                // 20K 混合は Picard 再反復があるときだけ。温度だけの 1 回解に
+                // 掛けると空調 ON 直後のコイル ΔT が切れ、次ステップで除熱になる。
+                const double temperatureAlpha = couplingTemperatureRelaxation(
+                    ctx.constants.temperatureRelaxation,
+                    coupledIter,
+                    rawTemperatureChange,
+                    prevRawTemperatureChange,
+                    couplingTemperatureTol(ctx.constants));
+                relaxTemperatureByVertex(ctx.thermal.getGraph(), ctx.ventilation, snap.temperature,
+                                         temperatureAlpha);
+                if (ctx.constants.pressureCalc) {
+                    ctx.ventilation.syncTemperaturesFromThermalNetwork(ctx.thermal);
+                }
+                if (logEnabled && temperatureAlpha < 1.0) {
+                    writeDomainLog(
+                        ctx.logs,
+                        "連成",
+                        "温度緩和: alpha=" + std::to_string(temperatureAlpha) +
+                            ", 生温度変化量: " + std::to_string(rawTemperatureChange) + " K");
+                }
+                prevRawTemperatureChange = rawTemperatureChange;
+            } else {
+                prevRawTemperatureChange = rawTemperatureChange;
             }
-            if (logEnabled && temperatureAlpha < 1.0) {
-                writeDomainLog(
-                    ctx.logs,
-                    "連成",
-                    "温度緩和: alpha=" + std::to_string(temperatureAlpha) +
-                        ", 生温度変化量: " + std::to_string(rawTemperatureChange) + " K");
-            }
-            prevRawTemperatureChange = rawTemperatureChange;
         }
 
         if (humidityActive) {
