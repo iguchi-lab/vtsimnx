@@ -45,13 +45,15 @@ void updateLatentFromHumidityChange(const Graph& graph,
                                     const std::vector<double>& xN,
                                     double dt,
                                     double relaxation,
-                                    std::vector<double>& humidityLatentInOut);
+                                    std::vector<double>& humidityLatentInOut,
+                                    std::vector<double>* rawOut = nullptr);
 
 // 材料ノードのみ: Q = -L * m_phase, m_phase = -materialPhaseChange（正=蒸発）
 void updateLatentFromPhaseChange(const Graph& graph,
                                  const MoistureBalanceTerms& bal,
                                  double relaxation,
-                                 std::vector<double>& humidityLatentInOut);
+                                 std::vector<double>& humidityLatentInOut,
+                                    std::vector<double>* rawOut = nullptr);
 
 void capturePrevTempsByVertex(const Graph& graph, std::vector<double>& prevTempsByVertex);
 void captureXPrevByVertex(const Graph& graph, std::vector<double>& xPrev);

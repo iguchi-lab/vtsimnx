@@ -40,10 +40,11 @@ bool updateDuctCentralFanAffinity(VentilationNetwork& ventNetwork,
                                   bool increaseOnly = false,
                                   bool dampUpdate = false);
 
-// 暖房の設定温度拘束を低速ファンで解くと、内側連成が風量補正前に発散しうる。
-// 候補の必要負荷に応じてファン速度を増やす。温度候補は呼び出し側で破棄して解き直す。
+// 冷暖房の設定温度拘束を小風量で解くと、内側連成が風量補正前に発散しうる。
+// 候補の必要負荷に応じてファン速度または fixed_flow を増やす。
+// 温度候補は呼び出し側で破棄して解き直す。
 // 減速・ON/OFF・能力制限・最低能力ホールドの決定は外側制御に残す。
-bool increaseHeatingFanForCoupledSolve(VentilationNetwork& ventNetwork,
+bool increaseAirflowForCoupledSolve(VentilationNetwork& ventNetwork,
                                        const Graph& thermalGraph,
                                        std::ostream& logs,
                                        bool logEnabled);

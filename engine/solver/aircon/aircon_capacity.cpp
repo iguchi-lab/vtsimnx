@@ -17,9 +17,6 @@ constexpr double kSetpointFloor = 0.0;
 constexpr double kSetpointCeiling = 50.0;
 constexpr double kCapacityLimitInitialBracketWidth = 10.0;        // [degC]
 constexpr int kCapacityLimitMaxBracketExpansions = 8;
-// 実測処理熱量が上限の何倍を超えたら、入口温度・設定・風量から見た能力と
-// 矛盾する（非物理な熱解の持ち込み）とみなして設定探索しない。
-constexpr double kUnphysicalProcessedHeatMultiple = 2.0;
 
 inline double clampHeatCapacity(double value) {
     if (!std::isfinite(value)) {
@@ -360,15 +357,11 @@ void applyExceededCapacityAdjustment(
         oss << " → 非有限な処理熱量/温度のため設定補正をスキップ";
         return;
     }
-    const double expectedQ = estimateHeatCapacityForSetpoint(
-        operationMode, indoorTemp, nodeProps.current_pre_temp, airFlowRate);
-    if (currentTotal > kUnphysicalProcessedHeatMultiple * maxHeatCapacity &&
-        expectedQ <= maxHeatCapacity) {
-        oss << " → 処理熱量が温度・風量と不整合のため設定補正をスキップ"
-            << "（処理=" << currentTotal << "W, 入口・設定からの見積=" << expectedQ << "W）";
-        return;
-    }
-    auto limitedSetpoint = findCapacityLimitedSetpoint(
+    // A remote controlled-room setpoint is not the coil outlet temperature.
+    // Its inlet/setpoint estimate can be zero despite a real positive load.
+    const bool remoteSetpoint = !nodeProps.set_node.empty() &&
+        nodeProps.set_node != nodeProps.key && nodeProps.set_node != nodeProps.in_node;
+    auto limitedSetpoint = remoteSetpoint ? std::optional<double>{} : findCapacityLimitedSetpoint(
         operationMode,
         indoorTemp,
         nodeProps.current_pre_temp,

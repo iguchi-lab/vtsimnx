@@ -68,7 +68,7 @@ def test_heating_load_increase_from_minimum_fan(heating_solver, monkeypatch, res
     assert heat[-1] == pytest.approx(7000.0, abs=2.0), heat
     if restart:
         assert heat[1] == pytest.approx(0.0, abs=1e-3), heat
-    assert "暖房ファン先行補正" in (art / "solver.log").read_text()
+    assert "空調風量先行補正" in (art / "solver.log").read_text()
 
 
 def test_fan_retry_respects_coupling_limit(heating_solver):
@@ -79,7 +79,7 @@ def test_fan_retry_respects_coupling_limit(heating_solver):
     assert out["status"] == "error", out
     assert out["error_code"] == "coupling_max_iterations", out
     art = sr.resolve_artifact_path(out["artifact_dir"])
-    assert "暖房ファン先行補正" in (art / "solver.log").read_text()
+    assert "空調風量先行補正" in (art / "solver.log").read_text()
 
 
 @pytest.mark.parametrize("backend", ["klu", "eigen"])

@@ -4,6 +4,7 @@
 #include "types/graph_types.h"
 
 #include <cstddef>
+#include <cmath>
 #include <cstdint>
 #include <memory>
 #include <unordered_map>
@@ -11,6 +12,21 @@
 #include <vector>
 
 class VentilationNetwork;
+
+// Zero-removal equipment is an algebraic mixing node, even during cooling.
+// Only an active dehumidification process owns a fixed supply boundary.
+// Share this role across assembly, relaxation, rollback and physical checks.
+inline bool airconHumidityPassthrough(const VertexProperties& node) {
+    return node.type == "aircon" &&
+           (!node.on || node.current_mode == "OFF" || node.current_mode == "HEATING" ||
+            (node.current_mode == "AUTO" && std::isfinite(node.required_heat_w) &&
+             node.required_heat_w >= 0.0) ||
+            !(node.aircon_moisture_removal_kg_s > 0.0));
+}
+
+inline bool humiditySolveNode(const VertexProperties& node) {
+    return node.type == "aircon" ? airconHumidityPassthrough(node) : node.calc_x;
+}
 
 namespace core::humidity {
 struct HumiditySolverContext;

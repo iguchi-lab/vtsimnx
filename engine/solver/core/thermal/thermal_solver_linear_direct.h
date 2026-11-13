@@ -42,4 +42,10 @@ void resetDirectTCacheStats();
 // 既定コンテキストを明示的に初期化（キャッシュ破棄）する
 void resetDirectTSolverContext();
 
+// Re-evaluate heat balance and setpoint constraints at the state being accepted,
+// including humidity/latent-source changes made after the temperature solve.
+bool validateCurrentState(ThermalNetwork& network,
+                          const SimulationConstants& constants,
+                          std::ostream& logFile);
+
 } // namespace ThermalSolverLinearDirect

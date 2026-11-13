@@ -1,3 +1,5 @@
+#include "simulation_error.h"
+#include "network/humidity_network.h"
 #include "aircon/aircon_controller.h"
 #include "aircon/aircon_onoff.h"
 #include "aircon/aircon_capacity.h"
@@ -283,22 +285,11 @@ AirconController::RuntimeContext AirconController::prepareRuntimeContext(
 }
 
 void AirconController::syncHumidityBoundariesBeforeSolve(ThermalNetwork& thermalNetwork) const {
-    // 戻り値（再計算要求）は捨てる。ここは湿度ソルバ用の境界整備のみ。
-    constexpr double kNoRecomputeTol = 1e30;
-    // 未初期化判定床: 極小の正値（過乾燥の残留）を supplyX として残さない
-    constexpr double kUninitializedHumidityFloor = 1e-4; // kg/kg(DA)
+    // Pass-through humidity is solved with the room, never copied from its
+    // previous iterate. Only clear the obsolete condensation diagnostic here.
     for (const auto& airconKey : getAirconKeys()) {
-        const auto& nodeProps = thermalNetwork.getNode(airconKey);
-        const bool scheduleOff = (nodeProps.current_mode == "OFF");
-        // 冷房以外は除湿しない。吸込へパススルーする。
-        const bool nonCooling = (nodeProps.current_mode != "COOLING");
-        const bool uninitialized =
-            !std::isfinite(nodeProps.current_x) ||
-            !(nodeProps.current_x > kUninitializedHumidityFloor);
-        if (!nodeProps.on || scheduleOff || nonCooling || uninitialized) {
-            (void)aircon::latent::applyPassthroughHumidityToAirconNode(
-                thermalNetwork, airconKey, kNoRecomputeTol);
-        }
+        auto& node = thermalNetwork.getNode(airconKey);
+        if (airconHumidityPassthrough(node)) node.aircon_moisture_removal_kg_s = 0.0;
     }
 }
 
@@ -420,6 +411,28 @@ void AirconController::applyOnOffControlResult(
         auto proposal = makeAirconStateProposalBase(airconKey, nodeProps);
         proposal.reasons = unitReasons;
         outProposals->push_back(std::move(proposal));
+    }
+}
+
+void AirconController::validateAcceptedCapacity(ThermalNetwork& thermalNetwork,
+                                                const FlowRateMap& flowRates) const {
+    for (const auto& key : getAirconKeys()) {
+        const auto& node = thermalNetwork.getNode(key);
+        if (!node.on) continue;
+        const auto context = prepareRuntimeContext(key, thermalNetwork, node, flowRates);
+        const auto loads = aircon::latent::estimateLatentProcess(
+            context.validData, context.operationMode, context.heatCapacity,
+            context.airFlowRate, node, moistEnthalpyEnabled_);
+        const double total = aircon::latent::totalHeatCapacity(loads);
+        std::string source;
+        const auto maximum = aircon::capacity::resolveMaxHeatCapacity(node, context.operationMode, source);
+        if (!std::isfinite(total) ||
+            (maximum && aircon::capacity::capacityExceedsLimit(total, *maximum))) {
+            throw simulation::Error(simulation::ErrorCode::CapacityConstraintUnresolved,
+                "Accepted-state capacity constraint failed: aircon=" + key +
+                ", Q=" + std::to_string(total) + ", Qmax=" +
+                (maximum ? std::to_string(*maximum) : "unset"));
+        }
     }
 }
 
@@ -547,7 +560,8 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
     bool adjustmentMade = false;
     constexpr double kMinFlowTol = 1e-6;        // [m3/s]
     constexpr double kRelativeFlowTol = 1e-3;   // [-]
-    const double xTol = (humidityAbsTol > 0.0) ? humidityAbsTol : 1e-9;
+    (void)supplyHumidityChanged;
+    (void)humidityAbsTol;
 
     for (const auto& airconKey : getAirconKeys()) {
         auto& nodeProps = thermalNetwork.getNode(airconKey);
@@ -560,17 +574,6 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
             context.validData, context.operationMode, context.heatCapacity, context.airFlowRate,
             nodeProps, moistEnthalpyEnabled_);
         AirconRecomputeReason unitReasons = AirconRecomputeReason::None;
-        const double oldSupplyX = nodeProps.current_x;
-        const bool boundaryChanged = aircon::latent::applySupplyHumidityToAirconNode(
-            thermalNetwork, airconKey, loads, xTol);
-        if (logVerbosity_ > 0 && (boundaryChanged || logVerbosity_ >= 2)) {
-            logLatentBoundary(logs, "airflow", airconKey, context.validData, loads,
-                              nodeProps, context.airFlowRate, oldSupplyX, boundaryChanged);
-        }
-        if (boundaryChanged) {
-            if (supplyHumidityChanged) *supplyHumidityChanged = true;
-            unitReasons |= AirconRecomputeReason::SupplyHumidityChanged;
-        }
         const double measuredHeatW = aircon::latent::totalHeatCapacity(loads);
 
         double controlledRoomTemp = context.validData.setTemp;

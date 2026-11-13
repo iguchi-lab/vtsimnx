@@ -36,20 +36,15 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
                                           const VertexProperties& nodeProps,
                                           bool moistEnthalpyEnabled = false);
 
-// 外側ループ再計算判定の湿度床 [kg/kg(DA)]。
-// coupling/convergence tol が 1e-6 など極小だと、OFF パススルーや微小な supplyX
-// ドリフトで毎ステップ数十回の外側ループが走り、年間計算がクライアントタイムアウトする。
-inline constexpr double kSupplyHumidityRecomputeFloor = 1e-4;
-
 // 吹出湿度・除湿量を空調ノードへ反映（湿気移流境界と診断の正本）。
-// 再計算要求は supplyX(=current_x) の変化のみ。除湿量は常に更新するが判定には使わない。
+// 固定境界を変更した場合は必ず再計算。許容内なら解いた境界値を保持する。
 bool applySupplyHumidityToAirconNode(ThermalNetwork& thermalNetwork,
                                      const std::string& airconKey,
                                      const LatentProcessResult& loads,
                                      double humidityAbsTol = 1e-9);
 
-// OFF（または送風のみ）: 吹出湿度を入口ノードへ追従させ、除湿量を 0 にする。
-// supplyX が変化した場合 true（外側ループ再計算要求用）。
+// OFF（または送風のみ）: 除湿量を 0 にする。湿度は室と同時に求解する。
+// 固定境界から未知数へ変わる場合 true（外側ループ再計算要求用）。
 bool applyPassthroughHumidityToAirconNode(ThermalNetwork& thermalNetwork,
                                           const std::string& airconKey,
                                           double humidityAbsTol = 1e-9);

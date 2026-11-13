@@ -750,7 +750,12 @@ void testCoolingSupplyHumiditySameTimestepPropagation() {
         timings, "fresh");
     const double xAfterFresh =
         thermal.getGraph()[thermal.getKeyToVertex().at("ROOM")].current_x;
-    expectTrue(xAfterFresh < xInit - 1e-4, "same-timestep: room humidity falls toward supplyX");
+    const double acceptedBoundary = thermal.getNode("AC").current_x;
+    const double storage = archenv::DENSITY_DRY_AIR * 100.0 / c.timestep;
+    const double transport = archenv::DENSITY_DRY_AIR * flow;
+    const double expectedX = (storage * xInit + transport * acceptedBoundary) / (storage + transport);
+    expectNear(xAfterFresh, expectedX, 1e-12, "same-timestep humidity obeys implicit water balance");
+    expectTrue(xAfterFresh < xInit, "same-timestep: room humidity falls toward supplyX");
     expectTrue(xAfterFresh > supplyX - 1e-6, "room x stays above supply boundary");
 }
 
@@ -758,7 +763,9 @@ void testApplySupplyHumidityChangeDetectionIgnoresRemovalOnly() {
     ThermalNetwork thermal;
     auto ac = makeAir("AC", false, 14.0, 0.0, 0.008);
     ac.type = "aircon";
-    ac.aircon_moisture_removal_kg_s = 0.0;
+    ac.on = true;
+    ac.current_mode = "COOLING";
+    ac.aircon_moisture_removal_kg_s = 0.001;
     thermal.addNode(ac);
 
     aircon::latent::LatentProcessResult loads{};
@@ -786,9 +793,9 @@ void testPassthroughHumidityOnOffClearsDrySupply() {
     thermal.addNode(IN);
     thermal.addNode(AC);
 
-    expectTrue(aircon::latent::applyPassthroughHumidityToAirconNode(thermal, "AC", 1e-9),
-               "OFF passthrough reports supplyX change");
-    expectNear(thermal.getNode("AC").current_x, 0.012, 1e-15, "OFF follows inlet x");
+    expectTrue(!aircon::latent::applyPassthroughHumidityToAirconNode(thermal, "AC", 1e-9),
+               "OFF has no fixed humidity boundary to change");
+    expectNear(thermal.getNode("AC").current_x, 0.008, 0.0, "OFF humidity is left to the mixing solve");
     expectNear(thermal.getNode("AC").aircon_moisture_removal_kg_s, 0.0, 0.0, "OFF clears removal");
     expectTrue(simulation::decideAirconIterationAction(false, true, false, true) ==
                    simulation::AirconIterationAction::RecomputeForSupplyHumidity,
@@ -797,8 +804,8 @@ void testPassthroughHumidityOnOffClearsDrySupply() {
     thermal.getNode("IN").current_x = 0.012 + 5e-5;
     expectTrue(!aircon::latent::applyPassthroughHumidityToAirconNode(thermal, "AC", 1e-9),
                "sub-floor passthrough drift must not request recompute");
-    expectNear(thermal.getNode("AC").current_x, 0.012 + 5e-5, 1e-15,
-               "passthrough still updates current_x under floor");
+    expectNear(thermal.getNode("AC").current_x, 0.008, 0.0,
+               "passthrough never overwrites solved humidity with inlet drift");
 }
 
 void testAirconProcessedEnthalpyHelper() {

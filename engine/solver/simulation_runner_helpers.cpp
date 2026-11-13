@@ -172,7 +172,8 @@ void updateLatentFromHumidityChange(const Graph& graph,
                                     const std::vector<double>& xN,
                                     double dt,
                                     double relaxation,
-                                    std::vector<double>& humidityLatentInOut) {
+                                    std::vector<double>& humidityLatentInOut,
+                                    std::vector<double>* rawOut) {
     if (!(dt > 0.0)) {
         return;
     }
@@ -198,6 +199,7 @@ void updateLatentFromHumidityChange(const Graph& graph,
             oscillating = true;
         }
     }
+    if (rawOut) *rawOut = qRaw;
     if (oscillating) {
         alpha = std::min(alpha, 0.5);
     }
@@ -210,7 +212,8 @@ void updateLatentFromHumidityChange(const Graph& graph,
 void updateLatentFromPhaseChange(const Graph& graph,
                                  const MoistureBalanceTerms& bal,
                                  double relaxation,
-                                 std::vector<double>& humidityLatentInOut) {
+                                 std::vector<double>& humidityLatentInOut,
+                                    std::vector<double>* rawOut) {
     const size_t nV = static_cast<size_t>(boost::num_vertices(graph));
     if (humidityLatentInOut.size() != nV) {
         humidityLatentInOut.assign(nV, 0.0);
@@ -232,6 +235,7 @@ void updateLatentFromPhaseChange(const Graph& graph,
             oscillating = true;
         }
     }
+    if (rawOut) *rawOut = qRaw;
     if (oscillating) {
         alpha = std::min(alpha, 0.5);
     }
@@ -294,7 +298,7 @@ double calculateHumidityChangeByVertex(const Graph& graph, const std::vector<dou
     for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
         const size_t idx = static_cast<size_t>(v);
         if (idx >= prevHumidityByVertex.size()) continue;
-        if (!graph[v].calc_x) continue;
+        if (!humiditySolveNode(graph[v])) continue;
         const double change = std::abs(graph[v].current_x - prevHumidityByVertex[idx]);
         maxChange = std::max(maxChange, change);
     }
@@ -346,7 +350,7 @@ bool anyUnphysicalCalcTemperature(const Graph& graph) {
 
 bool anyUnphysicalCalcHumidity(const Graph& graph) {
     for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
-        if (!graph[v].calc_x) continue;
+        if (!humiditySolveNode(graph[v])) continue;
         if (couplingHumidityUnphysical(graph[v].current_x)) return true;
     }
     return false;
@@ -391,7 +395,7 @@ void relaxHumidityByVertex(Graph& graph,
     for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
         const size_t idx = static_cast<size_t>(v);
         if (idx >= prevHumidityByVertex.size()) continue;
-        if (!graph[v].calc_x) continue;
+        if (!humiditySolveNode(graph[v])) continue;
         const double mixed = prevHumidityByVertex[idx] + alpha * (graph[v].current_x - prevHumidityByVertex[idx]);
         graph[v].current_x = mixed;
         graph[v].current_w = mixed;
@@ -409,7 +413,7 @@ void restoreUnknownHumidityStateToGraph(Graph& graph,
     auto& vGraph = ventNetwork.getGraph();
     for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
         // 固定境界（空調吹出 supplyX / 外気 / 設定湿度など）は外側反復の更新を保持する
-        if (!graph[v].calc_x) continue;
+        if (!humiditySolveNode(graph[v])) continue;
         const size_t i = static_cast<size_t>(v);
         if (i >= xPrev.size()) continue;
         graph[v].current_x = xPrev[i];

@@ -256,11 +256,19 @@ void testUnphysicalHumidityDetection() {
     g[room].current_x = 0.008;
     const auto supply = boost::add_vertex(g);
     g[supply].key = "AC";
-    g[supply].type = "aircon";
+    g[supply].type = "normal";
     g[supply].calc_x = false;
     g[supply].current_x = 2.0;
     expectTrue(!anyUnphysicalCalcHumidity(g),
                "unphysical x: calc_x=false outliers are ignored");
+
+    g[supply].type = "aircon";
+    g[supply].on = false;
+    expectTrue(anyUnphysicalCalcHumidity(g),
+               "unphysical x: OFF aircon is a solved mixing node even with calc_x=false");
+    g[supply].current_x = 0.008;
+    expectTrue(!anyUnphysicalCalcHumidity(g),
+               "physical room and mixing-node humidities are accepted");
 
     g[room].current_x = 0.8;
     expectTrue(anyUnphysicalCalcHumidity(g),
