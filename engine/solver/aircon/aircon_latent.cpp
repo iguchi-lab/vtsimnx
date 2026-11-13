@@ -85,6 +85,11 @@ inline double dewPointFromAbsoluteHumidity(double x) {
 
 namespace aircon::latent {
 
+double saturationHumidityUpperBound(double temperatureC) {
+    return std::max(0.0, archenv::absolute_humidity(temperatureC, 100.0)) *
+        (1.0 - 8.0 * std::numeric_limits<float>::epsilon());
+}
+
 double totalHeatCapacity(const LatentProcessResult& loads) {
     return std::max(0.0, loads.sensibleHeatCapacity) + std::max(0.0, loads.latentHeatCapacity);
 }
@@ -144,8 +149,8 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
     // All cooling models share the same physical outlet constraint. The
     // sensible solution fixes tOut; water removal is derived from the final x.
     // Leave a sub-ppm margin for float32 temperature/humidity artifact rounding.
-    const double xSatOut = std::max(0.0, archenv::absolute_humidity(tOut, 100.0));
-    result.supplyXUpperBound = xSatOut * (1.0 - 8.0 * std::numeric_limits<float>::epsilon());
+    result.supplyXUpperBound = std::min(
+        saturationHumidityUpperBound(tOut), validData.additionalSupplyXUpperBound);
     auto rhPercent = [&](double x) {
         const double vaporPressure = archenv::STANDARD_ATMOSPHERIC_PRESSURE * x / (0.622 + x);
         return 100.0 * vaporPressure / archenv::saturation_vapor_pressure(tOut);

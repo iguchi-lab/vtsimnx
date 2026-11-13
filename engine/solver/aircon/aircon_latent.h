@@ -20,6 +20,9 @@ struct LatentProcessResult {
     bool saturationLimited = false;
 };
 
+// Shared physical limit, including float32 artifact rounding protection.
+double saturationHumidityUpperBound(double temperatureC);
+
 double totalHeatCapacity(const LatentProcessResult& loads);
 
 acmodel::InputData buildAcmodelInput(const AirconValidationData& validData,

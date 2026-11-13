@@ -171,9 +171,60 @@ void testCoilDewPointContinuity() {
     }
 }
 
+void testPassiveDischargeWaterBalance() {
+    for (const std::string variant : {"parallel_reverse", "disabled", "storage", "source",
+                                     "mixing", "conduction", "controlled_room"}) {
+        ThermalNetwork net;
+        auto ac = makeNode("AC", "aircon", 15.0);
+        ac.in_node = "return";
+        ac.set_node = variant == "controlled_room" ? "outlet" : "room";
+        net.addNode(ac);
+        auto outlet = makeNode("outlet", "normal", 15.0);
+        outlet.calc_x = true;
+        outlet.v = variant == "storage" ? 1.0 : 0.0;
+        net.addNode(outlet);
+        net.addNode(makeNode("room", "normal", 27.0));
+        auto edge = [&](const std::string& key, const std::string& source,
+                        const std::string& target, double flow, bool enabled = true,
+                        double generation = 0.0, const std::string& type = "advection") {
+            EdgeProperties e{};
+            e.key = e.unique_id = key;
+            e.source = source;
+            e.target = target;
+            e.type = type;
+            e.flow_rate = flow;
+            e.current_enabled = enabled;
+            e.current_humidity_generation = generation;
+            net.addEdge(e);
+        };
+        edge("in1", "AC", "outlet", 0.1);
+        edge("in2", "outlet", "AC", -0.2);
+        edge("out1", "outlet", "room", 0.1);
+        edge("out2", "room", "outlet", -0.2 + 3e-6);
+        if (variant == "source") edge("gen", "room", "outlet", 0.0, true, 1e-6);
+        if (variant == "mixing") edge("mix", "room", "outlet", 1e-6);
+        if (variant == "conduction") edge("heat", "room", "outlet", 0.0, true, 0.0, "conductance");
+        if (variant == "disabled") edge("ignored", "room", "outlet", 1.0, false, 1.0);
+        const auto constraints = aircon::network_utils::passiveSupplyOutletConstraints(net, ac);
+        if (variant != "parallel_reverse" && variant != "disabled") {
+            expectTrue(constraints.empty(), variant + ": general rooms/sources must not use plenum constraint");
+            continue;
+        }
+        expectTrue(constraints.size() == 1, variant + ": one discharge constraint");
+        if (constraints.empty()) continue;
+        const auto& c = constraints.front();
+        const double sat = archenv::absolute_humidity(15.0, 100.0);
+        expectNear(c.supplyXUpperBound / c.outletXUpperBound, 1.0 - 1e-5, 1e-12,
+                   "parallel and reversed flows preserve the plenum water balance");
+        expectTrue(c.supplyXUpperBound * 0.3 / (0.3 - 3e-6) < sat,
+                   "water-conserving outlet stays below saturation");
+    }
+}
+
 } // namespace
 
 int main() {
+    testPassiveDischargeWaterBalance();
     expectNear(archenv::saturation_vapor_pressure(100.0), 101324.6, 1e-7,
                "saturation reference matches Python report conversion");
     testCoilDewPointContinuity();

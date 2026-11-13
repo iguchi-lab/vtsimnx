@@ -281,6 +281,11 @@ AirconController::RuntimeContext AirconController::prepareRuntimeContext(
 
     context.operationMode = resolveOperationModeForRuntime(
         nodeProps.current_mode, context.validData.indoorTemp, context.validData.airconTemp);
+    if (context.operationMode == OperationMode::Cooling) {
+        for (const auto& outlet : aircon::network_utils::passiveSupplyOutletConstraints(thermalNetwork, nodeProps))
+            context.validData.additionalSupplyXUpperBound = std::min(
+                context.validData.additionalSupplyXUpperBound, outlet.supplyXUpperBound);
+    }
     context.heatCapacity = calculateHeatCapacity(thermalNetwork, modeKey(context.operationMode),
                                                  nodeProps.in_node, nodeProps.key, flowRates);
     return context;
@@ -433,6 +438,12 @@ bool AirconController::acceptedHumidityConverged(ThermalNetwork& thermalNetwork,
              aircon::latent::supplyHumidityNeedsUpdate(node, loads, humidityAbsTol))) {
             writeDomainLog(logs, "受入検査", "空調吹出湿度未達: aircon=" + key);
             return false;
+        }
+        for (const auto& outlet : aircon::network_utils::passiveSupplyOutletConstraints(thermalNetwork, node)) {
+            if (thermalNetwork.getNode(outlet.outletKey).current_x > outlet.outletXUpperBound) {
+                writeDomainLog(logs, "受入検査", "空調出口湿度未達: outlet=" + outlet.outletKey);
+                return false;
+            }
         }
     }
     return true;

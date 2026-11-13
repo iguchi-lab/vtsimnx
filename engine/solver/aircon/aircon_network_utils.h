@@ -4,8 +4,20 @@
 #include "vtsim_solver.h"
 
 #include <string>
+#include <vector>
 
 namespace aircon::network_utils {
+
+struct PassiveSupplyOutletConstraint {
+    std::string outletKey;
+    double supplyXUpperBound;
+    double outletXUpperBound;
+};
+
+// Only zero-capacity, source-free, purely advective discharge plenums with one
+// upstream AC qualify. Occupied rooms and mixing/storage networks remain free.
+std::vector<PassiveSupplyOutletConstraint> passiveSupplyOutletConstraints(
+    const ThermalNetwork& thermalNetwork, const VertexProperties& airconNode);
 
 double getFlowRate(const FlowRateMap& flowRates,
                    const std::string& source,

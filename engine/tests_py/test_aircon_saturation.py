@@ -93,3 +93,36 @@ def test_ideal_humidity_uses_requested_room_temperature_not_return_air():
     assert s("humidity_x", "AC")[0] == pytest.approx(expected, abs=1e-7)
     # Capacity-limited actual room temperature must not redefine the ideal goal.
     assert s("thermal_temperature", "room")[0] > 27.5
+
+
+@pytest.mark.parametrize("method", ["coil_aoaf", "ideal_rh60"])
+@pytest.mark.parametrize("coupled", [False, True])
+def test_discharge_plenum_stays_unsaturated_with_small_flow_residual(method, coupled):
+    raw = _raw_coil_case(0.026, duct=True)
+    raw["simulation"]["coupling"]["moisture_enabled"] = coupled
+    raw["nodes"].extend([
+        {"key": "return", "t": 30.0, "x": 0.026},
+        {"key": "supply", "t": 27.5, "x": 0.0082,
+         "calc_t": True, "calc_x": True, "v": 0.0},
+    ])
+    ac = raw["aircon"][0]
+    ac.update({"in": "return", "out": "supply"})
+    ac["ac_spec"].pop("V_inner")
+    ac["ac_spec"]["Q"]["cooling"]["max"] = 20.0
+    ac["ac_spec"]["latent_method"] = "none" if method == "ideal_rh60" else method
+    if method == "ideal_rh60":
+        ac["pre_rh"] = 60.0
+    # A tiny fixed imbalance reproduces the pressure solver's accepted mass
+    # residual. Water conservation gives x_supply = x_AC * q_in / q_out.
+    raw["ventilation_branches"].extend([
+        {"key": "supply->room", "vol": 0.3 * (1 - 1e-5)},
+        {"key": "room->return", "vol": 0.3 * (1 - 1e-5)},
+    ])
+    s = run(raw)
+    for key in ("AC", "supply"):
+        t, x = s("thermal_temperature", key), s("humidity_x", key)
+        rh = 100 * vapor_pressure_from_humidity_ratio_pa(x) / saturation_vapor_pressure_pa(t)
+        assert np.max(rh) <= 100.0, (method, key, rh)
+    assert s("humidity_x", "supply")[0] == pytest.approx(
+        s("humidity_x", "AC")[0] / (1 - 1e-5), abs=2e-9)
+    assert s("aircon_latent_heat", "AC")[0] > 0

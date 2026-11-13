@@ -282,6 +282,8 @@ void ThermalNetwork::syncFlowRatesFromVentilationNetwork(const VentilationNetwor
         auto itAd = advectionEdgeByVentUniqueId.find(thermalUniqueId);
         if (itAd == advectionEdgeByVentUniqueId.end()) continue;
         graph[itAd->second].flow_rate = ventEp.flow_rate;
+        graph[itAd->second].current_enabled = ventEp.current_enabled;
+        graph[itAd->second].current_humidity_generation = ventEp.current_humidity_generation;
     }
 }
 
