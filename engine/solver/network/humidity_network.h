@@ -20,6 +20,10 @@ class VentilationNetwork;
 inline bool airconHumidityPassthrough(const VertexProperties& node) {
     if (node.type != "aircon") return false;
     if (!node.on || node.current_mode == "OFF" || node.current_mode == "HEATING") return true;
+    // AUTO's fresh signed required load resolves the operating mode before the
+    // humidity solve, including the first iteration after a schedule change.
+    if (node.current_mode == "AUTO" && std::isfinite(node.required_heat_w) &&
+        node.required_heat_w >= 0.0) return true;
     if (std::isfinite(node.current_pre_rh) && node.current_pre_rh > 0.0 && node.current_pre_rh <= 100.0) return false;
     const auto& spec = node.ac_spec;
     return spec.is_object() && spec.contains("latent_method") &&

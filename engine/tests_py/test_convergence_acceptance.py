@@ -40,7 +40,7 @@ def fixed_flow(ac, flow=0.363011):
 
 
 @pytest.mark.parametrize("coupled", [False, True])
-@pytest.mark.parametrize("mode", ["HEATING", "OFF"])
+@pytest.mark.parametrize("mode", ["HEATING", "AUTO", "OFF"])
 @pytest.mark.parametrize("generation", [0.0, 1e-6, 1e-5])
 def test_closed_room_preserves_generated_water(coupled, mode, generation):
     raw = heating_fan_case()
@@ -58,7 +58,7 @@ def test_closed_room_preserves_generated_water(coupled, mode, generation):
     x = read_series(art, out, "humidity_x", "room")[0]
     # Closed 36 kg dry-air inventory: recirculation cannot remove any water.
     assert x == pytest.approx(0.01 + generation * 3600 / (1.2 * 30), abs=1e-8)
-    if mode == "HEATING":
+    if mode in ("HEATING", "AUTO"):
         supply_x = read_series(art, out, "humidity_x", "AC")[0]
         assert supply_x == pytest.approx(x, abs=1e-8)
 
