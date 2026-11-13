@@ -21,6 +21,7 @@
 | キーと単位を確認する | [ノード／枝の早見表](node_branch_schema.md) / [単位](units.md) |
 | 壁・空調・換気などを足す | 下の機能ガイド |
 | 項目の定義を厳密に確認する | [builder 入力正本](../engine/docs/builder_json.md) |
+| 未収束の原因を調べ、保存した入力を再実行する | [収束診断手順](../engine/docs/convergence_diagnostics.md) |
 | HTTP の要求と応答を確認する | [API 契約](../engine/docs/api_reference.md) |
 | 式と計算手順の規範を読む | [仕様書](specification/README.md) |
 | モデルの解説を通読する | [技術解説書 v3.3（PDF）](vtsimnx_calculation_model_and_implementation_flow_ja_v3.3.pdf) |

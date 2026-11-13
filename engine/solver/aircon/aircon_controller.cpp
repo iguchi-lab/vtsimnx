@@ -30,6 +30,25 @@ namespace {
 constexpr double kAirDensity = archenv::DENSITY_DRY_AIR;         // [kg/m^3]
 constexpr double kAirSpecificHeat = archenv::SPECIFIC_HEAT_AIR;   // [J/(kg·K)]
 
+void logLatentBoundary(std::ostream& logs, const char* stage, const std::string& key,
+                       const AirconValidationData& data, const aircon::latent::LatentProcessResult& loads,
+                       const VertexProperties& node, double flow, double oldX, bool changed) {
+    std::ostringstream out;
+    out << std::setprecision(10) << "latent_boundary stage=" << stage << " key=" << key
+        << " mode=" << node.current_mode << " regime=" << loads.regime
+        << " T_in=" << data.indoorTemp << " T_supply=" << data.airconTemp
+        << " x_in=" << data.indoorX << " x_old=" << oldX << " x_new=" << loads.supplyX
+        << " pre_rh=";
+    // NaN is the documented sentinel for an omitted RH setpoint, not a failed solve.
+    if (std::isnan(node.current_pre_rh)) out << "unset";
+    else out << node.current_pre_rh;
+    out << " flow=" << flow
+        << " sensible_W=" << loads.sensibleHeatCapacity << " latent_W=" << loads.latentHeatCapacity
+        << " removal_kg_s=" << loads.condensationRateKgPerS
+        << " recompute=" << changed;
+    writeDomainLog(logs, "空調診断", out.str());
+}
+
 inline double clampHeatCapacity(double value) {
     if (!std::isfinite(value)) {
         return 0.0;
@@ -427,8 +446,14 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                 context.validData, context.operationMode, context.heatCapacity, context.airFlowRate,
                 nodeProps, moistEnthalpyEnabled_);
             AirconRecomputeReason unitReasons = AirconRecomputeReason::None;
-            if (aircon::latent::applySupplyHumidityToAirconNode(
-                    thermalNetwork, airconKey, loads, xTol)) {
+            const double oldSupplyX = nodeProps.current_x;
+            const bool boundaryChanged = aircon::latent::applySupplyHumidityToAirconNode(
+                thermalNetwork, airconKey, loads, xTol);
+            if (logVerbosity_ > 0 && (boundaryChanged || logVerbosity_ >= 2)) {
+                logLatentBoundary(logs, "capacity", airconKey, context.validData, loads,
+                                  nodeProps, context.airFlowRate, oldSupplyX, boundaryChanged);
+            }
+            if (boundaryChanged) {
                 if (supplyHumidityChanged) *supplyHumidityChanged = true;
                 unitReasons |= AirconRecomputeReason::SupplyHumidityChanged;
             }
@@ -532,8 +557,14 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
             context.validData, context.operationMode, context.heatCapacity, context.airFlowRate,
             nodeProps, moistEnthalpyEnabled_);
         AirconRecomputeReason unitReasons = AirconRecomputeReason::None;
-        if (aircon::latent::applySupplyHumidityToAirconNode(
-                thermalNetwork, airconKey, loads, xTol)) {
+        const double oldSupplyX = nodeProps.current_x;
+        const bool boundaryChanged = aircon::latent::applySupplyHumidityToAirconNode(
+            thermalNetwork, airconKey, loads, xTol);
+        if (logVerbosity_ > 0 && (boundaryChanged || logVerbosity_ >= 2)) {
+            logLatentBoundary(logs, "airflow", airconKey, context.validData, loads,
+                              nodeProps, context.airFlowRate, oldSupplyX, boundaryChanged);
+        }
+        if (boundaryChanged) {
             if (supplyHumidityChanged) *supplyHumidityChanged = true;
             unitReasons |= AirconRecomputeReason::SupplyHumidityChanged;
         }

@@ -12,6 +12,22 @@ namespace {
 
 constexpr const char* kLuBackendEnv = "VTSIMNX_THERMAL_DIRECT_LU";
 
+// A symmetric sparsity pattern does not imply A == A^T. Dirichlet/aircon
+// constraint rows and directed advection commonly have asymmetric values.
+// Cholesky reads only one triangle, so require exact coefficient symmetry;
+// any roundoff asymmetry safely uses the general LU path.
+bool hasSymmetricValues(const Eigen::SparseMatrix<double>& matrix) {
+    for (int outer = 0; outer < matrix.outerSize(); ++outer) {
+        for (Eigen::SparseMatrix<double>::InnerIterator it(matrix, outer); it; ++it) {
+            if (!std::isfinite(it.value()) || it.value() != matrix.coeff(it.col(), it.row())) {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+
 /** KLU 経路では Eigen SparseLU の analyze を飛ばすため、フォールバック前に必須。 */
 inline void ensureEigenSparseLuAnalyzed(SparseLUCache& sparseLu) {
     if (sparseLu.eigenAnalyzed) return;
@@ -297,7 +313,7 @@ bool solveSparseDirect(DirectTSolverContext& ctx,
         }
     }
 
-    const bool symmetricCandidate = chol.patternSymmetric;
+    const bool symmetricCandidate = chol.patternSymmetric && hasSymmetricValues(sparseLu.A);
     Eigen::VectorXd sol;
     bool solved = false;
 

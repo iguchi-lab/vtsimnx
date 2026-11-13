@@ -16,6 +16,7 @@
 #include <chrono>
 #include <cmath>
 #include <memory>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -45,11 +46,8 @@ using detail::makeSharedNodeStateArgs;
 using detail::maxAbsLatentHeatChange;
 using detail::relaxHumidityByVertex;
 using detail::relaxTemperatureByVertex;
-using detail::restoreTemperaturesByVertex;
-using detail::invalidateAirconRequiredHeat;
 using detail::anyUnphysicalCalcTemperature;
 using detail::anyUnphysicalCalcHumidity;
-using detail::restoreUnknownHumidityStateToGraph;
 using detail::couplingTemperatureRelaxation;
 using detail::couplingTemperatureTol;
 using detail::needsInnerCoupledIteration;
@@ -57,6 +55,22 @@ using detail::restoreWPrevToGraph;
 using detail::updateLatentFromHumidityChange;
 using detail::updateLatentFromPhaseChange;
 using detail::CoupledDelta;
+
+std::string invalidStateDetail(const Graph& graph, bool temperature) {
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        const auto& node = graph[v];
+        const double value = temperature ? node.current_t : node.current_x;
+        if ((temperature ? node.calc_t : node.calc_x) &&
+            (temperature ? detail::couplingTemperatureUnphysical(value)
+                         : detail::couplingHumidityUnphysical(value))) {
+            std::ostringstream message;
+            message << "node=" << node.key << ", "
+                    << (temperature ? "T_C=" : "x_kg_kg=") << value;
+            return message.str();
+        }
+    }
+    return "unknown node";
+}
 
 double maxAbsVector(const std::vector<double>& v) {
     double m = 0.0;
@@ -140,6 +154,12 @@ void runDecoupledHumidityStep(InnerCouplingContext& ctx,
             "Humidity solver did not converge during decoupled humidity step");
     }
 
+    if (anyUnphysicalCalcHumidity(ctx.thermal.getGraph())) {
+        throw Error(ErrorCode::HumidityNotConverged,
+                    "Unphysical humidity candidate rejected; " +
+                    invalidStateDetail(ctx.thermal.getGraph(), false));
+    }
+
     if (heatSources != nullptr && latentCouplingActive(ctx.constants)) {
         const size_t nV = static_cast<size_t>(boost::num_vertices(ctx.thermal.getGraph()));
         detail::ensureHeatSourceVectors(*heatSources, nV);
@@ -217,24 +237,15 @@ void runInnerCoupling(InnerCouplingContext& ctx,
             step.flowRates = ctx.ventilation.collectFlowRateMap();
         }
 
+        double rawTemperatureChange = 0.0;
+        double rawHumidityChange = 0.0;
         if (ctx.constants.temperatureCalc) {
-            const double rawTemperatureChange =
+            rawTemperatureChange =
                 calculateTemperatureChangeByVertex(ctx.thermal.getGraph(), snap.temperature);
             if (anyUnphysicalCalcTemperature(ctx.thermal.getGraph())) {
-                restoreTemperaturesByVertex(ctx.thermal.getGraph(), ctx.ventilation, snap.temperature);
-                invalidateAirconRequiredHeat(ctx.thermal.getGraph());
-                ctx.thermal.invalidateDirectTSolveCache();
-                if (ctx.constants.pressureCalc) {
-                    ctx.ventilation.syncTemperaturesFromThermalNetwork(ctx.thermal);
-                }
-                if (logEnabled) {
-                    writeDomainLog(
-                        ctx.logs,
-                        "連成",
-                        "熱解が非物理温度のため棄却: 生温度変化量: " +
-                            std::to_string(rawTemperatureChange) + " K（前反復温度を保持）");
-                }
-                prevRawTemperatureChange = 0.0;
+                throw Error(ErrorCode::ThermalNotConverged,
+                            "Unphysical thermal candidate rejected; " +
+                            invalidStateDetail(ctx.thermal.getGraph(), true));
             } else if (needsInnerCoupledIteration(ctx.constants)) {
                 // 20K 混合は Picard 再反復があるときだけ。温度だけの 1 回解に
                 // 掛けると空調 ON 直後のコイル ΔT が切れ、次ステップで除熱になる。
@@ -288,15 +299,11 @@ void runInnerCoupling(InnerCouplingContext& ctx,
                     ErrorCode::HumidityNotConverged,
                     "Humidity solver did not converge during inner coupling");
             }
+            rawHumidityChange = calculateHumidityChangeByVertex(ctx.thermal.getGraph(), snap.humidity);
             if (anyUnphysicalCalcHumidity(ctx.thermal.getGraph())) {
-                restoreUnknownHumidityStateToGraph(
-                    ctx.thermal.getGraph(), ctx.ventilation, snap.humidity);
-                if (logEnabled) {
-                    writeDomainLog(
-                        ctx.logs,
-                        "連成",
-                        "湿気解が非物理絶対湿度のため棄却（前反復湿度を保持）");
-                }
+                throw Error(ErrorCode::HumidityNotConverged,
+                            "Unphysical humidity candidate rejected; " +
+                            invalidStateDetail(ctx.thermal.getGraph(), false));
             } else {
                 relaxHumidityByVertex(ctx.thermal.getGraph(), ctx.ventilation, snap.humidity,
                                       ctx.constants.humidityRelaxation);
@@ -329,11 +336,13 @@ void runInnerCoupling(InnerCouplingContext& ctx,
         }
         if (ctx.constants.temperatureCalc) {
             delta.temperatureChange =
-                calculateTemperatureChangeByVertex(ctx.thermal.getGraph(), snap.temperature);
+                std::max(rawTemperatureChange,
+                         calculateTemperatureChangeByVertex(ctx.thermal.getGraph(), snap.temperature));
         }
         if (humidityActive) {
             delta.humidityChange =
-                calculateHumidityChangeByVertex(ctx.thermal.getGraph(), snap.humidity);
+                std::max(rawHumidityChange,
+                         calculateHumidityChangeByVertex(ctx.thermal.getGraph(), snap.humidity));
         }
         if (latentActive) {
             delta.latentHeatChange = maxAbsLatentHeatChange(latentPrev, heatSources.humidityLatent);
