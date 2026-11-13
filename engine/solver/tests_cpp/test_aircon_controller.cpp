@@ -1618,6 +1618,83 @@ int main() {
         expectTrue(lossUnchanged, "pressure_loss connector is not overwritten");
     }
 
+    // A provisional heating solve may need more fan speed before inner convergence.
+    {
+        Graph trial;
+        auto ac = boost::add_vertex(makeNode("AC", "aircon", 150.0), trial);
+        auto& node = trial[ac];
+        node.on = true;
+        node.model = "DUCT_CENTRAL";
+        node.current_mode = "HEATING";
+        node.set_node = "ROOM";
+        node.current_requested_pre_temp = 20.0;
+        node.required_heat_w = 3600.0;
+        node.aircon_control_state = AirconControlState::SetpointControlled;
+        node.ac_spec = nlohmann::json{
+            {"Q", {{"heating", {{"rtd", 7.2}}}}},
+            {"V_inner", {{"heating", {{"dsgn", 0.2}}}}},
+        };
+        node.initializeAirconSpec();
+        VentilationNetwork vent;
+        auto& vg = vent.getGraph();
+        auto room = boost::add_vertex(makeNode("ROOM", "normal", 20.0), vg);
+        auto supply = boost::add_vertex(makeNode("AC", "aircon", 20.0), vg);
+        EdgeProperties fan{};
+        fan.type = "fan";
+        fan.subtype = "aircon";
+        fan.fan_curve_rated = true;
+        fan.p_max_rated = 80.0;
+        fan.p1_rated = 40.0;
+        fan.q1_rated = 0.1;
+        fan.q_max_rated = 0.2;
+        fan.p_max = 0.8;
+        fan.p1 = 0.4;
+        fan.q1 = 0.01;
+        fan.q_max = 0.02;
+        const auto edge = boost::add_edge(room, supply, fan, vg).first;
+        std::ostringstream logs;
+        const auto update = [&]() {
+            return aircon::airflow::increaseHeatingFanForCoupledSolve(vent, trial, logs, true);
+        };
+        expectTrue(update(), "heating candidate increases stale minimum fan speed");
+        expectNear(vg[edge].q_max, 0.1, 1e-12, "half rated load requests half fan speed");
+        expectNear(vg[edge].p_max, 20.0, 1e-12, "fan pressure follows affinity square");
+        expectNear(node.current_t, 150.0, 1e-12, "fan predictor does not clamp the thermal candidate");
+        expectTrue(!update(), "unchanged fan must not request another retry");
+        node.required_heat_w = 2000.0;
+        expectTrue(!update(), "inner predictor never reduces fan speed");
+        node.required_heat_w = 72000.0;
+        expectTrue(update(), "large demand can reach rated fan speed");
+        expectNear(vg[edge].q_max, 0.2, 1e-12, "predictor never exceeds rated fan speed");
+
+        vg[edge] = fan;
+        node.required_heat_w = 3600.0;
+        node.aircon_control_state = AirconControlState::CapacityLimited;
+        expectTrue(!update(), "capacity bracket keeps its fan fixed");
+        node.aircon_control_state = AirconControlState::Off;
+        expectTrue(update(), "preset ON can precede the outer control state update");
+        vg[edge] = fan;
+        node.aircon_control_state = AirconControlState::SetpointControlled;
+        node.on = false;
+        expectTrue(!update(), "OFF unit does not increase fan");
+        node.on = true;
+        node.current_mode = "COOLING";
+        expectTrue(!update(), "heating predictor does not change cooling control");
+        node.current_mode = "HEATING";
+        node.required_heat_w = -3600.0;
+        expectTrue(!update(), "opposite load sign is left to ON/OFF control");
+        node.required_heat_w = std::numeric_limits<double>::quiet_NaN();
+        expectTrue(!update(), "non-finite load does not change fan");
+        node.required_heat_w = 3600.0;
+        node.aircon_min_process_hold = true;
+        expectTrue(!update(), "minimum-process hold is not released by a provisional load");
+        node.aircon_min_process_hold = false;
+        vg[edge].type = "fixed_flow";
+        vg[edge].current_vol = 0.02;
+        expectTrue(!update(), "fixed-flow equipment is not changed by the fan predictor");
+        expectNear(vg[edge].current_vol, 0.02, 1e-12, "fixed flow remains prescribed");
+    }
+
     // DUCT_CENTRAL: in == out のループでも吹出を逆符号にしない
     {
         auto& in = thermal.getNode("IN");

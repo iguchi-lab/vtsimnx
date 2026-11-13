@@ -35,7 +35,16 @@ bool updateDuctCentralFanAffinity(VentilationNetwork& ventNetwork,
                                   const std::string& airconNode,
                                   double targetFlowM3s,
                                   double ratioTol,
-                                  bool* fanPresent = nullptr);
+                                  bool* fanPresent = nullptr,
+                                  bool increaseOnly = false);
+
+// 暖房の設定温度拘束を低速ファンで解くと、内側連成が風量補正前に発散しうる。
+// 候補の必要負荷に応じてファン速度を増やす。温度候補は呼び出し側で破棄して解き直す。
+// 減速・ON/OFF・能力制限・最低能力ホールドの決定は外側制御に残す。
+bool increaseHeatingFanForCoupledSolve(VentilationNetwork& ventNetwork,
+                                       const Graph& thermalGraph,
+                                       std::ostream& logs,
+                                       bool logEnabled);
 
 // 風量比に使う基準熱量。計測コイル熱は室温が自由なときだけ。
 struct FlowHeatBasis {

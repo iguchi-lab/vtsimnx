@@ -1,5 +1,6 @@
 #include "simulation_inner_coupling.h"
 
+#include "aircon/aircon_airflow.h"
 #include "core/humidity/humidity_coupling.h"
 #include "core/humidity/humidity_solver.h"
 #include "network/humidity_network.h"
@@ -235,6 +236,23 @@ void runInnerCoupling(InnerCouplingContext& ctx,
         }
         if (!ctx.constants.pressureCalc) {
             step.flowRates = ctx.ventilation.collectFlowRateMap();
+        }
+
+        // 暖房の必要負荷が増えたとき、古い低速ファンのまま設定温度拘束を
+        // 収束させようとしない。候補は採用せず、増速したファンで解き直す。
+        // 能力探索中は対象外。減速などの最終制御は内側収束後に行う。
+        if (ctx.constants.pressureCalc && ctx.constants.temperatureCalc &&
+            aircon::airflow::increaseHeatingFanForCoupledSolve(
+                ctx.ventilation, ctx.thermal.getGraph(), ctx.logs, logEnabled)) {
+            detail::restoreTemperaturesByVertex(
+                ctx.thermal.getGraph(), ctx.ventilation, snap.temperature);
+            detail::invalidateAirconRequiredHeat(ctx.thermal.getGraph());
+            prevRawTemperatureChange = 0.0;
+            if (coupledIter >= detail::effectiveMaxCouplingIterations(ctx.constants)) {
+                throw Error(ErrorCode::CouplingMaxIterations,
+                            "Maximum iteration count reached while updating heating fan");
+            }
+            continue;
         }
 
         double rawTemperatureChange = 0.0;

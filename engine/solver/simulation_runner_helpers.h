@@ -73,12 +73,11 @@ void restoreTemperaturesByVertex(Graph& graph,
                                  const std::vector<double>& prevTemps);
 void invalidateAirconRequiredHeat(Graph& graph);
 // 圧力–温度 Picard の温度緩和係数。configured を上限にし、
-// 1K 超で前反復から減らないとき 0.5、1回の混合変化は 20K まで。
+// 許容誤差の10倍を超え前反復から減らないとき 0.5、1回の混合変化は 20K まで。
 // 許容付近の単調減少には緩和しない。内側連成が 1 回で終わる
 // （状態量が温度だけのときなど）には掛けない。
 // 熱解が非物理なら停止する。緩和後の小さい変化を収束の根拠にしない。
 constexpr double kCouplingTemperatureMaxMixedStepK = 20.0;
-constexpr double kCouplingTemperatureStallFloorK = 1.0;
 constexpr double kCouplingTemperatureStallRelaxation = 0.5;
 constexpr double kCouplingTemperatureAbsMin = -80.0;  // current_t と同じ単位（°C）
 constexpr double kCouplingTemperatureAbsMax = 120.0;

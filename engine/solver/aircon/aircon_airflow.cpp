@@ -3,6 +3,7 @@
 #include "aircon/aircon_capacity.h"
 #include "aircon/aircon_operation_mode.h"
 #include "types/aircon_control_state.h"
+#include "utils/utils.h"
 
 #include <algorithm>
 #include <cmath>
@@ -176,7 +177,8 @@ bool updateDuctCentralFanAffinity(VentilationNetwork& ventNetwork,
                                   const std::string& airconNode,
                                   double targetFlowM3s,
                                   double ratioTol,
-                                  bool* fanPresent) {
+                                  bool* fanPresent,
+                                  bool increaseOnly) {
     if (fanPresent) *fanPresent = false;
     if (airconNode.empty()) return false;
 
@@ -207,6 +209,7 @@ bool updateDuctCentralFanAffinity(VentilationNetwork& ventNetwork,
         applyFanAffinity(desired, lambda);
         const double qScale = std::max({edge.q_max_rated, edge.q_max, desired.q_max, 1e-6});
         const double pScale = std::max({edge.p_max_rated, edge.p_max, desired.p_max, 1e-6});
+        if (increaseOnly && desired.q_max <= edge.q_max + ratioTol * qScale) continue;
         const bool same =
             std::abs(edge.q_max - desired.q_max) <= ratioTol * qScale &&
             std::abs(edge.q1 - desired.q1) <= ratioTol * qScale &&
@@ -215,6 +218,47 @@ bool updateDuctCentralFanAffinity(VentilationNetwork& ventNetwork,
         if (same) continue;
         applyFanAffinity(edge, lambda);
         updated = true;
+    }
+    return updated;
+}
+
+bool increaseHeatingFanForCoupledSolve(VentilationNetwork& ventNetwork,
+                                       const Graph& thermalGraph,
+                                       std::ostream& logs,
+                                       bool logEnabled) {
+    bool updated = false;
+    for (auto v : boost::make_iterator_range(boost::vertices(thermalGraph))) {
+        const auto& node = thermalGraph[v];
+        if (node.getTypeCode() != VertexProperties::TypeCode::Aircon || !node.on ||
+            !isDuctCentralModel(node) || node.current_mode != "HEATING" ||
+            node.set_node.empty() ||
+            node.aircon_control_state == AirconControlState::CapacityLimited ||
+            !std::isfinite(node.required_heat_w) || node.required_heat_w <= 0.0) {
+            continue;
+        }
+        // 設定維持負荷と能力上限は通常の外側風量制御と同じ定義を使う。
+        const auto basis = selectFlowHeatBasis(node, OperationMode::Heating,
+                                               node.required_heat_w,
+                                               node.current_requested_pre_temp);
+        double minProcessW = 0.0;
+        if (const auto* spec = node.getAirconSpec()) {
+            if (const auto q = spec->getMinProcess("heating")) minProcessW = *q * 1000.0;
+        }
+        const auto target = computeTargetFlowFromProcessedHeat(
+            node, OperationMode::Heating, basis.heatW, node.vol_zero, minProcessW);
+        if (!target || !std::isfinite(*target)) continue;
+        if (!updateDuctCentralFanAffinity(ventNetwork, node, OperationMode::Heating,
+                                          node.key, *target, 1e-3, nullptr,
+                                          /*increaseOnly=*/true)) {
+            continue;
+        }
+        updated = true;
+        if (logEnabled) {
+            writeDomainLog(logs, "空調", node.key +
+                " 暖房ファン先行補正: Qreq=" + std::to_string(node.required_heat_w) +
+                " W, target=" + std::to_string(*target) +
+                " m3/s; 温度候補を破棄して圧力・温度を再計算");
+        }
     }
     return updated;
 }
