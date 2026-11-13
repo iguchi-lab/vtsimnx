@@ -249,7 +249,7 @@ Q = \dot m\,|h_\mathrm{in}-h_\mathrm{out}|
 - 目標絶対湿度: `x_sp = absolute_humidity(T_in, pre_rh)`
 - 条件: 正の処理風量かつ `x_in > x_sp` のとき `supplyX = x_sp`（この湿度決定式はコイル能力・機種特性に依存しない）
 - `pre_rh` 未指定、または目標以下のときは従来どおり `latent_method` を使用
-- 暖房 / OFF では無効（既存のパススルー／除外ロジックのまま）
+- 暖房 / OFF では無効（湿気は混合未知数として解き、接続枝は除外しない）
 
 `T_in` と `x_in` は `in_node` の状態であり、`set_node` や `pre_temp` から目標を算定しません。
 室のRHを直接拘束する機能でも、湿度超過だけで機器を起動する機能でもありません。
@@ -279,14 +279,9 @@ Q = \dot m\,|h_\mathrm{in}-h_\mathrm{out}|
 - `none`  
   潜熱処理なし（`Q_L=0`、`supplyX = X_in`）。
 
-いずれの方式でも、計算された `supplyX` は aircon ノードの `current_x` に反映され、  
-次ステップおよび `humidity_x` 出力の初期値として利用されます。  
-あわせて除湿量 \(\dot m(x_\mathrm{in}-x_\mathrm{supply})\) をノードの `aircon_moisture_removal_kg_s` に保持し、湿気収支診断の `airconCondensation` に載せます。  
-吹出側の湿気移流は空調ノードの `current_x`（= supplyX）を**固定境界**として使うため、能力計算と湿気・熱移流で吹出湿度を共有します（閾値以下の境界更新では再求解しない点は下記参照）。
-そのため空調ノードは常に `calc_x=false` です（湿度ソルバの未知数にしない）。`calc_x=true` だと supplyX 適用後に湿度解が上書きし、外側ループが `SupplyHumidityChanged` で振動します。  
-外側再計算の判定床は `1e-4 kg/kg(DA)`（連成湿度 tol との大きい方）。境界値 `current_x` は常に更新し、床未満の変化では再計算しません。  
-また各外側ループの物理求解前に、停止中・非冷房、または `current_x` が非有限値もしくは `1e-4 kg/kg(DA)` 以下の空調は吸込湿度へ同期します（`current_x=0` 固定境界で室内が乾燥するのを防ぐ）。
-空調に直接接続する換気枝は吸込側・吹出側とも湿度移流に含めます。暖房・停止は同期した吸込湿度を運び、冷房ONは吹出 `supplyX` を境界として除湿します。枝を切ると、還気室と吹出先が異なる全館空調で水分が保存されません。
+除湿中は目標 `supplyX` と現境界の差を緩和前で判定し、連成湿度許容値を超えるときだけ0.5緩和で境界を更新して再求解します。許容内では `current_x` を変更せず、旧来の `1e-4 kg/kg(DA)` の判定床は使いません。
+暖房・停止・除湿量ゼロの冷房は混合未知数として同時に解き、古い吸込湿度をコピーして固定しません。`AUTO` の暖房側も同じ扱いです。除湿中との役割の切替は再求解を要求します。入力上の `calc_x=false` にかかわらず、内部の `humiditySolveNode` を求解・緩和・復元・物理検査で共用します。
+吸込・吹出の枝は常に湿気移流に含めます。凝縮水量は `aircon_moisture_removal_kg_s` に記録し、吹出境界に織込み済みのため収支残差に二重計上しません。詳しくは [moisture_network_phase1.md](moisture_network_phase1.md) を参照してください。
 
 ---
 
@@ -334,7 +329,7 @@ Q = \dot m\,|h_\mathrm{in}-h_\mathrm{out}|
 - `Q.<mode>.rtd` は `ac_spec` 上の [kW]
 - `V_inner.<mode>.dsgn` は [m3/s]
 - 目標風量が `1e-4 m3/s` 未満なら 0 にスナップし、極小差分では再計算しない
-- 基準熱量が `min_process` の 1.2 倍以下なら最低風量に入り、一度入ったらその時間ステップの終わりまで維持する（`851 W ↔ 1254 W` が縁をまたいでも `0.04 ↔ 0.06 m³/s` と再計算し続けない）
+- 正の基準熱量には `max(Q_basis, min_process)` を使う。ON/OFFホールドを最低風量の固定条件にせず、下限を持つ連続な風量則を用いる
 
 能力制限後に計測コイル熱で追従すると、固定温度付近では `Q∝V` になり `V∝Q_meas` が 0 へ縮小します。  
 設定を保持できているときは、風量にほぼ比例しない室負荷 `required_heat_w` を使います。無いときだけ `Q_max` に戻します。  
@@ -386,8 +381,8 @@ Q = \dot m\,|h_\mathrm{in}-h_\mathrm{out}|
 
 ```mermaid
 flowchart TD
-    OVER["全熱 > Qmax"] --> U{"処理熱量が非物理?<br/>Q > 2 Qmax かつ<br/>入口・設定・風量の見積 ≤ Qmax"}
-    U -->|Yes| SKIP["設定補正スキップ"]
+    OVER["全熱 > Qmax"] --> U{"遠隔 set?"}
+    U -->|Yes| BR["bracket 二分探索"]
     U -->|No| F["公式 findCapacityLimitedSetpoint"]
     F -->|有効| APPLY["effectiveSetpoint 更新<br/>再計算要求"]
     F -->|無効| BR["bracket 二分探索"]
@@ -396,7 +391,7 @@ flowchart TD
     CH -->|No・収束| DONE["bracket 消去 / Accept 候補"]
 ```
 
-処理熱量が能力上限の 2 倍を超え、入口温度・設定・風量から見た顕熱見積が上限以内なら、熱解が非物理とみなして設定補正しません。Picard が数千 K へ歩いたあとの Qreq/コイル熱で設定を下げ続けないためです。
+処理熱量が上限の2倍を超えても能力判定を省略しません。遠隔 `set` では入口・設定温度だけの近似を使わず、実際の回路網を再求解する bracket 探索へ進みます。最終受理時にも実処理全熱が能力上限の許容差内であることを確認し、超過状態を成功として出力しません。
 
 1. **公式による補正**  
    `findCapacityLimitedSetpoint(...)` で、入口温度・風量・運転モードを固定した近似のもと、`heatCapacity <= maxHeatCapacity` となる setpoint を算出。有効な setpoint が得られればそれを適用。

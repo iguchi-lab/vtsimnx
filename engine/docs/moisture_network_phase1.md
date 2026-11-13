@@ -60,7 +60,7 @@ flowchart LR
   - 容量ノード: `<key>_mx`（`calc_x=true`）
   - 湿気伝達枝: `<key>_mx-><key>` (`moisture_conductance = moisture_capacity / timestep`)
   - 元ノードからも `moisture_capacity` を除去し、`calc_x=true` を立てる
-- 空調ノードは `supplyX` / パススルー湿度の**固定境界**のため `calc_x=false` のまま（設定ノードの `calc_x` を空調へ伝播しない）。吸込・吹出の換気枝は湿気移流に含める。暖房・停止は求解前に吸込湿度へ同期し、冷房 ON は吹出 `supplyX` を境界にする
+- 空調の入力上の `calc_x` はfalseのまま。内部では `humiditySolveNode` が役割を決め、除湿中だけ吹出湿度を固定し、暖房・停止・除湿量ゼロの冷房は混合未知数として解く。吸込・吹出の換気枝は常に湿気移流に含める
 - builder オプション:
   - `builder.add_moisture_capacity`（既定: `true`）
     - `true`: 上記の材料側ノード展開を行う
@@ -157,11 +157,10 @@ flowchart TB
 - builder は `v>0` のとき空気分を `air_capacity`、残りを `capacity` に分離。`thermal_mass < ρ·cp·V` は入力エラー（切り詰めない）
 - 空調処理熱（能力・COP・DUCT 風量連動の全熱）も \(\dot m |h_\mathrm{in}-h_\mathrm{out}|\) に統一（顕熱/潜熱は acmodel 互換のため分解）
 - 吹出絶対湿度 `supplyX` を空調ノード `current_x` に反映し、除湿量 \(\dot m(x_\mathrm{in}-x_\mathrm{supply})\) を `airconCondensation` 診断へ記録（湿気移流境界と能力計算を一致）
-- 空調ノードは湿度の**固定境界**（`calc_x=false`）。湿度ソルバは `type=aircon` を未知数から除外する
-- 空調に直接接続する吸込・吹出の換気枝は**湿度移流に含める**。暖房・停止は吸込湿度へ同期して除湿せず運び、冷房 ON は吹出 `supplyX` を固定境界として除湿する。枝を切ると異室回路で水分が保存されない
-- 各外側ループの物理求解前に、停止中・非冷房、または非有限値もしくは `1e-4 kg/kg(DA)` 以下の空調 `current_x` を吸込湿度へ同期する
-- 再計算判定には床 `max(連成湿度tol, 1e-4 kg/kg(DA))` を使う（微小ドリフトで外側ループが数十回回るのを防ぐ。`current_x` 自体は常に最新値へ更新）
-- 吹出湿度の変化が上記閾値を超えた場合、外側ループで再計算し、**同一タイムステップの湿度・エンタルピー連成へ反映**する。閾値以下では境界更新だけを理由に再計算しない
+- 空調の入力上の `calc_x=false` と、実際の未知数・固定境界の役割は区別する。`humiditySolveNode` を求解・緩和・復元・検査で共用する
+- 空調に直接接続する吸込・吹出の換気枝は**湿度移流に含める**。暖房・停止・除湿量ゼロの冷房は混合未知数であり、古い吸込湿度をコピーして固定しない。実際に除湿する冷房だけが固定境界を持つ
+- 吹出境界の目標との差は緩和前で判定し、連成湿度許容値を超えれば0.5緩和で更新して再求解する。旧来の `1e-4` の床は使わず、許容内では境界を変更しない。役割の切替も再求解を要求する
+- 最終状態の水分収支を再評価する。対角係数で正規化した絶対湿度欠損を連成湿度許容値と比較し、線形ソルバと同じ行スケーリング・右辺ノルムによる相対残差も検査する。詳細は [simulation_loops.md](simulation_loops.md)
 - 必須: `calc_flag.x` かつ `calc_flag.t` かつ `moisture_enabled=true`（非連成では当該ステップの更新後 \(x\) を熱へ戻せない）
 - `from_humidity_change` との併用は禁止（二重計上）
 - `from_phase_change` との併用も当面禁止（材料側のみ \(Q=-L\dot m\) だと空気側の対向項がなくエネルギーが片側欠損する）
@@ -213,7 +212,7 @@ flowchart TD
 - `simulation.coupling.humidity_relaxation`:
   - 湿気反復の緩和係数 `(0,1]`（既定 `1.0`）
 - `simulation.coupling.temperature_relaxation`:
-  - 圧力–温度 Picard の温度緩和上限 `(0,1]`（既定 `1.0`）。連成温度許容誤差の10倍を超えて減らないときと大振幅時にさらに下げる。内側が 1 回で終わる温度のみ計算には掛けない。熱解が非物理温度なら混合せず棄却する。暖房ファン更新による再計算条件は [simulation_loops.md](simulation_loops.md) を参照。湿気枝は切らない
+  - 圧力–温度 Picard の温度緩和上限 `(0,1]`（既定 `1.0`）。連成温度許容誤差の10倍を超えて減らないときと大振幅時にさらに下げる。内側が 1 回で終わる温度のみ計算には掛けない。熱解が非物理温度なら混合せず棄却する。空調風量の先行更新による再計算条件は [simulation_loops.md](simulation_loops.md) を参照。湿気枝は切らない
 - `simulation.coupling.latent_relaxation`:
   - 潜熱フィードバック緩和係数 `(0,1]`（既定 `0.5`）
 - `simulation.coupling.humidity_solver_tolerance`:
