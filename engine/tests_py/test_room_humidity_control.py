@@ -169,3 +169,25 @@ def test_duct_humidity_only_flow_remains_positive(mode):
     s = run(raw)
     assert max(s("aircon_room_rh", "AC")) < 60.1
     assert min(s("aircon_latent_heat", "AC")) > 0
+
+
+def test_prescribed_moisture_sink_does_not_break_boundary_response():
+    raw = case()
+    raw["nodes"][1]["v"] = 0.0
+    raw["nodes"].append({"key": "return", "t": 28.0, "x": 0.018})
+    raw["aircon"][0]["in"] = "return"
+    raw["ventilation_branches"] = [
+        {"key": "room->return", "vol": 0.1},
+        {"key": "outside->room", "vol": 0.0, "humidity_generation": -0.00001},
+    ]
+    s = run(raw)
+    assert max(s("aircon_room_rh", "AC")) < 60.05
+    assert min(s("humidity_x", "room")) > 0.0
+
+
+def test_simultaneous_mode_uses_reheat_for_a_cold_dry_room():
+    s = run(case("temperature_humidity", outside_t=22.0, x=0.006))
+    assert np.allclose(s("thermal_temperature", "room"), 26.0, atol=0.001)
+    assert min(s("aircon_reheat", "AC")) > 0
+    assert max(s("aircon_latent_heat", "AC")) == 0
+    assert np.allclose(s("aircon_power", "AC"), s("aircon_reheat", "AC"), atol=0.001)

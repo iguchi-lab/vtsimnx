@@ -43,20 +43,24 @@ void updateHumidistatRequests(Graph& graph, const HumidityNetworkTerms& terms,
         probe.xN = current.xN;
         probe.xIterate = current.xIterate;
         probe.xSolved = current.xSolved;
-        probe.xIterate[ac] = 0.0;
+        // Probe at/above the existing supply, not at zero: a valid network
+        // with a prescribed moisture sink can have a negative *hypothetical*
+        // zero-supply solution even though its operating solution is physical.
+        const double baseBoundary = std::max({0.0, node.current_x, graph[inlet].current_x});
+        probe.xIterate[ac] = baseBoundary;
         auto first = solveHumidityImplicitStep(graph, probeTerms, dt, tolerance, probe);
         if (!first.converged) throw std::runtime_error("Humidistat water-balance probe failed: " + node.key);
         const double baseSet = probe.xSolved[set], baseIn = probe.xSolved[inlet];
         constexpr double delta = 0.01;
-        probe.xIterate[ac] = delta;
+        probe.xIterate[ac] = baseBoundary + delta;
         auto second = solveHumidityImplicitStep(graph, probeTerms, dt, tolerance, probe);
         if (!second.converged) throw std::runtime_error("Humidistat water-balance response failed: " + node.key);
         const double gain = (probe.xSolved[set] - baseSet) / delta;
         const double inletGain = (probe.xSolved[inlet] - baseIn) / delta;
         if (!(gain > 1e-10)) continue; // disconnected target: report unmet RH
-        const double request = (targetX - baseSet) / gain;
+        const double request = baseBoundary + (targetX - baseSet) / gain;
         const double noRemoval = inletGain < 1.0 - 1e-10
-            ? baseIn / (1.0 - inletGain) : graph[inlet].current_x;
+            ? (baseIn - inletGain * baseBoundary) / (1.0 - inletGain) : graph[inlet].current_x;
         node.humidity_supply_request = std::max(0.0, request);
         node.humidity_demand = request < noRemoval - 1e-8;
     }

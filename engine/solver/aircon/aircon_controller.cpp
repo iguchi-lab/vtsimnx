@@ -360,7 +360,10 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
                                     useRequiredHeat, nodeProps.required_heat_w,
                                     aircon::onoff::kLoadDeadbandW, minProcessHeatW,
                                     holdAtMinimumCapacity, nodeProps.aircon_min_process_hold);
-        if (aircon::humidity_control::enabled(nodeProps) && nodeProps.humidity_demand) {
+        const bool reheatDemand = aircon::humidity_control::simultaneous(nodeProps) &&
+            (currentTemp < targetTemp - setpointBandK ||
+             (nodeProps.on && std::isfinite(nodeProps.required_heat_w) && nodeProps.required_heat_w > 1.0));
+        if (aircon::humidity_control::enabled(nodeProps) && (nodeProps.humidity_demand || reheatDemand)) {
             const bool reheat = aircon::humidity_control::simultaneous(nodeProps);
             const double floor = targetTemp - nodeProps.max_overcooling;
             // Do not heat an already cold room in humidity-priority mode.
