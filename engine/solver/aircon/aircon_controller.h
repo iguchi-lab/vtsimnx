@@ -6,6 +6,7 @@
 #include "aircon/aircon_capacity.h"
 #include "types/aircon_control_state.h"
 #include <cstdint>
+#include <limits>
 #include <vector>
 #include <string>
 #include <unordered_map>
@@ -40,6 +41,8 @@ struct AirconValidationData {
     // 湿度（絶対湿度）: calc_flag.x が有効な場合に使用（無効時は0でよい）
     double outdoorX = 0.0;
     double indoorX = 0.0;
+    // Upstream bound derived from passive discharge-plenum water balances.
+    double additionalSupplyXUpperBound = std::numeric_limits<double>::infinity();
 };
 
 /**
@@ -200,6 +203,10 @@ public:
     void syncHumidityBoundariesBeforeSolve(ThermalNetwork& thermalNetwork) const;
 
     // Acceptance guard: never convert an unresolved capacity constraint into ok.
+    bool acceptedHumidityConverged(ThermalNetwork& thermalNetwork,
+                                    const FlowRateMap& flowRates,
+                                    double humidityAbsTol,
+                                    std::ostream& logs) const;
     void validateAcceptedCapacity(ThermalNetwork& thermalNetwork,
                                   const FlowRateMap& flowRates) const;
 

@@ -141,71 +141,61 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
     const double tOut = validData.airconTemp;
     const double xIn = std::max(0.0, validData.indoorX);
 
-    // 理想除湿（A）: pre_rh 指定かつ室が目標絶対湿度超 → supplyX を目標値に固定（能力無視）
+    // All cooling models share the same physical outlet constraint. The
+    // sensible solution fixes tOut; water removal is derived from the final x.
+    // Leave a sub-ppm margin for float32 temperature/humidity artifact rounding.
+    result.supplyXUpperBound = std::min(
+        saturationHumidityUpperBound(tOut), validData.additionalSupplyXUpperBound);
+    auto rhPercent = [&](double x) {
+        const double vaporPressure = archenv::STANDARD_ATMOSPHERIC_PRESSURE * x / (0.622 + x);
+        return 100.0 * vaporPressure / archenv::saturation_vapor_pressure(tOut);
+    };
+    auto finishCooling = [&]() {
+        result.unboundedSupplyRhPercent = rhPercent(std::max(0.0, result.supplyX));
+        result.saturationLimited = result.supplyX > result.supplyXUpperBound;
+        result.supplyX = std::clamp(result.supplyX, 0.0, std::min(xIn, result.supplyXUpperBound));
+        result.supplyRhPercent = rhPercent(result.supplyX);
+        result.condensationRateKgPerS = kAirDensity * std::abs(airFlowRate) * (xIn - result.supplyX);
+        result.latentHeatCapacity = result.condensationRateKgPerS * archenv::vapor_latent_heat(tOut);
+        if (moistEnthalpyEnabled) {
+            const double qTotal = thermal_moist_air::processedEnthalpyHeatW(
+                tIn, xIn, tOut, result.supplyX, airFlowRate, /*heating=*/false);
+            const double cpEff = 0.5 * (thermal_moist_air::moistAirCp(xIn) +
+                                       thermal_moist_air::moistAirCp(result.supplyX));
+            result.sensibleHeatCapacity = std::min(
+                qTotal, kAirDensity * std::abs(airFlowRate) * cpEff * std::max(0.0, tIn - tOut));
+            result.latentHeatCapacity = std::max(0.0, qTotal - result.sensibleHeatCapacity);
+        }
+        return result;
+    };
+
+    // Ideal dehumidification uses the scheduled temperature of the controlled
+    // room, not the return-air temperature or a capacity-relaxed setpoint.
+    // It never humidifies dry return air; the physical saturation bound wins.
     const double preRh = nodeProps.current_pre_rh;
     if (std::isfinite(preRh) && preRh > 0.0 && preRh <= 100.0) {
-        const double xSp = std::max(0.0, archenv::absolute_humidity(tIn, preRh));
-        if (xIn > xSp) {
-            result.regime = "ideal_pre_rh";
-            result.supplyX = xSp;
-            result.condensationRateKgPerS =
-                kAirDensity * std::abs(airFlowRate) * (xIn - result.supplyX);
-            result.latentHeatCapacity =
-                std::max(0.0,
-                         kAirDensity * std::abs(airFlowRate) *
-                             archenv::vapor_latent_heat(tOut) * (xIn - result.supplyX));
-            const double xSatOut = std::max(0.0, archenv::absolute_humidity(tOut, 100.0));
-            if (xSatOut > std::numeric_limits<double>::epsilon()) {
-                result.supplyRhPercent = 100.0 * result.supplyX / xSatOut;
-            }
-            if (moistEnthalpyEnabled) {
-                const double qTotal = thermal_moist_air::processedEnthalpyHeatW(
-                    tIn, xIn, tOut, result.supplyX, airFlowRate, /*heating=*/false);
-                const double cpEff = 0.5 * (thermal_moist_air::moistAirCp(xIn) +
-                                           thermal_moist_air::moistAirCp(result.supplyX));
-                const double qSens = std::min(
-                    qTotal,
-                    kAirDensity * std::abs(airFlowRate) * cpEff * std::max(0.0, tIn - tOut));
-                result.sensibleHeatCapacity = qSens;
-                result.latentHeatCapacity = std::max(0.0, qTotal - qSens);
-            }
-            return result;
-        }
+        const double referenceT = std::isfinite(nodeProps.current_requested_pre_temp)
+            ? nodeProps.current_requested_pre_temp : validData.setTemp;
+        result.regime = "ideal_pre_rh";
+        result.supplyX = std::min(xIn, std::max(0.0, archenv::absolute_humidity(referenceT, preRh)));
+        return finishCooling();
     }
 
     if (!(tIn > tOut)) {
         result.regime = "no_temperature_drop";
-        result.supplyX = xIn;
-        result.condensationRateKgPerS = 0.0;
-        if (moistEnthalpyEnabled) {
-            result.sensibleHeatCapacity = 0.0;
-            result.latentHeatCapacity = 0.0;
-        }
-        return result;
+        return finishCooling();
     }
 
     const std::string latentMethod = readLatentMethod(nodeProps);
     if (latentMethod == "none") {
         result.regime = "latent_disabled";
-        result.supplyX = xIn;
-        result.condensationRateKgPerS = 0.0;
-        if (moistEnthalpyEnabled) {
-            const double qTotal = thermal_moist_air::processedEnthalpyHeatW(
-                tIn, xIn, tOut, result.supplyX, airFlowRate, /*heating=*/false);
-            result.sensibleHeatCapacity = qTotal;
-            result.latentHeatCapacity = 0.0;
-        }
-        return result;
+        return finishCooling();
     }
 
     auto applyRh95 = [&]() {
         result.regime = "rh95";
         const double x95 = std::max(0.0, archenv::absolute_humidity(tOut, kDefaultSupplyRhPercent));
         result.supplyX = std::min(xIn, x95);
-        const double xSatOut = std::max(0.0, archenv::absolute_humidity(tOut, 100.0));
-        if (xSatOut > std::numeric_limits<double>::epsilon()) {
-            result.supplyRhPercent = 100.0 * result.supplyX / xSatOut;
-        }
     };
 
     if (latentMethod == "bf") {
@@ -230,17 +220,6 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
             result.supplyX = std::min(xOut, xIn);
         }
 
-        const double xSatOut = std::max(0.0, archenv::absolute_humidity(tOut, 100.0));
-        if (xSatOut > std::numeric_limits<double>::epsilon()) {
-            result.supplyRhPercent = 100.0 * result.supplyX / xSatOut;
-            result.bfRhPercentBeforeFallback = result.supplyRhPercent;
-            result.rhExceeded = (result.supplyRhPercent > 100.0 + 1e-6);
-        }
-        if (result.rhExceeded) {
-            applyRh95();
-            result.usedRh95Fallback = true;
-            result.rhExceeded = false;
-        }
     } else {
         if (latentMethod == "coil_aoaf" || latentMethod == "aoaf" || latentMethod == "literature") {
             result.regime = "coil_dry_or_inactive";
@@ -308,36 +287,22 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
         }
     }
 
-    if (!(result.latentHeatCapacity > 0.0)) {
-        const double deltaX = std::max(0.0, xIn - result.supplyX);
-        result.latentHeatCapacity =
-            std::max(0.0,
-                     kAirDensity * std::abs(airFlowRate) *
-                         archenv::vapor_latent_heat(tOut) * deltaX);
-    }
-
-    result.condensationRateKgPerS =
-        kAirDensity * std::abs(airFlowRate) * std::max(0.0, xIn - result.supplyX);
-
-    if (moistEnthalpyEnabled) {
-        // 正本は mDot*(h_in-h_out)。顕熱/潜熱は acmodel・出力互換のための分解。
-        const double qTotal = thermal_moist_air::processedEnthalpyHeatW(
-            tIn, xIn, tOut, result.supplyX, airFlowRate, /*heating=*/false);
-        const double cpEff =
-            0.5 * (thermal_moist_air::moistAirCp(xIn) + thermal_moist_air::moistAirCp(result.supplyX));
-        const double qSens =
-            std::min(qTotal, kAirDensity * std::abs(airFlowRate) * cpEff * std::max(0.0, tIn - tOut));
-        result.sensibleHeatCapacity = qSens;
-        result.latentHeatCapacity = std::max(0.0, qTotal - qSens);
-    }
-    return result;
+    return finishCooling();
 }
 
 namespace {
 double supplyHumidityRecomputeTol(double humidityAbsTol) {
-    return (humidityAbsTol > 0.0) ? humidityAbsTol : 1e-9;
+    return std::min((humidityAbsTol > 0.0) ? humidityAbsTol : 1e-9, 1e-7);
 }
 } // namespace
+
+bool supplyHumidityNeedsUpdate(const VertexProperties& node,
+                                const LatentProcessResult& loads,
+                                double humidityAbsTol) {
+    return !std::isfinite(node.current_x) ||
+        node.current_x > loads.supplyXUpperBound ||
+        std::abs(node.current_x - loads.supplyX) > supplyHumidityRecomputeTol(humidityAbsTol);
+}
 
 bool applySupplyHumidityToAirconNode(ThermalNetwork& thermalNetwork,
                                      const std::string& airconKey,
@@ -345,15 +310,18 @@ bool applySupplyHumidityToAirconNode(ThermalNetwork& thermalNetwork,
                                      double humidityAbsTol) {
     auto& node = thermalNetwork.getNode(airconKey);
     const double newRemoval = std::max(0.0, loads.condensationRateKgPerS);
-    const double tol = supplyHumidityRecomputeTol(humidityAbsTol);
     const bool wasPassthrough = airconHumidityPassthrough(node);
     node.aircon_moisture_removal_kg_s = newRemoval;
     const bool passthrough = airconHumidityPassthrough(node);
     if (passthrough) return !wasPassthrough;
-    const bool changed = wasPassthrough || std::abs(node.current_x - loads.supplyX) > tol;
+    const bool changed = wasPassthrough || supplyHumidityNeedsUpdate(node, loads, humidityAbsTol);
     // Relax the boundary iteration, but test its unrelaxed defect above.
-    // This leaves the accepted physical equation and requested tolerance intact.
-    if (changed) node.current_x += 0.5 * (loads.supplyX - node.current_x);
+    // The hard saturation bound is applied immediately and triggers a re-solve.
+    if (changed) {
+        const double mixed = std::isfinite(node.current_x)
+            ? node.current_x + 0.5 * (loads.supplyX - node.current_x) : loads.supplyX;
+        node.current_x = std::min(mixed, loads.supplyXUpperBound);
+    }
     return changed;
 }
 

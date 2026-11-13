@@ -171,9 +171,62 @@ void testCoilDewPointContinuity() {
     }
 }
 
+void testPassiveDischargeWaterBalance() {
+    for (const std::string variant : {"parallel_reverse", "disabled", "storage", "source",
+                                     "mixing", "conduction", "controlled_room"}) {
+        ThermalNetwork net;
+        auto ac = makeNode("AC", "aircon", 15.0);
+        ac.in_node = "return";
+        ac.set_node = variant == "controlled_room" ? "outlet" : "room";
+        net.addNode(ac);
+        auto outlet = makeNode("outlet", "normal", 15.0);
+        outlet.calc_x = true;
+        outlet.v = variant == "storage" ? 1.0 : 0.0;
+        net.addNode(outlet);
+        net.addNode(makeNode("room", "normal", 27.0));
+        auto edge = [&](const std::string& key, const std::string& source,
+                        const std::string& target, double flow, bool enabled = true,
+                        double generation = 0.0, const std::string& type = "advection") {
+            EdgeProperties e{};
+            e.key = e.unique_id = key;
+            e.source = source;
+            e.target = target;
+            e.type = type;
+            e.flow_rate = flow;
+            e.current_enabled = enabled;
+            e.current_humidity_generation = generation;
+            net.addEdge(e);
+        };
+        edge("in1", "AC", "outlet", 0.1);
+        edge("in2", "outlet", "AC", -0.2);
+        edge("out1", "outlet", "room", 0.1);
+        edge("out2", "room", "outlet", -0.2 + 3e-6);
+        if (variant == "source") edge("gen", "room", "outlet", 0.0, true, 1e-6);
+        if (variant == "mixing") edge("mix", "room", "outlet", 1e-6);
+        if (variant == "conduction") edge("heat", "room", "outlet", 0.0, true, 0.0, "conductance");
+        if (variant == "disabled") edge("ignored", "room", "outlet", 1.0, false, 1.0);
+        const auto constraints = aircon::network_utils::passiveSupplyOutletConstraints(net, ac);
+        if (variant != "parallel_reverse" && variant != "disabled") {
+            expectTrue(constraints.empty(), variant + ": general rooms/sources must not use plenum constraint");
+            continue;
+        }
+        expectTrue(constraints.size() == 1, variant + ": one discharge constraint");
+        if (constraints.empty()) continue;
+        const auto& c = constraints.front();
+        const double sat = archenv::absolute_humidity(15.0, 100.0);
+        expectNear(c.supplyXUpperBound / c.outletXUpperBound, 1.0 - 1e-5, 1e-12,
+                   "parallel and reversed flows preserve the plenum water balance");
+        expectTrue(c.supplyXUpperBound * 0.3 / (0.3 - 3e-6) < sat,
+                   "water-conserving outlet stays below saturation");
+    }
+}
+
 } // namespace
 
 int main() {
+    testPassiveDischargeWaterBalance();
+    expectNear(archenv::saturation_vapor_pressure(100.0), 101324.6, 1e-7,
+               "saturation reference matches Python report conversion");
     testCoilDewPointContinuity();
     // 正味流量: 正方向と逆方向の両方があれば direct - reverse
     {
@@ -272,10 +325,11 @@ int main() {
         b.on = true;
         b.current_mode = "COOLING";
         b.current_t = 20.0;
+        thermal.getNode("IN").current_x = 0.014;
         b.ac_spec = nlohmann::json{
             {"latent_method", "coil_aoaf"},
             {"Af", 0.133},
-            {"Ao", 4.84},
+            {"Ao", 2.42},
         };
 
         calls = 0;
@@ -289,17 +343,17 @@ int main() {
             expectTrue(qlDefault >= 0.0, "coil_aoaf: Q_L should be non-negative");
         }
 
-        // Ao を大きくすると潜熱側の処理量が増える傾向になることを確認
+        // 飽和制約が支配しない条件ではコイル面積が除湿量に反映される
         b.ac_spec = nlohmann::json{
             {"latent_method", "coil_aoaf"},
             {"Af", 0.133},
-            {"Ao", 9.68},
+            {"Ao", 4.84},
         };
         calls = 0;
         history.clear();
         (void)controller.calculatePowerValues(thermal, flowRates, std::cout);
-        expectTrue(calls == 1, "coil_aoaf(Ao=9.68): estimateCOP should be called");
-        expectTrue(!history.empty(), "coil_aoaf(Ao=9.68): history should have one entry");
+        expectTrue(calls == 1, "coil_aoaf(Ao=4.84): estimateCOP should be called");
+        expectTrue(!history.empty(), "coil_aoaf(Ao=4.84): history should have one entry");
         if (!history.empty()) {
             const double qlLargeAo = history.back().input.Q_L;
             expectTrue(qlLargeAo >= 0.0, "coil_aoaf: Q_L should stay non-negative when Ao changes");
@@ -402,40 +456,80 @@ int main() {
         expectNear(b.current_x, acceptedX, 0.0, "no re-solve means no boundary mutation");
     }
 
-    // 理想除湿（A）: pre_rh 指定・過湿時は supplyX = absolute_humidity(T_in, pre_rh)
+    // Ideal RH refers to the requested controlled-room temperature, even when
+    // return air and the capacity-relaxed temperature are different.
     {
         AirconValidationData vd{};
-        vd.indoorTemp = 26.0;
-        vd.indoorX = 0.016; // 過湿
-        vd.airconTemp = 14.0;
-        vd.outdoorTemp = 30.0;
-        vd.outdoorX = 0.018;
-        vd.setTemp = 24.0;
-
+        vd.indoorTemp = 30.0;
+        vd.indoorX = 0.020;
+        vd.airconTemp = 20.0;
+        vd.setTemp = 28.0;
         VertexProperties ac{};
-        ac.type = "aircon";
-        ac.current_pre_rh = 50.0;
-        ac.ac_spec = nlohmann::json{{"latent_method", "rh95"}};
-        const double xSp = archenv::absolute_humidity(26.0, 50.0);
-        expectTrue(vd.indoorX > xSp, "fixture is over RH setpoint");
-
+        ac.current_pre_rh = 60.0;
+        ac.current_requested_pre_temp = 24.0;
+        ac.ac_spec = {{"latent_method", "rh95"}};
+        const double target = archenv::absolute_humidity(24.0, 60.0);
         const auto over = aircon::latent::estimateLatentProcess(
-            vd, OperationMode::Cooling, /*sensible=*/1000.0, /*flow=*/0.2, ac, false);
-        expectNear(over.supplyX, xSp, 1e-9, "ideal RH overrides supplyX when humid");
-        expectTrue(over.condensationRateKgPerS > 0.0, "ideal RH reports condensation");
+            vd, OperationMode::Cooling, 1000.0, 0.2, ac);
+        expectNear(over.supplyX, target, 1e-12, "ideal uses requested room temperature");
+        expectNear(over.sensibleHeatCapacity, 1000.0, 0.0, "latent does not change sensible load");
 
-        vd.indoorX = xSp * 0.5; // 目標以下
-        const auto under = aircon::latent::estimateLatentProcess(
-            vd, OperationMode::Cooling, /*sensible=*/1000.0, /*flow=*/0.2, ac, false);
-        const double x95 = archenv::absolute_humidity(14.0, 95.0);
-        expectNear(under.supplyX, std::min(vd.indoorX, x95), 1e-9,
-                   "below setpoint keeps latent_method (rh95)");
+        // Below the target, do not fall back to another dehumidification model.
+        ac.current_requested_pre_temp = 30.0;
+        ac.current_pre_rh = 80.0;
+        vd.indoorX = archenv::absolute_humidity(20.0, 97.0);
+        const auto dry = aircon::latent::estimateLatentProcess(
+            vd, OperationMode::Cooling, 1000.0, 0.2, ac);
+        expectNear(dry.supplyX, vd.indoorX, 1e-12, "ideal below target does not use rh95");
+        expectNear(dry.condensationRateKgPerS, 0.0, 0.0, "ideal never humidifies");
 
-        ac.current_pre_rh = std::numeric_limits<double>::quiet_NaN();
-        vd.indoorX = 0.016;
-        const auto noPre = aircon::latent::estimateLatentProcess(
-            vd, OperationMode::Cooling, /*sensible=*/1000.0, /*flow=*/0.2, ac, false);
-        expectNear(noPre.supplyX, std::min(0.016, x95), 1e-9, "no pre_rh uses rh95");
+        vd.airconTemp = 12.0;
+        const auto cold = aircon::latent::estimateLatentProcess(
+            vd, OperationMode::Cooling, 1000.0, 0.2, ac);
+        expectTrue(cold.saturationLimited && cold.supplyRhPercent <= 100.0,
+                   "saturation overrides an unreachable ideal target");
+        expectNear(cold.supplyX, cold.supplyXUpperBound, 1e-12, "minimum extra condensation");
+    }
+
+    // Every model must honor the sensible outlet temperature and derive water
+    // and latent energy from the same final (non-supersaturated) state.
+    for (const std::string method : {"rh95", "bf", "coil_aoaf", "none", "ideal"}) {
+        for (bool moist : {false, true}) {
+            AirconValidationData vd{};
+            vd.indoorTemp = 30.0;
+            vd.indoorX = 0.024;
+            vd.airconTemp = 12.0;
+            VertexProperties ac{};
+            ac.current_requested_pre_temp = 27.0;
+            if (method == "ideal") ac.current_pre_rh = 60.0;
+            ac.ac_spec = {{"latent_method", method}};
+            const auto loads = aircon::latent::estimateLatentProcess(
+                vd, OperationMode::Cooling, 4300.0, 0.2, ac, moist);
+            const double mass = archenv::DENSITY_DRY_AIR * 0.2 * (vd.indoorX - loads.supplyX);
+            expectTrue(loads.supplyRhPercent <= 100.0 && loads.supplyX >= 0.0,
+                       "all cooling methods remain unsaturated: " + method);
+            expectNear(loads.condensationRateKgPerS, mass, 1e-12, "condensate balances water");
+            if (moist) {
+                expectNear(aircon::latent::totalHeatCapacity(loads),
+                    thermal_moist_air::processedEnthalpyHeatW(
+                        vd.indoorTemp, vd.indoorX, vd.airconTemp, loads.supplyX, 0.2, false),
+                    1e-8, "enthalpy uses final outlet humidity");
+            } else {
+                expectNear(loads.sensibleHeatCapacity, 4300.0, 0.0, "sensible has priority");
+                expectNear(loads.latentHeatCapacity, mass * archenv::vapor_latent_heat(12.0),
+                           1e-8, "latent energy uses final condensate");
+            }
+            auto& b = thermal.getNode("B");
+            b.on = true;
+            b.current_mode = "COOLING";
+            b.current_x = loads.supplyXUpperBound + 5e-5;
+            expectTrue(aircon::latent::applySupplyHumidityToAirconNode(thermal, "B", loads, 1e-3),
+                       "coarse tolerance cannot accept supersaturation");
+            expectTrue(b.current_x <= loads.supplyXUpperBound, "boundary applies hard saturation cap");
+            b.current_x = loads.supplyX - 1e-5;
+            expectTrue(aircon::latent::supplyHumidityNeedsUpdate(b, loads, 1e-3),
+                       "coarse tolerance cannot retain a stale supply boundary");
+        }
     }
 
     // 潜熱フィードバック: 冷房時に in_node へ負の heat_source が入ること

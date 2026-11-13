@@ -67,7 +67,8 @@ namespace internal {
 }
 
 double saturation_vapor_pressure(double temp_c) {
-    // Wexler式による飽和水蒸気圧計算（Python版と同じアルゴリズム）
+    // Same saturation formula and reference vapor pressure as Python archenv.
+    // The 100 C reference (1013.246 hPa) is distinct from ambient pressure.
     double t_dash = internal::t_dash(temp_c);
     
     double log_ps = 
@@ -75,7 +76,7 @@ double saturation_vapor_pressure(double temp_c) {
         5.02808 * std::log10(t_dash) -
         1.3816e-7 * (std::pow(10, 11.344 * (1 - 1/t_dash)) - 1) +
         8.1328e-3 * (std::pow(10, -3.4919 * (t_dash - 1)) - 1) +
-        std::log10(STANDARD_ATMOSPHERIC_PRESSURE / 100);
+        std::log10(1013.246);
     
     return std::pow(10, log_ps) * 100; // hPa → Pa 変換
 }
