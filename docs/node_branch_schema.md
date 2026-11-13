@@ -74,7 +74,7 @@
 | `moisture_capacity` | builder が展開する付加湿気容量 | number | 既定は J/(kg/kg')。下記参照 |
 | `moisture_capacity_unit` | 湿気容量の入力単位 | string | `"J/(kg/kg')"` または `"kg/(kg/kg)"` |
 
-`pre_rh` は `aircon[].pre_rh` でも指定できる。吸込温度から目標絶対湿度を求め、
+`pre_rh` は `aircon[].pre_rh` でも指定できる。設定対象室の要求設定温度 `pre_temp` から目標絶対湿度を求め、
 冷房時の吹出湿度へ適用する。室の相対湿度を直接固定する指定ではない。
 境界条件・能力判定との関係は[空調湿度ガイド](aircon_humidity_control.md)を参照する。
 

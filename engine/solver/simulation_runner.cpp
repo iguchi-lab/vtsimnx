@@ -131,6 +131,8 @@ bool acceptedStateConverged(simulation::Context& ctx,
             latentDefect = std::max(latentDefect, defect);
         }
     }
+    if (ctx.constants.temperatureCalc && ctx.constants.humidityCalc &&
+        !ctx.aircon.acceptedHumidityConverged(ctx.thermal, flows, couplingHumidityTol(ctx.constants), ctx.logs)) return false;
     if (ctx.constants.temperatureCalc) ctx.aircon.validateAcceptedCapacity(ctx.thermal, flows);
     if (ctx.constants.logVerbosity > 0) {
         std::ostringstream message;

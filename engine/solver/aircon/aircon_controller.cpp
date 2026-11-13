@@ -46,6 +46,8 @@ void logLatentBoundary(std::ostream& logs, const char* stage, const std::string&
     else out << node.current_pre_rh;
     out << " flow=" << flow
         << " sensible_W=" << loads.sensibleHeatCapacity << " latent_W=" << loads.latentHeatCapacity
+        << " saturation_limited=" << loads.saturationLimited
+        << " RH_supply=" << loads.supplyRhPercent
         << " removal_kg_s=" << loads.condensationRateKgPerS
         << " recompute=" << changed;
     writeDomainLog(logs, "空調診断", out.str());
@@ -412,6 +414,28 @@ void AirconController::applyOnOffControlResult(
         proposal.reasons = unitReasons;
         outProposals->push_back(std::move(proposal));
     }
+}
+
+bool AirconController::acceptedHumidityConverged(ThermalNetwork& thermalNetwork,
+                                                  const FlowRateMap& flowRates,
+                                                  double humidityAbsTol,
+                                                  std::ostream& logs) const {
+    for (const auto& key : getAirconKeys()) {
+        const auto& node = thermalNetwork.getNode(key);
+        if (!node.on) continue;
+        const auto context = prepareRuntimeContext(key, thermalNetwork, node, flowRates);
+        if (context.operationMode != OperationMode::Cooling) continue;
+        const auto loads = aircon::latent::estimateLatentProcess(
+            context.validData, context.operationMode, context.heatCapacity,
+            context.airFlowRate, node, moistEnthalpyEnabled_);
+        if (node.current_x > loads.supplyXUpperBound ||
+            (loads.condensationRateKgPerS > 0.0 &&
+             aircon::latent::supplyHumidityNeedsUpdate(node, loads, humidityAbsTol))) {
+            writeDomainLog(logs, "受入検査", "空調吹出湿度未達: aircon=" + key);
+            return false;
+        }
+    }
+    return true;
 }
 
 void AirconController::validateAcceptedCapacity(ThermalNetwork& thermalNetwork,
@@ -783,10 +807,10 @@ std::pair<double, double> AirconController::estimatePowerAndCOPForAircon(
         if (usedFallbackEx) warn << " outside_node=" << nodeProps.outside_node << " X_ex=JIS";
         writeDomainLog(logs, "空調", warn.str());
     }
-    if (logDetail && logVerbosity_ >= 1 && loads.usedRh95Fallback) {
+    if (logDetail && logVerbosity_ >= 1 && loads.saturationLimited) {
         std::ostringstream warn;
-        warn << "　　[WARN] bf法の吹出点相対湿度が100%を超えたためRH95法へフォールバック: " << airconKey
-             << " RH(bf)=" << std::fixed << std::setprecision(2) << loads.bfRhPercentBeforeFallback
+        warn << "　　[WARN] 顕熱優先の吹出飽和制約を適用: " << airconKey
+             << " RH(model)=" << std::fixed << std::setprecision(2) << loads.unboundedSupplyRhPercent
              << "% -> RH(out)=" << std::fixed << std::setprecision(2) << loads.supplyRhPercent
              << "% (Tout=" << context.validData.airconTemp << "°C, X_out=" << loads.supplyX
              << ", T_coil=" << loads.coilTemp << "°C, X_coil=" << loads.coilX << ")";

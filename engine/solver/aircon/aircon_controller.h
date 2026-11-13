@@ -200,6 +200,10 @@ public:
     void syncHumidityBoundariesBeforeSolve(ThermalNetwork& thermalNetwork) const;
 
     // Acceptance guard: never convert an unresolved capacity constraint into ok.
+    bool acceptedHumidityConverged(ThermalNetwork& thermalNetwork,
+                                    const FlowRateMap& flowRates,
+                                    double humidityAbsTol,
+                                    std::ostream& logs) const;
     void validateAcceptedCapacity(ThermalNetwork& thermalNetwork,
                                   const FlowRateMap& flowRates) const;
 
