@@ -84,6 +84,10 @@ struct OutputFiles {
     std::ofstream& thermalHeatRateCapacityFile;
     std::ofstream& airconSensibleHeatFile;
     std::ofstream& airconLatentHeatFile;
+    std::ofstream& airconReheatFile;
+    std::ofstream& airconRoomRHFile;
+    std::ofstream& airconHumidityUnmetFile;
+    std::ofstream& airconTemperatureUnmetFile;
     std::ofstream& airconPowerFile;
     std::ofstream& airconCOPFile;
     std::ofstream& hrvSensibleHeatFile;
@@ -120,6 +124,10 @@ static void initializeSchemaIfNeeded(ArtifactIO::OutputSchema& schema,
         const auto& airconKeys = airconController.getAirconKeys();
         schema.airconSensibleHeatKeys = airconKeys;
         schema.airconLatentHeatKeys = airconKeys;
+        schema.airconReheatKeys = airconKeys;
+        schema.airconRoomRHKeys = airconKeys;
+        schema.airconHumidityUnmetKeys = airconKeys;
+        schema.airconTemperatureUnmetKeys = airconKeys;
         schema.airconPowerKeys = airconKeys;
         schema.airconCOPKeys = airconKeys;
         schema.hrvSensibleHeatKeys = hrv::orderedKeys(thermalNetwork);
@@ -452,6 +460,10 @@ static bool runSimulationLoop(const InputData& inputData,
                     !writeSeries(outFiles.thermalHeatRateCapacityFile, timestepResult.heatRateCapacity, schema.heatRateKeysCapacity.size()) ||
                     !writeSeries(outFiles.airconSensibleHeatFile, timestepResult.airconSensibleHeat, schema.airconSensibleHeatKeys.size()) ||
                     !writeSeries(outFiles.airconLatentHeatFile, timestepResult.airconLatentHeat, schema.airconLatentHeatKeys.size()) ||
+                    !writeSeries(outFiles.airconReheatFile, timestepResult.airconReheat, schema.airconReheatKeys.size()) ||
+                    !writeSeries(outFiles.airconRoomRHFile, timestepResult.airconRoomRH, schema.airconRoomRHKeys.size()) ||
+                    !writeSeries(outFiles.airconHumidityUnmetFile, timestepResult.airconHumidityUnmet, schema.airconHumidityUnmetKeys.size()) ||
+                    !writeSeries(outFiles.airconTemperatureUnmetFile, timestepResult.airconTemperatureUnmet, schema.airconTemperatureUnmetKeys.size()) ||
                     !writeSeries(outFiles.airconPowerFile, timestepResult.airconPower, schema.airconPowerKeys.size()) ||
                     !writeSeries(outFiles.airconCOPFile, timestepResult.airconCOP, schema.airconCOPKeys.size()) ||
                     !writeSeries(outFiles.hrvSensibleHeatFile, timestepResult.hrvSensibleHeat, schema.hrvSensibleHeatKeys.size()) ||
@@ -479,6 +491,10 @@ static bool runSimulationLoop(const InputData& inputData,
                     outFiles.thermalHeatRateCapacityFile.flush();
                     outFiles.airconSensibleHeatFile.flush();
                     outFiles.airconLatentHeatFile.flush();
+                    outFiles.airconReheatFile.flush();
+                    outFiles.airconRoomRHFile.flush();
+                    outFiles.airconHumidityUnmetFile.flush();
+                    outFiles.airconTemperatureUnmetFile.flush();
                     outFiles.airconPowerFile.flush();
                     outFiles.airconCOPFile.flush();
                     outFiles.hrvSensibleHeatFile.flush();
@@ -506,6 +522,10 @@ static bool runSimulationLoop(const InputData& inputData,
         outFiles.thermalHeatRateCapacityFile.flush();
         outFiles.airconSensibleHeatFile.flush();
         outFiles.airconLatentHeatFile.flush();
+        outFiles.airconReheatFile.flush();
+        outFiles.airconRoomRHFile.flush();
+        outFiles.airconHumidityUnmetFile.flush();
+        outFiles.airconTemperatureUnmetFile.flush();
         outFiles.airconPowerFile.flush();
         outFiles.airconCOPFile.flush();
         outFiles.hrvSensibleHeatFile.flush();
@@ -697,6 +717,10 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
     const std::string thermalHeatRateCapacityBinName = "thermal.heat_rate.capacity.f32.bin";
     const std::string airconSensibleHeatBinName = "aircon.sensible_heat.f32.bin";
     const std::string airconLatentHeatBinName = "aircon.latent_heat.f32.bin";
+    const std::string airconReheatBinName = "aircon.reheat.f32.bin";
+    const std::string airconRoomRHBinName = "aircon.room_rh.f32.bin";
+    const std::string airconHumidityUnmetBinName = "aircon.humidity_unmet.f32.bin";
+    const std::string airconTemperatureUnmetBinName = "aircon.temperature_unmet.f32.bin";
     const std::string airconPowerBinName = "aircon.power.f32.bin";
     const std::string airconCOPBinName = "aircon.cop.f32.bin";
     const std::string hrvSensibleHeatBinName = "hrv.sensible_heat.f32.bin";
@@ -721,6 +745,10 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
     const std::filesystem::path thermalHeatRateCapacityBinPath = artifactDirPath / thermalHeatRateCapacityBinName;
     const std::filesystem::path airconSensibleHeatBinPath = artifactDirPath / airconSensibleHeatBinName;
     const std::filesystem::path airconLatentHeatBinPath = artifactDirPath / airconLatentHeatBinName;
+    const std::filesystem::path airconReheatBinPath = artifactDirPath / airconReheatBinName;
+    const std::filesystem::path airconRoomRHBinPath = artifactDirPath / airconRoomRHBinName;
+    const std::filesystem::path airconHumidityUnmetBinPath = artifactDirPath / airconHumidityUnmetBinName;
+    const std::filesystem::path airconTemperatureUnmetBinPath = artifactDirPath / airconTemperatureUnmetBinName;
     const std::filesystem::path airconPowerBinPath = artifactDirPath / airconPowerBinName;
     const std::filesystem::path airconCOPBinPath = artifactDirPath / airconCOPBinName;
     const std::filesystem::path hrvSensibleHeatBinPath = artifactDirPath / hrvSensibleHeatBinName;
@@ -827,6 +855,26 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
         std::cerr << "エラー: 結果ファイルを開けません: " << airconLatentHeatBinPath << "\n";
         return 1;
     }
+    std::ofstream airconReheatFile(airconReheatBinPath, std::ios::out | std::ios::binary | std::ios::trunc);
+    if (!airconReheatFile.is_open()) {
+        std::cerr << "エラー: 結果ファイルを開けません: " << airconReheatBinPath << "\n";
+        return 1;
+    }
+    std::ofstream airconRoomRHFile(airconRoomRHBinPath, std::ios::out | std::ios::binary | std::ios::trunc);
+    if (!airconRoomRHFile.is_open()) {
+        std::cerr << "エラー: 結果ファイルを開けません: " << airconRoomRHBinPath << "\n";
+        return 1;
+    }
+    std::ofstream airconHumidityUnmetFile(airconHumidityUnmetBinPath, std::ios::out | std::ios::binary | std::ios::trunc);
+    if (!airconHumidityUnmetFile.is_open()) {
+        std::cerr << "エラー: 結果ファイルを開けません: " << airconHumidityUnmetBinPath << "\n";
+        return 1;
+    }
+    std::ofstream airconTemperatureUnmetFile(airconTemperatureUnmetBinPath, std::ios::out | std::ios::binary | std::ios::trunc);
+    if (!airconTemperatureUnmetFile.is_open()) {
+        std::cerr << "エラー: 結果ファイルを開けません: " << airconTemperatureUnmetBinPath << "\n";
+        return 1;
+    }
     std::ofstream airconPowerFile(airconPowerBinPath, std::ios::out | std::ios::binary | std::ios::trunc);
     if (!airconPowerFile.is_open()) {
         std::cerr << "エラー: 結果ファイルを開けません: " << airconPowerBinPath << "\n";
@@ -871,6 +919,10 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
     std::vector<char> thermalHeatRateCapacityBuf(kFileBufferBytes);
     std::vector<char> airconSensibleHeatBuf(kFileBufferBytes);
     std::vector<char> airconLatentHeatBuf(kFileBufferBytes);
+    std::vector<char> airconReheatBuf(kFileBufferBytes);
+    std::vector<char> airconRoomRHBuf(kFileBufferBytes);
+    std::vector<char> airconHumidityUnmetBuf(kFileBufferBytes);
+    std::vector<char> airconTemperatureUnmetBuf(kFileBufferBytes);
     std::vector<char> airconPowerBuf(kFileBufferBytes);
     std::vector<char> airconCOPBuf(kFileBufferBytes);
     std::vector<char> hrvSensibleHeatBuf(kFileBufferBytes);
@@ -895,6 +947,10 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
     thermalHeatRateCapacityFile.rdbuf()->pubsetbuf(thermalHeatRateCapacityBuf.data(), static_cast<std::streamsize>(thermalHeatRateCapacityBuf.size()));
     airconSensibleHeatFile.rdbuf()->pubsetbuf(airconSensibleHeatBuf.data(), static_cast<std::streamsize>(airconSensibleHeatBuf.size()));
     airconLatentHeatFile.rdbuf()->pubsetbuf(airconLatentHeatBuf.data(), static_cast<std::streamsize>(airconLatentHeatBuf.size()));
+    airconReheatFile.rdbuf()->pubsetbuf(airconReheatBuf.data(), static_cast<std::streamsize>(airconReheatBuf.size()));
+    airconRoomRHFile.rdbuf()->pubsetbuf(airconRoomRHBuf.data(), static_cast<std::streamsize>(airconRoomRHBuf.size()));
+    airconHumidityUnmetFile.rdbuf()->pubsetbuf(airconHumidityUnmetBuf.data(), static_cast<std::streamsize>(airconHumidityUnmetBuf.size()));
+    airconTemperatureUnmetFile.rdbuf()->pubsetbuf(airconTemperatureUnmetBuf.data(), static_cast<std::streamsize>(airconTemperatureUnmetBuf.size()));
     airconPowerFile.rdbuf()->pubsetbuf(airconPowerBuf.data(), static_cast<std::streamsize>(airconPowerBuf.size()));
     airconCOPFile.rdbuf()->pubsetbuf(airconCOPBuf.data(), static_cast<std::streamsize>(airconCOPBuf.size()));
     hrvSensibleHeatFile.rdbuf()->pubsetbuf(hrvSensibleHeatBuf.data(), static_cast<std::streamsize>(hrvSensibleHeatBuf.size()));
@@ -941,6 +997,10 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
         thermalHeatRateCapacityFile,
         airconSensibleHeatFile,
         airconLatentHeatFile,
+        airconReheatFile,
+        airconRoomRHFile,
+        airconHumidityUnmetFile,
+        airconTemperatureUnmetFile,
         airconPowerFile,
         airconCOPFile,
         hrvSensibleHeatFile,
@@ -968,6 +1028,10 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
     hrvSensibleHeatFile.close();
     airconPowerFile.close();
     airconLatentHeatFile.close();
+    airconReheatFile.close();
+    airconRoomRHFile.close();
+    airconHumidityUnmetFile.close();
+    airconTemperatureUnmetFile.close();
     airconSensibleHeatFile.close();
     thermalHeatRateCapacityFile.close();
     thermalHeatRateRadiationFile.close();
@@ -1010,6 +1074,10 @@ int runVtsimnxSolverApp(const char* inputPath, const char* outputPath) {
             {"thermal_heat_rate_capacity", thermalHeatRateCapacityBinName},
             {"aircon_sensible_heat", airconSensibleHeatBinName},
             {"aircon_latent_heat", airconLatentHeatBinName},
+            {"aircon_reheat", airconReheatBinName},
+            {"aircon_room_rh", airconRoomRHBinName},
+            {"aircon_humidity_unmet", airconHumidityUnmetBinName},
+            {"aircon_temperature_unmet", airconTemperatureUnmetBinName},
             {"aircon_power", airconPowerBinName},
             {"aircon_cop", airconCOPBinName},
             {"hrv_sensible_heat", hrvSensibleHeatBinName},

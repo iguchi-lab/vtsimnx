@@ -102,6 +102,10 @@ class NodeType(TypedDict):
     x: Optional[np.ndarray]
     c: Optional[np.ndarray]
     pre_temp: Optional[float]
+    control_mode: str
+    max_overcooling: float
+    min_coil_temperature: float
+    reheat_cop: float
     pre_rh: Optional[float]  # 理想除湿の設定相対湿度 [%]
     model: Optional[str]
     mode: Optional[str]

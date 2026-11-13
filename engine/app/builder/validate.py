@@ -700,6 +700,26 @@ def validate_node_config(
                         )
                 node["pre_temp"] = pre_series
 
+            control = node.get("control_mode", "temperature_priority")
+            if control not in ("temperature_priority", "humidity_priority", "temperature_humidity"):
+                errors.append(f"ノード {node['key']} の control_mode が不正です: {control}")
+            if control != "temperature_priority":
+                if not sim_config["calc_flag"]["x"]:
+                    errors.append(f"ノード {node['key']}: 湿度制御には calc_flag.x=true が必要です")
+                if node.get("pre_rh") is None:
+                    errors.append(f"ノード {node['key']}: 湿度制御には pre_rh が必要です")
+                if any(str(m).upper() == "AUTO" or m == 3 for m in ensure_timeseries(mode, sim_length)):
+                    errors.append(f"ノード {node['key']}: 湿度制御は COOLING/HEATING/OFF を明示してください")
+                set_node = next((n for n in node_config if n.get("key") == node.get("set_node")), None)
+                if set_node is None or not set_node.get("calc_x") or not set_node.get("calc_t"):
+                    errors.append(f"ノード {node['key']}: 設定対象室は calc_x=true, calc_t=true が必要です")
+            for field, default, lower, upper in (("max_overcooling", 2.0, 0.0, 10.0),
+                                                 ("min_coil_temperature", 5.0, 0.0, 20.0),
+                                                 ("reheat_cop", 1.0, 1e-12, float("inf"))):
+                value = node.get(field, default)
+                if isinstance(value, bool) or not isinstance(value, (int, float)) or not np.isfinite(value) or not lower <= value <= upper:
+                    errors.append(f"ノード {node['key']} の {field} が不正です")
+
             pre_rh = node.get("pre_rh")
             if pre_rh is None:
                 node.pop("pre_rh", None)
@@ -711,6 +731,9 @@ def validate_node_config(
                     continue
                 for idx, val in enumerate(rh_series):
                     if _is_nan_like(val):
+                        requested_mode = ensure_timeseries(mode, sim_length)[idx]
+                        if control != "temperature_priority" and requested_mode in ("COOLING", 2):
+                            errors.append(f"ノード {node['key']}: 冷房時の湿度制御には有効な pre_rh が必要です")
                         # 当該時刻は理想除湿オフ（従来 latent_method）
                         continue
                     try:

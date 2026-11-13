@@ -64,6 +64,16 @@ struct VertexProperties {
     // 理想除湿（A）: 設定相対湿度 [%]。未指定は NaN（従来 latent_method のみ）。
     std::vector<double> pre_rh;
     double current_pre_rh = std::numeric_limits<double>::quiet_NaN();
+    // Control objective is independent of the legacy latent_method.
+    std::string control_mode = "temperature_priority";
+    double max_overcooling = 2.0;       // [K] below the requested room temperature
+    double min_coil_temperature = 5.0; // [degC], ideal wet-coil lower limit
+    double reheat_cop = 1.0;           // ideal electric reheat by default
+    double humidity_supply_request = std::numeric_limits<double>::quiet_NaN();
+    bool humidity_demand = false;
+    bool humidity_overcool_hold = false;
+    double humidity_search_low = std::numeric_limits<double>::quiet_NaN();
+    double humidity_search_high = std::numeric_limits<double>::quiet_NaN();
     double v = 0.0;
     // 熱処理負荷が 0 のときの循環風量 [m³/s]（DUCT_CENTRAL）。未指定=0。
     double vol_zero = 0.0;
@@ -88,6 +98,11 @@ struct VertexProperties {
     void updateForTimestep(int timestep) {
         aircon_flow_unmet_boost = false;
         aircon_min_process_hold = false;
+        humidity_supply_request = std::numeric_limits<double>::quiet_NaN();
+        humidity_demand = false;
+        humidity_overcool_hold = false;
+        humidity_search_low = std::numeric_limits<double>::quiet_NaN();
+        humidity_search_high = std::numeric_limits<double>::quiet_NaN();
         if (!p.empty() && static_cast<size_t>(timestep) < p.size()) {
             current_p = p[timestep];
         }

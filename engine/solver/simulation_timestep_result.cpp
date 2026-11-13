@@ -49,6 +49,14 @@ void buildTimestepResult(const SimulationConstants& constants,
                             airconController.collectAirconDataValues(thermalNetwork, flowRates, "sensibleHeatCapacity"));
         convertDoublesToF32(timestepResult.airconLatentHeat,
                             airconController.collectAirconDataValues(thermalNetwork, flowRates, "latentHeatCapacity"));
+        convertDoublesToF32(timestepResult.airconReheat,
+                            airconController.collectAirconDataValues(thermalNetwork, flowRates, "reheatCapacity"));
+        convertDoublesToF32(timestepResult.airconRoomRH,
+                            airconController.collectAirconDataValues(thermalNetwork, flowRates, "roomRelativeHumidity"));
+        convertDoublesToF32(timestepResult.airconHumidityUnmet,
+                            airconController.collectAirconDataValues(thermalNetwork, flowRates, "humidityUnmet"));
+        convertDoublesToF32(timestepResult.airconTemperatureUnmet,
+                            airconController.collectAirconDataValues(thermalNetwork, flowRates, "temperatureUnmet"));
         convertDoublesToF32(timestepResult.airconPower,
                             airconController.calculatePowerValues(thermalNetwork, flowRates, logs));
         convertDoublesToF32(timestepResult.airconCOP,
