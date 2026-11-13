@@ -85,11 +85,6 @@ inline double dewPointFromAbsoluteHumidity(double x) {
 
 namespace aircon::latent {
 
-double saturationHumidityUpperBound(double temperatureC) {
-    return std::max(0.0, archenv::absolute_humidity(temperatureC, 100.0)) *
-        (1.0 - 8.0 * std::numeric_limits<float>::epsilon());
-}
-
 double totalHeatCapacity(const LatentProcessResult& loads) {
     return std::max(0.0, loads.sensibleHeatCapacity) + std::max(0.0, loads.latentHeatCapacity);
 }

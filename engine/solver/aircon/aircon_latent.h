@@ -1,6 +1,7 @@
 #pragma once
 
 #include "aircon/aircon_controller.h"
+#include "aircon/aircon_saturation.h"
 #include <limits>
 
 namespace aircon::latent {
@@ -19,9 +20,6 @@ struct LatentProcessResult {
     double unboundedSupplyRhPercent = 0.0;
     bool saturationLimited = false;
 };
-
-// Shared physical limit, including float32 artifact rounding protection.
-double saturationHumidityUpperBound(double temperatureC);
 
 double totalHeatCapacity(const LatentProcessResult& loads);
 
