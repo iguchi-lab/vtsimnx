@@ -76,7 +76,10 @@ def test_inactive_cooling_model_conserves_water(method, coupled, humidity_tolera
     raw["nodes"][0].update(t=21.0, x=0.005)
     raw["nodes"][1].update(x=0.005, calc_x=True, v=30.0)
     ac = raw["aircon"][0]
-    ac.update(mode="COOLING", model="IDEAL")
+    ac["mode"] = "COOLING"
+    for group in ac["ac_spec"].values():
+        if isinstance(group, dict) and "heating" in group:
+            group["cooling"] = group.pop("heating")
     ac["ac_spec"]["latent_method"] = "none" if method == "ideal_rh60" else method
     if method == "ideal_rh60":
         ac["pre_rh"] = 60.0
