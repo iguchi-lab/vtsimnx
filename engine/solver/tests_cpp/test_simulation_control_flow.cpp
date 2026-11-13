@@ -154,6 +154,24 @@ void testTemperatureRelaxationAlpha() {
     expectTrue(capped < 0.05, "T-relax: huge delta is strongly damped");
     expectNear(couplingTemperatureRelaxation(0.3, 2, 59.5, 59.5, tol), 0.3, 1e-12,
                "T-relax: configured ceiling is respected");
+    // A sub-kelvin oscillation can still be hundreds of times above tolerance.
+    // Solve x = 1.01 - 1.02*x, whose undamped Picard iteration diverges.
+    double x = 0.1;
+    double previousDefect = 0.0;
+    bool converged = false;
+    for (std::size_t iter = 1; iter <= 100; ++iter) {
+        const double candidate = 1.01 - 1.02 * x;
+        const double defect = std::abs(candidate - x);
+        if (defect < tol) {
+            converged = true;
+            break;
+        }
+        const double alpha = couplingTemperatureRelaxation(1.0, iter, defect, previousDefect, tol);
+        x += alpha * (candidate - x);
+        previousDefect = defect;
+    }
+    expectTrue(converged, "T-relax: sub-kelvin Picard cycle converges within the iteration budget");
+    expectNear(x, 0.5, tol, "T-relax: converged state satisfies the fixed-point equation");
 }
 
 void testUnphysicalTemperatureDetection() {

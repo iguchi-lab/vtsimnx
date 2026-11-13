@@ -590,8 +590,8 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         simulation_coupled_step.cpp
         simulation_coupling_control.cpp
         simulation_runner_helpers.cpp
-        hrv/hrv_controller.cpp
-        aircon/aircon_network_utils.cpp
+        ${AIRCON_SOURCES}
+        ${ACMODEL_SOURCES}
         ${VENTILATION_PRESSURE_SOURCES}
         core/thermal/thermal_solver.cpp
         core/thermal/thermal_solver_linear_direct.cpp

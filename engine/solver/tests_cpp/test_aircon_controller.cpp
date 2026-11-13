@@ -1038,7 +1038,7 @@ int main() {
                                             773.4, /*holdAtMinimumCapacity=*/true);
         expectTrue(neg.stateChanged && !neg.on,
                    "heating negative Qreq must turn OFF even if hold flag is set");
-        expectTrue(neg.logMessage.find("最低能力で処理") == std::string::npos,
+        expectTrue(neg.logMessage.find("最低能力帯のON維持") == std::string::npos,
                    "negative heating Qreq must not cite min-process hold");
     }
     // RAC / CRIEPI / DUCT: カタログ Q.min だけでは最低能力停止しない。
@@ -1130,7 +1130,7 @@ int main() {
             (void)local.controlAllAircons(net, 0.5, logs, nullptr, 1e-9, nullptr, &flows);
             auto& held = net.getNode("RAC_NEG");
             expectTrue(!held.on, "heating negative Qreq turns OFF (no abs min_process hold)");
-            expectTrue(logs.str().find("最低能力で処理") == std::string::npos,
+            expectTrue(logs.str().find("最低能力帯のON維持") == std::string::npos,
                        "heating negative Qreq must not log min-process hold");
             expectTrue(!std::isfinite(held.required_heat_w),
                        "heating negative Qreq clears required heat on OFF");
@@ -1161,7 +1161,7 @@ int main() {
             (void)local.controlAllAircons(net, 0.5, logs, nullptr, 1e-9, nullptr, &flows);
             auto& held = net.getNode("RAC_POS_COOL");
             expectTrue(!held.on, "cooling positive Qreq turns OFF (no abs min_process hold)");
-            expectTrue(logs.str().find("最低能力で処理") == std::string::npos,
+            expectTrue(logs.str().find("最低能力帯のON維持") == std::string::npos,
                        "cooling positive Qreq must not log min-process hold");
         }
 
@@ -1204,7 +1204,7 @@ int main() {
         auto r = controller.controlAircon(ac, 20.0, 20.0, 0.5, logs, true, ac.required_heat_w, 1.0,
                                           2706.9, /*holdAtMinimumCapacity=*/true);
         expectTrue(!r.stateChanged && r.on, "hold must stay ON at minimum capacity");
-        expectTrue(r.logMessage.find("最低能力で処理") != std::string::npos,
+        expectTrue(r.logMessage.find("最低能力帯のON維持") != std::string::npos,
                    "hold-min log should cite min process");
     }
 
@@ -1302,7 +1302,7 @@ int main() {
             if (expectHold) {
                 expectTrue(held.on, msg + " stays ON");
                 expectNear(held.required_heat_w, signedMin, 1e-6, msg + " processes signed min_process");
-                expectTrue(logs2.str().find("最低能力で処理") != std::string::npos,
+                expectTrue(logs2.str().find("最低能力帯のON維持") != std::string::npos,
                            msg + " cites min process");
             } else {
                 // |Qreq| がデッドバンド以下なら OFF（min_process でも負荷0は止める）
@@ -1613,9 +1613,106 @@ int main() {
         }
         const double qW = archenv::DENSITY_DRY_AIR * archenv::SPECIFIC_HEAT_AIR * 0.2 * (30.0 - 20.0);
         const double lambda = std::clamp((0.2 * std::clamp(qW / (7.2 * 1000.0), 0.0, 1.0)) / 0.2, 0.0, 1.0);
-        expectNear(qMax, 0.2 * lambda, 1e-6, "fan q_max scales with speed ratio");
-        expectNear(pMax, 80.0 * lambda * lambda, 1e-6, "fan p_max scales with speed ratio squared");
+        const double appliedLambda = 0.5 * (1.0 + lambda);
+        expectNear(qMax, 0.2 * appliedLambda, 1e-6, "fan q_max scales with damped speed ratio");
+        expectNear(pMax, 80.0 * appliedLambda * appliedLambda, 1e-6, "fan pressure follows damped affinity square");
         expectTrue(lossUnchanged, "pressure_loss connector is not overwritten");
+    }
+
+    // A provisional heating solve may need more fan speed before inner convergence.
+    {
+        Graph trial;
+        auto ac = boost::add_vertex(makeNode("AC", "aircon", 150.0), trial);
+        auto& node = trial[ac];
+        node.on = true;
+        node.model = "DUCT_CENTRAL";
+        node.current_mode = "HEATING";
+        node.set_node = "ROOM";
+        node.current_requested_pre_temp = 20.0;
+        node.required_heat_w = 3600.0;
+        node.aircon_control_state = AirconControlState::SetpointControlled;
+        node.ac_spec = nlohmann::json{
+            {"Q", {{"heating", {{"rtd", 7.2}}}}},
+            {"V_inner", {{"heating", {{"dsgn", 0.2}}}}},
+        };
+        node.initializeAirconSpec();
+        VentilationNetwork vent;
+        auto& vg = vent.getGraph();
+        auto room = boost::add_vertex(makeNode("ROOM", "normal", 20.0), vg);
+        auto supply = boost::add_vertex(makeNode("AC", "aircon", 20.0), vg);
+        EdgeProperties fan{};
+        fan.type = "fan";
+        fan.subtype = "aircon";
+        fan.fan_curve_rated = true;
+        fan.p_max_rated = 80.0;
+        fan.p1_rated = 40.0;
+        fan.q1_rated = 0.1;
+        fan.q_max_rated = 0.2;
+        fan.p_max = 0.8;
+        fan.p1 = 0.4;
+        fan.q1 = 0.01;
+        fan.q_max = 0.02;
+        const auto edge = boost::add_edge(room, supply, fan, vg).first;
+        std::ostringstream logs;
+        const auto update = [&]() {
+            return aircon::airflow::increaseHeatingFanForCoupledSolve(vent, trial, logs, true);
+        };
+        expectTrue(update(), "heating candidate increases stale minimum fan speed");
+        expectNear(vg[edge].q_max, 0.1, 1e-12, "half rated load requests half fan speed");
+        expectNear(vg[edge].p_max, 20.0, 1e-12, "fan pressure follows affinity square");
+        expectNear(node.current_t, 150.0, 1e-12, "fan predictor does not clamp the thermal candidate");
+        expectTrue(!update(), "unchanged fan must not request another retry");
+        node.required_heat_w = 2000.0;
+        expectTrue(!update(), "inner predictor never reduces fan speed");
+        node.required_heat_w = 72000.0;
+        expectTrue(update(), "large demand can reach rated fan speed");
+        expectNear(vg[edge].q_max, 0.2, 1e-12, "predictor never exceeds rated fan speed");
+
+        vg[edge] = fan;
+        node.required_heat_w = 3600.0;
+        node.aircon_control_state = AirconControlState::CapacityLimited;
+        expectTrue(!update(), "capacity bracket keeps its fan fixed");
+        node.aircon_control_state = AirconControlState::Off;
+        expectTrue(update(), "preset ON can precede the outer control state update");
+        vg[edge] = fan;
+        node.aircon_control_state = AirconControlState::SetpointControlled;
+        node.on = false;
+        expectTrue(!update(), "OFF unit does not increase fan");
+        node.on = true;
+        node.current_mode = "COOLING";
+        expectTrue(!update(), "heating predictor does not change cooling control");
+        node.current_mode = "HEATING";
+        node.required_heat_w = -3600.0;
+        expectTrue(!update(), "opposite load sign is left to ON/OFF control");
+        node.required_heat_w = std::numeric_limits<double>::quiet_NaN();
+        expectTrue(!update(), "non-finite load does not change fan");
+        node.required_heat_w = 3600.0;
+        node.aircon_min_process_hold = true;
+        expectTrue(update(), "ON/OFF hold must not freeze the fan below the required load");
+        expectNear(vg[edge].q_max, 0.1, 1e-12, "held unit still follows increasing load");
+        node.aircon_min_process_hold = false;
+        // A load that falls as fan speed rises has a known fixed point.
+        // Undamped updates have slope -1.25 and oscillate; damping must solve
+        // the original equation, without accepting the smaller applied step.
+        vg[edge] = fan;
+        bool fanConverged = false;
+        for (int iter = 0; iter < 100; ++iter) {
+            const double ratio = vg[edge].q_max / fan.q_max_rated;
+            const double targetFlow = 0.2 * (4500.0 - 9000.0 * ratio) / 7200.0;
+            if (!aircon::airflow::updateDuctCentralFanAffinity(
+                    vent, node, OperationMode::Heating, node.key, targetFlow,
+                    1e-3, nullptr, false, true)) {
+                fanConverged = true;
+                break;
+            }
+        }
+        expectTrue(fanConverged, "fan/load feedback converges within its iteration budget");
+        expectNear(vg[edge].q_max / fan.q_max_rated, 4500.0 / 16200.0, 1e-3,
+                   "damped fan solves the unchanged load/flow fixed point");
+        vg[edge].type = "fixed_flow";
+        vg[edge].current_vol = 0.02;
+        expectTrue(!update(), "fixed-flow equipment is not changed by the fan predictor");
+        expectNear(vg[edge].current_vol, 0.02, 1e-12, "fixed flow remains prescribed");
     }
 
     // DUCT_CENTRAL: in == out のループでも吹出を逆符号にしない
@@ -2076,73 +2173,34 @@ int main() {
         expectTrue(logsLinear.str().find("最低風量維持") == std::string::npos,
                    "above-default load must not log min-flow hold");
 
-        // min_process のすぐ上（例: 771W↔844W）は最低風量のまま。外側ループの 0.05↔0.04 振動を止める。
+        // Minimum flow is a continuous lower bound, independent of ON/OFF history.
         {
             VertexProperties specNode;
             specNode.model = "DUCT_CENTRAL";
-            specNode.current_mode = "HEATING";
             specNode.ac_spec = nlohmann::json{
-                {"Q", {{"heating", {{"rtd", 7.73399}}}}},
-                {"V_inner", {{"heating", {{"dsgn", 0.4}}}}},
+                {"Q", {{"heating", {{"rtd", 7.73399}}}, {"cooling", {{"rtd", 7.73399}}}}},
+                {"V_inner", {{"heating", {{"dsgn", 0.4}}}, {"cooling", {{"dsgn", 0.4}}}}},
             };
             specNode.initializeAirconSpec();
             const double minProcessW = 773.399;
-            bool held = false;
-            const auto atMin = aircon::airflow::computeTargetFlowFromProcessedHeat(
-                specNode, OperationMode::Heating, 771.815, 0.0, minProcessW, &held);
-            expectTrue(atMin.has_value(), "Qreq just below min_process has a target flow");
-            expectTrue(held, "Qreq just below min_process holds min flow");
-            held = false;
-            const auto justAbove = aircon::airflow::computeTargetFlowFromProcessedHeat(
-                specNode, OperationMode::Heating, 844.34, 0.0, minProcessW, &held);
-            expectTrue(justAbove.has_value() && atMin.has_value(),
-                       "Qreq 9% above min_process still has a target flow");
-            expectTrue(held, "Qreq 9% above min_process stays on min-flow hold");
-            expectNear(*justAbove, *atMin, 1e-12,
-                       "Qreq 771W and 844W must request the same min flow");
-            const double linear844 = 0.4 * (844.34 / 7733.99);
-            expectTrue(std::abs(*justAbove - linear844) > 1e-4,
-                       "hysteresis must not use the linear 844W flow");
-
-            held = false;
-            specNode.aircon_min_process_hold = false;
-            const auto acrossEdge = aircon::airflow::computeTargetFlowFromProcessedHeat(
-                specNode, OperationMode::Heating, 963.4, 0.0, minProcessW, &held);
-            expectTrue(acrossEdge.has_value(), "Qreq 1.25x min_process has a target flow");
-            expectTrue(!held, "Qreq 1.25x min_process does not enter min-flow hold");
-            const double linear963 = 0.4 * (963.4 / 7733.99);
-            expectNear(*acrossEdge, linear963, 1e-12,
-                       "without prior hold, 963W stays on the linear flow");
-
-            held = false;
-            specNode.aircon_min_process_hold = true;
-            const auto stayMin = aircon::airflow::computeTargetFlowFromProcessedHeat(
-                specNode, OperationMode::Heating, 963.4, 0.0, minProcessW, &held);
-            expectTrue(stayMin.has_value() && atMin.has_value(),
-                       "Qreq 963W with prior hold still has a target flow");
-            expectTrue(held, "Qreq 963W stays on min-flow hold after entering");
-            expectNear(*stayMin, *atMin, 1e-12,
-                       "851-963W period-2 must keep the same min flow once held");
-
-            held = false;
-            specNode.aircon_min_process_hold = true;
-            const auto stayHigh = aircon::airflow::computeTargetFlowFromProcessedHeat(
-                specNode, OperationMode::Heating, 1254.18, 0.0, minProcessW, &held);
-            expectTrue(stayHigh.has_value() && atMin.has_value(),
-                       "Qreq 1.62x min_process with prior hold still has a target flow");
-            expectTrue(held, "Qreq 1.62x min_process stays on min-flow hold until timestep end");
-            expectNear(*stayHigh, *atMin, 1e-12,
-                       "851-1254W period-2 must keep the same min flow once held");
-
-            held = false;
-            specNode.aircon_min_process_hold = false;
-            const auto linearHigh = aircon::airflow::computeTargetFlowFromProcessedHeat(
-                specNode, OperationMode::Heating, 1254.18, 0.0, minProcessW, &held);
-            expectTrue(linearHigh.has_value(), "Qreq 1.62x without hold has a target flow");
-            expectTrue(!held, "Qreq 1.62x without hold does not enter min-flow hold");
-            const double linear1254 = 0.4 * (1254.18 / 7733.99);
-            expectNear(*linearHigh, linear1254, 1e-12,
-                       "without prior hold, 1254W stays on the linear flow");
+            for (const auto mode : {OperationMode::Heating, OperationMode::Cooling}) {
+                for (const bool wasHeld : {false, true}) {
+                    specNode.aircon_min_process_hold = wasHeld;
+                    double previous = 0.0;
+                    for (const double heat : {771.815, minProcessW, minProcessW + 1e-5,
+                                               844.34, 963.4, 1254.18}) {
+                        bool held = false;
+                        const auto flow = aircon::airflow::computeTargetFlowFromProcessedHeat(
+                            specNode, mode, heat, 0.0, minProcessW, &held);
+                        expectTrue(flow.has_value(), "positive load has a target flow");
+                        expectTrue(*flow >= previous, "flow never decreases with required load");
+                        expectTrue(held == (heat <= minProcessW), "only sub-minimum load uses floor");
+                        expectNear(*flow, 0.4 * std::max(heat, minProcessW) / 7733.99, 1e-12,
+                                   "ON/OFF history must not cap the fan at minimum speed");
+                        previous = *flow;
+                    }
+                }
+            }
         }
 
         // 未達 0.5 K 縁: 一度 Q_max に入ったら設定到達まで維持する。

@@ -3,6 +3,7 @@
 #include "aircon/aircon_capacity.h"
 #include "aircon/aircon_operation_mode.h"
 #include "types/aircon_control_state.h"
+#include "utils/utils.h"
 
 #include <algorithm>
 #include <cmath>
@@ -176,7 +177,9 @@ bool updateDuctCentralFanAffinity(VentilationNetwork& ventNetwork,
                                   const std::string& airconNode,
                                   double targetFlowM3s,
                                   double ratioTol,
-                                  bool* fanPresent) {
+                                  bool* fanPresent,
+                                  bool increaseOnly,
+                                  bool dampUpdate) {
     if (fanPresent) *fanPresent = false;
     if (airconNode.empty()) return false;
 
@@ -207,14 +210,60 @@ bool updateDuctCentralFanAffinity(VentilationNetwork& ventNetwork,
         applyFanAffinity(desired, lambda);
         const double qScale = std::max({edge.q_max_rated, edge.q_max, desired.q_max, 1e-6});
         const double pScale = std::max({edge.p_max_rated, edge.p_max, desired.p_max, 1e-6});
+        if (increaseOnly && desired.q_max <= edge.q_max + ratioTol * qScale) continue;
         const bool same =
             std::abs(edge.q_max - desired.q_max) <= ratioTol * qScale &&
             std::abs(edge.q1 - desired.q1) <= ratioTol * qScale &&
             std::abs(edge.p_max - desired.p_max) <= ratioTol * pScale &&
             std::abs(edge.p1 - desired.p1) <= ratioTol * pScale;
         if (same) continue;
-        applyFanAffinity(edge, lambda);
+        const double currentLambda = edge.q_max_rated > 0.0
+            ? std::clamp(edge.q_max / edge.q_max_rated, 0.0, 1.0) : lambda;
+        // 風量依存の負荷へ一度で追従すると二周期になりうる。
+        // 目標そのものへの残差で判定してから反復更新だけを緩和する。
+        applyFanAffinity(edge, dampUpdate ? 0.5 * (currentLambda + lambda) : lambda);
         updated = true;
+    }
+    return updated;
+}
+
+bool increaseHeatingFanForCoupledSolve(VentilationNetwork& ventNetwork,
+                                       const Graph& thermalGraph,
+                                       std::ostream& logs,
+                                       bool logEnabled) {
+    bool updated = false;
+    for (auto v : boost::make_iterator_range(boost::vertices(thermalGraph))) {
+        const auto& node = thermalGraph[v];
+        if (node.getTypeCode() != VertexProperties::TypeCode::Aircon || !node.on ||
+            !isDuctCentralModel(node) || node.current_mode != "HEATING" ||
+            node.set_node.empty() ||
+            node.aircon_control_state == AirconControlState::CapacityLimited ||
+            !std::isfinite(node.required_heat_w) || node.required_heat_w <= 0.0) {
+            continue;
+        }
+        // 設定維持負荷と能力上限は通常の外側風量制御と同じ定義を使う。
+        const auto basis = selectFlowHeatBasis(node, OperationMode::Heating,
+                                               node.required_heat_w,
+                                               node.current_requested_pre_temp);
+        double minProcessW = 0.0;
+        if (const auto* spec = node.getAirconSpec()) {
+            if (const auto q = spec->getMinProcess("heating")) minProcessW = *q * 1000.0;
+        }
+        const auto target = computeTargetFlowFromProcessedHeat(
+            node, OperationMode::Heating, basis.heatW, node.vol_zero, minProcessW);
+        if (!target || !std::isfinite(*target)) continue;
+        if (!updateDuctCentralFanAffinity(ventNetwork, node, OperationMode::Heating,
+                                          node.key, *target, 1e-3, nullptr,
+                                          /*increaseOnly=*/true)) {
+            continue;
+        }
+        updated = true;
+        if (logEnabled) {
+            writeDomainLog(logs, "空調", node.key +
+                " 暖房ファン先行補正: Qreq=" + std::to_string(node.required_heat_w) +
+                " W, target=" + std::to_string(*target) +
+                " m3/s; 温度候補を破棄して圧力・温度を再計算");
+        }
     }
     return updated;
 }
@@ -290,7 +339,8 @@ std::optional<double> computeTargetFlowFromProcessedHeat(const VertexProperties&
         return std::nullopt;
     }
     // 負荷 0 は零負荷風量（既定 0）。正の負荷は原則線形。
-    // min_process は 1.2 倍で入り、ホールド中の正の負荷はステップ内は床を維持する。
+    // 最低能力は風量の下限。ON/OFF用のホールドで上限まで固定しない。
+    // 生の必要負荷を残し、下限の前後で連続な風量則を使う。
     if (!(processedHeatW > 0.0)) {
         const double v0 = std::isfinite(zeroLoadFlowM3s) ? std::max(0.0, zeroLoadFlowM3s) : 0.0;
         return v0;
@@ -298,8 +348,7 @@ std::optional<double> computeTargetFlowFromProcessedHeat(const VertexProperties&
     double heatForRatioW = processedHeatW;
     const bool holdFloor =
         std::isfinite(minProcessHeatW) && minProcessHeatW > 0.0 &&
-        (nodeProps.aircon_min_process_hold ||
-         processedHeatW <= aircon::onoff::minProcessHoldCeilingW(minProcessHeatW));
+        processedHeatW <= minProcessHeatW;
     if (holdFloor) {
         heatForRatioW = minProcessHeatW;
         if (heldAtMinimum) *heldAtMinimum = true;

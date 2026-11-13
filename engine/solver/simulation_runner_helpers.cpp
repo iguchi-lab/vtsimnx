@@ -308,7 +308,7 @@ double couplingTemperatureRelaxation(double configured,
                                      double temperatureTol) {
     double alpha = configured;
     if (!(alpha > 0.0) || alpha > 1.0) alpha = 1.0;
-    const double stallFloor = std::max(kCouplingTemperatureStallFloorK, 10.0 * std::max(0.0, temperatureTol));
+    const double stallFloor = std::max(1e-12, 10.0 * std::max(0.0, temperatureTol));
     if (coupledIter >= 2 && temperatureChange > stallFloor &&
         temperatureChange >= prevTemperatureChange) {
         alpha = std::min(alpha, kCouplingTemperatureStallRelaxation);

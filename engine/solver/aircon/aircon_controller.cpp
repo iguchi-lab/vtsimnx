@@ -359,7 +359,10 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
         } else if (!result.on) {
             nodeProps.aircon_min_process_hold = false;
         }
-        if (holdAtMinimumCapacity && result.on && std::isfinite(nodeProps.required_heat_w)) {
+        // DUCTの風量は生の設定維持負荷を参照する。最低能力は風量則側で
+        // 下限として適用し、ON/OFFホールドで負荷を上書きしない。
+        if (holdAtMinimumCapacity && result.on && std::isfinite(nodeProps.required_heat_w) &&
+            !aircon::airflow::isDuctCentralModel(nodeProps)) {
             nodeProps.required_heat_w =
                 aircon::onoff::signedMinProcessHeatW(minMode, minProcessHeatW);
         }
@@ -597,7 +600,7 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
         if (!targetFlowOpt) {
             continue;
         }
-        nodeProps.aircon_min_process_hold = heldAtMinimumFlow;
+        // ON/OFFのホールド状態はcontrolAllAirconsだけが更新する。
         // 極小目標は 0 にスナップし、0.00→0.00 の再計算ループを防ぐ。
         // flowRates 側に数値残差が残っても、実質ゼロ同士なら更新しない。
         constexpr double kAbsFlowSnap = 1e-4;  // [m3/s]
@@ -617,7 +620,7 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
         if (std::abs(currentFlow - targetFlow) > kAbsFlowMatch) {
             edgeUpdated = aircon::airflow::updateDuctCentralFanAffinity(
                 ventNetwork, nodeProps, context.operationMode, nodeProps.key, targetFlow,
-                kRelativeFlowTol, &fanPresent);
+                kRelativeFlowTol, &fanPresent, /*increaseOnly=*/false, /*dampUpdate=*/true);
             if (!fanPresent && !nodeProps.in_node.empty()) {
                 edgeUpdated = aircon::airflow::updateDuctCentralCircuitFixedFlows(
                     ventNetwork, nodeProps.in_node, nodeProps.key, targetFlow, flowTol);
