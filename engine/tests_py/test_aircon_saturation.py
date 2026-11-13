@@ -82,6 +82,7 @@ def test_ideal_humidity_uses_requested_room_temperature_not_return_air():
     raw = _raw_coil_case(0.022, duct=True)
     raw["thermal_branches"][0]["conductance"] = 50.0
     raw["nodes"].append({"key": "return", "t": 31.0, "x": 0.022})
+    raw["ventilation_branches"].append({"key": "room->return", "vol": 0.3})
     ac = raw["aircon"][0]
     ac.update({"in": "return", "pre_temp": 27.5, "pre_rh": 60.0})
     ac["ac_spec"].pop("V_inner")
