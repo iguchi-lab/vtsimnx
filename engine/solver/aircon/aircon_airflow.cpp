@@ -178,7 +178,8 @@ bool updateDuctCentralFanAffinity(VentilationNetwork& ventNetwork,
                                   double targetFlowM3s,
                                   double ratioTol,
                                   bool* fanPresent,
-                                  bool increaseOnly) {
+                                  bool increaseOnly,
+                                  bool dampUpdate) {
     if (fanPresent) *fanPresent = false;
     if (airconNode.empty()) return false;
 
@@ -216,7 +217,11 @@ bool updateDuctCentralFanAffinity(VentilationNetwork& ventNetwork,
             std::abs(edge.p_max - desired.p_max) <= ratioTol * pScale &&
             std::abs(edge.p1 - desired.p1) <= ratioTol * pScale;
         if (same) continue;
-        applyFanAffinity(edge, lambda);
+        const double currentLambda = edge.q_max_rated > 0.0
+            ? std::clamp(edge.q_max / edge.q_max_rated, 0.0, 1.0) : lambda;
+        // 風量依存の負荷へ一度で追従すると二周期になりうる。
+        // 目標そのものへの残差で判定してから反復更新だけを緩和する。
+        applyFanAffinity(edge, dampUpdate ? 0.5 * (currentLambda + lambda) : lambda);
         updated = true;
     }
     return updated;
@@ -334,7 +339,8 @@ std::optional<double> computeTargetFlowFromProcessedHeat(const VertexProperties&
         return std::nullopt;
     }
     // 負荷 0 は零負荷風量（既定 0）。正の負荷は原則線形。
-    // min_process は 1.2 倍で入り、ホールド中の正の負荷はステップ内は床を維持する。
+    // 最低能力は風量の下限。ON/OFF用のホールドで上限まで固定しない。
+    // 生の必要負荷を残し、下限の前後で連続な風量則を使う。
     if (!(processedHeatW > 0.0)) {
         const double v0 = std::isfinite(zeroLoadFlowM3s) ? std::max(0.0, zeroLoadFlowM3s) : 0.0;
         return v0;
@@ -342,8 +348,7 @@ std::optional<double> computeTargetFlowFromProcessedHeat(const VertexProperties&
     double heatForRatioW = processedHeatW;
     const bool holdFloor =
         std::isfinite(minProcessHeatW) && minProcessHeatW > 0.0 &&
-        (nodeProps.aircon_min_process_hold ||
-         processedHeatW <= aircon::onoff::minProcessHoldCeilingW(minProcessHeatW));
+        processedHeatW <= minProcessHeatW;
     if (holdFloor) {
         heatForRatioW = minProcessHeatW;
         if (heldAtMinimum) *heldAtMinimum = true;

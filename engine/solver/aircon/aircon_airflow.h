@@ -29,6 +29,7 @@ bool updateDuctCentralCircuitFixedFlows(VentilationNetwork& ventNetwork,
 // subtype=aircon のファン枝があるとき、負荷比 λ=targetFlow/V_dsgn で定格 PQ を相似縮小する。
 // q' = λ q_rated、p' = λ² p_rated。実風量は圧力計算の交点であり、枝へ vol は書かない。
 // fanPresent が非 null なら、対象ファン枝の有無を返す。曲線が変わったとき true。
+// dampUpdateなら速度比を旧値と目標の中点へ更新。収束判定は緩和前の目標差を使う。
 bool updateDuctCentralFanAffinity(VentilationNetwork& ventNetwork,
                                   const VertexProperties& nodeProps,
                                   OperationMode operationMode,
@@ -36,7 +37,8 @@ bool updateDuctCentralFanAffinity(VentilationNetwork& ventNetwork,
                                   double targetFlowM3s,
                                   double ratioTol,
                                   bool* fanPresent = nullptr,
-                                  bool increaseOnly = false);
+                                  bool increaseOnly = false,
+                                  bool dampUpdate = false);
 
 // 暖房の設定温度拘束を低速ファンで解くと、内側連成が風量補正前に発散しうる。
 // 候補の必要負荷に応じてファン速度を増やす。温度候補は呼び出し側で破棄して解き直す。
@@ -67,15 +69,12 @@ FlowHeatBasis selectFlowHeatBasis(const VertexProperties& nodeProps,
                                   double controlledRoomTemp,
                                   bool previouslyUnmetBoost = false);
 
-// 最低能力付近の風量床。入る倍率は ON/OFF ホールドと同じ。
-// node.aircon_min_process_hold が立っていれば、正の負荷ではステップ内は床を維持する。
-constexpr double kMinProcessFlowHoldRatio = aircon::onoff::kMinProcessHoldRatio;
-
 // 基準熱量から目標風量 [m3/s] を求める。
 // - 熱量 <= 0 → zeroLoadFlowM3s（既定 0。換気用の零負荷風量）
-// - minProcessHeatW > 0 かつ (0 < 熱量 <= 入る天井、またはホールド中の正の負荷)
+// - minProcessHeatW > 0 かつ 0 < 熱量 <= minProcessHeatW
 //     → V_dsgn * minProcessHeatW/Q.rtd（最低能力時の最低風量）
 // - それ以上は V_dsgn * clamp(熱量/Q.rtd, 0, 1)
+// ON/OFFホールド履歴は風量を固定しない。正の負荷で下限の前後は連続。
 // カタログ Q.min は使わない。heldAtMinimum が非 null なら最低能力風量のとき true。
 std::optional<double> computeTargetFlowFromProcessedHeat(const VertexProperties& nodeProps,
                                                          OperationMode operationMode,

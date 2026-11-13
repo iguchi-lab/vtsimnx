@@ -80,3 +80,42 @@ def test_fan_retry_respects_coupling_limit(heating_solver):
     assert out["error_code"] == "coupling_max_iterations", out
     art = sr.resolve_artifact_path(out["artifact_dir"])
     assert "暖房ファン先行補正" in (art / "solver.log").read_text()
+
+
+@pytest.mark.parametrize("backend", ["klu", "eigen"])
+def test_minimum_fan_does_not_freeze_a_growing_distribution_load(heating_solver, monkeypatch, backend):
+    # An intentionally uneven distribution exposes the minimum-flow latch:
+    # lowering the fan increases supply temperature and the return-zone load.
+    raw = heating_fan_case()
+    raw["simulation"]["index"].update(end="2026-01-01T00:00:00", length=1)
+    raw["nodes"] = [
+        {"key": "outside", "t": 18.0},
+        {"key": "room", "t": 20.0, "calc_t": True, "calc_p": True},
+        {"key": "return", "t": 20.0, "calc_t": True, "p": 0.0},
+        {"key": "supply", "t": 20.0, "calc_t": True, "calc_p": True},
+    ]
+    raw["thermal_branches"] = [
+        {"key": "outside->room", "conductance": 150.0},
+        {"key": "outside->return", "conductance": 40.0},
+    ]
+    raw["ventilation_branches"] = [
+        {"key": "supply->room", "alpha": 0.65, "area": 0.01},
+        {"key": "room->return", "alpha": 0.65, "area": 2.0},
+        {"key": "supply->return", "alpha": 0.65, "area": 0.25},
+    ]
+    raw["aircon"][0].update({"in": "return", "out": "supply", "mode": "HEATING"})
+    monkeypatch.setenv("VTSIMNX_THERMAL_DIRECT_LU", backend)
+    built = build_config(raw, output_path=None, add_surface=False, add_aircon=True,
+                         add_capacity=False, add_moisture_capacity=False)
+    out = sr.run_solver(built)
+    assert out["status"] == "ok", out
+    art = sr.resolve_artifact_path(out["artifact_dir"])
+    room = read_series(art, out, "thermal_temperature", "room")[0]
+    return_temp = read_series(art, out, "thermal_temperature", "return")[0]
+    supply = read_series(art, out, "thermal_temperature", "supply")[0]
+    heat = read_series(art, out, "aircon_sensible_heat", "AC")[0]
+    assert room == pytest.approx(20.0, abs=1e-3)
+    assert 20.0 < supply < 100.0
+    # Accepted coil heat must balance the two external conduction losses.
+    assert heat == pytest.approx(150.0 * (room - 18.0) + 40.0 * (return_temp - 18.0), abs=0.1)
+    assert heat > 2.0 * 773.3992  # It must not be replaced by the stale minimum.

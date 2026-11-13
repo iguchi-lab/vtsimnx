@@ -128,7 +128,7 @@ Decision decideFromRequiredHeat(const std::string& mode,
     std::ostringstream detail;
     detail << "Qreq=" << requiredHeatW << "W";
     if (holdApplies) {
-        detail << " <= min_process=" << minProcessHeatW << "W, 最低能力で処理";
+        detail << ", min_process=" << minProcessHeatW << "W, 最低能力帯のON維持";
     }
     decision.detail = detail.str();
     return decision;

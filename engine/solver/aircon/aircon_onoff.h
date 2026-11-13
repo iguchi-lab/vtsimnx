@@ -71,12 +71,12 @@ bool inMinProcessHoldBand(const char* minModeKey,
                           double deadbandW = kLoadDeadbandW,
                           bool previouslyHeld = false);
 
-// ホールド時に required_heat_w へ書き込む符号付き最低能力 [W]。
+// DUCT以外のホールド時に required_heat_w へ書き込む符号付き最低能力 [W]。
 double signedMinProcessHeatW(const char* minModeKey, double minProcessHeatW);
 
 // 設定維持中の室負荷、または停止中の温度バンドで ON/OFF を決める。
 // minProcessHeatW はカタログ Q.min ではなく制御用 min_process [W]。
-// holdAtMinimumCapacity のとき、同符号の小負荷なら停止せず最低能力で処理する。
+// holdAtMinimumCapacity のとき、同符号の小負荷なら停止せず運転を維持する。
 // 逆符号の要求負荷では hold を無視して OFF にする。
 Decision decide(const std::string& mode,
                 bool currentlyOn,
