@@ -61,6 +61,7 @@ bool acceptedStateConverged(simulation::Context& ctx,
         if (!ThermalSolverLinearDirect::validateCurrentState(ctx.thermal, ctx.constants, ctx.logs)) return false;
     }
     double waterDefect = 0.0;
+    double waterRelativeResidual = 0.0;
     MoistureBalanceTerms water;
     if (ctx.constants.humidityCalc) {
         HumidityNetworkTerms terms;
@@ -68,6 +69,10 @@ bool acceptedStateConverged(simulation::Context& ctx,
                                 ctx.ventilation, terms);
         core::humidity::evaluateMoistureBalanceTerms(
             graph, terms, initial.humidityX, ctx.constants.timestep, water);
+        const auto& linear = ctx.humidity.humiditySolverContext();
+        if (!terms.updateVertices.empty() &&
+            (!linear.factorized || terms.updateVertices != linear.updateVertices)) return false;
+        double residualSquared = 0.0;
         for (auto v : terms.updateVertices) {
             if (couplingHumidityUnphysical(graph[v].current_x)) return false;
             const size_t i = static_cast<size_t>(v);
@@ -78,6 +83,12 @@ bool acceptedStateConverged(simulation::Context& ctx,
             const double defect = std::abs(water.residual[i]) / std::max(diagonal, 1e-30);
             if (!std::isfinite(defect)) return false;
             waterDefect = std::max(waterDefect, defect);
+            // Match the humidity solver's row scaling: inventory rows use
+            // dt/C, algebraic rows remain in kg/s. Evaluate the current state,
+            // not the pre-relaxation vector that the linear solver checked.
+            const double scaled = water.residual[i] *
+                (capacity > 0.0 ? ctx.constants.timestep / capacity : 1.0);
+            residualSquared += scaled * scaled;
         }
         ctx.humidity.setLastMoistureBalance(water);
         // This is an absolute humidity defect; the linear solver tolerance is
@@ -86,6 +97,20 @@ bool acceptedStateConverged(simulation::Context& ctx,
         if (waterDefect > tolerance) {
             writeDomainLog(ctx.logs, "受入検査", "水分収支未達: normalized=" + std::to_string(waterDefect));
             return false;
+        }
+        if (!terms.updateVertices.empty()) {
+            const double rhsNorm = linear.rhs.norm();
+            waterRelativeResidual = std::sqrt(residualSquared);
+            if (rhsNorm > 0.0) waterRelativeResidual /= rhsNorm;
+            const double linearTolerance = ctx.constants.humiditySolverTolerance > 0.0
+                ? ctx.constants.humiditySolverTolerance : 1e-9;
+            if (!std::isfinite(waterRelativeResidual) || waterRelativeResidual > linearTolerance) {
+                std::ostringstream message;
+                message << "最終水分収支未達: relative=" << waterRelativeResidual
+                        << ", tolerance=" << linearTolerance;
+                writeDomainLog(ctx.logs, "受入検査", message.str());
+                return false;
+            }
         }
     }
     double latentDefect = 0.0;
@@ -110,7 +135,8 @@ bool acceptedStateConverged(simulation::Context& ctx,
     if (ctx.constants.logVerbosity > 0) {
         std::ostringstream message;
         message << "最終状態整合: thermal_max_W=" << ctx.thermal.getLastThermalMaxBalance()
-                << ", humidity_defect_kgkg=" << waterDefect << ", latent_defect_W=" << latentDefect;
+                << ", humidity_defect_kgkg=" << waterDefect << ", latent_defect_W=" << latentDefect
+                << ", humidity_relative_residual=" << waterRelativeResidual;
         writeDomainLog(ctx.logs, "受入検査", message.str());
     }
     return true;
@@ -183,7 +209,9 @@ void runSimulation(VentilationNetwork& ventNetwork,
 
     const std::size_t maxOuter = effectiveMaxAirconControlIterations(ctx.constants);
     bool outerLoopConverged = false;
+    bool stateAcceptanceRejected = false;
     for (std::size_t iteration = 0; iteration < maxOuter; ++iteration) {
+        stateAcceptanceRejected = false;
         if (metrics) metrics->outerIterations = iteration + 1;
         // 外側反復開始時: 空調顕熱をクリア（scheduled / latent は維持）
         std::fill(heatSources.airconSensible.begin(), heatSources.airconSensible.end(), 0.0);
@@ -218,7 +246,8 @@ void runSimulation(VentilationNetwork& ventNetwork,
                 continue;
             }
 
-            if (!acceptedStateConverged(ctx, initial, heatSources, step.flowRates)) continue;
+            stateAcceptanceRejected = !acceptedStateConverged(ctx, initial, heatSources, step.flowRates);
+            if (stateAcceptanceRejected) continue;
 
             if (!ctx.thermal.getLastThermalConverged()) {
                 logThermalNotConverged(ctx.logs,
@@ -238,6 +267,10 @@ void runSimulation(VentilationNetwork& ventNetwork,
         }
     }
 
+    if (!outerLoopConverged && stateAcceptanceRejected) {
+        throw simulation::Error(simulation::ErrorCode::CouplingMaxIterations,
+            "Final coupled state did not satisfy thermal/moisture/latent acceptance criteria within the iteration limit");
+    }
     ensureOuterAirconLoopConverged(outerLoopConverged);
 
     if (simulation::latentCouplingActive(ctx.constants)) {

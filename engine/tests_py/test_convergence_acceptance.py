@@ -63,6 +63,58 @@ def test_closed_room_preserves_generated_water(coupled, mode, generation):
         assert supply_x == pytest.approx(x, abs=1e-8)
 
 
+@pytest.mark.parametrize("method", ["rh95", "bf", "coil_aoaf", "ideal_rh60"])
+@pytest.mark.parametrize("coupled", [False, True])
+@pytest.mark.parametrize("humidity_tolerance", [None, 1e-8])
+def test_inactive_cooling_model_conserves_water(method, coupled, humidity_tolerance):
+    raw = heating_fan_case()
+    raw["simulation"]["index"].update(end="2026-01-01T00:00:00", length=1)
+    raw["simulation"]["calc_flag"]["x"] = True
+    raw["simulation"]["coupling"] = {"moisture_enabled": coupled}
+    if humidity_tolerance is not None:
+        raw["simulation"]["tolerance"]["coupling_humidity"] = humidity_tolerance
+    raw["nodes"][0].update(t=21.0, x=0.005)
+    raw["nodes"][1].update(x=0.005, calc_x=True, v=30.0)
+    ac = raw["aircon"][0]
+    ac.update(mode="COOLING", model="IDEAL")
+    ac["ac_spec"]["latent_method"] = "none" if method == "ideal_rh60" else method
+    if method == "ideal_rh60":
+        ac["pre_rh"] = 60.0
+    fixed_flow(ac, 0.0363011)
+    raw["humidity_source"] = [{"key": "generation", "room": "room", "generation_rate": 1e-6}]
+    out, art = result(build(raw))
+    x = read_series(art, out, "humidity_x", "room")[0]
+    latent = read_series(art, out, "aircon_latent_heat", "AC")[0]
+    assert latent == pytest.approx(0.0, abs=1e-6)
+    # A loose iterate tolerance cannot turn a dry coil into a water sink.
+    assert x == pytest.approx(0.0051, abs=1e-8)
+    assert read_series(art, out, "humidity_x", "AC")[0] == pytest.approx(x, abs=1e-8)
+
+
+@pytest.mark.parametrize("relaxation", [0.5, 1e-6])
+def test_final_water_balance_checks_the_relaxed_state(relaxation):
+    raw = heating_fan_case()
+    raw["simulation"]["index"].update(end="2026-01-01T00:00:00", length=1)
+    raw["simulation"]["calc_flag"]["x"] = True
+    raw["simulation"]["coupling"] = {"moisture_enabled": True, "humidity_relaxation": relaxation}
+    raw["nodes"][0].update(t=19.0, x=0.01)
+    raw["nodes"][1].update(x=0.01, calc_x=True, v=30.0)
+    raw["aircon"][0]["mode"] = "HEATING"
+    fixed_flow(raw["aircon"][0], 0.0363011)
+    raw["humidity_source"] = [{"key": "generation", "room": "room", "generation_rate": 1e-6}]
+    if relaxation < 1e-5:
+        raw["simulation"]["iteration"] = {"max_coupling": 30, "max_aircon_control": 30}
+        out = sr.run_solver(build(raw))
+        assert out["status"] == "error", out
+        assert out["error_code"] == "coupling_max_iterations", out
+        # Either coupling or final-state acceptance may reject first; neither
+        # may export this under-relaxed, non-conservative state as successful.
+    else:
+        out, art = result(build(raw))
+        assert read_series(art, out, "humidity_x", "room")[0] == pytest.approx(0.0101, abs=1e-8)
+        assert "最終水分収支未達" in (art / "solver.log").read_text()
+
+
 @pytest.mark.parametrize("mode", ["HEATING", "COOLING"])
 @pytest.mark.parametrize("fixed", [False, True])
 @pytest.mark.parametrize("restart", [False, True])

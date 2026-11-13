@@ -765,7 +765,7 @@ void testApplySupplyHumidityChangeDetectionIgnoresRemovalOnly() {
     ac.type = "aircon";
     ac.on = true;
     ac.current_mode = "COOLING";
-    ac.aircon_moisture_removal_kg_s = 0.0;
+    ac.aircon_moisture_removal_kg_s = 0.001;
     thermal.addNode(ac);
 
     aircon::latent::LatentProcessResult loads{};

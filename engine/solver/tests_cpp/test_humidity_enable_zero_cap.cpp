@@ -569,6 +569,7 @@ int main() {
             // Active cooling owns a fixed boundary; OFF/heating are unknowns.
             tG[vAc].on = true;
             tG[vAc].current_mode = "COOLING";
+            tG[vAc].aircon_moisture_removal_kg_s = 0.001;
             tG[vRoom].current_x = 0.011;
             tG[vAc].current_x = 0.006;
             ventNet.getGraph()[ventNet.getKeyToVertex().at("AC")].current_x = 0.006;

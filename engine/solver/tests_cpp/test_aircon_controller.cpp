@@ -389,9 +389,10 @@ int main() {
         expectNear(b.current_x, 0.008, 0.0, "pre-solve sync does not copy stale inlet humidity");
         b.current_mode = "COOLING";
         b.ac_spec = nlohmann::json{{"latent_method", "coil_aoaf"}};
-        expectTrue(!humiditySolveNode(b), "dry/wet coil retains one boundary formulation");
+        expectTrue(humiditySolveNode(b), "inactive cooling is a mixing unknown");
         aircon::latent::LatentProcessResult loads{};
-        loads.supplyX = b.current_x + 5e-5;
+        loads.supplyX = b.current_x - 5e-5;
+        loads.condensationRateKgPerS = 1e-6;
         expectTrue(aircon::latent::applySupplyHumidityToAirconNode(thermal, "B", loads, 1e-9),
                    "a 5e-5 humidity defect cannot be hidden by a tolerance floor");
         const double acceptedX = b.current_x;
