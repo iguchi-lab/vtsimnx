@@ -4,6 +4,8 @@
 #include "types/graph_types.h"
 
 #include <cstddef>
+#include <cmath>
+#include "aircon/aircon_operation_mode.h"
 #include <cstdint>
 #include <memory>
 #include <unordered_map>
@@ -11,6 +13,23 @@
 #include <vector>
 
 class VentilationNetwork;
+
+// Equipment that cannot dehumidify is an algebraic mixing node. Cooling
+// humidity models retain one boundary formulation across their dry/wet switch;
+// switching the matrix on a tentative zero latent load creates a two-cycle.
+inline bool airconHumidityPassthrough(const VertexProperties& node) {
+    if (node.type != "aircon") return false;
+    if (!node.on || node.current_mode == "OFF" || node.current_mode == "HEATING") return true;
+    if (std::isfinite(node.current_pre_rh) && node.current_pre_rh > 0.0 && node.current_pre_rh <= 100.0) return false;
+    const auto& spec = node.ac_spec;
+    return spec.is_object() && spec.contains("latent_method") &&
+           spec["latent_method"].is_string() &&
+           toLowerCopy(spec["latent_method"].get<std::string>()) == "none";
+}
+
+inline bool humiditySolveNode(const VertexProperties& node) {
+    return node.type == "aircon" ? airconHumidityPassthrough(node) : node.calc_x;
+}
 
 namespace core::humidity {
 struct HumiditySolverContext;

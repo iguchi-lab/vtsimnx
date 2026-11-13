@@ -1,3 +1,4 @@
+#include "network/humidity_network.h"
 #include "aircon/aircon_latent.h"
 
 #include "aircon/aircon_network_utils.h"
@@ -334,8 +335,7 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
 
 namespace {
 double supplyHumidityRecomputeTol(double humidityAbsTol) {
-    const double requested = (humidityAbsTol > 0.0) ? humidityAbsTol : 1e-9;
-    return std::max(requested, kSupplyHumidityRecomputeFloor);
+    return (humidityAbsTol > 0.0) ? humidityAbsTol : 1e-9;
 }
 } // namespace
 
@@ -346,11 +346,14 @@ bool applySupplyHumidityToAirconNode(ThermalNetwork& thermalNetwork,
     auto& node = thermalNetwork.getNode(airconKey);
     const double newRemoval = std::max(0.0, loads.condensationRateKgPerS);
     const double tol = supplyHumidityRecomputeTol(humidityAbsTol);
-    // 再計算判定は方程式境界に効く supplyX のみ（除湿量は診断値）
-    // current_x 自体は常に最新 supplyX へ更新する（微小変化でも境界は追従）。
-    const bool changed = std::abs(node.current_x - loads.supplyX) > tol;
-    node.current_x = loads.supplyX;
+    const bool wasPassthrough = airconHumidityPassthrough(node);
     node.aircon_moisture_removal_kg_s = newRemoval;
+    const bool passthrough = airconHumidityPassthrough(node);
+    if (passthrough) return !wasPassthrough;
+    const bool changed = wasPassthrough || std::abs(node.current_x - loads.supplyX) > tol;
+    // Relax the boundary iteration, but test its unrelaxed defect above.
+    // This leaves the accepted physical equation and requested tolerance intact.
+    if (changed) node.current_x += 0.5 * (loads.supplyX - node.current_x);
     return changed;
 }
 
@@ -358,11 +361,8 @@ bool applyPassthroughHumidityToAirconNode(ThermalNetwork& thermalNetwork,
                                           const std::string& airconKey,
                                           double humidityAbsTol) {
     auto& node = thermalNetwork.getNode(airconKey);
-    const double inletX =
-        aircon::network_utils::getAbsoluteHumidityFromNode(thermalNetwork, node.in_node);
-    const double tol = supplyHumidityRecomputeTol(humidityAbsTol);
-    const bool changed = std::abs(node.current_x - inletX) > tol;
-    node.current_x = inletX;
+    (void)humidityAbsTol;
+    const bool changed = !airconHumidityPassthrough(node);
     node.aircon_moisture_removal_kg_s = 0.0;
     return changed;
 }

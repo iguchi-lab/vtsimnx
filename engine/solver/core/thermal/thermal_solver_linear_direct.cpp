@@ -52,6 +52,30 @@ void resetDirectTCacheStats() {
     resetDirectTSolverContext();
 }
 
+bool validateCurrentState(ThermalNetwork& network,
+                          const SimulationConstants& constants,
+                          std::ostream& logFile) {
+    auto& ctx = network.directTContext();
+    auto& graph = network.getGraph();
+    const auto& topo = ctx.topology;
+    const size_t n = topo.parameterIndexToVertex.size();
+    if (n == 0) return network.getLastThermalConverged();
+    if (!topo.initialized || topo.graphPtr != &graph) return false;
+    ctx.postprocessReuse.valid = false;
+    detail::postprocessAndReport(network, graph, topo, boost::num_vertices(graph), n,
+        constants, "accepted-state", logFile, std::chrono::high_resolution_clock::now(), ctx.stats);
+    const double balance = network.getLastThermalMaxBalance();
+    if (!std::isfinite(balance) || balance > effectiveThermalBalanceToleranceW(constants)) return false;
+    for (size_t i = 0; i < topo.fixedRowAirconVertex.size(); ++i) {
+        const Vertex ac = topo.fixedRowAirconVertex[i];
+        if (ac == std::numeric_limits<Vertex>::max()) continue;
+        const double error = std::abs(graph[topo.parameterIndexToVertex[i]].current_t -
+                                      graph[ac].current_pre_temp);
+        if (!std::isfinite(error) || error > effectiveAirconTemperatureToleranceK(constants)) return false;
+    }
+    return true;
+}
+
 void solveTemperaturesLinearDirect(ThermalNetwork& network,
                                    const SimulationConstants& constants,
                                    std::ostream& logFile) {

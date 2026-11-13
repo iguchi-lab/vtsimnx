@@ -227,7 +227,7 @@ bool updateDuctCentralFanAffinity(VentilationNetwork& ventNetwork,
     return updated;
 }
 
-bool increaseHeatingFanForCoupledSolve(VentilationNetwork& ventNetwork,
+bool increaseAirflowForCoupledSolve(VentilationNetwork& ventNetwork,
                                        const Graph& thermalGraph,
                                        std::ostream& logs,
                                        bool logEnabled) {
@@ -235,32 +235,55 @@ bool increaseHeatingFanForCoupledSolve(VentilationNetwork& ventNetwork,
     for (auto v : boost::make_iterator_range(boost::vertices(thermalGraph))) {
         const auto& node = thermalGraph[v];
         if (node.getTypeCode() != VertexProperties::TypeCode::Aircon || !node.on ||
-            !isDuctCentralModel(node) || node.current_mode != "HEATING" ||
+            !isDuctCentralModel(node) || node.current_mode == "OFF" ||
             node.set_node.empty() ||
             node.aircon_control_state == AirconControlState::CapacityLimited ||
-            !std::isfinite(node.required_heat_w) || node.required_heat_w <= 0.0) {
+            !std::isfinite(node.required_heat_w) || node.required_heat_w == 0.0) {
             continue;
         }
+        const OperationMode mode = node.current_mode == "AUTO"
+            ? (node.required_heat_w > 0.0 ? OperationMode::Heating : OperationMode::Cooling)
+            : parseOperationModeOrDefaultCooling(node.current_mode);
+        if ((isHeating(mode) && node.required_heat_w < 0.0) ||
+            (!isHeating(mode) && node.required_heat_w > 0.0)) continue;
         // 設定維持負荷と能力上限は通常の外側風量制御と同じ定義を使う。
-        const auto basis = selectFlowHeatBasis(node, OperationMode::Heating,
-                                               node.required_heat_w,
+        const auto basis = selectFlowHeatBasis(node, mode,
+                                               std::abs(node.required_heat_w),
                                                node.current_requested_pre_temp);
         double minProcessW = 0.0;
         if (const auto* spec = node.getAirconSpec()) {
-            if (const auto q = spec->getMinProcess("heating")) minProcessW = *q * 1000.0;
+            if (const auto q = spec->getMinProcess(modeKey(mode))) minProcessW = *q * 1000.0;
         }
         const auto target = computeTargetFlowFromProcessedHeat(
-            node, OperationMode::Heating, basis.heatW, node.vol_zero, minProcessW);
+            node, mode, basis.heatW, node.vol_zero, minProcessW);
         if (!target || !std::isfinite(*target)) continue;
-        if (!updateDuctCentralFanAffinity(ventNetwork, node, OperationMode::Heating,
-                                          node.key, *target, 1e-3, nullptr,
-                                          /*increaseOnly=*/true)) {
-            continue;
+        bool fanPresent = false;
+        bool changed = updateDuctCentralFanAffinity(ventNetwork, node, mode,
+                                                   node.key, *target, 1e-3, &fanPresent,
+                                                   /*increaseOnly=*/true);
+        if (!fanPresent && !node.in_node.empty()) {
+            double currentFlow = 0.0;
+            const auto& vg = ventNetwork.getGraph();
+            for (auto e : boost::make_iterator_range(boost::edges(vg))) {
+                const auto& source = vg[boost::source(e, vg)].key;
+                const auto& dest = vg[boost::target(e, vg)].key;
+                if (vg[e].type == "fixed_flow" &&
+                    ((source == node.in_node && dest == node.key) ||
+                     (source == node.key && dest == node.in_node))) {
+                    currentFlow = std::max(currentFlow, std::abs(vg[e].current_vol));
+                }
+            }
+            const double tol = std::max(1e-6, 1e-3 * std::max(currentFlow, *target));
+            if (*target > currentFlow + tol) {
+                changed = updateDuctCentralCircuitFixedFlows(
+                    ventNetwork, node.in_node, node.key, *target, tol);
+            }
         }
+        if (!changed) continue;
         updated = true;
         if (logEnabled) {
             writeDomainLog(logs, "空調", node.key +
-                " 暖房ファン先行補正: Qreq=" + std::to_string(node.required_heat_w) +
+                " 空調風量先行補正: Qreq=" + std::to_string(node.required_heat_w) +
                 " W, target=" + std::to_string(*target) +
                 " m3/s; 温度候補を破棄して圧力・温度を再計算");
         }

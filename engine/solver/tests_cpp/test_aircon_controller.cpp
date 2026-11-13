@@ -16,6 +16,7 @@
 #include "core/thermal/thermal_moist_air.h"
 #include "core/thermal/thermal_solver_linear_direct.h"
 #include "network/thermal_network.h"
+#include "network/humidity_network.h"
 #include "network/ventilation_network.h"
 #include "simulation_error.h"
 
@@ -364,63 +365,40 @@ int main() {
         expectNear(b.current_x, xBefore, 0.0, "collectAirconDataValues must not mutate current_x");
     }
 
-    // OFF（送風継続）: 乾燥 supplyX を入口湿度へ戻し、再計算要求
+    // OFF/heating humidity belongs to the implicit mixing equation. Controller
+    // updates must not overwrite a solved value with a stale inlet snapshot.
     {
         auto& b = thermal.getNode("B");
         auto& in = thermal.getNode("IN");
         b.on = false;
-        b.current_mode = "COOLING";
+        b.current_mode = "OFF";
         b.in_node = "IN";
         b.current_x = 0.008;
         b.aircon_moisture_removal_kg_s = 0.001;
         in.current_x = 0.020;
         bool supplyChanged = false;
-        const bool controlled =
-            controller.controlAllAircons(thermal, 0.5, std::cout, &supplyChanged, 1e-9);
-        expectTrue(controlled, "already OFF stays controlled");
-        expectTrue(supplyChanged, "OFF passthrough requests supply humidity recompute");
-        expectNear(b.current_x, 0.020, 1e-15, "OFF follows inlet humidity");
+        (void)controller.controlAllAircons(thermal, 0.5, std::cout, &supplyChanged, 1e-9);
+        expectTrue(humiditySolveNode(b), "OFF is an algebraic humidity unknown");
+        expectTrue(!supplyChanged, "OFF does not write a fixed humidity boundary");
+        expectNear(b.current_x, 0.008, 0.0, "control preserves the current solved humidity");
         expectNear(b.aircon_moisture_removal_kg_s, 0.0, 0.0, "OFF clears condensation");
-        // 継続OFFで入口が変わると再追従
-        in.current_x = 0.018;
-        supplyChanged = false;
-        (void)controller.controlAllAircons(thermal, 0.5, std::cout, &supplyChanged, 1e-9);
-        expectTrue(supplyChanged, "OFF continues tracking inlet x");
-        expectNear(b.current_x, 0.018, 1e-15, "OFF tracks updated inlet");
-        // 床未満の入口ドリフトでは current_x は追従するが外側再計算は要求しない
-        in.current_x = 0.018 + 5e-5;
-        supplyChanged = false;
-        (void)controller.controlAllAircons(thermal, 0.5, std::cout, &supplyChanged, 1e-9);
-        expectTrue(!supplyChanged, "sub-floor inlet drift must not recompute");
-        expectNear(b.current_x, 0.018 + 5e-5, 1e-15, "OFF still tracks sub-floor inlet");
-    }
-
-    // 湿度ソルバ前同期: current_x=0 の空調を吸込へ戻す（外側再計算は起こさない）
-    {
-        auto& b = thermal.getNode("B");
-        auto& in = thermal.getNode("IN");
         b.on = true;
-        b.current_mode = "COOLING";
-        b.in_node = "IN";
-        b.current_x = 0.0;
-        in.current_x = 0.015;
-        controller.syncHumidityBoundariesBeforeSolve(thermal);
-        expectNear(b.current_x, 0.015, 1e-15, "uninitialized ON warm-starts from inlet");
-        b.current_x = 0.009;
-        controller.syncHumidityBoundariesBeforeSolve(thermal);
-        expectNear(b.current_x, 0.009, 1e-15, "initialized COOLING supplyX is preserved");
-        // 暖房 ON は除湿しないので、残留した低湿度 supplyX を吸込へ戻す
         b.current_mode = "HEATING";
-        b.current_x = 0.001;
-        in.current_x = 0.012;
         controller.syncHumidityBoundariesBeforeSolve(thermal);
-        expectNear(b.current_x, 0.012, 1e-15, "HEATING ON passthrough clears stale supplyX");
-        b.on = false;
-        b.current_mode = "OFF";
-        b.current_x = 0.009;
-        in.current_x = 0.016;
-        controller.syncHumidityBoundariesBeforeSolve(thermal);
-        expectNear(b.current_x, 0.016, 1e-15, "OFF syncs to inlet before humidity solve");
+        expectTrue(humiditySolveNode(b), "heating is an algebraic humidity unknown");
+        expectNear(b.current_x, 0.008, 0.0, "pre-solve sync does not copy stale inlet humidity");
+        b.current_mode = "COOLING";
+        b.ac_spec = nlohmann::json{{"latent_method", "coil_aoaf"}};
+        expectTrue(!humiditySolveNode(b), "dry/wet coil retains one boundary formulation");
+        aircon::latent::LatentProcessResult loads{};
+        loads.supplyX = b.current_x + 5e-5;
+        expectTrue(aircon::latent::applySupplyHumidityToAirconNode(thermal, "B", loads, 1e-9),
+                   "a 5e-5 humidity defect cannot be hidden by a tolerance floor");
+        const double acceptedX = b.current_x;
+        loads.supplyX = acceptedX + 5e-10;
+        expectTrue(!aircon::latent::applySupplyHumidityToAirconNode(thermal, "B", loads, 1e-9),
+                   "an in-tolerance boundary needs no re-solve");
+        expectNear(b.current_x, acceptedX, 0.0, "no re-solve means no boundary mutation");
     }
 
     // 理想除湿（A）: pre_rh 指定・過湿時は supplyX = absolute_humidity(T_in, pre_rh)
@@ -828,7 +806,7 @@ int main() {
         expectNear(node.current_pre_temp, 28.0, 1e-12, "final OK keeps verified setpoint");
     }
 
-    // 非物理な処理熱量（数千Kの熱解由来）では設定温度を下げない
+    // 大きな処理熱量を近似入口負荷だけで無視せず、実ネットワークで再評価する
     {
         VertexProperties node;
         node.key = "AC_UNPHYS";
@@ -851,12 +829,9 @@ int main() {
             brackets,
             oss,
             adjustmentMade);
-        expectNear(node.current_pre_temp, 20.0, 1e-12,
-                   "unphysical Q must not lower heating setpoint");
-        expectTrue(!adjustmentMade, "unphysical Q must not request setpoint recompute");
-        expectTrue(brackets.empty(), "unphysical Q must not open a capacity bracket");
-        expectTrue(oss.str().find("不整合") != std::string::npos,
-                   "unphysical Q log should mention inconsistency");
+        expectTrue(adjustmentMade, "exceeded measured capacity must request recompute");
+        expectTrue(node.current_pre_temp < 20.0, "capacity search lowers heating target");
+        expectTrue(!brackets.empty(), "inlet approximation cannot bypass capacity search");
     }
 
     // 入口・設定・風量からも超過するときは、従来どおり設定探索する
@@ -1628,6 +1603,7 @@ int main() {
         node.model = "DUCT_CENTRAL";
         node.current_mode = "HEATING";
         node.set_node = "ROOM";
+        node.in_node = "ROOM";
         node.current_requested_pre_temp = 20.0;
         node.required_heat_w = 3600.0;
         node.aircon_control_state = AirconControlState::SetpointControlled;
@@ -1655,7 +1631,7 @@ int main() {
         const auto edge = boost::add_edge(room, supply, fan, vg).first;
         std::ostringstream logs;
         const auto update = [&]() {
-            return aircon::airflow::increaseHeatingFanForCoupledSolve(vent, trial, logs, true);
+            return aircon::airflow::increaseAirflowForCoupledSolve(vent, trial, logs, true);
         };
         expectTrue(update(), "heating candidate increases stale minimum fan speed");
         expectNear(vg[edge].q_max, 0.1, 1e-12, "half rated load requests half fan speed");
@@ -1680,7 +1656,7 @@ int main() {
         expectTrue(!update(), "OFF unit does not increase fan");
         node.on = true;
         node.current_mode = "COOLING";
-        expectTrue(!update(), "heating predictor does not change cooling control");
+        expectTrue(!update(), "cooling with a heating load is left to ON/OFF control");
         node.current_mode = "HEATING";
         node.required_heat_w = -3600.0;
         expectTrue(!update(), "opposite load sign is left to ON/OFF control");
@@ -1711,8 +1687,17 @@ int main() {
                    "damped fan solves the unchanged load/flow fixed point");
         vg[edge].type = "fixed_flow";
         vg[edge].current_vol = 0.02;
-        expectTrue(!update(), "fixed-flow equipment is not changed by the fan predictor");
-        expectNear(vg[edge].current_vol, 0.02, 1e-12, "fixed flow remains prescribed");
+        expectTrue(update(), "fixed-flow equipment also retries a growing load");
+        expectNear(vg[edge].current_vol, 0.1, 1e-12, "fixed-flow path follows the same target");
+        expectTrue(!update(), "unchanged fixed flow needs no retry");
+        node.current_mode = "COOLING";
+        node.required_heat_w = -3600.0;
+        node.ac_spec["Q"]["cooling"] = node.ac_spec["Q"]["heating"];
+        node.ac_spec["V_inner"]["cooling"] = node.ac_spec["V_inner"]["heating"];
+        node.initializeAirconSpec();
+        vg[edge].current_vol = 0.02;
+        expectTrue(update(), "cooling fixed flow retries a growing negative load");
+        expectNear(vg[edge].current_vol, 0.1, 1e-12, "cooling target uses load magnitude");
     }
 
     // DUCT_CENTRAL: in == out のループでも吹出を逆符号にしない

@@ -199,6 +199,10 @@ public:
     // OFF / 未初期化時は吸込湿度へ同期する。ON で既に supplyX がある場合は維持する。
     void syncHumidityBoundariesBeforeSolve(ThermalNetwork& thermalNetwork) const;
 
+    // Acceptance guard: never convert an unresolved capacity constraint into ok.
+    void validateAcceptedCapacity(ThermalNetwork& thermalNetwork,
+                                  const FlowRateMap& flowRates) const;
+
     bool checkAndAdjustCapacity(ThermalNetwork& thermalNetwork, VentilationNetwork& ventNetwork,
                                 const SimulationConstants& constants,
                                 const FlowRateMap& flowRates,

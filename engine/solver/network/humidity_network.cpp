@@ -130,11 +130,10 @@ void HumidityNetwork::buildTerms(ConstNodeStateView nodeState,
         }
     }
 
-    // 更新対象を決定。空調ノードは supplyX / パススルー湿度の固定境界のため除外する
-    // （入力や builder が calc_x=true を付けても、上書き→外側ループ振動を防ぐ）。
+    // 除湿時だけ supplyX を固定。暖房・停止・乾きコイルは同じ線形系で
+    // 混合湿度を解き、還気循環による水分の消失を防ぐ。
     for (auto v : boost::make_iterator_range(boost::vertices(tGraph))) {
-        if (!tGraph[v].calc_x) continue;
-        if (tGraph[v].type == "aircon") continue;
+        if (!humiditySolveNode(tGraph[v])) continue;
         terms.updateVertices.push_back(v);
     }
     std::sort(terms.updateVertices.begin(), terms.updateVertices.end(), [&](Vertex a, Vertex b) {

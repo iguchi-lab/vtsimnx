@@ -2,6 +2,8 @@
 
 #include "aircon/aircon_controller.h"
 #include "core/thermal/thermal_linear_utils.h"
+#include "core/thermal/thermal_solver_linear_direct.h"
+#include "core/humidity/humidity_coupling.h"
 #include "network/contaminant_network.h"
 #include "network/humidity_network.h"
 #include "network/thermal_network.h"
@@ -44,6 +46,74 @@ std::uint64_t airconStateSignature(const ThermalNetwork& thermal) {
         }
     }
     return h;
+}
+
+// One acceptance gate for the state that will be exported. A small update or
+// an earlier successful sub-solve is not a substitute for these residuals.
+bool acceptedStateConverged(simulation::Context& ctx,
+                             const TimestepInitialState& initial,
+                             const SeparatedHeatSources& heatSources,
+                             const FlowRateMap& flows) {
+    if (ctx.constants.pressureCalc && !ctx.ventilation.getLastPressureConverged()) return false;
+    auto& graph = ctx.thermal.getGraph();
+    if (ctx.constants.temperatureCalc) {
+        if (anyUnphysicalCalcTemperature(graph)) return false;
+        if (!ThermalSolverLinearDirect::validateCurrentState(ctx.thermal, ctx.constants, ctx.logs)) return false;
+    }
+    double waterDefect = 0.0;
+    MoistureBalanceTerms water;
+    if (ctx.constants.humidityCalc) {
+        HumidityNetworkTerms terms;
+        ctx.humidity.buildTerms(static_cast<const ThermalNetwork&>(ctx.thermal).nodeStateView(),
+                                ctx.ventilation, terms);
+        core::humidity::evaluateMoistureBalanceTerms(
+            graph, terms, initial.humidityX, ctx.constants.timestep, water);
+        for (auto v : terms.updateVertices) {
+            if (couplingHumidityUnphysical(graph[v].current_x)) return false;
+            const size_t i = static_cast<size_t>(v);
+            const double capacity = graph[v].moisture_capacity > 0.0
+                ? graph[v].moisture_capacity : PhysicalConstants::DENSITY_DRY_AIR * graph[v].v;
+            double diagonal = capacity / ctx.constants.timestep + terms.outSum[i];
+            for (const auto& link : terms.moistureLinks[i]) diagonal += link.second;
+            const double defect = std::abs(water.residual[i]) / std::max(diagonal, 1e-30);
+            if (!std::isfinite(defect)) return false;
+            waterDefect = std::max(waterDefect, defect);
+        }
+        ctx.humidity.setLastMoistureBalance(water);
+        // This is an absolute humidity defect; the linear solver tolerance is
+        // a dimensionless relative residual and must not be mixed with it.
+        const double tolerance = couplingHumidityTol(ctx.constants);
+        if (waterDefect > tolerance) {
+            writeDomainLog(ctx.logs, "受入検査", "水分収支未達: normalized=" + std::to_string(waterDefect));
+            return false;
+        }
+    }
+    double latentDefect = 0.0;
+    if (simulation::latentCouplingActive(ctx.constants)) {
+        auto mixed = heatSources.humidityLatent;
+        std::vector<double> raw;
+        if (simulation::latentCouplingModeFromConstants(ctx.constants) == simulation::LatentCouplingMode::FromPhaseChange) {
+            updateLatentFromPhaseChange(graph, water, 1.0, mixed, &raw);
+        } else {
+            updateLatentFromHumidityChange(graph, initial.humidityX, ctx.constants.timestep, 1.0, mixed, &raw);
+        }
+        for (size_t i = 0; i < raw.size(); ++i) {
+            const double defect = std::abs(raw[i] - heatSources.humidityLatent[i]);
+            const double tolerance = ctx.constants.couplingLatentAbsoluteToleranceW +
+                ctx.constants.couplingLatentRelativeTolerance *
+                std::max(std::abs(raw[i]), std::abs(heatSources.humidityLatent[i]));
+            if (!std::isfinite(defect) || defect > tolerance) return false;
+            latentDefect = std::max(latentDefect, defect);
+        }
+    }
+    if (ctx.constants.temperatureCalc) ctx.aircon.validateAcceptedCapacity(ctx.thermal, flows);
+    if (ctx.constants.logVerbosity > 0) {
+        std::ostringstream message;
+        message << "最終状態整合: thermal_max_W=" << ctx.thermal.getLastThermalMaxBalance()
+                << ", humidity_defect_kgkg=" << waterDefect << ", latent_defect_W=" << latentDefect;
+        writeDomainLog(ctx.logs, "受入検査", message.str());
+    }
+    return true;
 }
 } // namespace
 
@@ -147,6 +217,8 @@ void runSimulation(VentilationNetwork& ventNetwork,
                 logAirconRecompute(ctx.logs, logEnabled);
                 continue;
             }
+
+            if (!acceptedStateConverged(ctx, initial, heatSources, step.flowRates)) continue;
 
             if (!ctx.thermal.getLastThermalConverged()) {
                 logThermalNotConverged(ctx.logs,

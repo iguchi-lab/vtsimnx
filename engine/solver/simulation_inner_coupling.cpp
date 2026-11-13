@@ -61,7 +61,7 @@ std::string invalidStateDetail(const Graph& graph, bool temperature) {
     for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
         const auto& node = graph[v];
         const double value = temperature ? node.current_t : node.current_x;
-        if ((temperature ? node.calc_t : node.calc_x) &&
+        if ((temperature ? node.calc_t : humiditySolveNode(node)) &&
             (temperature ? detail::couplingTemperatureUnphysical(value)
                          : detail::couplingHumidityUnphysical(value))) {
             std::ostringstream message;
@@ -90,7 +90,8 @@ double applyLatentHeatSources(LatentCouplingMode mode,
                               SeparatedHeatSources& heatSources,
                               const std::vector<double>& xN,
                               double dt,
-                              double latentRelaxation) {
+                              double latentRelaxation,
+                               std::vector<double>* rawOut = nullptr) {
     if (mode == LatentCouplingMode::Disabled) {
         std::fill(heatSources.humidityLatent.begin(), heatSources.humidityLatent.end(), 0.0);
         composeHeatSourcesIntoGraph(ctx.thermal.getGraph(), heatSources);
@@ -105,10 +106,10 @@ double applyLatentHeatSources(LatentCouplingMode mode,
             ctx.thermal.getGraph(), terms, xN, dt, bal);
         ctx.humidity.setLastMoistureBalance(bal);
         updateLatentFromPhaseChange(
-            ctx.thermal.getGraph(), bal, latentRelaxation, heatSources.humidityLatent);
+            ctx.thermal.getGraph(), bal, latentRelaxation, heatSources.humidityLatent, rawOut);
     } else {
         updateLatentFromHumidityChange(
-            ctx.thermal.getGraph(), xN, dt, latentRelaxation, heatSources.humidityLatent);
+            ctx.thermal.getGraph(), xN, dt, latentRelaxation, heatSources.humidityLatent, rawOut);
     }
     composeHeatSourcesIntoGraph(ctx.thermal.getGraph(), heatSources);
     return sumAbs(heatSources.humidityLatent);
@@ -238,11 +239,11 @@ void runInnerCoupling(InnerCouplingContext& ctx,
             step.flowRates = ctx.ventilation.collectFlowRateMap();
         }
 
-        // 暖房の必要負荷が増えたとき、古い低速ファンのまま設定温度拘束を
-        // 収束させようとしない。候補は採用せず、増速したファンで解き直す。
+        // 冷暖房の必要負荷が増えたとき、古い小風量のまま設定温度拘束を
+        // 収束させようとしない。候補は採用せず、増やした風量で解き直す。
         // 能力探索中は対象外。減速などの最終制御は内側収束後に行う。
-        if (ctx.constants.pressureCalc && ctx.constants.temperatureCalc &&
-            aircon::airflow::increaseHeatingFanForCoupledSolve(
+        if (ctx.constants.temperatureCalc &&
+            aircon::airflow::increaseAirflowForCoupledSolve(
                 ctx.ventilation, ctx.thermal.getGraph(), ctx.logs, logEnabled)) {
             detail::restoreTemperaturesByVertex(
                 ctx.thermal.getGraph(), ctx.ventilation, snap.temperature);
@@ -250,7 +251,7 @@ void runInnerCoupling(InnerCouplingContext& ctx,
             prevRawTemperatureChange = 0.0;
             if (coupledIter >= detail::effectiveMaxCouplingIterations(ctx.constants)) {
                 throw Error(ErrorCode::CouplingMaxIterations,
-                            "Maximum iteration count reached while updating heating fan");
+                            "Maximum iteration count reached while updating aircon airflow");
             }
             continue;
         }
@@ -330,6 +331,7 @@ void runInnerCoupling(InnerCouplingContext& ctx,
 
         // 湿気更新＋緩和の直後に latent を更新。湿度未更新の内側パスでは持ち越し値を維持。
         const std::vector<double> latentPrev = heatSources.humidityLatent;
+        std::vector<double> latentRaw;
         if (!latentActive) {
             std::fill(heatSources.humidityLatent.begin(), heatSources.humidityLatent.end(), 0.0);
             composeHeatSourcesIntoGraph(ctx.thermal.getGraph(), heatSources);
@@ -341,7 +343,7 @@ void runInnerCoupling(InnerCouplingContext& ctx,
                 heatSources,
                 initial.humidityX,
                 dt,
-                ctx.constants.latentRelaxation);
+                ctx.constants.latentRelaxation, &latentRaw);
         } else {
             composeHeatSourcesIntoGraph(ctx.thermal.getGraph(), heatSources);
             lastLatentAppliedW = sumAbs(heatSources.humidityLatent);
@@ -363,9 +365,10 @@ void runInnerCoupling(InnerCouplingContext& ctx,
                          calculateHumidityChangeByVertex(ctx.thermal.getGraph(), snap.humidity));
         }
         if (latentActive) {
-            delta.latentHeatChange = maxAbsLatentHeatChange(latentPrev, heatSources.humidityLatent);
+            delta.latentHeatChange = std::max(maxAbsLatentHeatChange(latentPrev, heatSources.humidityLatent),
+                                              maxAbsLatentHeatChange(latentPrev, latentRaw));
             delta.latentHeatScale =
-                std::max(maxAbsVector(latentPrev), maxAbsVector(heatSources.humidityLatent));
+                std::max({maxAbsVector(latentPrev), maxAbsVector(heatSources.humidityLatent), maxAbsVector(latentRaw)});
         }
 
         const InnerCouplingEval eval = evaluateInnerCoupling(
