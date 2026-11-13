@@ -566,7 +566,9 @@ int main() {
             xPrev[static_cast<size_t>(vRoom)] = 0.010;
             xPrev[static_cast<size_t>(vAc)] = 0.010;
 
-            // 外側反復で空調が新しい吹出湿度を設定した想定
+            // Active cooling owns a fixed boundary; OFF/heating are unknowns.
+            tG[vAc].on = true;
+            tG[vAc].current_mode = "COOLING";
             tG[vRoom].current_x = 0.011;
             tG[vAc].current_x = 0.006;
             ventNet.getGraph()[ventNet.getKeyToVertex().at("AC")].current_x = 0.006;
@@ -579,6 +581,10 @@ int main() {
                        "aircon supplyX boundary must NOT be restored");
             expectNear(ventNet.getGraph()[ventNet.getKeyToVertex().at("AC")].current_x, 0.006, 0.0,
                        "vent-side aircon supplyX must NOT be restored");
+            tG[vAc].current_mode = "HEATING";
+            simulation::detail::restoreUnknownHumidityStateToGraph(tG, ventNet, xPrev);
+            expectNear(tG[vAc].current_x, 0.010, 0.0,
+                       "heating mixing unknown is restored with the room");
         }
 
         // 停止中の大風量還気は吸込湿度へ同期したうえで移流に載せる。
