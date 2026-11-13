@@ -94,14 +94,6 @@ SimulationConstants makeConstants() {
     return c;
 }
 
-// 本番は求解前に syncHumidityBoundariesBeforeSolve が吸込湿度へ同期する。
-void copyInletHumidityToAircon(ThermalNetwork& thermal, const std::string& airconKey) {
-    auto& graph = thermal.getGraph();
-    const auto vAc = thermal.getKeyToVertex().at(airconKey);
-    const auto vIn = thermal.getKeyToVertex().at(graph[vAc].in_node);
-    graph[vAc].current_x = graph[vIn].current_x;
-    graph[vAc].aircon_moisture_removal_kg_s = 0.0;
-}
 
 } // namespace
 
@@ -540,7 +532,7 @@ int main() {
         }
 
         // ------------------------------------------------------------------
-        // restoreUnknownHumidityStateToGraph: calc_x=false の空調吹出は戻さない
+        // restoreUnknownHumidityStateToGraph: 除湿中の吹出境界だけは戻さない
         // ------------------------------------------------------------------
         {
             auto room = makeNode("ROOM", true, 50.0, 0.010);
@@ -588,7 +580,7 @@ int main() {
                        "heating mixing unknown is restored with the room");
         }
 
-        // 停止中の大風量還気は吸込湿度へ同期したうえで移流に載せる。
+        // 停止中の大風量還気は、初期吹出湿度が0でも混合未知数として同時に解く。
         // 同一室循環なら正味は打ち消し、室湿度は外気側へ上昇する。
         {
             auto room = makeNode("ROOM", true, 50.0, 0.005);
@@ -612,7 +604,6 @@ int main() {
             HumidityNetwork humidity;
             ventNet.buildFromData(nodes, vent, c, logs);
             thermal.buildFromData(nodes, th, vent, c, logs);
-            copyInletHumidityToAircon(thermal, "AC");
             humidity.invalidateCaches();
 
             const auto stats = core::humidity::updateHumidityIfEnabled(
@@ -622,7 +613,7 @@ int main() {
             expectTrue(stats.converged && stats.updated, "passthrough-ac humidity converged");
             const double xRoom =
                 thermal.getGraph()[thermal.getKeyToVertex().at("ROOM")].current_x;
-            // 吸込同期後の同一室循環は正味ほぼゼロ。外気でわずかに上がり、0 へ落ちない。
+            // 同一室循環は正味ゼロ。外気で上がり、初期吹出湿度0には引かれない。
             if (!(xRoom > 0.005) || !(xRoom < 0.015 + 1e-3)) {
                 std::ostringstream oss;
                 oss << "passthrough AC humidity lock check failed: xRoom=" << xRoom;
@@ -637,6 +628,7 @@ int main() {
             ac.type = "aircon";
             ac.on = true;
             ac.current_mode = "COOLING";
+            ac.aircon_moisture_removal_kg_s = 0.001; // Explicit active dehumidification boundary.
             ac.in_node = "ROOM";
             std::vector<VertexProperties> nodes = {room, ac};
             std::vector<EdgeProperties> vent = {
@@ -665,7 +657,7 @@ int main() {
         }
 
         // ------------------------------------------------------------------
-        // HEATING ON は吸込湿度へ同期して移流に載せる（過乾燥しない）／COOLING ON は除湿 BC
+        // HEATING ON は混合未知数（過乾燥しない）／除湿中の COOLING ON は固定境界
         // ------------------------------------------------------------------
         {
             auto room = makeNode("ROOM", true, 50.0, 0.010);
@@ -689,7 +681,6 @@ int main() {
             HumidityNetwork humidity;
             ventNet.buildFromData(nodes, vent, c, logs);
             thermal.buildFromData(nodes, th, vent, c, logs);
-            copyInletHumidityToAircon(thermal, "AC");
             humidity.invalidateCaches();
 
             const auto vRoom = thermal.getKeyToVertex().at("ROOM");
@@ -734,7 +725,6 @@ int main() {
             HumidityNetwork humidity;
             ventNet.buildFromData(nodes, vent, c, logs);
             thermal.buildFromData(nodes, th, vent, c, logs);
-            copyInletHumidityToAircon(thermal, "AC");
             humidity.invalidateCaches();
 
             const auto stats = core::humidity::updateHumidityIfEnabled(
@@ -759,6 +749,7 @@ int main() {
             ac.type = "aircon";
             ac.on = true;
             ac.current_mode = "COOLING";
+            ac.aircon_moisture_removal_kg_s = 0.001; // Explicit active dehumidification boundary.
             ac.in_node = "ROOM";
             std::vector<VertexProperties> nodes = {room, ac};
             std::vector<EdgeProperties> vent = {
