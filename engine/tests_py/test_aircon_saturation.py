@@ -32,7 +32,10 @@ def run(raw):
     out = sr.run_solver(built)
     assert out["status"] == "ok", out
     art = sr.resolve_artifact_path(out["artifact_dir"])
-    assert "最終状態整合" in (art / "solver.log").read_text()
+    log = (art / "solver.log").read_text()
+    assert "最終状態整合" in log
+    errors = [line for line in log.splitlines() if "[ERROR]" in line]
+    assert all("DirectT: LLT 因子分解に失敗（非SPD/悪条件）" in line for line in errors), errors
 
     def series(name, key):
         return np.asarray(read_series(art, out, name, key))
@@ -85,7 +88,9 @@ def test_ideal_humidity_uses_requested_room_temperature_not_return_air():
     raw["ventilation_branches"].append({"key": "room->return", "vol": 0.3})
     ac = raw["aircon"][0]
     ac.update({"in": "return", "pre_temp": 27.5, "pre_rh": 60.0})
-    ac["ac_spec"].pop("V_inner")
+    # Match the design airflow to the specified circulation while retaining
+    # all equipment data required by the power model.
+    ac["ac_spec"]["V_inner"]["cooling"]["dsgn"] = 0.3
     ac["ac_spec"]["latent_method"] = "rh95"
     s = run(raw)
     # At this mild sensible load the outlet remains above the target dew point.
@@ -106,8 +111,9 @@ def test_discharge_plenum_stays_unsaturated_with_small_flow_residual(method, cou
          "calc_t": True, "calc_x": True, "v": 0.0},
     ])
     ac = raw["aircon"][0]
-    ac.update({"in": "return", "out": "supply"})
-    ac["ac_spec"].pop("V_inner")
+    # Use fixed-flow RAC to isolate water balance from automatic fan control.
+    # The pressure-driven cases above separately cover DUCT_CENTRAL.
+    ac.update({"in": "return", "out": "supply", "model": "RAC"})
     ac["ac_spec"]["Q"]["cooling"]["max"] = 20.0
     ac["ac_spec"]["latent_method"] = "none" if method == "ideal_rh60" else method
     if method == "ideal_rh60":
