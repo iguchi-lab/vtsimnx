@@ -41,6 +41,10 @@ struct TimestepResult {
     // エアコン関連（temperatureCalcがtrueの場合のみ有効）
     std::vector<float> airconSensibleHeat; // キー順は AirconController が提供
     std::vector<float> airconLatentHeat;   // キー順は AirconController が提供
+    std::vector<float> airconReheat;   // キー順は AirconController が提供
+    std::vector<float> airconRoomRH;   // キー順は AirconController が提供
+    std::vector<float> airconHumidityUnmet;   // キー順は AirconController が提供
+    std::vector<float> airconTemperatureUnmet;   // キー順は AirconController が提供
     std::vector<float> airconPower;        // キー順は AirconController が提供
     std::vector<float> airconCOP;          // キー順は AirconController が提供
 

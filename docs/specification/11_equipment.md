@@ -1,5 +1,11 @@
 # 第十一章 設備モデル及び制御
 
+追加の室湿度制御は[室温・室湿度の制御モード](../aircon_room_humidity_modes.md)を参照。
+本章の従来の温度優先・`pre_rh` の説明は、`control_mode="temperature_priority"` に適用する。
+`humidity_priority` と `temperature_humidity` は設定対象室の水分収支から除湿要求を算定し、
+それぞれ過冷却制限付きの理想冷却除湿、理想冷却除湿＋再熱を行う。
+数値解の成功判定と設定達成の判定を区別し、吹出飽和制約・冷却能力上限は共通に適用する。
+
 対象 commit・版・確認日は[第一章](01_general.md)に同じ。文書版：本文初稿 0.2。\
 [全体目次](README.md)
 

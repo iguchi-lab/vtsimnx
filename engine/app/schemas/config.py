@@ -181,6 +181,10 @@ class NodeModel(_StrictExtraBase):
         description="エアコン設定温度",
         json_schema_extra=field_extra(TEMPERATURE_C),
     )
+    control_mode: Literal["temperature_priority", "humidity_priority", "temperature_humidity"] = "temperature_priority"
+    max_overcooling: float = Field(default=2.0, ge=0.0, le=10.0, description="湿度優先時の許容過冷却幅 [K]")
+    min_coil_temperature: float = Field(default=5.0, ge=0.0, le=20.0, description="理想除湿コイルの最低温度 [℃]")
+    reheat_cop: float = Field(default=1.0, gt=0.0, description="温湿度満足時の再熱COP（既定は電気ヒーター）")
     pre_rh: Optional[ScalarOrSeries] = Field(
         default=None,
         description="理想除湿の設定相対湿度（%）。未指定時は従来の latent_method のみ",
@@ -500,6 +504,10 @@ class AirconModel(_StrictExtraBase):
         description="設定温度",
         json_schema_extra=field_extra(TEMPERATURE_C),
     )
+    control_mode: Literal["temperature_priority", "humidity_priority", "temperature_humidity"] = "temperature_priority"
+    max_overcooling: float = Field(default=2.0, ge=0.0, le=10.0, description="湿度優先時の許容過冷却幅 [K]")
+    min_coil_temperature: float = Field(default=5.0, ge=0.0, le=20.0, description="理想除湿コイルの最低温度 [℃]")
+    reheat_cop: float = Field(default=1.0, gt=0.0, description="温湿度満足時の再熱COP（既定は電気ヒーター）")
     pre_rh: Optional[ScalarOrSeries] = Field(
         default=None,
         description="理想除湿の設定相対湿度（%）",

@@ -10,6 +10,8 @@ struct LatentProcessResult {
     const char* regime = "unclassified"; // diagnostic branch, not a control state
     double sensibleHeatCapacity = 0.0; // [W]
     double latentHeatCapacity = 0.0;   // [W]
+    double reheatCapacity = 0.0;       // [W], separate from cooling-coil load
+    bool humidityCapacityLimited = false;
     double supplyX = 0.0;              // [kg/kg(DA)]
     // 除湿量 [kg/s]（正=凝縮で空気から除去）。mDot*(xIn-xSupply)+
     double condensationRateKgPerS = 0.0;

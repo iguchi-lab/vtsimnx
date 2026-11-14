@@ -2,6 +2,7 @@
 #include "aircon/aircon_latent.h"
 
 #include "aircon/aircon_network_utils.h"
+#include "aircon/aircon_humidity_control.h"
 #include "aircon/aircon_operation_mode.h"
 #include "archenv/include/archenv.h"
 #include "core/thermal/thermal_moist_air.h"
@@ -169,6 +170,68 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
         return result;
     };
 
+    if (aircon::humidity_control::enabled(nodeProps)) {
+        const bool reheat = aircon::humidity_control::simultaneous(nodeProps);
+        const double request = std::isfinite(nodeProps.humidity_supply_request)
+            ? nodeProps.humidity_supply_request : xIn;
+        const double wetCoilFloor = saturationHumidityUpperBound(nodeProps.min_coil_temperature);
+        result.regime = reheat ? "room_humidistat_reheat" : "room_humidistat_overcool";
+        // Humidity priority has a saturated ideal coil, with no reheat. The
+        // controller searches the room temperature within its overcool bound.
+        const double desiredX = reheat ? std::max(wetCoilFloor, request) : xIn;
+        auto evaluate = [&](double x) {
+            result.supplyX = std::clamp(x, 0.0, std::min(xIn, result.supplyXUpperBound));
+            finishCooling();
+            result.coilTemp = tOut;
+            if (reheat && result.supplyX < xIn - 1e-12)
+                result.coilTemp = std::min(tOut, aircon::humidity_control::dewPoint(result.supplyX));
+            result.coilX = result.supplyX;
+            const double cp = moistEnthalpyEnabled
+                ? thermal_moist_air::moistAirCp(result.supplyX) : kAirSpecificHeat;
+            result.reheatCapacity = reheat
+                ? kAirDensity * std::abs(airFlowRate) * cp * std::max(0.0, tOut - result.coilTemp) : 0.0;
+            // Also account for sensible heating after a dry/pass-through coil.
+            if (reheat && result.coilTemp > tIn) {
+                result.reheatCapacity += kAirDensity * std::abs(airFlowRate) * cp * (result.coilTemp - tIn);
+                result.coilTemp = tIn;
+            }
+            result.sensibleHeatCapacity = kAirDensity * std::abs(airFlowRate) *
+                (moistEnthalpyEnabled ? 0.5 * (thermal_moist_air::moistAirCp(xIn) + cp) : cp) *
+                std::max(0.0, tIn - result.coilTemp);
+            result.latentHeatCapacity = result.condensationRateKgPerS * archenv::vapor_latent_heat(result.coilTemp);
+            if (moistEnthalpyEnabled) {
+                const double total = thermal_moist_air::processedEnthalpyHeatW(
+                    tIn, xIn, result.coilTemp, result.supplyX, airFlowRate, false);
+                result.sensibleHeatCapacity = std::min(total, result.sensibleHeatCapacity);
+                result.latentHeatCapacity = std::max(0.0, total - result.sensibleHeatCapacity);
+            }
+        };
+        evaluate(desiredX);
+        if (reheat) {
+            std::string source;
+            const auto limit = aircon::capacity::resolveMaxHeatCapacity(nodeProps, operationMode, source);
+            if (limit && totalHeatCapacity(result) > *limit) {
+                double lo = result.supplyX, hi = std::min(xIn, result.supplyXUpperBound);
+                evaluate(hi);
+                if (totalHeatCapacity(result) <= *limit) {
+                    // Meet the temperature load first when the combined
+                    // request is infeasible; keep the RH shortfall visible.
+                    for (int i = 0; i < 50; ++i) {
+                        const double mid = 0.5 * (lo + hi);
+                        evaluate(mid);
+                        if (totalHeatCapacity(result) > *limit) lo = mid;
+                        else hi = mid;
+                    }
+                    evaluate(hi);
+                    result.humidityCapacityLimited = true;
+                }
+                // If even the warmest/driest-feasible state exceeds capacity,
+                // the common temperature/capacity search handles it.
+            }
+        }
+        return result;
+    }
+
     // Ideal dehumidification uses the scheduled temperature of the controlled
     // room, not the return-air temperature or a capacity-relaxed setpoint.
     // It never humidifies dry return air; the physical saturation bound wins.
@@ -318,8 +381,10 @@ bool applySupplyHumidityToAirconNode(ThermalNetwork& thermalNetwork,
     // Relax the boundary iteration, but test its unrelaxed defect above.
     // The hard saturation bound is applied immediately and triggers a re-solve.
     if (changed) {
+        const double relaxation = aircon::humidity_control::enabled(node) &&
+            !aircon::humidity_control::simultaneous(node) ? 1.0 : 0.5;
         const double mixed = std::isfinite(node.current_x)
-            ? node.current_x + 0.5 * (loads.supplyX - node.current_x) : loads.supplyX;
+            ? node.current_x + relaxation * (loads.supplyX - node.current_x) : loads.supplyX;
         node.current_x = std::min(mixed, loads.supplyXUpperBound);
     }
     return changed;

@@ -1,5 +1,8 @@
 # 空調の潜熱処理と湿度境界
 
+室内湿度を見て運転する新しい制御は[室温・室湿度の制御モード](aircon_room_humidity_modes.md)を参照。
+本書の `pre_rh` の説明は、既定の `control_mode="temperature_priority"` に対応する。
+
 > **使い方** — 先に [入力JSONの組み立て](ai_input_guide.md) と [空調のモデルと制御](aircon_model_and_control.md)。正本は [moisture_network_phase1.md](../engine/docs/moisture_network_phase1.md)。
 
 冷房時の除湿と、空調ノードの吹出湿度の扱いです。`pre_rh`（設定相対湿度 %）は、室の相対湿度をその値に固定する指定ではありません。吹出の絶対湿度と除湿量を決める分岐です。

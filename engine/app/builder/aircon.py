@@ -78,6 +78,9 @@ def process_aircon(aircon: dict) -> tuple[list, list]:
     }
     if pre_rh is not None:
         ac_node["pre_rh"] = pre_rh
+    for field in ("control_mode", "max_overcooling", "min_coil_temperature", "reheat_cop"):
+        if aircon.get(field) is not None:
+            ac_node[field] = aircon[field]
     if vol_zero is not None:
         ac_node["vol_zero"] = float(vol_zero)
     nodes.append(ac_node)

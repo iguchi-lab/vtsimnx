@@ -234,6 +234,7 @@ bool increaseAirflowForCoupledSolve(VentilationNetwork& ventNetwork,
     bool updated = false;
     for (auto v : boost::make_iterator_range(boost::vertices(thermalGraph))) {
         const auto& node = thermalGraph[v];
+        if (node.control_mode != "temperature_priority") continue;
         if (node.getTypeCode() != VertexProperties::TypeCode::Aircon || !node.on ||
             !isDuctCentralModel(node) || node.current_mode == "OFF" ||
             node.set_node.empty() ||

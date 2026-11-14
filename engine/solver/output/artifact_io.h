@@ -40,6 +40,10 @@ struct OutputSchema {
 
     std::vector<std::string> airconSensibleHeatKeys;
     std::vector<std::string> airconLatentHeatKeys;
+    std::vector<std::string> airconReheatKeys;
+    std::vector<std::string> airconRoomRHKeys;
+    std::vector<std::string> airconHumidityUnmetKeys;
+    std::vector<std::string> airconTemperatureUnmetKeys;
     std::vector<std::string> airconPowerKeys;
     std::vector<std::string> airconCOPKeys;
     std::vector<std::string> hrvSensibleHeatKeys;

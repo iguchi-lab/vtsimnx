@@ -4,11 +4,68 @@
 #include "network/humidity_network.h"
 #include "network/ventilation_network.h"
 #include "simulation_metrics.h"
+#include "aircon/aircon_humidity_control.h"
 
 #include <boost/range/iterator_range.hpp>
 #include <vector>
 
 namespace core::humidity {
+
+namespace {
+// Solve two boundary responses of the existing water-balance system. This
+// includes storage, generation, outdoor air, material transport and remote
+// set rooms; changing a room RH result directly would lose that balance.
+void updateHumidistatRequests(Graph& graph, const HumidityNetworkTerms& terms,
+                              double dt, double tolerance,
+                              const HumiditySolverContext& current) {
+    bool active = false;
+    for (auto v : boost::make_iterator_range(boost::vertices(graph)))
+        active = active || (graph[v].type == "aircon" && aircon::humidity_control::enabled(graph[v]));
+    if (!active) return;
+    std::unordered_map<std::string, Vertex> byKey;
+    for (auto v : boost::make_iterator_range(boost::vertices(graph)))
+        byKey.emplace(graph[v].key, v);
+    for (auto ac : boost::make_iterator_range(boost::vertices(graph))) {
+        auto& node = graph[ac];
+        if (node.type != "aircon" || !aircon::humidity_control::enabled(node)) continue;
+        const auto set = byKey.at(node.set_node);
+        const auto inlet = byKey.at(node.in_node);
+        const double targetT = aircon::humidity_control::simultaneous(node)
+            ? node.current_requested_pre_temp : graph[set].current_t;
+        const double targetX = archenv::absolute_humidity(targetT, node.current_pre_rh);
+        node.humidity_demand = graph[set].current_x > targetX + 1e-8;
+        node.humidity_supply_request = targetX;
+        if (!(terms.outSum[ac] > 1e-9)) continue; // restart fan before probing
+        HumidityNetworkTerms probeTerms = terms;
+        auto& vertices = probeTerms.updateVertices;
+        vertices.erase(std::remove(vertices.begin(), vertices.end(), ac), vertices.end());
+        HumiditySolverContext probe;
+        probe.xN = current.xN;
+        probe.xIterate = current.xIterate;
+        probe.xSolved = current.xSolved;
+        // Probe at/above the existing supply, not at zero: a valid network
+        // with a prescribed moisture sink can have a negative *hypothetical*
+        // zero-supply solution even though its operating solution is physical.
+        const double baseBoundary = std::max({0.0, node.current_x, graph[inlet].current_x});
+        probe.xIterate[ac] = baseBoundary;
+        auto first = solveHumidityImplicitStep(graph, probeTerms, dt, tolerance, probe);
+        if (!first.converged) throw std::runtime_error("Humidistat water-balance probe failed: " + node.key);
+        const double baseSet = probe.xSolved[set], baseIn = probe.xSolved[inlet];
+        constexpr double delta = 0.01;
+        probe.xIterate[ac] = baseBoundary + delta;
+        auto second = solveHumidityImplicitStep(graph, probeTerms, dt, tolerance, probe);
+        if (!second.converged) throw std::runtime_error("Humidistat water-balance response failed: " + node.key);
+        const double gain = (probe.xSolved[set] - baseSet) / delta;
+        const double inletGain = (probe.xSolved[inlet] - baseIn) / delta;
+        if (!(gain > 1e-10)) continue; // disconnected target: report unmet RH
+        const double request = baseBoundary + (targetX - baseSet) / gain;
+        const double noRemoval = inletGain < 1.0 - 1e-10
+            ? (baseIn - inletGain * baseBoundary) / (1.0 - inletGain) : graph[inlet].current_x;
+        node.humidity_supply_request = std::max(0.0, request);
+        node.humidity_demand = request < noRemoval - 1e-8;
+    }
+}
+} // namespace
 
 HumiditySolveStats updateHumidityIfEnabled(const SimulationConstants& constants,
                                            VentilationNetwork& ventNetwork,
@@ -84,6 +141,7 @@ HumiditySolveStats updateHumidityIfEnabled(const SimulationConstants& constants,
         return stats;
     }
     applyHumidityStateToGraphs(tGraph, vGraph, vKeyToV, terms.updateVertices, ctx.xSolved);
+    updateHumidistatRequests(tGraph, terms, dt, constants.humiditySolverTolerance, ctx);
 
     MoistureBalanceTerms bal;
     evaluateMoistureBalanceTerms(tGraph, terms, ctx.xN, dt, bal);

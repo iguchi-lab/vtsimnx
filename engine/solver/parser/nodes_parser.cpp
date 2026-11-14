@@ -204,6 +204,33 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
             }
         }
 
+        node.control_mode = nodeJson.value("control_mode", std::string("temperature_priority"));
+        if (node.control_mode != "temperature_priority" && node.control_mode != "humidity_priority" &&
+            node.control_mode != "temperature_humidity")
+            throw std::runtime_error(nodePrefix + ".control_mode is invalid");
+        node.max_overcooling = parser_utils::getNumberIfPresent(nodeJson, "max_overcooling", nodePrefix, 2.0);
+        node.min_coil_temperature = parser_utils::getNumberIfPresent(nodeJson, "min_coil_temperature", nodePrefix, 5.0);
+        node.reheat_cop = parser_utils::getNumberIfPresent(nodeJson, "reheat_cop", nodePrefix, 1.0);
+        if (!(node.max_overcooling >= 0.0 && node.max_overcooling <= 10.0) ||
+            !(node.min_coil_temperature >= 0.0 && node.min_coil_temperature <= 20.0) ||
+            !(node.reheat_cop > 0.0) || !std::isfinite(node.reheat_cop))
+            throw std::runtime_error(nodePrefix + ": invalid humidity control limits");
+        if (node.control_mode != "temperature_priority" && node.current_mode == "AUTO")
+            throw std::runtime_error(nodePrefix + ": humidistat requires explicit COOLING/HEATING/OFF");
+        if (node.control_mode != "temperature_priority") {
+            if (!config.at("simulation").at("calc_flag").value("x", false))
+                throw std::runtime_error(nodePrefix + ": humidistat requires calc_flag.x=true");
+            const auto& modes = node.mode.empty() ? std::vector<std::string>{node.current_mode} : node.mode;
+            for (size_t i = 0; i < modes.size(); ++i) {
+                if (modes[i] == "AUTO")
+                    throw std::runtime_error(nodePrefix + ": humidistat does not support AUTO");
+                const double rh = node.pre_rh.empty() ? node.current_pre_rh
+                    : node.pre_rh[std::min(i, node.pre_rh.size() - 1)];
+                if (modes[i] == "COOLING" && !(rh > 0.0 && rh <= 100.0))
+                    throw std::runtime_error(nodePrefix + ": humidistat requires valid pre_rh while cooling");
+            }
+        }
+
         // 容積
         if (nodeJson.contains("v")) {
             node.v = parser_utils::getNumberIfPresent(nodeJson, "v", nodePrefix, 0.0);
