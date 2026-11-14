@@ -195,7 +195,7 @@ class NodeModel(_StrictExtraBase):
     ac_spec: Optional["AcSpecModel"] = None
     vol_zero: Optional[float] = Field(
         default=None,
-        description="熱処理負荷が0のときの循環風量（DUCT_CENTRAL）。未指定は0",
+        description="停止・熱処理負荷0時の循環風量（DUCT_CENTRAL）。未指定は0。送風時はファン電力を計上",
         json_schema_extra=field_extra(VOLUME_FLOW_M3_S),
     )
 
@@ -420,7 +420,7 @@ class AcSpecModel(_StrictExtraBase):
     )
     latent_method: Optional[str] = Field(
         default=None,
-        description="潜熱処理方式: rh95 / bf / coil_aoaf / none",
+        description="潜熱処理方式: rh95 / bf / coil_aoaf / rh100（none同義）。室湿度制御は ideal_coil（省略時も同じ）",
     )
     bf: Optional[float] = None
     BF: Optional[float] = None
@@ -526,7 +526,7 @@ class AirconModel(_StrictExtraBase):
     )
     vol_zero: Optional[float] = Field(
         default=None,
-        description="熱処理負荷が0のときの循環風量（DUCT_CENTRAL）。未指定は0",
+        description="停止・熱処理負荷0時の循環風量（DUCT_CENTRAL）。未指定は0。送風時はファン電力を計上",
         json_schema_extra=field_extra(VOLUME_FLOW_M3_S),
     )
     p_max: Optional[float] = Field(
@@ -598,6 +598,16 @@ class RawSimConfig(_StrictExtraBase):
 
     simulation: SimulationSection
     nodes: List[NodeModel]
+
+    @model_validator(mode="after")
+    def _validate_aircon_contract(self) -> "RawSimConfig":
+        from app.aircon_validation import validate_aircon_spec
+        for node in self.nodes:
+            if node.type == "aircon":
+                validate_aircon_spec(node.model_dump(exclude_none=True))
+        for ac in self.aircon or []:
+            validate_aircon_spec(ac.model_dump(exclude_none=True))
+        return self
     ventilation_branches: List[VentilationBranchModel] = Field(default_factory=list)
     thermal_branches: List[ThermalBranchModel] = Field(default_factory=list)
     builder: Optional[BuilderOptions] = None

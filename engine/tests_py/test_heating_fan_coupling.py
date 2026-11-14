@@ -68,7 +68,9 @@ def test_heating_load_increase_from_minimum_fan(heating_solver, monkeypatch, res
     assert heat[-1] == pytest.approx(7000.0, abs=2.0), heat
     if restart:
         assert heat[1] == pytest.approx(0.0, abs=1e-3), heat
-    assert "空調風量先行補正" in (art / "solver.log").read_text()
+        assert read_series(art, out, "vent_flow_rate", "room->AC")[1] == pytest.approx(0.0, abs=1e-10)
+    else:
+        assert "空調風量先行補正" in (art / "solver.log").read_text()
 
 
 def test_fan_retry_respects_coupling_limit(heating_solver):
@@ -83,7 +85,8 @@ def test_fan_retry_respects_coupling_limit(heating_solver):
 
 
 @pytest.mark.parametrize("backend", ["klu", "eigen"])
-def test_minimum_fan_does_not_freeze_a_growing_distribution_load(heating_solver, monkeypatch, backend):
+@pytest.mark.parametrize("return_conductance", [40.0, 200.0])
+def test_minimum_fan_does_not_freeze_a_growing_distribution_load(heating_solver, monkeypatch, backend, return_conductance):
     # An intentionally uneven distribution exposes the minimum-flow latch:
     # lowering the fan increases supply temperature and the return-zone load.
     raw = heating_fan_case()
@@ -96,7 +99,7 @@ def test_minimum_fan_does_not_freeze_a_growing_distribution_load(heating_solver,
     ]
     raw["thermal_branches"] = [
         {"key": "outside->room", "conductance": 150.0},
-        {"key": "outside->return", "conductance": 40.0},
+        {"key": "outside->return", "conductance": return_conductance},
     ]
     raw["ventilation_branches"] = [
         {"key": "supply->room", "alpha": 0.65, "area": 0.01},
@@ -108,8 +111,16 @@ def test_minimum_fan_does_not_freeze_a_growing_distribution_load(heating_solver,
     built = build_config(raw, output_path=None, add_surface=False, add_aircon=True,
                          add_capacity=False, add_moisture_capacity=False)
     out = sr.run_solver(built)
-    assert out["status"] == "ok", out
     art = sr.resolve_artifact_path(out["artifact_dir"])
+    if return_conductance == 40.0:
+        # The original distribution returns air above the COP model's 35 C
+        # limit. Its thermal solution is valid, but electricity cannot be 0 W.
+        assert out["status"] == "error", out
+        assert out["error_code"] == "aircon_power_failed", out
+        assert "T_in=" in out["error"]
+        assert "最終状態整合" in (art / "solver.log").read_text()
+        return
+    assert out["status"] == "ok", out
     room = read_series(art, out, "thermal_temperature", "room")[0]
     return_temp = read_series(art, out, "thermal_temperature", "return")[0]
     supply = read_series(art, out, "thermal_temperature", "supply")[0]
@@ -117,5 +128,5 @@ def test_minimum_fan_does_not_freeze_a_growing_distribution_load(heating_solver,
     assert room == pytest.approx(20.0, abs=1e-3)
     assert 20.0 < supply < 100.0
     # Accepted coil heat must balance the two external conduction losses.
-    assert heat == pytest.approx(150.0 * (room - 18.0) + 40.0 * (return_temp - 18.0), abs=0.1)
+    assert heat == pytest.approx(150.0 * (room - 18.0) + return_conductance * (return_temp - 18.0), abs=0.1)
     assert heat > 2.0 * 773.3992  # It must not be replaced by the stale minimum.

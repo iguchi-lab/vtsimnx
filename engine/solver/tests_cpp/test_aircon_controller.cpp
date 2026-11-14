@@ -594,7 +594,15 @@ int main() {
         const bool adjusted = controller.checkAndAdjustCapacity(
             thermal, vent, constants, flowRates, logs, totalIterations);
 
-        expectTrue(adjusted, "cooling over-capacity should trigger adjustment");
+        // The first observation changed the moisture boundary. Capacity must
+        // wait for that boundary, even though its transient load is excessive.
+        expectTrue(!adjusted, "capacity must wait for the supply boundary");
+        expectNear(b.current_pre_temp, 24.0, 1e-12, "transient moisture cannot relax the setpoint");
+        bool settledAdjustment = false;
+        for (int i = 0; i < 60 && !settledAdjustment; ++i)
+            settledAdjustment = controller.checkAndAdjustCapacity(
+                thermal, vent, constants, flowRates, logs, totalIterations);
+        expectTrue(settledAdjustment, "settled cooling over-capacity should trigger adjustment");
         expectTrue(b.current_pre_temp > 24.0, "cooling setpoint should increase");
         expectTrue(b.current_pre_temp < 30.0, "cooling setpoint should stay below inlet temp");
         expectNear(b.current_requested_pre_temp, 24.0, 1e-12,
@@ -2480,11 +2488,13 @@ int main() {
 
         calls = 0;
         history.clear();
-        auto powerW = controller.calculatePowerValues(thermal, flowRates, std::cout);
-        expectTrue(powerW.size() == 2, "invalid in_node case: power vector size");
-        if (powerW.size() == 2) {
-            expectNear(powerW[1], 0.0, 0.0, "invalid in_node case: power should fall back to 0");
+        bool powerFailed = false;
+        try {
+            (void)controller.calculatePowerValues(thermal, flowRates, std::cout);
+        } catch (const simulation::Error& error) {
+            powerFailed = error.code() == simulation::ErrorCode::AirconPowerFailed;
         }
+        expectTrue(powerFailed, "invalid power input must fail instead of producing valid zero power");
         expectTrue(calls == 1, "invalid in_node case: only valid unit should call estimateCOP");
     }
 

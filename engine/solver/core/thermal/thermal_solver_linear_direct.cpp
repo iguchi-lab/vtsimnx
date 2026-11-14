@@ -164,6 +164,15 @@ void solveTemperaturesLinearDirect(ThermalNetwork& network,
         detail::buildLinearSystemAbsoluteFast(graph, ctx.topology, ctx.system);
     }
 
+    for (size_t i = 0; i < ctx.system.unconstrainedRows.size(); ++i) {
+        if (!ctx.system.unconstrainedRows[i]) continue;
+        if (std::abs(ctx.system.b[i]) > 1e-12) {
+            network.setLastThermalConvergence(false, std::abs(ctx.system.b[i]),
+                                              std::abs(ctx.system.b[i]), "DirectT(unconnected-source)");
+            return;
+        }
+        ctx.system.b[i] = graph[ctx.topology.parameterIndexToVertex[i]].current_t;
+    }
     const std::uint64_t rhsHash = hashRhsValues(ctx.system.b);
 
     if (ctx.temperaturesBuffer.size() != n) ctx.temperaturesBuffer.assign(n, 0.0);

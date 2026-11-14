@@ -90,6 +90,9 @@ struct VertexProperties {
     double required_heat_w = std::numeric_limits<double>::quiet_NaN();
     // 空調除湿診断 [kg/s]（正=凝縮除去）。空気ノード湿気収支の airconCondensation に反映。
     double aircon_moisture_removal_kg_s = 0.0;
+    // Keep a relaxing wet-to-dry boundary until it matches the inlet; this is
+    // numerical state, never an artificial moisture removal diagnostic.
+    bool aircon_humidity_transition = false;
     std::optional<AirconSpec> aircon_spec;
 
     // type（文字列）の比較をホットパスから外すためのキャッシュ

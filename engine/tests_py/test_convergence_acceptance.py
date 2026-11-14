@@ -51,6 +51,11 @@ def test_closed_room_preserves_generated_water(coupled, mode, generation):
     raw["nodes"][0].update(t=19.0, x=0.01)
     raw["nodes"][1].update(x=0.01, calc_x=True, v=30.0)
     raw["aircon"][0]["mode"] = mode
+    if mode == "AUTO":
+        # AUTO can select either compressor mode; provide both model specs.
+        for group in raw["aircon"][0]["ac_spec"].values():
+            if isinstance(group, dict) and "heating" in group:
+                group["cooling"] = dict(group["heating"])
     fixed_flow(raw["aircon"][0], 0.0363011)
     raw["humidity_source"] = [{"key": "generation", "room": "room",
                                "generation_rate": generation}]
@@ -149,7 +154,9 @@ def test_load_jump_updates_all_airflow_paths(monkeypatch, mode, fixed, restart, 
     assert abs(heat[-1]) == pytest.approx(7000.0, abs=2.0)
     if restart:
         assert heat[1] == pytest.approx(0.0, abs=1e-3)
-    assert "空調風量先行補正" in (art / "solver.log").read_text()
+        assert read_series(art, out, "vent_flow_rate", "room->AC")[1] == pytest.approx(0.0, abs=1e-10)
+    else:
+        assert "空調風量先行補正" in (art / "solver.log").read_text()
 
 
 def test_remote_room_setpoint_cannot_bypass_capacity_limit():

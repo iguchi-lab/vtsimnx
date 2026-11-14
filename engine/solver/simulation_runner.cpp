@@ -210,9 +210,12 @@ void runSimulation(VentilationNetwork& ventNetwork,
     ctx.aircon.clearCapacityLimitBracket();
 
     const std::size_t maxOuter = effectiveMaxAirconControlIterations(ctx.constants);
+    const std::size_t maxBoundary = effectiveMaxCouplingIterations(ctx.constants);
+    std::size_t controlIterations = 0;
+    std::size_t boundaryIterations = 0;
     bool outerLoopConverged = false;
     bool stateAcceptanceRejected = false;
-    for (std::size_t iteration = 0; iteration < maxOuter; ++iteration) {
+    for (std::size_t iteration = 0; controlIterations < maxOuter; ++iteration) {
         stateAcceptanceRejected = false;
         if (metrics) metrics->outerIterations = iteration + 1;
         // 外側反復開始時: 空調顕熱をクリア（scheduled / latent は維持）
@@ -227,6 +230,7 @@ void runSimulation(VentilationNetwork& ventNetwork,
 
             // 湿度連成の前に空調吹出境界を整える（current_x=0 固定境界による室内乾燥を防ぐ）
             ctx.aircon.syncHumidityBoundariesBeforeSolve(ctx.thermal);
+            ctx.aircon.prepareAirflowForSolve(ctx.thermal, ctx.ventilation);
 
             runInnerCoupling(innerCtx, logEnabled, iteration, initial, step, totalIterations,
                              heatSources, forceMinTwo && iteration == 0);
@@ -242,6 +246,17 @@ void runSimulation(VentilationNetwork& ventNetwork,
             auto airconCtx = simulation::makeAirconIterationContext(ctx, airconMeta);
             const auto airconAction =
                 runAirconIteration(airconCtx, step.flowRates, totalIterations);
+
+            // Converging humidity at a fixed control candidate is a separate
+            // bounded solve. It must not exhaust the temperature/airflow search budget.
+            if (airconAction == simulation::AirconIterationAction::RecomputeForSupplyHumidity) {
+                if (++boundaryIterations >= maxBoundary)
+                    throw simulation::Error(simulation::ErrorCode::HumidityNotConverged,
+                        "Aircon supply humidity boundary did not converge within the coupling iteration limit");
+            } else {
+                boundaryIterations = 0;
+                ++controlIterations;
+            }
 
             if (airconAction != simulation::AirconIterationAction::Accept) {
                 logAirconRecompute(ctx.logs, logEnabled);

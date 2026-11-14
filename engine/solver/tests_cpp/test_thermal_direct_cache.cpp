@@ -176,6 +176,26 @@ int main() {
     expectEqU64(s5.fullBuild, s4.fullBuild + 1, "DirectT: flow change -> fullBuild");
     expectEqU64(s5.solveFull, s4.solveFull + 1, "DirectT: flow change -> solveFull");
 
+    // A stopped zero-volume mixing node has no energy equation. Its gauge
+    // must survive RHS-only reuse, but must never hide an applied heat source.
+    {
+        ThermalNetwork isolated;
+        VertexProperties plenum{};
+        plenum.key = "plenum";
+        plenum.type = "normal";
+        plenum.calc_t = true;
+        plenum.current_t = 22.0;
+        isolated.addNode(plenum);
+        for (int i = 0; i < 2; ++i) {
+            ThermalSolverLinearDirect::solveTemperaturesLinearDirect(isolated, constants, log);
+            expectTrue(isolated.getLastThermalConverged(), "isolated zero-source node remains solvable");
+            expectTrue(std::abs(isolated.getNode("plenum").current_t - 22.0) < 1e-10,
+                       "isolated temperature gauge retained through cache reuse");
+        }
+        isolated.getNode("plenum").heat_source = 10.0;
+        ThermalSolverLinearDirect::solveTemperaturesLinearDirect(isolated, constants, log);
+        expectTrue(!isolated.getLastThermalConverged(), "isolated heat source cannot be accepted");
+    }
     if (g_failures == 0) {
         std::cout << "[OK] all tests passed\n";
         return 0;

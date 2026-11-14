@@ -21,6 +21,8 @@ def case(mode="temperature_humidity", *, moist=False, outside_t=26.0, x=0.018, c
               control_mode=mode, max_overcooling=2.0)
     ac["ac_spec"]["Q"]["cooling"]["max"] = 20.0
     ac["ac_spec"]["Q"]["cooling"]["min"] = 0.01
+    if mode != "temperature_priority":
+        ac["ac_spec"]["latent_method"] = "ideal_coil"
     return raw
 
 

@@ -44,6 +44,11 @@ DuctCentralModel::DuctCentralModel(const nlohmann::json& spec)
 }
 DuctCentralModel::~DuctCentralModel() = default;
 
+double DuctCentralModel::estimateFanPower(const std::string& mode, double flowM3s) const {
+    return calculateFanPower(std::max(0.0, flowM3s) * 3600.0, 0.0,
+        getVolume("V_inner", mode.c_str(), "dsgn"), getFanPower(mode.c_str(), "rtd"));
+}
+
 // =============== JSON 仕様アクセス ===============
 double DuctCentralModel::getCapacity(const char* mode, const char* key) const {
     // kW → W

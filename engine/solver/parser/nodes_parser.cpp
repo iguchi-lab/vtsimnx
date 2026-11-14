@@ -1,6 +1,7 @@
 #include "nodes_parser.h"
 #include "parser_utils.h"
 #include "utils/utils.h"
+#include "aircon/aircon_spec_validation.h"
 #include <cmath>
 #include <set>
 #include <sstream>
@@ -258,7 +259,10 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
                     writeLog(logs, "  [INFO] aircon node: model が未指定のため RAC をデフォルト適用しました: key=" + node.key);
                 }
             }
+            if (node.ac_spec.is_null()) node.ac_spec = nlohmann::json::object();
             node.initializeAirconSpec();
+            aircon::validateSpec(node.ac_spec, node.model, node.control_mode,
+                node.mode.empty() ? std::vector<std::string>{node.current_mode} : node.mode, node.vol_zero);
         }
 
         // 重要: エアコンノード（吹出側）は A案で「未知温度」として解く必要がある。

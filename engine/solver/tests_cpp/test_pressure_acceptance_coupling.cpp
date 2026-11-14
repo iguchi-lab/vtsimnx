@@ -217,6 +217,30 @@ void testAcceptedPressureAppliedInCoupledStep() {
     expectTrue(ventNet.getLastPressureConverged(), "accepted flag");
 }
 
+void testDeadEndRoundoffAndSmallPrescribedFlow() {
+    for (bool prescribed : {false, true}) {
+        std::ostringstream logs;
+        TimingList timings;
+        auto constants = baseConstants();
+        auto ext = makeVentNode("EXT", false, 0.0);
+        auto end = makeVentNode("END", !prescribed, 1e-5);
+        auto edge = prescribed ? makeFixedFlow("EXT->END", "EXT", "END", 1e-13)
+                               : makeOpening("EXT->END", "EXT", "END");
+        // Pressure residual is already below its absolute tolerance, while a
+        // massless mixing node still requires an exactly conservative row.
+        if (!prescribed) edge.area = 1e-8;
+        VentilationNetwork vent;
+        ThermalNetwork thermal;
+        vent.buildFromData({ext, end}, {edge}, constants, logs);
+        thermal.buildFromData({ext, end}, {}, {edge}, constants, logs);
+        auto step = performCoupledStepCalculation(vent, thermal, constants, logs, timings, "zero-flow");
+        const double expected = prescribed ? 1e-13 : 0.0;
+        expectNear(step.flowRates.at({"EXT", "END"}), expected, 0.0, "consistent transport flow");
+        for (auto e : boost::make_iterator_range(boost::edges(vent.getGraph())))
+            expectNear(vent.getGraph()[e].flow_rate, expected, 0.0, "authoritative branch flow");
+    }
+}
+
 // 2つの ThermalNetwork で DirectT キャッシュ統計が独立
 void testDirectTContextsIndependentAcrossNetworks() {
     std::ostringstream logs;
@@ -305,6 +329,7 @@ int main() {
         testFixedPressureOnlyAccepted();
         testThermalNoActiveNodeState();
         testAcceptedPressureAppliedInCoupledStep();
+        testDeadEndRoundoffAndSmallPrescribedFlow();
         testDirectTContextsIndependentAcrossNetworks();
         testFallbackLogsConvergenceNotUnknown();
         std::cout << "[OK] all tests passed\n";

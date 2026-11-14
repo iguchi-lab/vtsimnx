@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterator, List, Literal, Optional, Set, Tuple, TypedDict
 
 import numpy as np
+from app.aircon_validation import validate_aircon_spec
 
 from .logger import get_logger
 from .utils import (
@@ -701,6 +702,10 @@ def validate_node_config(
                 node["pre_temp"] = pre_series
 
             control = node.get("control_mode", "temperature_priority")
+            try:
+                validate_aircon_spec(node)
+            except ValueError as exc:
+                errors.append(f"ノード {node['key']}: {exc}")
             if control not in ("temperature_priority", "humidity_priority", "temperature_humidity"):
                 errors.append(f"ノード {node['key']} の control_mode が不正です: {control}")
             if control != "temperature_priority":

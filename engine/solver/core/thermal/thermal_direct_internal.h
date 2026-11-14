@@ -88,6 +88,7 @@ struct LinearSystem {
     std::vector<std::vector<double>> A;
     std::vector<double> b;
     std::vector<std::vector<int>> colIndices;
+    std::vector<bool> unconstrainedRows;
 
     void initWithPattern(const std::vector<std::vector<int>>& rowColsPattern) {
         const size_t n = rowColsPattern.size();
@@ -98,6 +99,7 @@ struct LinearSystem {
     }
 
     void resetValuesKeepPattern() {
+        unconstrainedRows.assign(b.size(), false);
         std::fill(b.begin(), b.end(), 0.0);
         for (auto& rowA : A) std::fill(rowA.begin(), rowA.end(), 0.0);
     }
