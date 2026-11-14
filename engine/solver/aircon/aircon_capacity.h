@@ -4,6 +4,7 @@
 #include "vtsim_solver.h"
 
 #include <cmath>
+#include <limits>
 #include <optional>
 #include <sstream>
 #include <string>
@@ -35,6 +36,10 @@ struct CapacityBracket {
     double tHigh = 0.0;
     /** bracket 幅収束後、採用端点での熱計算をあと1回だけ待つ。 */
     bool finalVerificationPending = false;
+    // Humidistats use safeguarded interpolation; legacy searches keep bisection.
+    bool interpolate = false;
+    double residualLow = std::numeric_limits<double>::quiet_NaN();
+    double residualHigh = std::numeric_limits<double>::quiet_NaN();
 };
 
 using CapacityBracketMap = std::unordered_map<std::string, CapacityBracket>;

@@ -480,6 +480,9 @@ void AirconController::applyOnOffControlResult(
 
     if (!nodeProps.on) {
         nodeProps.aircon_control_state = AirconControlState::Off;
+        capacityLimitBracket_.erase(airconKey);
+        nodeProps.humidity_search_low = nodeProps.humidity_search_high =
+            std::numeric_limits<double>::quiet_NaN();
         // OFF 中は実効設定を要求値へ戻す（次に ON したときの起点を明確化）
         nodeProps.current_pre_temp = nodeProps.current_requested_pre_temp;
         // OFF 中（遷移直後含む）は吹出湿度を入口へ追従。送風継続時の乾燥空気残留を防ぐ。
@@ -642,6 +645,21 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
         }
     }
     if (boundariesChanged) return false;
+    // Keep other humidistats' thermal boundaries fixed while a capacity root
+    // is being bracketed. Moving them simultaneously invalidates the bracket
+    // observations and can repeatedly reopen the RH search.
+    // Capacity roots also couple to one another through room temperatures.
+    // Advance one root at a time, keeping all other temperature controls fixed.
+    const bool coordinateHumidityCapacity = std::any_of(candidates.begin(), candidates.end(),
+        [&](const Candidate& candidate) { return thermalNetwork.getNode(candidate.key).humidity_overcool_hold; });
+    std::string capacitySearchKey;
+    for (const auto& candidate : candidates) {
+        if (coordinateHumidityCapacity && capacityLimitBracket_.count(candidate.key)) {
+            capacitySearchKey = candidate.key;
+            break;
+        }
+    }
+    std::unordered_map<std::string, double> pendingHumidityCapacityRecovery;
     for (const auto& candidate : candidates) {
         const auto& airconKey = candidate.key;
         auto& nodeProps = thermalNetwork.getNode(airconKey);
@@ -649,12 +667,21 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
         const auto& loads = candidate.loads;
         {
             AirconRecomputeReason unitReasons = AirconRecomputeReason::None;
-            if (aircon::humidity_control::enabled(nodeProps) && nodeProps.humidity_overcool_hold &&
+            const bool searchHumidity = aircon::humidity_control::enabled(nodeProps) && nodeProps.humidity_overcool_hold &&
                 nodeProps.aircon_control_state != AirconControlState::CapacityLimited &&
-                context.airFlowRate > 1e-8 && std::isfinite(nodeProps.humidity_supply_request)) {
+                context.airFlowRate > 1e-8 && std::isfinite(nodeProps.humidity_supply_request);
+            if (!capacitySearchKey.empty() && (searchHumidity || airconKey != capacitySearchKey)) {
+                // Revisit the deferred controller even if the other capacity
+                // bracket closes without changing its setpoint in this pass.
+                adjustmentMade = true;
+                continue;
+            }
+            if (searchHumidity) {
                 const double requested = nodeProps.current_requested_pre_temp;
                 const double floor = requested - nodeProps.max_overcooling;
                 if (!std::isfinite(nodeProps.humidity_search_low)) {
+                    nodeProps.humidity_search_error_low = nodeProps.humidity_search_error_high =
+                        std::numeric_limits<double>::quiet_NaN();
                     nodeProps.humidity_search_low = floor;
                     nodeProps.humidity_search_high = requested;
                 }
@@ -664,6 +691,8 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                     (std::abs(fanOnlyError) <= 1e-4 ||
                      (old >= requested - 1e-4 && fanOnlyError < 0.0))) {
                     humidityFanTrialDone_.insert(airconKey);
+                    nodeProps.humidity_search_error_low = nodeProps.humidity_search_error_high =
+                        std::numeric_limits<double>::quiet_NaN();
                     nodeProps.humidity_search_low = floor;
                     nodeProps.humidity_search_high = old;
                 }
@@ -675,26 +704,58 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                 // mixing alone satisfies RH, search for T_out == T_in (fan
                 // only), subject to the same room overcooling bound.
                 const double error = context.validData.airconTemp - desiredCoil;
-                // Latent enthalpy feedback and return-air moisture can move
-                // the root after a bracket was formed. Reopen an exhausted
-                // interior bracket instead of accepting an obsolete root.
-                if (nodeProps.humidity_search_high - nodeProps.humidity_search_low < 1e-4 &&
-                    std::abs(error) > 1e-3 &&
-                    ((error > 0.0 && old > floor + 1e-4) ||
-                     (error < 0.0 && old < requested - 1e-4))) {
-                    nodeProps.humidity_search_low = floor;
-                    nodeProps.humidity_search_high = requested;
+                if (humiditySearchRebase_.erase(airconKey)) {
+                    // Another capacity root moved the response. Its old RH
+                    // bracket is no longer a bracket for the current network.
+                    const double span = nodeProps.humidity_search_high-nodeProps.humidity_search_low;
+                    const double slope = span > 1e-8
+                        ? (nodeProps.humidity_search_error_high-nodeProps.humidity_search_error_low)/span
+                        : std::numeric_limits<double>::quiet_NaN();
+                    const double width = std::max(1e-3, 2.0*std::abs(error) /
+                        (std::isfinite(slope) && slope > 0.0 ? slope : 1.0));
+                    nodeProps.humidity_search_low = error > 0.0 ? std::max(floor, old-width) : old;
+                    nodeProps.humidity_search_high = error > 0.0 ? old : std::min(requested, old+width);
+                    nodeProps.humidity_search_error_low = nodeProps.humidity_search_error_high =
+                        std::numeric_limits<double>::quiet_NaN();
                 }
                 double next = old;
                 if (std::abs(error) > 1e-4) {
                     if (error > 0.0) {
                         nodeProps.humidity_search_high = old;
+                        nodeProps.humidity_search_error_high = error;
                         next = (old + nodeProps.humidity_search_low) / 2.0;
-                        if (old - floor < 1e-4) next = floor;
                     } else {
                         nodeProps.humidity_search_low = old;
+                        nodeProps.humidity_search_error_low = error;
                         next = (old + nodeProps.humidity_search_high) / 2.0;
                     }
+                    if (nodeProps.humidity_search_error_low < 0.0 && nodeProps.humidity_search_error_high > 0.0) {
+                        const double fraction = std::clamp(-nodeProps.humidity_search_error_low /
+                            (nodeProps.humidity_search_error_high-nodeProps.humidity_search_error_low), 0.1, 0.9);
+                        next = nodeProps.humidity_search_low + fraction *
+                            (nodeProps.humidity_search_high-nodeProps.humidity_search_low);
+                    }
+                    if (error > 0.0 && old-floor < 1e-4) next = floor;
+                }
+                // A small trial step is not success when coupling moved the
+                // root. Check after narrowing/interpolation, then reopen locally.
+                if (std::abs(next-old) <= 1e-5 && std::abs(error) > 1e-3 &&
+                    ((error > 0.0 && old > floor+1e-4) ||
+                     (error < 0.0 && old < requested-1e-4))) {
+                    nodeProps.humidity_search_error_low = nodeProps.humidity_search_error_high =
+                        std::numeric_limits<double>::quiet_NaN();
+                    const double width = std::max(1e-3, 2.0*std::abs(error));
+                    nodeProps.humidity_search_low = error > 0.0 ? std::max(floor, old-width) : old;
+                    nodeProps.humidity_search_high = error > 0.0 ? old : std::min(requested, old+width);
+                    next = 0.5*(nodeProps.humidity_search_low+nodeProps.humidity_search_high);
+                }
+                if (logVerbosity_ >= 2) {
+                    std::ostringstream searchLog;
+                    searchLog << airconKey << " humidity search: room=" << old << "->" << next
+                        << ", coil_error=" << error << ", target_coil=" << desiredCoil
+                        << ", supply_request=" << nodeProps.humidity_supply_request
+                        << ", bracket=[" << nodeProps.humidity_search_low << "," << nodeProps.humidity_search_high << "]";
+                    writeDomainLog(logs, "空調", searchLog.str());
                 }
                 if (std::abs(next - old) > 1e-5) {
                     nodeProps.current_pre_temp = next;
@@ -753,6 +814,21 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
             oss << ", 現在処理熱量(全熱)=" << std::fixed << std::setprecision(2) << current
                 << "W (顕熱=" << sensibleQ << "W, 潜熱=" << latentQ << "W)";
 
+            // Re-bracket a settled humidistat near its current capacity root.
+            // Other rooms may change the load; retain this unit's constrained
+            // humidity boundary while recovering either excess or spare capacity.
+            if (maxHeatCapacity && nodeProps.humidity_overcool_hold &&
+                nodeProps.aircon_control_state == AirconControlState::CapacityLimited &&
+                !capacityLimitBracket_.count(airconKey) && context.airFlowRate > 1e-8) {
+                const double old = nodeProps.current_pre_temp;
+                const double width = std::max(0.01, 2.0 * std::abs(current - *maxHeatCapacity) /
+                    (archenv::DENSITY_DRY_AIR * archenv::SPECIFIC_HEAT_AIR * context.airFlowRate));
+                if (aircon::capacity::capacityExceedsLimit(current, *maxHeatCapacity)) {
+                    capacityLimitBracket_[airconKey] = {old, std::min(50.0, old + width), false};
+                }
+            }
+            if (nodeProps.humidity_overcool_hold && capacityLimitBracket_.count(airconKey))
+                capacityLimitBracket_.at(airconKey).interpolate = true;
             bool unitAdjusted = false;
             if (maxHeatCapacity && aircon::capacity::capacityExceedsLimit(current, *maxHeatCapacity)) {
                 if (aircon::airflow::isDuctCentralModel(nodeProps) &&
@@ -807,6 +883,9 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                     unitAdjusted);
             } else {
                 oss << " → OK";
+                // A settled load inside the capacity band closes the search,
+                // including when a different controller moved its root.
+                if (maxHeatCapacity) capacityLimitBracket_.erase(airconKey);
                 const bool atRequested = std::abs(nodeProps.current_pre_temp -
                     nodeProps.current_requested_pre_temp) <= 1e-5;
                 if ((nodeProps.aircon_control_state != AirconControlState::CapacityLimited || atRequested) &&
@@ -825,7 +904,18 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                     oss << ", 要求設定への復帰を試算";
                 }
             }
+            if (coordinateHumidityCapacity && capacityLimitBracket_.count(airconKey) && capacitySearchKey.empty())
+                capacitySearchKey = airconKey;
+            if (!unitAdjusted && maxHeatCapacity && nodeProps.humidity_overcool_hold &&
+                nodeProps.aircon_control_state == AirconControlState::CapacityLimited &&
+                !capacityLimitBracket_.count(airconKey) && context.airFlowRate > 1e-8 &&
+                aircon::capacity::capacityWellBelowLimit(current, *maxHeatCapacity) &&
+                nodeProps.current_pre_temp > nodeProps.current_requested_pre_temp-nodeProps.max_overcooling+1e-3) {
+                pendingHumidityCapacityRecovery[airconKey] = *maxHeatCapacity;
+            }
             if (unitAdjusted) {
+                for (const auto& other : candidates)
+                    if (other.key != airconKey) humiditySearchRebase_.insert(other.key);
                 adjustmentMade = true;
                 unitReasons |= AirconRecomputeReason::CapacitySetpointChanged;
             }
@@ -843,6 +933,56 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                 proposal.reasons = unitReasons;
                 outProposals->push_back(std::move(proposal));
             }
+        }
+    }
+    // Recover spare capacity only after the free humidistats settle. Chasing
+    // their intermediate loads would restart the capacity root at every step.
+    if (!adjustmentMade) {
+        for (const auto& candidate : candidates) {
+            const auto found = pendingHumidityCapacityRecovery.find(candidate.key);
+            if (found == pendingHumidityCapacityRecovery.end()) continue;
+            auto& node = thermalNetwork.getNode(candidate.key);
+            const double desiredCoil = node.humidity_demand
+                ? aircon::latent::humidityRequestedOutletTemperature(
+                    candidate.context.validData, node, candidate.context.airFlowRate, moistEnthalpyEnabled_)
+                : candidate.context.validData.indoorTemp;
+            if (node.current_pre_temp <= node.current_requested_pre_temp+1e-4 &&
+                candidate.context.validData.airconTemp <= desiredCoil+1e-4) {
+                // Demand has fallen below capacity. Return to the humidistat
+                // instead of forcing full output without a humidity need.
+                node.aircon_control_state = AirconControlState::SetpointControlled;
+                node.humidity_search_low = node.humidity_search_high = std::numeric_limits<double>::quiet_NaN();
+                adjustmentMade = true;
+                if (outProposals) {
+                    auto proposal = makeAirconStateProposalBase(candidate.key, node);
+                    proposal.reasons = AirconRecomputeReason::CapacitySetpointChanged;
+                    outProposals->push_back(std::move(proposal));
+                }
+                break;
+            }
+            const double floor = node.current_requested_pre_temp - node.max_overcooling;
+            const double current = aircon::latent::totalHeatCapacity(candidate.loads);
+            const double width = std::max(0.01, 2.0 * (found->second - current) /
+                (archenv::DENSITY_DRY_AIR * archenv::SPECIFIC_HEAT_AIR * candidate.context.airFlowRate));
+            capacityLimitBracket_[candidate.key] = {std::max(floor, node.current_pre_temp - width),
+                                                   node.current_pre_temp, false};
+            capacityLimitBracket_.at(candidate.key).interpolate = true;
+            std::ostringstream oss;
+            bool changed = false;
+            aircon::capacity::applyUnderCapacityBracketAdjustment(
+                candidate.key, node, candidate.context.operationMode, candidate.context.validData.indoorTemp,
+                candidate.context.airFlowRate, found->second, current, capacityLimitBracket_, oss, changed);
+            if (changed)
+                for (const auto& other : candidates)
+                    if (other.key != candidate.key) humiditySearchRebase_.insert(other.key);
+            adjustmentMade |= changed;
+            writeDomainLog(logs, "空調", candidate.key + oss.str());
+            if (changed && outProposals) {
+                auto proposal = makeAirconStateProposalBase(candidate.key, node);
+                proposal.reasons = AirconRecomputeReason::CapacitySetpointChanged;
+                outProposals->push_back(std::move(proposal));
+            }
+            break;
         }
     }
     return adjustmentMade;
@@ -1148,6 +1288,7 @@ void AirconController::clearCapacityLimitBracket() const {
     capacityRecoveryAttempted_.clear();
     humidityFloorBlocked_.clear();
     humidityFanTrialDone_.clear();
+    humiditySearchRebase_.clear();
     boundaryIterations_.clear();
 }
 

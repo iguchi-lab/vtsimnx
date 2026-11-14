@@ -106,6 +106,7 @@ void updateHumidistatRequests(Graph& graph, const HumidityNetworkTerms& terms,
             const double lowerX = std::min(inletX,
                 aircon::latent::saturationHumidityUpperBound(node.min_coil_temperature));
             const bool bound = node.aircon_control_state == AirconControlState::CapacityLimited ||
+                node.humidity_capacity_limited ||
                 (node.control_mode == "humidity_priority" && node.humidity_overcool_hold &&
                  node.current_pre_temp <= node.current_requested_pre_temp-node.max_overcooling+1e-4) ||
                 (node.on && temperatureHeld && request[i] > upperX+1e-8) ||

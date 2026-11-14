@@ -130,6 +130,7 @@ void initCapacityLimitBracket(bool heating,
         width *= 2.0;
     }
     bracket.finalVerificationPending = false;
+    bracket.residualLow = bracket.residualHigh = std::numeric_limits<double>::quiet_NaN();
 }
 
 bool tryExpandCapacityBracket(bool heating,
@@ -169,12 +170,15 @@ bool tryExpandCapacityBracket(bool heating,
         width *= 2.0;
     }
     bracket.finalVerificationPending = false;
+    bracket.residualLow = bracket.residualHigh = std::numeric_limits<double>::quiet_NaN();
     return expanded || (bracket.tHigh - bracket.tLow) > prevWidth + 1e-12;
 }
 
 CapacityLimitBracketResult stepCapacityLimitBracket(bool heating, double maxQ, double currentQ,
                                                     double currentSetpoint,
-                                                    double& tLow, double& tHigh) {
+                                                    aircon::capacity::CapacityBracket& bracket) {
+    auto& tLow = bracket.tLow;
+    auto& tHigh = bracket.tHigh;
     // 現在点の処理熱量で先に収束判定する。
     if (capacityNearMax(currentQ, maxQ)) {
         return {currentSetpoint, /*bracketConverged=*/false, /*capacityConverged=*/true};
@@ -183,19 +187,24 @@ CapacityLimitBracketResult stepCapacityLimitBracket(bool heating, double maxQ, d
     if (currentQ > maxQ) {
         if (heating) {
             tHigh = currentSetpoint;
+            bracket.residualHigh = currentQ-maxQ;
         } else {
             tLow = currentSetpoint;
+            bracket.residualLow = currentQ-maxQ;
         }
     } else {
         if (heating) {
             tLow = currentSetpoint;
+            bracket.residualLow = currentQ-maxQ;
         } else {
             tHigh = currentSetpoint;
+            bracket.residualHigh = currentQ-maxQ;
         }
     }
 
     if (tHigh < tLow) {
         std::swap(tLow, tHigh);
+        std::swap(bracket.residualLow, bracket.residualHigh);
     }
 
     const bool bracketConverged = (tHigh - tLow) <= kSetpointSearchTolerance;
@@ -203,7 +212,19 @@ CapacityLimitBracketResult stepCapacityLimitBracket(bool heating, double maxQ, d
         // 幅だけ収束したら「能力を超えない側」の端点を最終候補にする
         return {feasibleEndpoint(heating, tLow, tHigh), true, false};
     }
-    const double newSetpoint = 0.5 * (tLow + tHigh);
+    double newSetpoint = 0.5 * (tLow + tHigh);
+    if (bracket.interpolate && std::isfinite(bracket.residualLow) && std::isfinite(bracket.residualHigh) &&
+        bracket.residualLow*bracket.residualHigh < 0.0) {
+        // The coil-derived limit also moves with the inlet state. Store
+        // Q-Qmax at each measured point, not loads relative to today's limit.
+        // Safeguarded interpolation uses only opposite-sign residuals,
+        // and keep each trial strictly inside the bracket.
+        const double fraction = -bracket.residualLow/(bracket.residualHigh-bracket.residualLow);
+        // Near-endpoint interpolation can stagnate after a coupled load moves.
+        // Use bisection there, instead of repeatedly clipping to the same side.
+        if (fraction >= 0.1 && fraction <= 0.9)
+            newSetpoint = tLow + fraction*(tHigh-tLow);
+    }
     return {newSetpoint, false, false};
 }
 
@@ -393,7 +414,7 @@ void applyExceededCapacityAdjustment(
     }
 
     const auto result = stepCapacityLimitBracket(heating, maxHeatCapacity, currentTotal,
-                                                 nodeProps.current_pre_temp, bracket.tLow, bracket.tHigh);
+                                                 nodeProps.current_pre_temp, bracket);
     applyBracketStepResult(airconKey, nodeProps, heating, maxHeatCapacity, currentTotal,
                            previousSetpoint, indoorTemp, airFlowRate, capacityLimitBracket,
                            bracket, result, oss, adjustmentMade, /*underCapacityPath=*/false);
@@ -429,7 +450,7 @@ void applyUnderCapacityBracketAdjustment(
     }
 
     const auto result = stepCapacityLimitBracket(heating, maxHeatCapacity, currentTotal,
-                                                 nodeProps.current_pre_temp, bracket.tLow, bracket.tHigh);
+                                                 nodeProps.current_pre_temp, bracket);
     applyBracketStepResult(airconKey, nodeProps, heating, maxHeatCapacity, currentTotal,
                            previousSetpoint, indoorTemp, airFlowRate, capacityLimitBracket,
                            bracket, result, oss, adjustmentMade, /*underCapacityPath=*/true);

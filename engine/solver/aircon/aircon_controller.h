@@ -86,6 +86,7 @@ private:
     // coil. Cooling dry air can increase RH, so that search is not monotone
     // across the dry/wet transition.
     mutable std::unordered_set<std::string> humidityFanTrialDone_;
+    mutable std::unordered_set<std::string> humiditySearchRebase_;
     struct BoundaryIteration {
         double x = 0.0;
         double residual = 0.0;
