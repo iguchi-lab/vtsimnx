@@ -2,6 +2,8 @@ cff-version: 1.2.0
 message: "If you use VTSimNX in research, please cite the software and the exact release or commit used."
 type: software
 title: VTSimNX
+version: "1.8.1"
+# This version is not released yet. Add date-released when publishing its tag.
 authors:
   - family-names: Iguchi
     given-names: Masato

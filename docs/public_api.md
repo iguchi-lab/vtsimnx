@@ -17,6 +17,7 @@
 | 記号 | 戻り値 / 備考 |
 |---|---|
 | `run_calc` | 既定で `CalcRunResult`（`as_result=True`）。`as_result=False` で生 dict |
+| `wait_for_run` | 既存runの結果取得を再開。`as_result=True` で `CalcRunResult`、既定は互換用の生 dict |
 | `CalcRunResult` | 遅延ロード結果コンテナ（`raise_on_error` 可） |
 | `RunCalcAPIError` | API エラー |
 | `get_artifact_file` | `Path` / bytes / DataFrame（`.f32.bin` は DataFrame） |
@@ -40,6 +41,20 @@
 ```python
 result = vt.run_calc(base_url, input_data, timeout=3600)  # 最大1時間待つ
 ```
+
+通信断・待機タイムアウト後は、例外の `detail["run_id"]` を使って結果取得だけを再開できる。
+再投入は行わず、既存のジョブをGETでポーリングする。
+
+```python
+result = vt.wait_for_run(base_url, saved_run_id, as_result=True,
+                         timeout=3600, api_key=api_key)
+temperature = result.get_series_df("thermal_temperature")
+```
+
+`as_result=True` は `run_calc` と同じ遅延ロード結果を返し、保存済み結果のindexから日時を復元する。
+元の入力を再送する必要はない。認証キーは遅延取得にも引き継ぐ。`raise_on_error=True`、
+`output_path="result.json"` も指定できる。
+従来の `wait_for_run(...)` は既定の `as_result=False` によりAPIレスポンスdictを返す。
 
 成果物まわりの追加 stable（`vtsimnx.artifacts` から）:
 

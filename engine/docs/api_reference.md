@@ -301,7 +301,7 @@ builder 入力 (`config`) を受け取り、solver 実行結果を**同期**で�
 |---|---|---|
 | `unauthorized` | 401 | API キー不正・欠落 |
 | `rate_limited` | 429 | レート制限超過 |
-| `invalid_gzip` / `gzip_too_large` / `body_too_large` | 400/413 | gzip リクエスト不正 |
+| `invalid_gzip` / `gzip_too_large` / `body_too_large` | 400/413 | gzip 不正、圧縮ボディ上限、JSONボディ上限（非圧縮を含む） |
 | `validation_error` / `unknown_field` | 422 | Pydantic / 未知キー |
 | `invalid_config` / `invalid_config_missing_field` | 400 | builder 入力不正 |
 | `artifact_not_found` / `manifest_not_found` / `file_not_found` | 404 | 成果物欠落 |
@@ -411,6 +411,8 @@ curl -L -o solver.log  http://127.0.0.1:8000/artifacts/<artifact_dir>/download/l
 ## 補足
 
 - `Content-Encoding: gzip` のリクエストボディを受け付けます。
+- `VTSIMNX_MAX_JSON_BODY_BYTES`（既定256 MiB）は非圧縮ボディとgzip展開後の両方に適用します。gzipの転送サイズは別途 `VTSIMNX_MAX_GZIP_BODY_BYTES`（既定64 MiB）で制限します。それぞれ0以下ならその上限を無効にします。
+- 上限超過はJSON解析・ジョブ登録の前に413で拒否します。Content-Lengthがない場合や実サイズより小さい場合も、受信したチャンクの合計で検査します。宣言された長さが上限を超えれば、ボディを読む前に拒否します。
 - `artifact_dir` および配布ファイルはパストラバーサル対策済みです。
 - 成果物取得は `/artifacts/...` に一本化しています。`/work` の静的公開は行いません。
 - OpenAPI は起動後に `/docs`（Swagger UI）と `/openapi.json` でも参照できます。
