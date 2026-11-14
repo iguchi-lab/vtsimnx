@@ -1,0 +1,185 @@
+{
+  "scope": "Synthetic two-room/two-unit cooling year, not the 24-case house report",
+  "baseline_commit": "48a69083e543e5307934592bd6714f9fcf2c2d1f",
+  "candidate_commit": "4f05039",
+  "baseline": {
+    "solver_sha256": "86aa814246560039d943243c5210931104d62e97d5e5f904e84729e1c425242c",
+    "hours": 8760,
+    "weather": "synthetic cooling year",
+    "cases": [
+      {
+        "mode": "humidity_priority",
+        "input_sha256": "3839811766da207b1723a30a65fa36076d57030b7f0e096efc8a84f120f34b3d",
+        "seconds": 0.21425315699889325,
+        "status": "error",
+        "metrics": null,
+        "error": "シミュレーション実行中にエラーが発生しました: Aircon control did not converge within the iteration limit"
+      },
+      {
+        "mode": "temperature_humidity",
+        "input_sha256": "7fcb537eff65a246430883a75cb2bf9e0263b3fee1f38104c45ead168c23a28f",
+        "seconds": 7.130328611994628,
+        "status": "ok",
+        "metrics": {
+          "aircon_capacity_recalc": 30301,
+          "aircon_capacity_recalc_share": 0.29154920091214365,
+          "aircon_flow_adjust_recalc": 0,
+          "aircon_ms": 2323.0081530000007,
+          "aircon_on_off_recalc": 0,
+          "aircon_recalc_total": 103931,
+          "aircon_recompute_reasons_mask": 10,
+          "aircon_supply_humidity_recalc": 73630,
+          "coupled_iterations": 231948,
+          "humidity_factorizes": 2,
+          "humidity_ms": 2255.2553379999945,
+          "humidity_pattern_analyzes": 2,
+          "humidity_rhs_only_solves": 82388,
+          "humidity_solution_reuse": 149558,
+          "outer_iterations": 112691,
+          "outer_iterations_ge3": 7161,
+          "outer_iterations_ge3_share": 0.8174657534246575,
+          "outer_iterations_max": 43,
+          "outer_iterations_mean": 12.864269406392694,
+          "pressure_ceres_iterations": 0,
+          "pressure_fallback_count": 0,
+          "pressure_ms": 0.0,
+          "pressure_solve_calls": 0,
+          "solve_timesteps": 8760,
+          "thermal_full_builds": 1,
+          "thermal_ms": 496.08159100000177,
+          "thermal_rhs_only_builds": 231947
+        },
+        "error": null,
+        "units": [
+          {
+            "key": "AC",
+            "free_hours": 2090,
+            "max_free_rh_error_pp": 2.6702880859375e-05,
+            "max_rh_unmet_pp": 2.6702880859375e-05,
+            "min_outlet_temperature": 4.977725982666016
+          },
+          {
+            "key": "AC2",
+            "free_hours": 2512,
+            "max_free_rh_error_pp": 2.6702880859375e-05,
+            "max_rh_unmet_pp": 2.6702880859375e-05,
+            "min_outlet_temperature": 4.977725982666016
+          }
+        ]
+      }
+    ]
+  },
+  "candidate": {
+    "solver_sha256": "63b22db08a858442540cc9fa7ed2ef1501c4e0c4964d9f7fd11811d81fbe17ff",
+    "hours": 8760,
+    "weather": "synthetic cooling year",
+    "cases": [
+      {
+        "mode": "humidity_priority",
+        "input_sha256": "3839811766da207b1723a30a65fa36076d57030b7f0e096efc8a84f120f34b3d",
+        "seconds": 9.854106044993387,
+        "status": "ok",
+        "metrics": {
+          "aircon_capacity_recalc": 77389,
+          "aircon_capacity_recalc_share": 0.2782435804324534,
+          "aircon_flow_adjust_recalc": 0,
+          "aircon_ms": 2823.655558999996,
+          "aircon_on_off_recalc": 0,
+          "aircon_recalc_total": 278134,
+          "aircon_recompute_reasons_mask": 10,
+          "aircon_supply_humidity_recalc": 200745,
+          "coupled_iterations": 586395,
+          "humidity_factorizes": 8241,
+          "humidity_ms": 3151.211956000013,
+          "humidity_pattern_analyzes": 8241,
+          "humidity_rhs_only_solves": 1960449,
+          "humidity_solution_reuse": 376890,
+          "outer_iterations": 286894,
+          "outer_iterations_ge3": 5502,
+          "outer_iterations_ge3_share": 0.6280821917808219,
+          "outer_iterations_max": 156,
+          "outer_iterations_mean": 32.75045662100457,
+          "pressure_ceres_iterations": 0,
+          "pressure_fallback_count": 0,
+          "pressure_ms": 0.0,
+          "pressure_solve_calls": 0,
+          "solve_timesteps": 8760,
+          "thermal_full_builds": 1,
+          "thermal_ms": 1196.4042589999972,
+          "thermal_rhs_only_builds": 586394
+        },
+        "error": null,
+        "units": [
+          {
+            "key": "AC",
+            "free_hours": 2071,
+            "max_free_rh_error_pp": 0.00159454345703125,
+            "max_rh_unmet_pp": 0.0006256103515625,
+            "min_outlet_temperature": 5.000024318695068
+          },
+          {
+            "key": "AC2",
+            "free_hours": 2490,
+            "max_free_rh_error_pp": 0.001293182373046875,
+            "max_rh_unmet_pp": 0.001293182373046875,
+            "min_outlet_temperature": 5.000024318695068
+          }
+        ],
+        "accuracy_ok": true
+      },
+      {
+        "mode": "temperature_humidity",
+        "input_sha256": "7fcb537eff65a246430883a75cb2bf9e0263b3fee1f38104c45ead168c23a28f",
+        "seconds": 5.2420668179984204,
+        "status": "ok",
+        "metrics": {
+          "aircon_capacity_recalc": 30280,
+          "aircon_capacity_recalc_share": 0.36940794690675743,
+          "aircon_flow_adjust_recalc": 0,
+          "aircon_ms": 1979.025083000005,
+          "aircon_on_off_recalc": 0,
+          "aircon_recalc_total": 81969,
+          "aircon_recompute_reasons_mask": 10,
+          "aircon_supply_humidity_recalc": 51689,
+          "coupled_iterations": 190430,
+          "humidity_factorizes": 3,
+          "humidity_ms": 1008.8091280000033,
+          "humidity_pattern_analyzes": 3,
+          "humidity_rhs_only_solves": 631736,
+          "humidity_solution_reuse": 129981,
+          "outer_iterations": 90729,
+          "outer_iterations_ge3": 7163,
+          "outer_iterations_ge3_share": 0.8176940639269407,
+          "outer_iterations_max": 37,
+          "outer_iterations_mean": 10.357191780821918,
+          "pressure_ceres_iterations": 0,
+          "pressure_fallback_count": 0,
+          "pressure_ms": 0.0,
+          "pressure_solve_calls": 0,
+          "solve_timesteps": 8760,
+          "thermal_full_builds": 1,
+          "thermal_ms": 404.5440349999985,
+          "thermal_rhs_only_builds": 190429
+        },
+        "error": null,
+        "units": [
+          {
+            "key": "AC",
+            "free_hours": 2090,
+            "max_free_rh_error_pp": 0.0,
+            "max_rh_unmet_pp": 0.0,
+            "min_outlet_temperature": 5.000024318695068
+          },
+          {
+            "key": "AC2",
+            "free_hours": 2512,
+            "max_free_rh_error_pp": 0.0,
+            "max_rh_unmet_pp": 1.9073486328125e-05,
+            "min_outlet_temperature": 5.000024318695068
+          }
+        ],
+        "accuracy_ok": true
+      }
+    ]
+  }
+}
