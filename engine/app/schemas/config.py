@@ -182,7 +182,7 @@ class NodeModel(_StrictExtraBase):
         json_schema_extra=field_extra(TEMPERATURE_C),
     )
     control_mode: Literal["temperature_priority", "humidity_priority", "temperature_humidity"] = "temperature_priority"
-    max_overcooling: float = Field(default=2.0, ge=0.0, le=10.0, description="湿度優先時の許容過冷却幅 [K]")
+    max_overcooling: float = Field(default=2.0, ge=0.0, allow_inf_nan=False, description="湿度優先時の許容過冷却幅 [K]（有限の非負値）")
     min_coil_temperature: float = Field(default=5.0, ge=0.0, le=20.0, description="理想除湿コイルの最低温度 [℃]")
     reheat_cop: float = Field(default=1.0, gt=0.0, description="温湿度満足時の再熱COP（既定は電気ヒーター）")
     pre_rh: Optional[ScalarOrSeries] = Field(
@@ -420,7 +420,7 @@ class AcSpecModel(_StrictExtraBase):
     )
     latent_method: Optional[str] = Field(
         default=None,
-        description="潜熱処理方式: rh95 / bf / coil_aoaf / rh100（none同義）。室湿度制御は ideal_coil（省略時も同じ）",
+        description="潜熱処理方式: rh95 / bf / coil_aoaf / rh100（none同義）。湿度優先は各方式または ideal_coil（省略時）、温湿度満足は ideal_coil",
     )
     bf: Optional[float] = None
     BF: Optional[float] = None
@@ -505,7 +505,7 @@ class AirconModel(_StrictExtraBase):
         json_schema_extra=field_extra(TEMPERATURE_C),
     )
     control_mode: Literal["temperature_priority", "humidity_priority", "temperature_humidity"] = "temperature_priority"
-    max_overcooling: float = Field(default=2.0, ge=0.0, le=10.0, description="湿度優先時の許容過冷却幅 [K]")
+    max_overcooling: float = Field(default=2.0, ge=0.0, allow_inf_nan=False, description="湿度優先時の許容過冷却幅 [K]（有限の非負値）")
     min_coil_temperature: float = Field(default=5.0, ge=0.0, le=20.0, description="理想除湿コイルの最低温度 [℃]")
     reheat_cop: float = Field(default=1.0, gt=0.0, description="温湿度満足時の再熱COP（既定は電気ヒーター）")
     pre_rh: Optional[ScalarOrSeries] = Field(

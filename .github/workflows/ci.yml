@@ -40,8 +40,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 宣言最小 / 主要 / 最新安定（2026-07 時点で 3.13）
-        python-version: ["3.10", "3.11", "3.13"]
+        # 宣言している Python 3.10〜3.13 を全て検証
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -60,12 +60,13 @@ jobs:
         run: python -m pytest vtsimnx/tests
 
   engine-python:
+    needs: cpp-solver
     name: Engine / builder tests (py${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.13"]
+        python-version: ["3.10", "3.11", "3.12", "3.13"]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -87,20 +88,21 @@ jobs:
             build-essential cmake \
             libboost-dev libeigen3-dev libceres-dev libsuitesparse-dev
 
-      - name: Build C++ solver
-        working-directory: engine
-        run: |
-          cmake -S solver -B build-solver \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DVTSIMNX_BUILD_CPP_TESTS=OFF
-          cmake --build build-solver -j"$(nproc)"
-          test -x build/vtsimnx_solver
+      - name: Download tested solver
+        uses: actions/download-artifact@v4
+        with:
+          name: solver-release
+          path: engine/build
+
+      - name: Make solver executable
+        run: chmod +x engine/build/vtsimnx_solver
 
       - name: Pytest (engine/tests_py)
         working-directory: engine
         run: python -m pytest tests_py -m "not physics and not perf"
 
   physics-regression:
+    needs: cpp-solver
     name: Physics baseline regression (py3.11)
     runs-on: ubuntu-latest
     steps:
@@ -124,20 +126,21 @@ jobs:
             build-essential cmake \
             libboost-dev libeigen3-dev libceres-dev libsuitesparse-dev
 
-      - name: Build C++ solver
-        working-directory: engine
-        run: |
-          cmake -S solver -B build-solver \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DVTSIMNX_BUILD_CPP_TESTS=OFF
-          cmake --build build-solver -j"$(nproc)"
-          test -x build/vtsimnx_solver
+      - name: Download tested solver
+        uses: actions/download-artifact@v4
+        with:
+          name: solver-release
+          path: engine/build
+
+      - name: Make solver executable
+        run: chmod +x engine/build/vtsimnx_solver
 
       - name: Pytest physics baselines
         working-directory: engine
         run: python -m pytest tests_py -m physics
 
   perf-history:
+    needs: cpp-solver
     name: Performance history (py3.11, warn-only)
     runs-on: ubuntu-latest
     # 厳密合否は不安定なため、ジョブ自体は計測成功で緑。大幅退行はログ WARNING。
@@ -162,14 +165,14 @@ jobs:
             build-essential cmake \
             libboost-dev libeigen3-dev libceres-dev libsuitesparse-dev
 
-      - name: Build C++ solver
-        working-directory: engine
-        run: |
-          cmake -S solver -B build-solver \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DVTSIMNX_BUILD_CPP_TESTS=OFF
-          cmake --build build-solver -j"$(nproc)"
-          test -x build/vtsimnx_solver
+      - name: Download tested solver
+        uses: actions/download-artifact@v4
+        with:
+          name: solver-release
+          path: engine/build
+
+      - name: Make solver executable
+        run: chmod +x engine/build/vtsimnx_solver
 
       - name: Run performance benches
         working-directory: engine
@@ -217,6 +220,13 @@ jobs:
         working-directory: engine
         run: ctest --test-dir build-solver --output-on-failure --timeout 300
 
+      - name: Upload tested solver
+        uses: actions/upload-artifact@v4
+        with:
+          name: solver-release
+          path: engine/build/vtsimnx_solver
+          if-no-files-found: error
+
   package:
     name: Package wheel
     runs-on: ubuntu-latest
@@ -232,6 +242,8 @@ jobs:
       - name: Build wheel
         run: |
           python -m pip install --upgrade pip build
+          python -m pip install .
+          python scripts/check_wheel.py --write-materials /tmp/source-materials.json
           python -m build --wheel
 
       - name: Install wheel in clean venv and import
@@ -239,9 +251,10 @@ jobs:
           python -m venv /tmp/vtsimnx-wheel-venv
           /tmp/vtsimnx-wheel-venv/bin/python -m pip install --upgrade pip
           /tmp/vtsimnx-wheel-venv/bin/python -m pip install dist/vtsimnx-*.whl
-          /tmp/vtsimnx-wheel-venv/bin/python -c "import vtsimnx as vt; print(vt.__name__); assert callable(vt.run_calc)"
+          /tmp/vtsimnx-wheel-venv/bin/python -I scripts/check_wheel.py --expected-materials /tmp/source-materials.json --wheel dist/vtsimnx-*.whl
 
   example:
+    needs: cpp-solver
     name: Example smoke (run_calc_minimal)
     runs-on: ubuntu-latest
     steps:
@@ -260,14 +273,14 @@ jobs:
             build-essential cmake \
             libboost-dev libeigen3-dev libceres-dev libsuitesparse-dev
 
-      - name: Build C++ solver
-        working-directory: engine
-        run: |
-          cmake -S solver -B build-solver \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DVTSIMNX_BUILD_CPP_TESTS=OFF
-          cmake --build build-solver -j"$(nproc)"
-          test -x build/vtsimnx_solver
+      - name: Download tested solver
+        uses: actions/download-artifact@v4
+        with:
+          name: solver-release
+          path: engine/build
+
+      - name: Make solver executable
+        run: chmod +x engine/build/vtsimnx_solver
 
       - name: Install Python deps
         run: |
@@ -295,3 +308,21 @@ jobs:
 
           export VTSIMNX_API_URL=http://127.0.0.1:8000
           python examples/run_calc_minimal.py --request-json /tmp/result_request_minimal.json
+
+  cpp-sanitizers:
+    name: C++ address / undefined sanitizers
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential cmake libboost-dev libeigen3-dev libceres-dev libsuitesparse-dev
+      - name: Build and test
+        env:
+          ASAN_OPTIONS: detect_leaks=1
+          UBSAN_OPTIONS: print_stacktrace=1:halt_on_error=1
+        run: |
+          cmake -S engine/solver -B engine/build-sanitized -DCMAKE_BUILD_TYPE=Debug -DVTSIMNX_BUILD_CPP_TESTS=ON -DVTSIMNX_ENABLE_SANITIZERS=ON
+          cmake --build engine/build-sanitized -j2
+          ctest --test-dir engine/build-sanitized --output-on-failure --timeout 300

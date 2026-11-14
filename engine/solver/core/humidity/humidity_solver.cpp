@@ -4,6 +4,8 @@
 #include "network/humidity_network.h"
 #include "network/ventilation_network.h"
 #include "simulation_metrics.h"
+#include "simulation_error.h"
+#include <Eigen/QR>
 #include "aircon/aircon_humidity_control.h"
 
 #include <boost/range/iterator_range.hpp>
@@ -12,57 +14,132 @@
 namespace core::humidity {
 
 namespace {
-// Solve two boundary responses of the existing water-balance system. This
-// includes storage, generation, outdoor air, material transport and remote
-// set rooms; changing a room RH result directly would lose that balance.
+// Probe all controlled supply boundaries together. One factorization serves the
+// baseline and every response column; the small AC response system accounts for
+// cross-room interference before the outer physical constraint iteration.
 void updateHumidistatRequests(Graph& graph, const HumidityNetworkTerms& terms,
                               double dt, double tolerance,
-                              const HumiditySolverContext& current) {
+                              const HumiditySolverContext& current,
+                              HumiditySolverContext& probe,
+                              simulation::TimestepSolveMetrics* metrics) {
     bool active = false;
     for (auto v : boost::make_iterator_range(boost::vertices(graph)))
         active = active || (graph[v].type == "aircon" && aircon::humidity_control::enabled(graph[v]));
     if (!active) return;
     std::unordered_map<std::string, Vertex> byKey;
-    for (auto v : boost::make_iterator_range(boost::vertices(graph)))
-        byKey.emplace(graph[v].key, v);
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) byKey.emplace(graph[v].key, v);
+    std::vector<Vertex> units, rooms, inlets;
+    std::vector<double> targets;
     for (auto ac : boost::make_iterator_range(boost::vertices(graph))) {
         auto& node = graph[ac];
         if (node.type != "aircon" || !aircon::humidity_control::enabled(node)) continue;
-        const auto set = byKey.at(node.set_node);
-        const auto inlet = byKey.at(node.in_node);
+        const auto room = byKey.at(node.set_node);
         const double targetT = aircon::humidity_control::simultaneous(node)
-            ? node.current_requested_pre_temp : graph[set].current_t;
+            ? node.current_requested_pre_temp : graph[room].current_t;
         const double targetX = archenv::absolute_humidity(targetT, node.current_pre_rh);
-        node.humidity_demand = graph[set].current_x > targetX + 1e-8;
+        node.humidity_demand = graph[room].current_x > targetX + 1e-8;
         node.humidity_supply_request = targetX;
         if (!(terms.outSum[ac] > 1e-9)) continue; // restart fan before probing
-        HumidityNetworkTerms probeTerms = terms;
-        auto& vertices = probeTerms.updateVertices;
-        vertices.erase(std::remove(vertices.begin(), vertices.end(), ac), vertices.end());
-        HumiditySolverContext probe;
-        probe.xN = current.xN;
-        probe.xIterate = current.xIterate;
-        probe.xSolved = current.xSolved;
-        // Probe at/above the existing supply, not at zero: a valid network
-        // with a prescribed moisture sink can have a negative *hypothetical*
-        // zero-supply solution even though its operating solution is physical.
-        const double baseBoundary = std::max({0.0, node.current_x, graph[inlet].current_x});
-        probe.xIterate[ac] = baseBoundary;
-        auto first = solveHumidityImplicitStep(graph, probeTerms, dt, tolerance, probe);
-        if (!first.converged) throw std::runtime_error("Humidistat water-balance probe failed: " + node.key);
-        const double baseSet = probe.xSolved[set], baseIn = probe.xSolved[inlet];
-        constexpr double delta = 0.01;
-        probe.xIterate[ac] = baseBoundary + delta;
-        auto second = solveHumidityImplicitStep(graph, probeTerms, dt, tolerance, probe);
-        if (!second.converged) throw std::runtime_error("Humidistat water-balance response failed: " + node.key);
-        const double gain = (probe.xSolved[set] - baseSet) / delta;
-        const double inletGain = (probe.xSolved[inlet] - baseIn) / delta;
-        if (!(gain > 1e-10)) continue; // disconnected target: report unmet RH
-        const double request = baseBoundary + (targetX - baseSet) / gain;
-        const double noRemoval = inletGain < 1.0 - 1e-10
-            ? (baseIn - inletGain * baseBoundary) / (1.0 - inletGain) : graph[inlet].current_x;
-        node.humidity_supply_request = std::max(0.0, request);
-        node.humidity_demand = request < noRemoval - 1e-8;
+        units.push_back(ac); rooms.push_back(room); inlets.push_back(byKey.at(node.in_node));
+        targets.push_back(targetX);
+    }
+    const Eigen::Index n = static_cast<Eigen::Index>(units.size());
+    if (n == 0) return;
+    HumidityNetworkTerms probeTerms = terms;
+    auto& vertices = probeTerms.updateVertices;
+    vertices.erase(std::remove_if(vertices.begin(), vertices.end(), [&](Vertex v) {
+        return std::find(units.begin(), units.end(), v) != units.end();
+    }), vertices.end());
+    probe.xN = current.xN;
+    probe.xIterate = current.xIterate;
+    probe.xSolved = current.xSolved;
+    Eigen::VectorXd base(n), baseSet(n), baseIn(n), target(n);
+    for (Eigen::Index i = 0; i < n; ++i) {
+        // A hypothetical zero boundary can violate prescribed moisture sinks.
+        base[i] = std::max({0.0, graph[units[i]].current_x, graph[inlets[i]].current_x});
+        probe.xIterate[units[i]] = base[i];
+        target[i] = targets[i];
+    }
+    auto solveProbe = [&]() {
+        const auto stats = solveHumidityImplicitStep(graph, probeTerms, dt, tolerance, probe);
+        if (metrics) {
+            metrics->humidityPatternAnalyzes += stats.patternAnalyzes;
+            metrics->humidityFactorizes += stats.factorizes;
+            metrics->humidityRhsOnlySolves += stats.rhsOnlySolves;
+            metrics->humiditySolutionReuse += stats.solutionReuse;
+        }
+        if (!stats.converged) throw simulation::Error(simulation::ErrorCode::HumidityNotConverged,
+            "Humidistat water-balance response failed");
+    };
+    solveProbe();
+    for (Eigen::Index i = 0; i < n; ++i) {
+        baseSet[i] = probe.xSolved[rooms[i]]; baseIn[i] = probe.xSolved[inlets[i]];
+    }
+    constexpr double delta = 0.01;
+    Eigen::MatrixXd gains(n,n), inletGains(n,n);
+    for (Eigen::Index column = 0; column < n; ++column) {
+        probe.xIterate[units[column]] = base[column] + delta;
+        solveProbe();
+        for (Eigen::Index row = 0; row < n; ++row) {
+            gains(row,column) = (probe.xSolved[rooms[row]] - baseSet[row]) / delta;
+            inletGains(row,column) = (probe.xSolved[inlets[row]] - baseIn[row]) / delta;
+        }
+        probe.xIterate[units[column]] = base[column];
+    }
+    Eigen::VectorXd adjustment = gains.completeOrthogonalDecomposition().solve(target-baseSet);
+    Eigen::VectorXd request = base + adjustment;
+    // A constrained unit cannot provide its hypothetical target boundary.
+    // Keep that actual boundary in the free units' response equations, while
+    // retaining its own unconstrained request for capacity/release control.
+    std::vector<bool> limited(static_cast<std::size_t>(n), false);
+    for (Eigen::Index pass = 0; pass <= n; ++pass) {
+        bool added = false;
+        for (Eigen::Index i = 0; i < n; ++i) {
+            if (limited[i]) continue;
+            const auto& node = graph[units[i]];
+            const double inletX = graph[inlets[i]].current_x;
+            const bool simultaneous = aircon::humidity_control::simultaneous(node);
+            const bool temperatureHeld = simultaneous ||
+                node.current_pre_temp >= node.current_requested_pre_temp-1e-4;
+            const double upperX = std::min(inletX,
+                aircon::latent::saturationHumidityUpperBound(node.current_t));
+            const double lowerX = std::min(inletX,
+                aircon::latent::saturationHumidityUpperBound(node.min_coil_temperature));
+            const bool bound = node.aircon_control_state == AirconControlState::CapacityLimited ||
+                (node.control_mode == "humidity_priority" && node.humidity_overcool_hold &&
+                 node.current_pre_temp <= node.current_requested_pre_temp-node.max_overcooling+1e-4) ||
+                (node.on && temperatureHeld && request[i] > upperX+1e-8) ||
+                (node.on && simultaneous && request[i] < lowerX-1e-8);
+            if (bound) { limited[i] = true; added = true; }
+        }
+        if (!added) break;
+        std::vector<Eigen::Index> freeUnits;
+        for (Eigen::Index i = 0; i < n; ++i) {
+            if (limited[i]) adjustment[i] = graph[units[i]].current_x-base[i];
+            else { freeUnits.push_back(i); adjustment[i] = 0.0; }
+        }
+        if (freeUnits.empty()) break;
+        const Eigen::Index m = static_cast<Eigen::Index>(freeUnits.size());
+        Eigen::MatrixXd freeGains(m,m);
+        Eigen::VectorXd residual = target-baseSet-gains*adjustment, freeRhs(m);
+        for (Eigen::Index i = 0; i < m; ++i) {
+            freeRhs[i] = residual[freeUnits[i]];
+            for (Eigen::Index j = 0; j < m; ++j) freeGains(i,j) = gains(freeUnits[i],freeUnits[j]);
+        }
+        const Eigen::VectorXd freeAdjustment = freeGains.completeOrthogonalDecomposition().solve(freeRhs);
+        for (Eigen::Index i = 0; i < m; ++i) {
+            adjustment[freeUnits[i]] = freeAdjustment[i];
+            request[freeUnits[i]] = base[freeUnits[i]]+freeAdjustment[i];
+        }
+    }
+    const Eigen::VectorXd intake = baseIn + inletGains * adjustment;
+    if (!request.allFinite() || !intake.allFinite()) throw simulation::Error(
+        simulation::ErrorCode::HumidityNotConverged, "Nonfinite humidistat response solution");
+    for (Eigen::Index i = 0; i < n; ++i) {
+        if (gains.row(i).norm() <= 1e-10) continue; // disconnected target remains visibly unmet
+        auto& node = graph[units[i]];
+        node.humidity_supply_request = std::max(0.0, request[i]);
+        node.humidity_demand = request[i] < intake[i] - 1e-8;
     }
 }
 } // namespace
@@ -141,7 +218,8 @@ HumiditySolveStats updateHumidityIfEnabled(const SimulationConstants& constants,
         return stats;
     }
     applyHumidityStateToGraphs(tGraph, vGraph, vKeyToV, terms.updateVertices, ctx.xSolved);
-    updateHumidistatRequests(tGraph, terms, dt, constants.humiditySolverTolerance, ctx);
+    updateHumidistatRequests(tGraph, terms, dt, constants.humiditySolverTolerance, ctx,
+        humidityNetwork.humidistatSolverContext(), metrics);
 
     MoistureBalanceTerms bal;
     evaluateMoistureBalanceTerms(tGraph, terms, ctx.xN, dt, bal);

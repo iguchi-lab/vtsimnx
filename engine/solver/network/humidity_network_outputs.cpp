@@ -58,6 +58,7 @@ void HumidityNetwork::invalidateCaches() {
     outputCacheInitialized = false;
     outputVerticesOrdered.clear();
     outputKeysOrdered.clear();
+    if (humidistatSolverContext_) humidistatSolverContext_->invalidate();
     if (humiditySolverContext_) {
         humiditySolverContext_->invalidate();
     }

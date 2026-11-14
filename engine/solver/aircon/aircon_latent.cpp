@@ -46,7 +46,7 @@ inline double readBypassFactor(const VertexProperties& nodeProps) {
 inline std::string readLatentMethod(const VertexProperties& nodeProps) {
     const auto& spec = nodeProps.ac_spec;
     if (!spec.is_object() || !spec.contains("latent_method") || !spec["latent_method"].is_string()) {
-        return "rh95";
+        return nodeProps.control_mode == "temperature_priority" ? "rh95" : "ideal_coil";
     }
     return toLowerCopy(spec["latent_method"].get<std::string>());
 }
@@ -141,6 +141,8 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
     const double tIn = validData.indoorTemp;
     const double tOut = validData.airconTemp;
     const double xIn = std::max(0.0, validData.indoorX);
+    result.coilTemp = tOut;
+    result.coilX = xIn;
 
     // All cooling models share the same physical outlet constraint. The
     // sensible solution fixes tOut; water removal is derived from the final x.
@@ -170,7 +172,7 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
         return result;
     };
 
-    if (aircon::humidity_control::enabled(nodeProps)) {
+    if (aircon::humidity_control::simultaneous(nodeProps)) {
         const bool reheat = aircon::humidity_control::simultaneous(nodeProps);
         const double request = std::isfinite(nodeProps.humidity_supply_request)
             ? nodeProps.humidity_supply_request : xIn;
@@ -243,7 +245,7 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
     }
 
     const std::string latentMethod = readLatentMethod(nodeProps);
-    if (latentMethod == "none" || latentMethod == "rh100") {
+    if (latentMethod == "none" || latentMethod == "rh100" || latentMethod == "ideal_coil") {
         result.regime = "saturation_only";
         return finishCooling();
     }
@@ -311,6 +313,8 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
                     if (alphaC > std::numeric_limits<double>::epsilon()) {
                         const double td = tStar - HsW / (alphaC * Ao);
                         const double xd = std::max(0.0, archenv::absolute_humidity(td, 100.0));
+                        result.coilTemp = td;
+                        result.coilX = xd;
 
                         double hrW = 0.0;
                         if (trDp > td) {
@@ -344,6 +348,54 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
     }
 
     return finishCooling();
+}
+
+namespace {
+LatentProcessResult coolingAtTemperature(const AirconValidationData& data,
+        const VertexProperties& node, double flow, bool moist, double temperature) {
+    auto probe = data;
+    probe.airconTemp = temperature;
+    probe.additionalSupplyXUpperBound = std::numeric_limits<double>::infinity();
+    auto probeNode = node;
+    probeNode.control_mode = "humidity_priority"; // evaluate the selected coil, without reheat
+    const double sensible = kAirDensity * flow * kAirSpecificHeat * std::max(0.0, data.indoorTemp-temperature);
+    return estimateLatentProcess(probe, OperationMode::Cooling, sensible, flow, probeNode, moist);
+}
+}
+
+double minimumCoolingOutletTemperature(const AirconValidationData& data,
+        const VertexProperties& node, double flow, bool moist) {
+    const std::string method = readLatentMethod(node);
+    if (aircon::humidity_control::simultaneous(node) ||
+        (method != "bf" && method != "coil_aoaf" && method != "aoaf" && method != "literature"))
+        return node.min_coil_temperature;
+    double lo = node.min_coil_temperature;
+    double hi = std::max(lo, data.indoorTemp);
+    if (coolingAtTemperature(data, node, flow, moist, lo).coilTemp >= node.min_coil_temperature) return lo;
+    for (int i = 0; i < 35; ++i) {
+        const double mid = (lo+hi)/2.0;
+        if (coolingAtTemperature(data, node, flow, moist, mid).coilTemp < node.min_coil_temperature) lo = mid;
+        else hi = mid;
+    }
+    return hi;
+}
+
+double humidityRequestedOutletTemperature(const AirconValidationData& data,
+        const VertexProperties& node, double flow, bool moist) {
+    const std::string method = readLatentMethod(node);
+    if (method == "ideal_coil" || method == "none" || method == "rh100")
+        return std::min(data.indoorTemp, std::max(node.min_coil_temperature,
+            aircon::humidity_control::dewPoint(node.humidity_supply_request)));
+    double lo = minimumCoolingOutletTemperature(data, node, flow, moist);
+    double hi = std::max(lo, data.indoorTemp);
+    if (coolingAtTemperature(data, node, flow, moist, lo).supplyX > node.humidity_supply_request)
+        return std::min(data.indoorTemp, lo); // infeasible: leave the room shortfall visible
+    for (int i = 0; i < 35; ++i) {
+        const double mid = (lo+hi)/2.0;
+        if (coolingAtTemperature(data, node, flow, moist, mid).supplyX > node.humidity_supply_request) hi = mid;
+        else lo = mid;
+    }
+    return std::min(data.indoorTemp, lo);
 }
 
 namespace {

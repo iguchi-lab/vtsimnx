@@ -17,26 +17,19 @@ if __name__ == "__main__" and (globals().get("__package__") in (None, "")):
 from fastapi import FastAPI
 
 from app.api_auth import ApiKeyMiddleware
-from app.builder.validate import ValidationError  # noqa: F401  # テスト互換
 from app.errors import register_exception_handlers
 from app.jobs import RunManager, set_run_manager
 from app.middleware import GZipRequestMiddleware
 from app.routers import artifacts, health, inspect, runs
 from app.routers.health import API_VERSION
-from app.services import simulation as sim_svc
 from app.services.artifact_policy import cleanup_artifacts, get_artifact_store
-
-# テスト互換 re-export（差し替えは app.services.simulation 側を推奨）
-run_solver = sim_svc.run_solver
-build_config_with_warning_details = sim_svc.build_config_with_warning_details
-_run_simulation_core = sim_svc.run_simulation_core
 
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def _lifespan(app: FastAPI):
-    manager = RunManager()
+    manager = RunManager(state_dir=WORK_DIR / "jobs")
     set_run_manager(manager)
     try:
         # 起動時に TTL / 容量ポリシーで掃除

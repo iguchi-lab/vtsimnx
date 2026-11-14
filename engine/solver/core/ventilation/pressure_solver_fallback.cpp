@@ -66,12 +66,16 @@ std::optional<PressureSolveResult> PressureFallbackSolver::run(
     state.prevPressureMapFB = currentPressures;
 
     if (constants.logVerbosity >= 1) {
-        fallbackLog(0, "[圧力] [Fallback] スーパーノード化 + 外気ギャップ固定流量化を適用します");
+        fallbackLog(0, "[圧力] [Fallback] スーパーノード化 + スーパーノード境界枝の固定流量化を適用します");
     }
 
     Graph& g = owner_.network_.getGraph();
     ventilation::EdgeMutationGuard edgeGuard(g);
     PressureSolver::Impl::SupernodePartition partition = owner_.detectSupernodePartition(constants, currentPressures);
+    if (partition.condensedNodeCount < 2) {
+        fallbackLog(0, "[圧力] [Fallback] 集約対象なし: 同一問題の反復を省略し、非収束として報告");
+        return std::nullopt;
+    }
 
     const auto tols = ventilation::makePressureSolverTolerances(constants);
     const int maxOuter = 5;

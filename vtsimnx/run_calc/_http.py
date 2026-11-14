@@ -221,10 +221,65 @@ def _submit_and_wait(
     if not isinstance(run_id, str) or not run_id:
         raise TypeError(f"/runs response missing run_id: {submit_body!r}")
 
+    with requests.Session() as session:
+        return _wait_for_run(root, run_id, session=session, auth_headers=auth_headers,
+                             deadline=deadline, timeout=timeout, poll_interval=poll_interval,
+                             initial_status=submit_body.get("status"), submit_profile=submit_profile,
+                             profile_out=profile_out)
+
+
+def _run_http_error(resp: requests.Response, *, run_id: str, endpoint: str) -> RunCalcAPIError:
+    error = _format_http_error(resp, endpoint=endpoint)
+    detail = dict(error.detail) if isinstance(error.detail, dict) else {"message": error.detail}
+    detail["run_id"] = run_id
+    error.detail = detail
+    return error
+
+
+def _get_with_retry(session, url, *, headers, deadline, run_id):
+    # Only idempotent GETs are retried. POST /runs is never repeated here.
+    for attempt in range(4):
+        remaining = deadline - time.perf_counter()
+        if remaining <= 0:
+            raise RunCalcAPIError(f"Polling deadline exceeded (run_id={run_id})",
+                                  detail={"code": "timeout", "run_id": run_id})
+        try:
+            response = session.get(url, headers=headers or None, timeout=min(remaining, 60.0))
+        except (requests.ConnectionError, requests.Timeout) as exc:
+            if attempt == 3:
+                raise RunCalcAPIError(f"Run status connection failed (run_id={run_id}): {exc}",
+                                      detail={"code": "connection_error", "run_id": run_id}) from exc
+        else:
+            if response.status_code not in (408, 429, 500, 502, 503, 504) or attempt == 3:
+                return response
+            response.close()
+        time.sleep(min(0.2 * 2**attempt, max(0.0, deadline - time.perf_counter())))
+    raise AssertionError("unreachable retry state")
+
+
+def wait_for_run(base_url: str, run_id: str, *, timeout: float = 3600.0,
+                 api_key: Optional[str] = None, poll_interval: float = 1.0) -> Dict[str, Any]:
+    """Wait for an existing run and return its result envelope, without submitting it again.
+
+    Temporary connection errors and HTTP 408/429/500/502/503/504 are retried up
+    to three times per GET within the overall timeout. Exceptions retain run_id.
+    """
+    if not isinstance(run_id, str) or not run_id or not all(c.isalnum() or c in "-_" for c in run_id):
+        raise ValueError("run_id must be a nonempty run identifier")
+    with requests.Session() as session:
+        return _wait_for_run(base_url.rstrip("/"), run_id, session=session,
+                             auth_headers=_api_key_headers(api_key),
+                             deadline=time.perf_counter()+float(timeout), timeout=timeout,
+                             poll_interval=max(0.05, float(poll_interval)),
+                             initial_status=None, submit_profile={}, profile_out=None)
+
+
+def _wait_for_run(root, run_id, *, session, auth_headers, deadline, timeout,
+                  poll_interval, initial_status, submit_profile, profile_out):
     poll_count = 0
     status_url = f"{root}/runs/{run_id}"
     result_url = f"{root}/runs/{run_id}/result"
-    last_status = submit_body.get("status")
+    last_status = initial_status
 
     while True:
         remaining = deadline - time.perf_counter()
@@ -236,15 +291,11 @@ def _submit_and_wait(
             )
 
         t_poll0 = time.perf_counter()
-        status_resp = requests.get(
-            status_url,
-            headers=auth_headers or None,
-            timeout=min(remaining, 60.0),
-        )
+        status_resp = _get_with_retry(session, status_url, headers=auth_headers, deadline=deadline, run_id=run_id)
         t_poll1 = time.perf_counter()
         poll_count += 1
         if status_resp.status_code >= 400:
-            raise _format_http_error(status_resp, endpoint=f"/runs/{run_id}")
+            raise _run_http_error(status_resp, run_id=run_id, endpoint=f"/runs/{run_id}")
 
         status_body = status_resp.json()
         if not isinstance(status_body, dict):
@@ -261,14 +312,10 @@ def _submit_and_wait(
                     detail={"code": "timeout", "run_id": run_id, "status": last_status},
                 )
             t_res0 = time.perf_counter()
-            result_resp = requests.get(
-                result_url,
-                headers=auth_headers or None,
-                timeout=min(remaining, 60.0),
-            )
+            result_resp = _get_with_retry(session, result_url, headers=auth_headers, deadline=deadline, run_id=run_id)
             t_res1 = time.perf_counter()
             if result_resp.status_code >= 400:
-                raise _format_http_error(result_resp, endpoint=f"/runs/{run_id}/result")
+                raise _run_http_error(result_resp, run_id=run_id, endpoint=f"/runs/{run_id}/result")
             out = result_resp.json()
             if not isinstance(out, dict):
                 raise TypeError(f"/runs/{{id}}/result must be dict, got {type(out).__name__}")
@@ -319,4 +366,5 @@ __all__ = [
     "_api_key_headers",
     "_post_run",
     "_submit_and_wait",
+    "wait_for_run",
 ]

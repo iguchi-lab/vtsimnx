@@ -35,7 +35,6 @@ build-backend = "setuptools.build_meta"
 [project.optional-dependencies]
 dev = [
   "pytest>=7",
-  "black>=24",
   "ruff>=0.5",
   "mypy>=1.10",
   "types-requests>=2.31",
@@ -52,6 +51,10 @@ astro = [
 
 [tool.setuptools.packages.find]
 include = ["vtsimnx*"]
+exclude = ["vtsimnx.tests*"]
+
+[tool.setuptools.package-data]
+vtsimnx = ["materials/*.csv"]
 
 [tool.pytest.ini_options]
 testpaths = ["vtsimnx/tests"]
@@ -75,7 +78,7 @@ extend-exclude = [
 
 [tool.ruff.lint]
 # CI 基盤ではまず構文・未使用 import 等を担保し、isort は段階導入する
-select = ["E4", "E7", "E9", "F"]
+select = ["E4", "E7", "E9", "F", "B904"]
 
 [tool.mypy]
 python_version = "3.11"

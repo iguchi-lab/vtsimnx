@@ -13,8 +13,8 @@ def validate_aircon_spec(node: dict[str, Any]) -> None:
     }:
         raise ValueError(f"ac_spec.latent_method is invalid: {method!r}")
     method = method.lower()
-    if control != "temperature_priority" and method not in {"none", "rh100", "ideal_coil"}:
-        raise ValueError("humidistat latent_method must be ideal_coil (none/rh100 aliases); bf/rh95/coil_aoaf are unsupported")
+    if control == "temperature_humidity" and method not in {"none", "rh100", "ideal_coil"}:
+        raise ValueError("temperature_humidity latent_method must be ideal_coil (none/rh100 aliases)")
     if control == "temperature_priority" and method == "ideal_coil":
         raise ValueError("latent_method=ideal_coil requires a room humidity control mode; use rh100 for temperature priority")
     for key in ("bf", "BF", "bypass_factor", "Af", "Ao", "coil_face_area", "coil_surface_area"):

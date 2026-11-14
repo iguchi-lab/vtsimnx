@@ -25,6 +25,11 @@ struct LatentProcessResult {
 
 double totalHeatCapacity(const LatentProcessResult& loads);
 
+double minimumCoolingOutletTemperature(const AirconValidationData& data,
+    const VertexProperties& node, double flow, bool moist);
+double humidityRequestedOutletTemperature(const AirconValidationData& data,
+    const VertexProperties& node, double flow, bool moist);
+
 acmodel::InputData buildAcmodelInput(const AirconValidationData& validData,
                                      double sensibleHeatCapacity,
                                      double latentHeatCapacity,

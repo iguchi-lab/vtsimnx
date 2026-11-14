@@ -12,6 +12,7 @@ import numpy as np
 from app.aircon_validation import validate_aircon_spec
 
 from .logger import get_logger
+from .physical_constants import DRY_AIR_RHO_CP as _DRY_AIR_RHO_CP
 from .utils import (
     CHAIN_DELIMITER,
     convert_numeric_values,
@@ -33,7 +34,6 @@ from .config_types import (
 logger = get_logger(__name__)
 
 # archenv / thermal.py と揃えた乾き空気の ρ·cp [J/(m³·K)]
-_DRY_AIR_RHO_CP = 1.2 * 1006.0
 
 UnknownKeysMode = Literal["strip", "error"]
 _unknown_keys_mode: ContextVar[UnknownKeysMode] = ContextVar("unknown_keys_mode", default="strip")
@@ -518,9 +518,9 @@ def validate_config_file(config_path: str) -> Dict[str, Any]:
                 raise ConfigFileError(f"設定ファイルに'{section}'セクションがありません")
         return raw_config
     except json.JSONDecodeError as e:
-        raise ConfigFileError(f"JSONファイルの解析に失敗しました: {e}")
+        raise ConfigFileError(f"JSONファイルの解析に失敗しました: {e}") from e
     except Exception as e:
-        raise ConfigFileError(f"設定ファイルの読み込みに失敗しました: {e}")
+        raise ConfigFileError(f"設定ファイルの読み込みに失敗しました: {e}") from e
 
 
 # ------------------------------
@@ -702,6 +702,12 @@ def validate_node_config(
                 node["pre_temp"] = pre_series
 
             control = node.get("control_mode", "temperature_priority")
+            if control == "temperature_humidity" and "max_overcooling" in node:
+                message = f"ノード {node['key']}: temperature_humidity では max_overcooling は使用しません（再熱で設定室温を維持）"
+                warnings.append(message)
+                if warning_details is not None:
+                    warning_details.append({"code": "ignored_control_option", "message": message,
+                                            "field": "max_overcooling", "context": f"node {node['key']}"})
             try:
                 validate_aircon_spec(node)
             except ValueError as exc:
@@ -718,7 +724,7 @@ def validate_node_config(
                 set_node = next((n for n in node_config if n.get("key") == node.get("set_node")), None)
                 if set_node is None or not set_node.get("calc_x") or not set_node.get("calc_t"):
                     errors.append(f"ノード {node['key']}: 設定対象室は calc_x=true, calc_t=true が必要です")
-            for field, default, lower, upper in (("max_overcooling", 2.0, 0.0, 10.0),
+            for field, default, lower, upper in (("max_overcooling", 2.0, 0.0, float("inf")),
                                                  ("min_coil_temperature", 5.0, 0.0, 20.0),
                                                  ("reheat_cop", 1.0, 1e-12, float("inf"))):
                 value = node.get(field, default)

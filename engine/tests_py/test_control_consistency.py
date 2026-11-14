@@ -70,7 +70,7 @@ def test_direct_solver_does_not_turn_missing_power_spec_into_zero_success():
     assert result["status"] == "error", result
 
 
-@pytest.mark.parametrize("mode", ["humidity_priority", "temperature_humidity"])
+@pytest.mark.parametrize("mode", ["temperature_humidity"])
 def test_unsupported_humidistat_coil_combination_is_not_silently_ignored(mode):
     raw = cooling_case()
     raw["aircon"][0].update(control_mode=mode, pre_rh=60.0)

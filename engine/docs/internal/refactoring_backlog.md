@@ -1,6 +1,8 @@
 # Refactoring Backlog
 
-最終更新: 2026-07-11
+最終更新: 2026-11-14
+
+進捗の正本は [GitHub Issue #35](https://github.com/iguchi-lab/vtsimnx/issues/35)。本書は設計時の受け入れ条件を残す。検証を伴う今回の変更は [改良記録](../../../docs/issue_improvements_2026-11-14.md) を参照。
 
 この台帳は、`engine/` と `vtsimnx/` の横断リファクタリングを実施順で管理するためのドキュメント。
 「どこから着手すると効果が大きいか」を明確にし、AI実装時の受け入れ条件を揃える。
@@ -14,7 +16,9 @@
 
 ## 1. High Priority（先に着手）
 
-### H1. `engine/app/main.py` の責務分離
+### H1. `engine/app/main.py` の責務分離 — **完了**
+
+`routers/` と `services/simulation.py` に分離済み。テスト互換 re-export も撤去。
 
 - 対象: `engine/app/main.py`
 - 課題: ルーティング、実行パイプライン、artifact処理、エラー整形が同居。

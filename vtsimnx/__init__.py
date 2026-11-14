@@ -17,6 +17,7 @@ from . import units as units
 from .run_calc import CalcRunResult as CalcRunResult
 from .run_calc import RunCalcAPIError as RunCalcAPIError
 from .run_calc import run_calc as run_calc
+from .run_calc import wait_for_run as wait_for_run
 from .artifacts import get_artifact_bytes as get_artifact_bytes
 from .artifacts import get_artifact_file as get_artifact_file
 
@@ -44,6 +45,7 @@ __all_stable__ = [
     "get_version",
     "units",
     "run_calc",
+    "wait_for_run",
     "CalcRunResult",
     "RunCalcAPIError",
     "get_artifact_file",

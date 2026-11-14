@@ -82,7 +82,6 @@ def test_prepare_raw_config_error_on_unknown():
 
 
 def test_run_strip_unknown_returns_warning():
-    import app.main as main_mod
     import app.services.simulation as sim_svc
 
     sim_svc.run_solver = lambda _cfg, **_kw: {"status": "ok", "artifact_dir": "artifacts.x", "result_files": {}}
@@ -101,7 +100,6 @@ def test_run_strip_unknown_returns_warning():
 
 
 def test_run_error_unknown_returns_422():
-    import app.main as main_mod
     import app.services.simulation as sim_svc
 
     sim_svc.run_solver = lambda _cfg, **_kw: {"status": "ok"}

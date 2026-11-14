@@ -36,10 +36,9 @@ def _mock_solver(_unused=None):
 
 
 def test_runs_submit_poll_result():
-    import app.main as main_mod
     import app.services.simulation as sim_svc
 
-    _mock_solver(main_mod)
+    _mock_solver()
     with TestClient(app) as client:
         resp = client.post("/runs", json={"config": MIN_CFG})
         assert resp.status_code == 202
@@ -66,7 +65,6 @@ def test_runs_submit_poll_result():
 
 
 def test_runs_result_not_ready_returns_409():
-    import app.main as main_mod
     import app.services.simulation as sim_svc
     import threading
 
@@ -78,7 +76,7 @@ def test_runs_result_not_ready_returns_409():
         release.wait(timeout=5)
         return {"status": "ok", "artifact_dir": "artifacts.slow", "result_files": {}}
 
-    _mock_solver(main_mod)
+    _mock_solver()
     sim_svc.run_solver = slow_solver
 
     with TestClient(app) as client:
@@ -91,7 +89,6 @@ def test_runs_result_not_ready_returns_409():
 
 
 def test_runs_cancel_queued(monkeypatch):
-    import app.main as main_mod
     import app.services.simulation as sim_svc
     import threading
 
@@ -123,7 +120,6 @@ def test_runs_cancel_queued(monkeypatch):
 
 
 def test_runs_duplicate_hash_returns_same_run_id():
-    import app.main as main_mod
     import app.services.simulation as sim_svc
     import threading
 

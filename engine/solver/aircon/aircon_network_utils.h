@@ -2,11 +2,14 @@
 
 #include "network/thermal_network.h"
 #include "vtsim_solver.h"
+#include "aircon/aircon_operation_mode.h"
 
 #include <string>
 #include <vector>
 
 namespace aircon::network_utils {
+
+OperationMode fanMode(const VertexProperties& node);
 
 struct PassiveSupplyOutletConstraint {
     std::string outletKey;

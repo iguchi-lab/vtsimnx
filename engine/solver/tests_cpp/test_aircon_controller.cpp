@@ -1575,6 +1575,7 @@ int main() {
 
     // DUCT_CENTRAL: 吸込と吹出を同じ風量にする（in != out / in == out）
     {
+        thermal.addNode(makeNode("SUPPLY", "normal", 22.0));
         auto& in = thermal.getNode("IN");
         auto& b = thermal.getNode("B");
         in.current_t = 20.0;
@@ -1593,7 +1594,6 @@ int main() {
         };
         b.initializeAirconSpec();
 
-        thermal.addNode(makeNode("SUPPLY", "normal", 22.0));
         VentilationNetwork vent;
         auto& vg = vent.getGraph();
         const auto vIn = boost::add_vertex(makeNode("IN", "normal", in.current_t), vg);
@@ -1986,10 +1986,10 @@ int main() {
 
     // 要求設定未達（CapacityLimited 解除後）でも Q_max 風量を維持する
     {
+        thermal.addNode(makeNode("ROOM_UNMET", "normal", 16.0));
         auto& in = thermal.getNode("IN");
         auto& b = thermal.getNode("B");
         auto& out = thermal.getNode("OUT");
-        thermal.addNode(makeNode("ROOM_UNMET", "normal", 16.0));
         auto& room = thermal.getNode("ROOM_UNMET");
         in.current_t = 16.0;
         b.current_t = 18.0;  // 小さいΔT → 計測熱は小さい
@@ -2044,10 +2044,10 @@ int main() {
     // ON+set_node で設定を保持できているときは室負荷で風量を決める。
     // 計測コイル熱で追従すると V∝Q∝V で縮小するので使わない。
     {
+        thermal.addNode(makeNode("ROOM_FIXED", "normal", 20.0));
         auto& in = thermal.getNode("IN");
         auto& b = thermal.getNode("B");
         auto& out = thermal.getNode("OUT");
-        thermal.addNode(makeNode("ROOM_FIXED", "normal", 20.0));
         auto& room = thermal.getNode("ROOM_FIXED");
         in.current_t = 20.0;
         b.current_t = 21.0;  // 小さいΔT → 計測熱は小さい
@@ -2108,9 +2108,9 @@ int main() {
 
     // 室負荷が無い設定固定は Q_max に戻し、計測熱では縮小しない
     {
+        thermal.addNode(makeNode("ROOM_FIXED_FALLBACK", "normal", 20.0));
         auto& in = thermal.getNode("IN");
         auto& b = thermal.getNode("B");
-        thermal.addNode(makeNode("ROOM_FIXED_FALLBACK", "normal", 20.0));
         in.current_t = 20.0;
         b.current_t = 21.0;
         b.current_mode = "HEATING";
@@ -2161,9 +2161,9 @@ int main() {
 
     // 設定維持: 負荷0→風量0、定格以上→設計風量、冷房は絶対値、Q_max で頭打ち
     {
+        thermal.addNode(makeNode("ROOM_ENDS", "normal", 22.0));
         auto& in = thermal.getNode("IN");
         auto& b = thermal.getNode("B");
-        thermal.addNode(makeNode("ROOM_ENDS", "normal", 22.0));
         auto& room = thermal.getNode("ROOM_ENDS");
         in.current_t = 22.0;
         b.current_t = 24.0;

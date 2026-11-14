@@ -212,7 +212,7 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
         node.max_overcooling = parser_utils::getNumberIfPresent(nodeJson, "max_overcooling", nodePrefix, 2.0);
         node.min_coil_temperature = parser_utils::getNumberIfPresent(nodeJson, "min_coil_temperature", nodePrefix, 5.0);
         node.reheat_cop = parser_utils::getNumberIfPresent(nodeJson, "reheat_cop", nodePrefix, 1.0);
-        if (!(node.max_overcooling >= 0.0 && node.max_overcooling <= 10.0) ||
+        if (!(node.max_overcooling >= 0.0 && std::isfinite(node.max_overcooling)) ||
             !(node.min_coil_temperature >= 0.0 && node.min_coil_temperature <= 20.0) ||
             !(node.reheat_cop > 0.0) || !std::isfinite(node.reheat_cop))
             throw std::runtime_error(nodePrefix + ": invalid humidity control limits");

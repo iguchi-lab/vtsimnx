@@ -11,10 +11,6 @@ from app.services import artifact_store
 router = APIRouter(tags=["artifacts"])
 
 
-def _requester_key_id(request: Request) -> str | None:
-    return getattr(request.scope, "get", lambda _k, _d=None: None)("vtsimnx_key_id")  # type: ignore[misc]
-
-
 def _key_id(request: Request) -> str | None:
     return request.scope.get("vtsimnx_key_id")
 
