@@ -187,7 +187,7 @@ class NodeModel(_StrictExtraBase):
     reheat_cop: float = Field(default=1.0, gt=0.0, description="温湿度満足時の再熱COP（既定は電気ヒーター）")
     pre_rh: Optional[ScalarOrSeries] = Field(
         default=None,
-        description="理想除湿の設定相対湿度（%）。未指定時は従来の latent_method のみ",
+        description="室RHの評価・制御目標（%）。温度優先では未達評価のみ、湿度優先・温湿度満足では冷房時必須",
         json_schema_extra=field_extra("%"),
     )
     model: Optional[str] = None
@@ -510,7 +510,7 @@ class AirconModel(_StrictExtraBase):
     reheat_cop: float = Field(default=1.0, gt=0.0, description="温湿度満足時の再熱COP（既定は電気ヒーター）")
     pre_rh: Optional[ScalarOrSeries] = Field(
         default=None,
-        description="理想除湿の設定相対湿度（%）",
+        description="室RHの評価・制御目標（%）。温度優先では未達評価のみ、湿度優先・温湿度満足では冷房時必須",
         json_schema_extra=field_extra("%"),
     )
     mode: Optional[ScalarOrSeries] = None

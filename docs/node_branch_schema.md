@@ -67,15 +67,15 @@
 | `x` | 絶対湿度 | number \| number[] | kg/kg' |
 | `c` | 濃度 | number \| number[] | - |
 | `pre_temp` | エアコン設定温度 | number \| number[] | ℃ |
-| `pre_rh` | 空調の理想除湿目標 | number \| number[] | %、0より大きく100以下。下記参照 |
+| `pre_rh` | 空調の室RH評価・制御目標 | number \| number[] | %、0より大きく100以下。下記参照 |
 | `v` | 気積 | number | m3 |
 | `beta` | 沈着・一次減衰率 | number \| number[] | 1/s |
 | `thermal_mass` | builder が展開する総熱容量 | number | J/K、空気分を含めて指定 |
 | `moisture_capacity` | builder が展開する付加湿気容量 | number | 既定は J/(kg/kg')。下記参照 |
 | `moisture_capacity_unit` | 湿気容量の入力単位 | string | `"J/(kg/kg')"` または `"kg/(kg/kg)"` |
 
-`pre_rh` は `aircon[].pre_rh` でも指定できる。設定対象室の要求設定温度 `pre_temp` から目標絶対湿度を求め、
-冷房時の吹出湿度へ適用する。室の相対湿度を直接固定する指定ではない。
+`pre_rh` は `aircon[].pre_rh` でも指定できる。温度優先では室RH未達の評価だけに用いる。
+湿度優先・温湿度満足では室RHの制御目標とするが、室湿度を直接固定する指定ではない。
 境界条件・能力判定との関係は[空調湿度ガイド](aircon_humidity_control.md)を参照する。
 
 ### Nodes: 例
@@ -177,7 +177,7 @@
 | `out` | 吹出ノード | string | 省略時は `set` |
 | `outside` | 外気状態の参照ノード | string | 必須。`nodes[].key` |
 | `pre_temp` | 要求設定温度 | number \| number[] | ℃ |
-| `pre_rh` | 理想除湿の設定相対湿度 | number \| number[] | %、任意 |
+| `pre_rh` | 室RHの評価・制御用設定値 | number \| number[] | %、任意 |
 | `mode` | 運転モード | string \| number[] | `OFF` / `HEATING` / `COOLING` / `AUTO` 等 |
 | `model` | 能力・COPモデル | string | `RAC` / `CRIEPI` / `DUCT_CENTRAL` 等 |
 | `vol` | 固定風量の初期値 | number \| number[] | m³/s。PQ指定時はファン枝へ書かれない |
