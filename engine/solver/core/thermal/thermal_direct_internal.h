@@ -232,6 +232,8 @@ struct DirectTSolverContext {
     size_t systemN = 0;
     const Graph* systemGraphPtr = nullptr;
     std::vector<double> temperaturesBuffer;
+    std::vector<double> unconstrainedTemperatureReference;
+    const Graph* temperatureReferenceGraph = nullptr;
     Eigen::VectorXd rhsBuffer;
     std::uint64_t cachedResidualCheckCounter = 0;
     int luBackendState = -1; // -1: unresolved, 0: Eigen, 1: KLU

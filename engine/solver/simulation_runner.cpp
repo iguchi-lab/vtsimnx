@@ -179,6 +179,7 @@ void runSimulation(VentilationNetwork& ventNetwork,
 
     const TimestepInitialState initial =
         captureTimestepInitialState(ctx.thermal, ctx.constants.humidityCalc);
+    ThermalSolverLinearDirect::captureUnconstrainedTemperatureReference(ctx.thermal);
 
     if (ctx.constants.moistEnthalpyEnabled && ctx.constants.humidityCalc) {
         ctx.thermal.setMoistEnthalpyHumidityXn(initial.humidityX);

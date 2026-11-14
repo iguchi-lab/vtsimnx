@@ -186,14 +186,16 @@ int main() {
         plenum.calc_t = true;
         plenum.current_t = 22.0;
         isolated.addNode(plenum);
+        ThermalSolverLinearDirect::captureUnconstrainedTemperatureReference(isolated);
         for (int i = 0; i < 2; ++i) {
-            ThermalSolverLinearDirect::solveTemperaturesLinearDirect(isolated, constants, log);
+            isolated.getNode("plenum").current_t = -25.0; // discarded ON candidate
+            ThermalSolverLinearDirect::solveTemperaturesLinearDirect(isolated, constants, log, isolated.directTContext());
             expectTrue(isolated.getLastThermalConverged(), "isolated zero-source node remains solvable");
             expectTrue(std::abs(isolated.getNode("plenum").current_t - 22.0) < 1e-10,
                        "isolated temperature gauge retained through cache reuse");
         }
         isolated.getNode("plenum").heat_source = 10.0;
-        ThermalSolverLinearDirect::solveTemperaturesLinearDirect(isolated, constants, log);
+        ThermalSolverLinearDirect::solveTemperaturesLinearDirect(isolated, constants, log, isolated.directTContext());
         expectTrue(!isolated.getLastThermalConverged(), "isolated heat source cannot be accepted");
     }
     if (g_failures == 0) {

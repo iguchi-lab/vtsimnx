@@ -232,7 +232,9 @@ SolveStats solveHumidityImplicitStep(const Graph& tGraph,
                             addStructural(r, nv, 0.0, rhs);
                         }
                     }
-                    bOut[r] = ctx.xIterate[i];
+                    // No inventory or transport: retain the accepted start
+                    // state, not moisture from a discarded control candidate.
+                    bOut[r] = ctx.xN[i];
                 } else {
                     double diag = terms.outSum[i];
                     rhs = g;

@@ -126,3 +126,17 @@ def test_heating_only_off_ventilation_uses_heating_fan_spec():
     assert s("aircon_sensible_heat", "AC")[1] == 0
     assert s("aircon_power", "AC")[1] > 1
     assert s("vent_flow_rate", "room->AC")[1] > 0.01
+
+
+def test_thermostat_stop_does_not_keep_a_rejected_supply_state():
+    from tests_py.test_heating_fan_coupling import heating_fan_case
+    raw = heating_fan_case()
+    raw["simulation"]["calc_flag"]["x"] = True
+    raw["nodes"][0].update(t=[19.0, 21.0], x=0.005)
+    raw["nodes"][1].update(calc_x=True, x=0.005, v=30.0)
+    s = run(raw)
+    assert s("aircon_sensible_heat", "AC")[0] > 1
+    assert s("aircon_sensible_heat", "AC")[1] == 0
+    assert abs(s("vent_flow_rate", "room->AC")[1]) < 1e-10
+    for field in ("thermal_temperature", "humidity_x"):
+        assert s(field, "AC")[1] == pytest.approx(s(field, "AC")[0], abs=1e-7)

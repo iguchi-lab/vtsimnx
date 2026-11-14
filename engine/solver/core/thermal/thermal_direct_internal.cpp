@@ -53,6 +53,8 @@ void DirectTSolverContext::reset() {
     systemN = 0;
     systemGraphPtr = nullptr;
     temperaturesBuffer.clear();
+    unconstrainedTemperatureReference.clear();
+    temperatureReferenceGraph = nullptr;
     rhsBuffer.resize(0);
     cachedResidualCheckCounter = 0;
     luBackendState = -1;

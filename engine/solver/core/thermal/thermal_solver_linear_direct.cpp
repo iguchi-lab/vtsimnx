@@ -47,6 +47,15 @@ void resetDirectTSolverContext() {
     detail::defaultDirectTContext().reset();
 }
 
+void captureUnconstrainedTemperatureReference(ThermalNetwork& network) {
+    auto& ctx = network.directTContext();
+    const auto& graph = network.getGraph();
+    ctx.temperatureReferenceGraph = &graph;
+    ctx.unconstrainedTemperatureReference.resize(boost::num_vertices(graph));
+    for (auto v : boost::make_iterator_range(boost::vertices(graph)))
+        ctx.unconstrainedTemperatureReference[v] = graph[v].current_t;
+}
+
 void resetDirectTCacheStats() {
     // テストの再現性のため、統計とキャッシュをまとめて無効化
     resetDirectTSolverContext();
@@ -171,7 +180,10 @@ void solveTemperaturesLinearDirect(ThermalNetwork& network,
                                               std::abs(ctx.system.b[i]), "DirectT(unconnected-source)");
             return;
         }
-        ctx.system.b[i] = graph[ctx.topology.parameterIndexToVertex[i]].current_t;
+        const auto v = ctx.topology.parameterIndexToVertex[i];
+        ctx.system.b[i] = ctx.temperatureReferenceGraph == &graph &&
+            v < ctx.unconstrainedTemperatureReference.size()
+            ? ctx.unconstrainedTemperatureReference[v] : graph[v].current_t;
     }
     const std::uint64_t rhsHash = hashRhsValues(ctx.system.b);
 
