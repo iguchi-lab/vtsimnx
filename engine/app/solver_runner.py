@@ -410,14 +410,16 @@ def _invoke_solver(
             try:
                 stdout, stderr = proc.communicate(timeout=0.5)
                 break
-            except subprocess.TimeoutExpired:
+            except subprocess.TimeoutExpired as cause:
                 if cancel_event is not None and cancel_event.is_set():
                     proc.terminate()
                     try:
                         proc.wait(timeout=5)
                     except Exception:
                         proc.kill()
-                    raise RuntimeError("solver cancelled")
+                    from app.cancellation import SimulationCancelled
+
+                    raise SimulationCancelled("solver cancelled") from cause
                 if timeout_s is not None and (time_mod.perf_counter() - t0) >= timeout_s:
                     proc.kill()
                     try:
@@ -427,7 +429,7 @@ def _invoke_solver(
                     raise RuntimeError(
                         f"solver timed out after {timeout_s}s. "
                         "Increase VTSIMNX_SOLVER_TIMEOUT or optimize the run."
-                    )
+                    ) from cause
     finally:
         if run_id:
             with _ACTIVE_SOLVERS_LOCK:

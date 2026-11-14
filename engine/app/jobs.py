@@ -1,5 +1,5 @@
 """
-非同期ジョブ管理（in-memory + ThreadPoolExecutor）。
+非同期ジョブ管理（状態スナップショット + ThreadPoolExecutor）。
 
 ラボ規模運用向け。uvicorn worker=1 を前提とする。
 
@@ -21,9 +21,12 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
+from pathlib import Path
 
 from app.simulation import SimulationResult, execute_simulation
 from app.solver_runner import terminate_solver
+from app.cancellation import SimulationCancelled
+from app.job_store import JobStore
 
 logger = logging.getLogger(__name__)
 
@@ -108,6 +111,7 @@ class JobRecord:
     input_hash: str
     created_at: str
     request: Dict[str, Any]
+    owner_key_id: Optional[str] = None
     started_at: Optional[str] = None
     finished_at: Optional[str] = None
     progress_stage: str = "queued"
@@ -142,6 +146,7 @@ class RunManager:
         max_workers: Optional[int] = None,
         job_ttl_sec: Optional[int] = None,
         max_job_records: Optional[int] = None,
+        state_dir: Optional[Path] = None,
     ) -> None:
         if max_workers is None:
             max_workers = _env_int("VTSIMNX_MAX_WORKERS", 1)
@@ -157,6 +162,41 @@ class RunManager:
         self._jobs: Dict[str, JobRecord] = {}
         self._hash_index: Dict[str, str] = {}  # input_hash -> run_id for queued/running
         self._executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="vtsimnx-run")
+        self._store = JobStore(state_dir) if state_dir is not None else None
+        self._restore_jobs()
+
+    def _save_job(self, job: JobRecord, *, required: bool = False) -> None:
+        if self._store is None:
+            return
+        fields = ("run_id", "status", "input_hash", "created_at", "owner_key_id", "started_at", "finished_at",
+                  "progress_stage", "progress_message", "artifact_dir", "result", "error")
+        try:
+            self._store.save({name: getattr(job, name) for name in fields})
+        except (OSError, TypeError, ValueError):
+            # A storage failure must never turn a completed simulation into a
+            # solver failure or strand a running job. Initial acceptance is strict.
+            logger.exception("Cannot persist job %s", job.run_id)
+            if required:
+                raise
+
+    def _restore_jobs(self) -> None:
+        if self._store is None:
+            return
+        for saved in self._store.load():
+            try:
+                job = JobRecord(request={}, **saved)
+                if job.status not in _TERMINAL | {"queued", "running"}:
+                    raise ValueError("invalid saved job status")
+                if job.status not in _TERMINAL:
+                    job.status = job.progress_stage = "failed"
+                    job.finished_at = _utc_now()
+                    job.error = {"code": "server_restarted", "message": "Server restarted before job completion",
+                                 "run_id": job.run_id}
+                    self._save_job(job)
+                self._jobs[job.run_id] = job
+            except (TypeError, ValueError):
+                logger.exception("Invalid job snapshot for %s", saved.get("run_id"))
+        self._prune_jobs_unlocked()
 
     @property
     def max_workers(self) -> int:
@@ -226,6 +266,11 @@ class RunManager:
         job = self._jobs.pop(run_id, None)
         if job is None:
             return
+        if self._store is not None:
+            try:
+                self._store.delete(run_id)
+            except OSError:
+                logger.exception("Cannot remove expired job snapshot %s", run_id)
         if self._hash_index.get(job.input_hash) == run_id:
             self._hash_index.pop(job.input_hash, None)
         # 参照を切って GC しやすくする
@@ -254,10 +299,16 @@ class RunManager:
                 input_hash=input_hash,
                 created_at=_utc_now(),
                 request=request,
+                owner_key_id=request.get("owner_key_id"),
             )
+            self._save_job(job, required=True)
             self._jobs[run_id] = job
             self._hash_index[input_hash] = run_id
-            job.future = self._executor.submit(self._run_job, run_id)
+            try:
+                job.future = self._executor.submit(self._run_job, run_id)
+            except RuntimeError:
+                self._drop_job_unlocked(run_id)
+                raise
             return job, False
 
     def get(self, run_id: str) -> Optional[JobRecord]:
@@ -277,11 +328,13 @@ class RunManager:
                 job.finished_at = _utc_now()
                 job.progress_stage = "cancelled"
                 job.progress_message = "cancelled before start"
+                job.request = {}
                 self._hash_index.pop(job.input_hash, None)
                 if job.future is not None:
                     job.future.cancel()
             elif job.status == "running":
                 terminate_solver(run_id)
+            self._save_job(job)
             return job
 
     def _set_progress(self, run_id: str, stage: str, message: str = "") -> None:
@@ -291,6 +344,7 @@ class RunManager:
                 return
             job.progress_stage = stage
             job.progress_message = message
+            self._save_job(job)
 
     def _finalize_success_or_output_error(self, job: JobRecord, result: SimulationResult) -> None:
         output = result.output if isinstance(result.output, dict) else {}
@@ -318,15 +372,19 @@ class RunManager:
             if job is None:
                 return
             if job.cancel_event.is_set() or job.status == "cancelled":
+                job.request = {}
                 job.status = "cancelled"
                 job.finished_at = _utc_now()
                 self._hash_index.pop(job.input_hash, None)
+                self._save_job(job)
                 return
             job.status = "running"
             job.started_at = _utc_now()
             job.progress_stage = "running"
-            req = dict(job.request)
+            req = job.request
+            job.request = {}  # the worker owns the input until execution completes
             cancel_event = job.cancel_event
+            self._save_job(job)
 
         try:
             result = execute_simulation(
@@ -362,6 +420,7 @@ class RunManager:
                     job.finished_at = _utc_now()
                     self._finalize_success_or_output_error(job, result)
                 self._hash_index.pop(job.input_hash, None)
+                self._save_job(job)
                 self._prune_jobs_unlocked()
         except Exception as e:
             from app.schemas import UnknownFieldError
@@ -371,7 +430,7 @@ class RunManager:
                 job = self._jobs.get(run_id)
                 if job is None:
                     return
-                if job.cancel_event.is_set() or "cancelled" in str(e).lower():
+                if job.cancel_event.is_set() or isinstance(e, SimulationCancelled):
                     job.status = "cancelled"
                     job.error = {"code": "cancelled", "message": str(e)}
                 elif isinstance(e, UnknownFieldError):
@@ -388,6 +447,7 @@ class RunManager:
                 job.finished_at = _utc_now()
                 job.progress_stage = job.status
                 self._hash_index.pop(job.input_hash, None)
+                self._save_job(job)
                 self._prune_jobs_unlocked()
         finally:
             try:
@@ -406,7 +466,9 @@ def get_run_manager() -> RunManager:
     global _MANAGER
     with _MANAGER_LOCK:
         if _MANAGER is None:
-            _MANAGER = RunManager()
+            from app.solver_runner import BASE_DIR
+
+            _MANAGER = RunManager(state_dir=BASE_DIR / "work" / "jobs")
         return _MANAGER
 
 

@@ -9,6 +9,16 @@
 
 namespace aircon::network_utils {
 
+OperationMode fanMode(const VertexProperties& node) {
+    // OFF has no compressor mode. Prefer cooling fan data when available,
+    // otherwise use a heating-only unit's fan specification.
+    if (node.current_mode == "OFF" && node.ac_spec.contains("V_inner") &&
+        !node.ac_spec["V_inner"].contains("cooling") && node.ac_spec["V_inner"].contains("heating"))
+        return OperationMode::Heating;
+    return resolveOperationModeForRuntime(node.current_mode, 0.0, 0.0);
+}
+
+
 std::vector<PassiveSupplyOutletConstraint> passiveSupplyOutletConstraints(
     const ThermalNetwork& network, const VertexProperties& ac) {
     const auto& graph = network.getGraph();

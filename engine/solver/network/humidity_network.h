@@ -85,6 +85,7 @@ public:
     void invalidateCaches();
 
     core::humidity::HumiditySolverContext& humiditySolverContext();
+    core::humidity::HumiditySolverContext& humidistatSolverContext();
 
     const MoistureBalanceTerms& lastMoistureBalance() const { return lastMoistureBalance_; }
     void setLastMoistureBalance(MoistureBalanceTerms bal) {
@@ -105,5 +106,6 @@ private:
     mutable std::vector<std::string> outputKeysOrdered;
 
     std::unique_ptr<core::humidity::HumiditySolverContext> humiditySolverContext_;
+    std::unique_ptr<core::humidity::HumiditySolverContext> humidistatSolverContext_;
     MoistureBalanceTerms lastMoistureBalance_;
 };

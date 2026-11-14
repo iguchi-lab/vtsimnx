@@ -18,8 +18,8 @@ def _as_float(value: Any, *, field: str, default: float | None = None) -> float 
         return default
     try:
         return float(value)
-    except Exception:
-        raise ConfigFileError(f"heat_source.{field} must be number, got {value!r}")
+    except Exception as cause:
+        raise ConfigFileError(f"heat_source.{field} must be number, got {value!r}") from cause
 
 
 def _normalize_fractions(item: Dict[str, Any]) -> Tuple[float, float]:
@@ -60,15 +60,15 @@ def _normalize_heat_series(value: Any) -> Any:
         for x in list(v):
             try:
                 out.append(float(x))
-            except Exception:
+            except Exception as cause:
                 raise ConfigFileError(
                     f"heat_source.generation_rate must be number or array<number>, got element {x!r}"
-                )
+                ) from cause
         return out
     try:
         return float(v)
-    except Exception:
-        raise ConfigFileError(f"heat_source.generation_rate must be number or array<number>, got {value!r}")
+    except Exception as cause:
+        raise ConfigFileError(f"heat_source.generation_rate must be number or array<number>, got {value!r}") from cause
 
 
 def _room_surfaces(surface_config: List[Dict[str, Any]], room: str) -> List[Tuple[str, float, float]]:

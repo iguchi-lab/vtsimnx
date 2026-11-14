@@ -24,13 +24,13 @@ def _normalize_series(value: Any, *, field: str) -> Any:
         for x in list(v):
             try:
                 out.append(float(x))
-            except Exception:
-                raise ConfigFileError(f"humidity_source.{field} must be number or array<number>, got element {x!r}")
+            except Exception as cause:
+                raise ConfigFileError(f"humidity_source.{field} must be number or array<number>, got element {x!r}") from cause
         return out
     try:
         return float(v)
-    except Exception:
-        raise ConfigFileError(f"humidity_source.{field} must be number or array<number>, got {value!r}")
+    except Exception as cause:
+        raise ConfigFileError(f"humidity_source.{field} must be number or array<number>, got {value!r}") from cause
 
 
 def build_humidity_generation_vents(

@@ -68,7 +68,8 @@ PressureSolver::Impl::TrialResult PressureSolver::Impl::runSolverTrial(
     ceres::Solver::Summary& summary,
     double successTolerance,
     const std::function<void(ceres::Solver::Options&)>& configureOptions,
-    std::function<void(const std::string&)> logger) {
+    std::function<void(const std::string&)> logger,
+    bool normalizeFlowResiduals) {
     auto log = [&](const std::string& msg) {
         if (msg.empty()) return;
         if (logger) logger(msg);
@@ -80,7 +81,38 @@ PressureSolver::Impl::TrialResult PressureSolver::Impl::runSolverTrial(
     configureOptions(options);
     // function_tolerance は Ceres の相対停止条件。最終物理合否とは分離する。
     double usedTolerance = (options.function_tolerance > 0.0) ? options.function_tolerance : successTolerance;
-    ceres::Solve(options, &problem, &summary);
+    if (normalizeFlowResiduals) {
+        // Uniform weighting preserves the pressure solution, including gauge
+        // anchors. Only the retry is normalized; ordinary solves are unchanged.
+        // Pressure problems use unconstrained Euclidean parameter blocks.
+        const double scale = 1.0 / std::clamp(successTolerance, 1e-12, 1.0);
+        const double weight = scale * scale;
+        ceres::Problem::Options po;
+        po.cost_function_ownership = ceres::DO_NOT_TAKE_OWNERSHIP;
+        ceres::Problem normalized(po);
+        std::vector<ceres::ResidualBlockId> blocks;
+        problem.GetResidualBlocks(&blocks);
+        for (auto block : blocks) {
+            std::vector<double*> parameters;
+            problem.GetParameterBlocksForResidualBlock(block, &parameters);
+            auto* cost = const_cast<ceres::CostFunction*>(problem.GetCostFunctionForResidualBlock(block));
+            normalized.AddResidualBlock(cost, new ceres::ScaledLoss(
+                problem.GetLossFunctionForResidualBlock(block), weight, ceres::DO_NOT_TAKE_OWNERSHIP), parameters);
+        }
+        ceres::Solve(options, &normalized, &summary);
+        // Preserve original diagnostic cost units for subsequent fallback stages.
+        summary.initial_cost /= weight;
+        summary.final_cost /= weight;
+        summary.fixed_cost /= weight;
+        for (auto& iteration : summary.iterations) {
+            iteration.cost /= weight;
+            iteration.cost_change /= weight;
+            iteration.gradient_max_norm /= weight;
+            iteration.gradient_norm /= weight;
+        }
+    } else {
+        ceres::Solve(options, &problem, &summary);
+    }
     logCeresTiming(startLog.empty() ? successLog : startLog, summary, logger);
     // trial「成功」= Ceres が CONVERGENCE を返し cost が有限。final_cost と ventTol は比較しない。
     bool converged = (summary.termination_type == ceres::CONVERGENCE) &&
@@ -253,7 +285,7 @@ void PressureSolver::Impl::runPrimarySolvers(const SimulationConstants& constant
                         problem,
                         summary,
                         constants.ventilationTolerance,
-                        [&](ceres::Solver::Options& o) { t.configure(o, constants); });
+                        [&](ceres::Solver::Options& o) { t.configure(o, constants); }, {}, t.normalizeFlowResiduals);
         // Ceres 終了理由は診断のみ。物理合格で試行終了（NO_CONVERGENCE でも可）。
         if (checkPhysical()) break;
     }
@@ -599,7 +631,8 @@ bool PressureSolver::Impl::runStageBTrials(const SimulationConstants& constants,
 
     auto tryTrial = [&](const std::string& startMsg,
                         const std::string& successPrefix,
-                        const std::function<void(ceres::Solver::Options&)>& configure) {
+                        const std::function<void(ceres::Solver::Options&)>& configure,
+                        bool normalizeFlowResiduals = false) {
         if (physicalAccepted) return;
         TrialResult r = runSolverTrial(startMsg,
                                        /*successLog=*/"",
@@ -607,7 +640,7 @@ bool PressureSolver::Impl::runStageBTrials(const SimulationConstants& constants,
                                        fbSummary2,
                                        constants.ventilationTolerance,
                                        configure,
-                                       log2);
+                                       log2, normalizeFlowResiduals);
         // Ceres CONVERGENCE は診断。物理合格で打ち切る。
         if (r.converged) {
             std::ostringstream os;
@@ -622,7 +655,7 @@ bool PressureSolver::Impl::runStageBTrials(const SimulationConstants& constants,
         tryTrial(
             t.startLog,
             t.successLog,
-            [&](ceres::Solver::Options& o) { t.configure(o, constants); });
+            [&](ceres::Solver::Options& o) { t.configure(o, constants); }, t.normalizeFlowResiduals);
     }
 
     if (!physicalAccepted) {

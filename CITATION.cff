@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use VTSimNX in research, please cite the software and the exact release or commit used."
+type: software
+title: VTSimNX
+authors:
+  - family-names: Iguchi
+    given-names: Masato
+repository-code: "https://github.com/iguchi-lab/vtsimnx"
+url: "https://github.com/iguchi-lab/vtsimnx"
+license: MIT

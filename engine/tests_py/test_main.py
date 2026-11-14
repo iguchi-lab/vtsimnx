@@ -21,7 +21,6 @@ def test_ping():
 def test_run_returns_fixed_response():
     # /run は内部で C++ solver を起動するため、そのままだと環境/入力に依存して不安定になる。
     # API層のテストでは solver をモックして「200でJSONが返ること」を検証する。
-    import app.main as main_mod
     import app.services.simulation as sim_svc
     sim_svc.run_solver = lambda _cfg, **_kw: {"status": "ok"}  # monkeypatch 相当（依存を増やさない）
 
@@ -56,7 +55,6 @@ def test_run_returns_fixed_response():
 
 
 def test_run_accepts_gzip_body():
-    import app.main as main_mod
     import app.services.simulation as sim_svc
     sim_svc.run_solver = lambda _cfg, **_kw: {"status": "ok"}  # mock
 
@@ -89,7 +87,6 @@ def test_run_accepts_gzip_body():
 
 
 def test_run_accepts_gzip_body_with_multi_encoding_header():
-    import app.main as main_mod
     import app.services.simulation as sim_svc
     sim_svc.run_solver = lambda _cfg, **_kw: {"status": "ok"}  # mock
 
@@ -121,7 +118,6 @@ def test_run_accepts_gzip_body_with_multi_encoding_header():
 
 def test_run_returns_warning_details_for_unknown_fields():
     # builder が未知フィールドを削除した場合、warnings（文字列）と warning_details（構造化）を返す
-    import app.main as main_mod
     import app.services.simulation as sim_svc
     sim_svc.run_solver = lambda _cfg, **_kw: {"status": "ok"}  # mock
 
@@ -152,7 +148,6 @@ def test_run_returns_warning_details_for_unknown_fields():
 
 def test_run_returns_structured_400_on_validation_error():
     # builder 側で入力不正が起きた場合、APIは code/message/hint を含む 400 を返す
-    import app.main as main_mod
     import app.services.simulation as sim_svc
 
     original = sim_svc.build_config_with_warning_details
@@ -190,7 +185,6 @@ def test_run_returns_structured_400_on_validation_error():
 
 def test_run_returns_structured_400_on_builder_value_error():
     # builder 内での ValueError（入力不正）も 400 で返す
-    import app.main as main_mod
     import app.services.simulation as sim_svc
 
     original = sim_svc.build_config_with_warning_details
@@ -228,7 +222,6 @@ def test_run_returns_structured_400_on_builder_value_error():
 
 def test_run_returns_structured_400_on_builder_key_error():
     # builder 内での KeyError（必須キー不足）も 400 で返し、欠落キーを示す
-    import app.main as main_mod
     import app.services.simulation as sim_svc
 
     original = sim_svc.build_config_with_warning_details
@@ -266,7 +259,6 @@ def test_run_returns_structured_400_on_builder_key_error():
 
 def test_run_returns_structured_500_when_solver_binary_missing():
     # solver 実行ファイル欠落時は構造化 500 を返す
-    import app.main as main_mod
     import app.services.simulation as sim_svc
 
     original_build = sim_svc.build_config_with_warning_details

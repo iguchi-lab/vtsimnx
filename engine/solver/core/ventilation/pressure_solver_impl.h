@@ -74,7 +74,8 @@ struct PressureSolver::Impl {
                                ceres::Solver::Summary& summary,
                                double successTolerance,
                                const std::function<void(ceres::Solver::Options&)>& configureOptions,
-                               std::function<void(const std::string&)> logger = {});
+                               std::function<void(const std::string&)> logger = {},
+                               bool normalizeFlowResiduals = false);
     TrialResult runTwoStageRelaxation(
         const SimulationConstants& constants,
         ceres::Problem& problem,

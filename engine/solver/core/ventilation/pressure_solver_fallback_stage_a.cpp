@@ -35,7 +35,8 @@ PressureSolver::Impl::StageASolveResult PressureSolver::Impl::solveStageAReduced
 
     bool fbOKA = false;
     auto tryTrialA = [&](const std::string& label,
-                         const std::function<void(ceres::Solver::Options&)>& configure) {
+                         const std::function<void(ceres::Solver::Options&)>& configure,
+                         bool normalizeFlowResiduals = false) {
         if (fbOKA) return;
         TrialResult r = runSolverTrial(label,
                                        /*successLog=*/"",
@@ -43,7 +44,7 @@ PressureSolver::Impl::StageASolveResult PressureSolver::Impl::solveStageAReduced
                                        result.summary,
                                        constants.ventilationTolerance,
                                        configure,
-                                       log2);
+                                       log2, normalizeFlowResiduals);
         fbOKA = r.converged;
         if (fbOKA) {
             std::ostringstream os;
@@ -55,7 +56,7 @@ PressureSolver::Impl::StageASolveResult PressureSolver::Impl::solveStageAReduced
 
     for (const auto& t : ventilation::stageATrustRegionTrials()) {
         if (fbOKA) break;
-        tryTrialA(t.startLog, [&](ceres::Solver::Options& o) { t.configure(o, constants); });
+        tryTrialA(t.startLog, [&](ceres::Solver::Options& o) { t.configure(o, constants); }, t.normalizeFlowResiduals);
     }
 
     if (!fbOKA) {

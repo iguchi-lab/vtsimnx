@@ -17,9 +17,10 @@ struct SolverTrialSpec {
     const char* startLog = "";
     const char* successLog = "";
     std::function<void(ceres::Solver::Options&, const SimulationConstants&)> configure;
+    bool normalizeFlowResiduals = false;
 };
 
-// Ceres 停止条件は相対値。ventilationTolerance（体積流量収支 [m³/s]）とは分離する。
+// Ceresの関数停止は相対、勾配停止は絶対閾値。いずれも物理収支とは分離する。
 inline void applyCeresStopTolerances(ceres::Solver::Options& o,
                                      const SimulationConstants& c,
                                      double functionScale = 1.0,
@@ -51,6 +52,16 @@ inline void configureRobustDoglegQr(ceres::Solver::Options& o, const SimulationC
     o.max_trust_region_radius = 1e4;
     o.initial_trust_region_radius = 1e2;
     o.minimizer_progress_to_stdout = false;
+}
+
+// A small J^T r can coexist with an unacceptable flow residual on weak paths.
+// Retry only after the normal solve fails physical acceptance; common cases
+// retain the inexpensive default stopping conditions.
+inline void configureGradientRefinement(ceres::Solver::Options& o, const SimulationConstants& c) {
+    configureStandardLmQr(o, c);
+    // Combined with normalized residuals, this also prevents projected-gradient
+    // subtraction from rounding to zero on small-conductance paths.
+    o.gradient_tolerance = 1e-16;
 }
 
 inline void configureDoglegDenseSchur(ceres::Solver::Options& o, const SimulationConstants& c) {
@@ -93,6 +104,8 @@ inline const std::vector<SolverTrialSpec>& primaryTrustRegionTrials() {
         {"[圧力] ①標準設定でソルバーを実行します...",
          "[圧力] 標準設定: Ceres相対停止 (CONVERGENCE)。物理収支は別判定",
          configureStandardLmQr},
+        {"[圧力] 勾配停止を精密化して再実行します...",
+         "[圧力] 勾配精密化: Ceres停止。物理収支は別判定", configureGradientRefinement, true},
         {"[圧力] ②堅牢設定でソルバーを再実行します...",
          "[圧力] 堅牢設定: Ceres相対停止 (CONVERGENCE)。物理収支は別判定",
          configureRobustDoglegQr},
@@ -109,6 +122,7 @@ inline const std::vector<SolverTrialSpec>& primaryTrustRegionTrials() {
 inline const std::vector<SolverTrialSpec>& stageATrustRegionTrials() {
     static const std::vector<SolverTrialSpec> trials = {
         {"[A-①] 標準設定でソルバーを実行します", "", configureStandardLmQr},
+        {"[A] 勾配停止を精密化して再実行します", "", configureGradientRefinement, true},
         {"[A-②] 堅牢設定でソルバーを再実行します", "", configureRobustDoglegQr},
         {"[A-③] DENSE_SCHUR設定でソルバーを再実行します", "", configureDoglegDenseSchur},
         {"[A-④] SPARSE_NORMAL_CHOLESKY設定でソルバーを再実行します", "",
@@ -120,6 +134,7 @@ inline const std::vector<SolverTrialSpec>& stageATrustRegionTrials() {
 inline const std::vector<SolverTrialSpec>& stageBTrustRegionTrials() {
     static const std::vector<SolverTrialSpec> trials = {
         {"[B-①] 標準設定でソルバーを実行します", "[B-①] 収束 | residual=", configureStandardLmQr},
+        {"[B] 勾配停止を精密化して再実行します", "", configureGradientRefinement, true},
         {"[B-②] 堅牢設定でソルバーを再実行します", "[B-②] 収束 | residual=", configureRobustDoglegQr},
         {"[B-③] DENSE_SCHUR設定でソルバーを再実行します", "[B-③] 収束 | residual=",
          configureDoglegDenseSchur},

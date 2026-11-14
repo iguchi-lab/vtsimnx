@@ -50,15 +50,15 @@ def run_simulation(req: SimulationRequest, request: Request):
         )
         return result
     except UnknownFieldError as e:
-        raise HTTPException(status_code=422, detail=e.details or str(e))
+        raise HTTPException(status_code=422, detail=e.details or str(e)) from e
     except (ValidationError, ConfigFileError, ValueError, KeyError, TypeError) as e:
         logger.info("validation/config error in /run: %s", e)
-        raise HTTPException(status_code=400, detail=build_bad_request_detail(e))
+        raise HTTPException(status_code=400, detail=build_bad_request_detail(e)) from e
     except HTTPException:
         raise
     except Exception as e:
         logger.exception("internal error in /run")
-        raise HTTPException(status_code=500, detail=build_internal_error_detail(e, run_id=run_id))
+        raise HTTPException(status_code=500, detail=build_internal_error_detail(e, run_id=run_id)) from e
 
 
 @router.post("/runs")
@@ -69,7 +69,7 @@ def create_run(req: SimulationRequest, response: Response, request: Request):
     try:
         raw_config, pre_warnings, pre_details = sim_svc.submit_run_payload(req)
     except UnknownFieldError as e:
-        raise HTTPException(status_code=422, detail=e.details or str(e))
+        raise HTTPException(status_code=422, detail=e.details or str(e)) from e
     request_payload = req.model_dump(mode="python")
     request_payload["config"] = raw_config
     request_payload["initial_warnings"] = pre_warnings
@@ -97,7 +97,7 @@ def get_run_status(run_id: str, request: Request):
     job = get_run_manager().get(run_id)
     if job is None:
         raise_api_error(404, code="run_not_found", message="run not found", run_id=run_id)
-    owner = (job.request or {}).get("owner_key_id")
+    owner = job.owner_key_id
     kid = _key_id(request)
     if owner and kid and owner != kid:
         raise_api_error(403, code="forbidden_run", message="run access denied", run_id=run_id)
@@ -109,7 +109,7 @@ def get_run_result(run_id: str, request: Request):
     job = get_run_manager().get(run_id)
     if job is None:
         raise_api_error(404, code="run_not_found", message="run not found", run_id=run_id)
-    owner = (job.request or {}).get("owner_key_id")
+    owner = job.owner_key_id
     kid = _key_id(request)
     if owner and kid and owner != kid:
         raise_api_error(403, code="forbidden_run", message="run access denied", run_id=run_id)
@@ -141,7 +141,7 @@ def cancel_run(run_id: str, request: Request):
     job = get_run_manager().get(run_id)
     if job is None:
         raise_api_error(404, code="run_not_found", message="run not found", run_id=run_id)
-    owner = (job.request or {}).get("owner_key_id")
+    owner = job.owner_key_id
     kid = _key_id(request)
     if owner and kid and owner != kid:
         raise_api_error(403, code="forbidden_run", message="run access denied", run_id=run_id)

@@ -10,7 +10,8 @@
 #include <boost/range/iterator_range.hpp>
 
 HumidityNetwork::HumidityNetwork()
-    : humiditySolverContext_(std::make_unique<core::humidity::HumiditySolverContext>()) {}
+    : humiditySolverContext_(std::make_unique<core::humidity::HumiditySolverContext>()),
+      humidistatSolverContext_(std::make_unique<core::humidity::HumiditySolverContext>()) {}
 
 HumidityNetwork::~HumidityNetwork() = default;
 HumidityNetwork::HumidityNetwork(HumidityNetwork&&) noexcept = default;
@@ -18,6 +19,10 @@ HumidityNetwork& HumidityNetwork::operator=(HumidityNetwork&&) noexcept = defaul
 
 core::humidity::HumiditySolverContext& HumidityNetwork::humiditySolverContext() {
     return *humiditySolverContext_;
+}
+
+core::humidity::HumiditySolverContext& HumidityNetwork::humidistatSolverContext() {
+    return *humidistatSolverContext_;
 }
 
 void HumidityNetwork::buildTerms(ConstNodeStateView nodeState,

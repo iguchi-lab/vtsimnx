@@ -61,8 +61,8 @@ def _layer_float(layer: dict, *names: str, default: float | None = None) -> floa
         if n in layer:
             try:
                 return float(layer[n])
-            except Exception:
-                raise ValueError(f"invalid numeric value for layer.{n}: {layer.get(n)!r}")
+            except Exception as cause:
+                raise ValueError(f"invalid numeric value for layer.{n}: {layer.get(n)!r}") from cause
     return default
 
 

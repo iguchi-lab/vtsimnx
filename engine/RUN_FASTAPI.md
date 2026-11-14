@@ -186,3 +186,16 @@ python3 -m app.main input.json --verbosity 1
 - 全体計算フロー: `docs/simulation_overview.md`
 
 
+
+
+### ジョブ状態の保存と再取得
+
+`work/jobs/<run_id>.json` に入力本体を含めない状態スナップショットを保存します。worker=1の前提です。正常に保存された完了結果・所有者IDはAPI再起動後も復元されます。実行中・待機中だったジョブは `failed` / `server_restarted` として復元し、自動再投入しません。既存のTTL・件数上限は保存状態にも適用します。更新前に終了していた旧版ジョブは、状態ファイルがないため復元対象外です。
+
+クライアントはGETの接続切断・タイムアウトとHTTP 408/429/500/502/503/504を最大3回再試行します。POSTは再試行しません。待機を中断した場合は、例外の `detail["run_id"]` または保存していたIDで取得を再開できます。
+
+```python
+import vtsimnx as vt
+response = vt.wait_for_run(base_url, run_id, timeout=3600, api_key=api_key)
+output = response["result"]  # /runs/{id}/result と同じレスポンス形式
+```

@@ -14,6 +14,7 @@ from __future__ import annotations
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Dict, Mapping
+import warnings
 
 import pandas as pd
 
@@ -56,11 +57,15 @@ def _load_materials_from_csv() -> Dict[str, Dict[str, float]]:
     csv_materials: Dict[str, Dict[str, float]] = {}
     base_dir = Path(__file__).resolve().parent
 
-    for path in sorted(base_dir.glob("*.csv")):
+    paths = sorted(base_dir.glob("*.csv"))
+    if not paths:
+        warnings.warn("Material CSV files are missing; only built-in materials are available.", RuntimeWarning, stacklevel=2)
+    for path in paths:
         try:
             df = _read_csv_with_fallback(path)
-        except Exception:
+        except Exception as exc:
             # CSVが壊れていても既存 table のみで動作を継続する
+            warnings.warn(f"Cannot load material CSV {path.name}: {exc}", RuntimeWarning, stacklevel=2)
             continue
 
         if "材料名" not in df.columns:

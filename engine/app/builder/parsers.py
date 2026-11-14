@@ -150,12 +150,12 @@ def parse_all(raw: Dict[str, Any]) -> tuple[SimConfigType, List[Dict[str, Any]],
         logger.info("raw が文字列のため JSON パース（失敗時はファイル読み込み）を試みます")
         try:
             raw = json.loads(raw)
-        except json.JSONDecodeError:
+        except json.JSONDecodeError as cause:
             if os.path.exists(raw):
                 with open(raw, "r", encoding="utf-8") as f:
                     raw = json.load(f)
             else:
-                raise TypeError("raw は dict、JSON文字列、または既存のJSONファイルパスである必要があります。")
+                raise TypeError("raw は dict、JSON文字列、または既存のJSONファイルパスである必要があります。") from cause
     if not isinstance(raw, dict):
         type_name = type(raw).__name__
         preview = repr(raw)

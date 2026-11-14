@@ -10,12 +10,12 @@ def _pyproject_version() -> str:
     text = (root / "pyproject.toml").read_text(encoding="utf-8")
     try:
         import tomllib
-    except ModuleNotFoundError:  # pragma: no cover
+    except ModuleNotFoundError as cause:  # pragma: no cover
         for line in text.splitlines():
             s = line.strip()
             if s.startswith("version") and "=" in s:
                 return s.split("=", 1)[1].strip().strip('"').strip("'")
-        raise AssertionError("version not found in pyproject.toml")
+        raise AssertionError("version not found in pyproject.toml") from cause
     data = tomllib.loads(text)
     return str(data["project"]["version"])
 

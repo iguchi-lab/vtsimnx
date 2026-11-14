@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from .logger import get_logger
+from .physical_constants import DRY_AIR_RHO_CP as _DRY_AIR_RHO_CP
 from .surface_layers import _scalar_initial_temperature
 
 logger = get_logger(__name__)
 
 # archenv と揃えた乾き空気の ρ·cp [J/(m³·K)]
-_DRY_AIR_RHO_CP = 1.2 * 1006.0
 
 
 def add_capacity(node: dict, time_step: float) -> tuple[list, list]:

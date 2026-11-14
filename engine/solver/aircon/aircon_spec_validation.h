@@ -15,8 +15,8 @@ inline void validateSpec(const nlohmann::json& spec, const std::string& model,
         control == "temperature_priority" ? std::string("rh95") : std::string("ideal_coil")));
     const std::set<std::string> methods{"rh95", "rh100", "none", "bf", "coil_aoaf", "aoaf", "literature", "ideal_coil"};
     if (!methods.count(method)) throw std::runtime_error("invalid ac_spec.latent_method: " + method);
-    if (control != "temperature_priority" && method != "none" && method != "rh100" && method != "ideal_coil")
-        throw std::runtime_error("humidistat latent_method requires ideal_coil (none/rh100 aliases)");
+    if (control == "temperature_humidity" && method != "none" && method != "rh100" && method != "ideal_coil")
+        throw std::runtime_error("temperature_humidity latent_method requires ideal_coil (none/rh100 aliases)");
     if (control == "temperature_priority" && method == "ideal_coil")
         throw std::runtime_error("latent_method=ideal_coil requires a humidity control mode");
     for (const char* key : {"bf", "BF", "bypass_factor", "Af", "Ao", "coil_face_area", "coil_surface_area"}) {

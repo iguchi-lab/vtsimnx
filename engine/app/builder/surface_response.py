@@ -75,8 +75,8 @@ def _auto_response_coefficients_from_layers(
     if terms is not None:
         try:
             terms = int(terms)
-        except Exception:
-            raise ValueError(f"response_terms must be int, got {response_terms!r}")
+        except Exception as cause:
+            raise ValueError(f"response_terms must be int, got {response_terms!r}") from cause
         if terms <= 0:
             raise ValueError(f"response_terms must be positive, got {terms}")
 
