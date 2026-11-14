@@ -17,6 +17,7 @@ from __future__ import annotations
 from typing import Any, Mapping, NoReturn, Optional, Sequence
 
 from fastapi import HTTPException, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.responses import Response
@@ -200,7 +201,10 @@ async def request_validation_exception_handler(
     err["code"] = "validation_error"
     if not err.get("message"):
         err["message"] = "request validation failed"
-    return JSONResponse(status_code=422, content={"error": err})
+    # Model validators put ValueError/AssertionError objects in ctx.error.
+    # Preserve their message without turning a rejected input into HTTP 500.
+    content = jsonable_encoder({"error": err}, custom_encoder={Exception: str})
+    return JSONResponse(status_code=422, content=content)
 
 
 def register_exception_handlers(app) -> None:

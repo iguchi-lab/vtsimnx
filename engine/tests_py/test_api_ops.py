@@ -6,7 +6,7 @@ httpx = pytest.importorskip("httpx")
 
 from fastapi.testclient import TestClient  # noqa: E402
 
-from app.api_auth import API_KEY_HEADER, match_api_key, load_api_key_records  # noqa: E402
+from app.api_auth import match_api_key, load_api_key_records  # noqa: E402
 from app.main import app  # noqa: E402
 from app.services.artifact_policy import (  # noqa: E402
     ArtifactPolicy,
@@ -66,6 +66,33 @@ def test_auth_error_is_structured(monkeypatch):
     assert resp.status_code == 401
     body = resp.json()
     assert body["error"]["code"] == "unauthorized"
+
+
+@pytest.mark.parametrize("endpoint", ["/validate", "/build", "/run", "/runs"])
+@pytest.mark.parametrize("field,value", [("latent_method", "misspelled"), ("bf", 1.0), ("Af", 0.0)])
+def test_model_validator_errors_return_serializable_422(monkeypatch, endpoint, field, value):
+    for name in ("VTSIMNX_API_KEY", "VTSIMNX_API_KEYS", "VTSIMNX_API_KEYS_JSON"):
+        monkeypatch.delenv(name, raising=False)
+    config = {
+        "simulation": {"index": {"start": "2026-01-01T00:00:00", "end": "2026-01-01T00:00:00",
+                                  "timestep": 3600, "length": 1}},
+        "nodes": [{"key": "room"}, {"key": "outside"}],
+        "aircon": [{"key": "AC", "set": "room", "outside": "outside", "model": "RAC",
+                    "mode": "COOLING", "pre_temp": 26.0, "ac_spec": {field: value}}],
+    }
+    # Pydantic includes the actual ValueError in ctx.error. Exercise the HTTP
+    # response, including serialization, rather than only the input validator.
+    client = TestClient(app, raise_server_exceptions=False)
+    response = client.post(endpoint, json={"config": config})
+    assert response.status_code == 422, response.text
+    error = response.json()["error"]
+    assert error["code"] == "validation_error"
+    assert error["path"] == ["body", "config"]
+    assert field in error["message"]
+    detail = error["details"][0]
+    assert detail["type"] == "value_error"
+    assert isinstance(detail["ctx"]["error"], str)
+    assert field in detail["ctx"]["error"]
 
 
 def test_constant_time_match_and_revoked(monkeypatch):
