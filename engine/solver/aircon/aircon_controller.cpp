@@ -7,6 +7,7 @@
 #include "aircon/aircon_latent.h"
 #include "aircon/aircon_humidity_control.h"
 #include "aircon/aircon_network_utils.h"
+#include "aircon/aircon_saturation.h"
 
 #include "network/thermal_network.h"
 #include "network/ventilation_network.h"
@@ -529,8 +530,16 @@ bool AirconController::acceptedHumidityConverged(ThermalNetwork& thermalNetwork,
             return false;
         }
         for (const auto& outlet : aircon::network_utils::passiveSupplyOutletConstraints(thermalNetwork, node)) {
-            if (thermalNetwork.getNode(outlet.outletKey).current_x > outlet.outletXUpperBound) {
-                writeDomainLog(logs, "受入検査", "空調出口湿度未達: outlet=" + outlet.outletKey);
+            const auto& discharge = thermalNetwork.getNode(outlet.outletKey);
+            if (!aircon::latent::unsaturatedBeforeAndAfterSerialization(
+                    discharge.current_t, discharge.current_x)) {
+                std::ostringstream detail;
+                detail << std::setprecision(17) << "空調出口湿度未達: outlet=" << outlet.outletKey
+                       << ", x=" << thermalNetwork.getNode(outlet.outletKey).current_x
+                       << ", guarded_target=" << outlet.outletXUpperBound
+                       << ", supply_x=" << node.current_x
+                       << ", supply_limit=" << outlet.supplyXUpperBound;
+                writeDomainLog(logs, "受入検査", detail.str());
                 return false;
             }
         }

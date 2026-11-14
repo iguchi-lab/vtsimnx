@@ -12,6 +12,7 @@
 #include "aircon/aircon_latent.h"
 #include "aircon/aircon_network_utils.h"
 #include "aircon/aircon_operation_mode.h"
+#include "aircon/aircon_saturation.h"
 #include "archenv/include/archenv.h"
 #include "core/thermal/thermal_moist_air.h"
 #include "core/thermal/thermal_solver_linear_direct.h"
@@ -218,6 +219,35 @@ void testPassiveDischargeWaterBalance() {
                    "parallel and reversed flows preserve the plenum water balance");
         expectTrue(c.supplyXUpperBound * 0.3 / (0.3 - 3e-6) < sat,
                    "water-conserving outlet stays below saturation");
+
+        // Annual ideal_rh60_1 stopped at August 11 02:00 with an outlet
+        // 4.9e-17 kg/kg above the guarded target, still below saturation.
+        // A linear solve need not reproduce an upstream bound bit for bit.
+        auto inlet = makeNode("return", "normal", 30.0);
+        inlet.current_x = 0.020;
+        net.addNode(inlet);
+        auto& supply = net.getNode("AC");
+        supply.on = true;
+        supply.outside_node = "return";
+        supply.ac_spec = {{"latent_method", "none"}};
+        supply.current_x = c.supplyXUpperBound;
+        auto& discharge = net.getNode("outlet");
+        discharge.current_x = c.outletXUpperBound + 5e-17;
+        AirconController controller;
+        int calls = 0;
+        std::vector<CallRecord> history;
+        controller.registerModelForTesting("AC", std::make_unique<FakeAirconModel>(&calls, &history));
+        FlowRateMap flows;
+        flows[{"return", "AC"}] = 0.3;
+        std::ostringstream logs;
+        expectTrue(controller.acceptedHumidityConverged(net, flows, 1e-9, logs),
+                   "sub-saturated discharge must not stall on a roundoff-sized target overshoot");
+        discharge.current_x = sat * (1.0 + 1e-7);
+        expectTrue(!controller.acceptedHumidityConverged(net, flows, 1e-9, logs),
+                   "true discharge supersaturation is rejected");
+        discharge.current_x = std::numeric_limits<double>::quiet_NaN();
+        expectTrue(!controller.acceptedHumidityConverged(net, flows, 1e-9, logs),
+                   "non-finite discharge humidity is rejected");
     }
 }
 
@@ -225,6 +255,20 @@ void testPassiveDischargeWaterBalance() {
 
 int main() {
     testPassiveDischargeWaterBalance();
+    {
+        const double t = 25.0000001;
+        const double x = std::nextafter(archenv::absolute_humidity(t, 100.0), 0.0);
+        expectTrue(x < archenv::absolute_humidity(t, 100.0),
+                   "serialization fixture is unsaturated in double precision");
+        expectTrue(static_cast<double>(static_cast<float>(x)) >
+                       archenv::absolute_humidity(static_cast<float>(t), 100.0),
+                   "serialization fixture becomes supersaturated in f32 artifacts");
+        expectTrue(!aircon::latent::unsaturatedBeforeAndAfterSerialization(t, x),
+                   "artifact-only supersaturation is rejected without an RH tolerance");
+        expectTrue(aircon::latent::unsaturatedBeforeAndAfterSerialization(
+                       t, aircon::latent::saturationHumidityUpperBound(t)),
+                   "guarded boundary survives artifact rounding");
+    }
     expectNear(archenv::saturation_vapor_pressure(100.0), 101324.6, 1e-7,
                "saturation reference matches Python report conversion");
     testCoilDewPointContinuity();
