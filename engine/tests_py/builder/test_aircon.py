@@ -71,9 +71,11 @@ def test_aircon_vol_zero_is_copied_to_aircon_node():
                 "vol": 0.36,
                 "vol_zero": 0.05,
                 "ac_spec": {
-                    "Q": {"heating": {"rtd": 7.2}, "cooling": {"rtd": 7.2}},
+                    "Q": {"heating": {"min": 1.0, "mid": 3.6, "rtd": 7.2}},
+                    "P": {"heating": {"rtd": 2.0}},
+                    "P_fan": {"heating": {"rtd": 0.2}},
                     "min_process": {"heating": 2.7, "cooling": 2.7},
-                    "V_inner": {"heating": {"dsgn": 0.36}, "cooling": {"dsgn": 0.36}},
+                    "V_inner": {"heating": {"mid": 0.3, "rtd": 0.4, "dsgn": 0.36}},
                 },
             }
         ],

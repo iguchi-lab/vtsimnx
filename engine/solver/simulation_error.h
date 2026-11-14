@@ -14,6 +14,7 @@ enum class ErrorCode {
     ConcentrationNotConverged,
     AirconMaxIterations,
     CapacityConstraintUnresolved,
+    AirconPowerFailed,
 };
 
 // API / manifest 向けの安定な snake_case 文字列。
@@ -33,6 +34,8 @@ inline std::string_view toErrorCodeString(ErrorCode code) noexcept {
         return "aircon_max_iterations";
     case ErrorCode::CapacityConstraintUnresolved:
         return "capacity_constraint_unresolved";
+    case ErrorCode::AirconPowerFailed:
+        return "aircon_power_failed";
     }
     return "solver_error";
 }

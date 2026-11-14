@@ -33,6 +33,18 @@ std::optional<simulation::AirconIterationAction> alwaysRecomputeForCapacity() {
     return simulation::AirconIterationAction::RecomputeForCapacity;
 }
 
+std::optional<simulation::AirconIterationAction> alwaysRecomputeHumidity() {
+    return simulation::AirconIterationAction::RecomputeForSupplyHumidity;
+}
+
+int candidateCall = 0;
+std::optional<simulation::AirconIterationAction> convergingCandidates() {
+    ++candidateCall;
+    if (candidateCall == 5) return simulation::AirconIterationAction::RecomputeForCapacity;
+    if (candidateCall == 10) return simulation::AirconIterationAction::Accept;
+    return simulation::AirconIterationAction::RecomputeForSupplyHumidity;
+}
+
 } // namespace
 
 int main() {
@@ -79,6 +91,29 @@ int main() {
     }
 
     expectTrue(threw, "runSimulation must throw AirconMaxIterations via ensureOuterAirconLoopConverged");
+
+    {
+        simulation::test_hooks::ScopedAirconIterationOverride humidityHook(alwaysRecomputeHumidity);
+        simulation::TimestepSolveMetrics metrics;
+        bool humidityFailed = false;
+        try {
+            runSimulation(vent, thermal, humidity, contaminant, aircon, constants, result, logs, timings, "boundary", &metrics);
+        } catch (const simulation::Error& e) {
+            humidityFailed = e.code() == simulation::ErrorCode::HumidityNotConverged;
+        }
+        expectTrue(humidityFailed, "nonconverging boundary has a bounded solve");
+        expectTrue(metrics.outerIterations == 5, "boundary uses coupling limit, not control limit");
+    }
+    {
+        simulation::test_hooks::ScopedAirconIterationOverride candidateHook(convergingCandidates);
+        simulation::TimestepSolveMetrics metrics;
+        try {
+            runSimulation(vent, thermal, humidity, contaminant, aircon, constants, result, logs, timings, "candidates", &metrics);
+            expectTrue(metrics.outerIterations == 10, "boundary evaluations do not exhaust control search budget");
+        } catch (const std::exception& e) {
+            fail(std::string("converging candidates failed: ") + e.what());
+        }
+    }
 
     if (g_failures == 0) {
         std::cout << "[OK] all tests passed\n";

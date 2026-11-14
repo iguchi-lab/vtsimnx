@@ -21,7 +21,7 @@ inline bool airconHumidityPassthrough(const VertexProperties& node) {
            (!node.on || node.current_mode == "OFF" || node.current_mode == "HEATING" ||
             (node.current_mode == "AUTO" && std::isfinite(node.required_heat_w) &&
              node.required_heat_w >= 0.0) ||
-            !(node.aircon_moisture_removal_kg_s > 0.0));
+            (!(node.aircon_moisture_removal_kg_s > 0.0) && !node.aircon_humidity_transition));
 }
 
 inline bool humiditySolveNode(const VertexProperties& node) {

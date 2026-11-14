@@ -10,6 +10,7 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <memory>
 #include <stdexcept>
 #include <sstream>
@@ -73,6 +74,26 @@ private:
 
     // 能力超過時 nullopt 用の二分探索 bracket（タイムステップごとにクリア）
     mutable aircon::capacity::CapacityBracketMap capacityLimitBracket_;
+    // A normal-flow candidate must actually exceed capacity before boosting.
+    // Keep that verified airflow constraint for this timestep, independently
+    // of whether the requested temperature can be recovered at the new flow.
+    mutable std::unordered_set<std::string> capacityFlowBoost_;
+    mutable std::unordered_set<std::string> capacityRecoveryAttempted_;
+    // At fixed humidistat airflow, the overcooling floor may require heating.
+    // Keep that infeasibility decision for this timestep; reset before the next.
+    mutable std::unordered_set<std::string> humidityFloorBlocked_;
+    // Establish the warmest non-heating fan state before searching a wet
+    // coil. Cooling dry air can increase RH, so that search is not monotone
+    // across the dry/wet transition.
+    mutable std::unordered_set<std::string> humidityFanTrialDone_;
+    struct BoundaryIteration {
+        double x = 0.0;
+        double residual = 0.0;
+        double setpoint = std::numeric_limits<double>::quiet_NaN();
+        double flow = 0.0;
+        std::string regime;
+    };
+    mutable std::unordered_map<std::string, BoundaryIteration> boundaryIterations_;
 
     // OFF 中に観測した set 室温。停止後の再起動判定などで参照する。
     mutable std::unordered_map<std::string, double> lastFreeSetTempC_;
@@ -201,6 +222,8 @@ public:
     // calc_x=false の空調を current_x=0 のまま解くと還気循環が室内を乾燥させるため、
     // OFF / 未初期化時は吸込湿度へ同期する。ON で既に supplyX がある場合は維持する。
     void syncHumidityBoundariesBeforeSolve(ThermalNetwork& thermalNetwork) const;
+    void prepareAirflowForSolve(ThermalNetwork& thermalNetwork,
+                                VentilationNetwork& ventNetwork) const;
 
     // Acceptance guard: never convert an unresolved capacity constraint into ok.
     bool acceptedHumidityConverged(ThermalNetwork& thermalNetwork,

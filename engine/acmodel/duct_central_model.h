@@ -21,6 +21,7 @@ public:
     double calculateCoolingCapacity(double power_consumption, double outdoor_temp, double indoor_temp) const override;
 
     std::string getModelName() const override { return "DUCT_CENTRAL"; }
+    double estimateFanPower(const std::string& mode, double flowM3s) const;
     nlohmann::json getModelParameters() const override;
 
 protected:

@@ -48,25 +48,29 @@ flowchart TD
 ```mermaid
 flowchart LR
     LM["latent_method"] --> RH["rh95<br/>既定"]
-    LM --> BF["bf<br/>RH>100%→rh95"]
+    LM --> BF["bf<br/>飽和上限"]
     LM --> AO["coil_aoaf"]
-    LM --> NO["none<br/>QL=0"]
+    LM --> NO["rh100 / none<br/>飽和凝縮のみ"]
 ```
 
 - `latent_method: "rh95"`（**デフォルト**）  
   吹出温度 `Tout` から吹出空気 RH を 95% として `supplyX` を決める
 - `latent_method: "bf"`  
   バイパスファクタ法で `supplyX` を計算  
-  BF は `bf` / `BF` / `bypass_factor` で指定（省略時 `0.2`、内部で `0.0..0.99` にクランプ）。  
-  計算結果の吹出 RH が 100% 超なら警告を出し、`rh95` へフォールバック。
+  BF は `bf` / `BF` / `bypass_factor` で指定（省略時 `0.2`、許容範囲 `0.0..0.99`、範囲外は入力エラー）。
+  吹出RHが100%を超える場合は、温度を保持して飽和上限まで凝縮させ、その潜熱を能力・電力に含める。
 - `latent_method: "coil_aoaf"`（別名: `"aoaf"`, `"literature"`）  
   コイル前面風速・有効表面積を用いる文献式（4.2.1）に基づく潜熱評価。
   - 追加パラメータ:
     - `Af` または `coil_face_area` : 実質コイル前面面積 [m²]（既定 `0.133`）
     - `Ao` または `coil_surface_area` : コイル有効表面積 [m²]（既定 `4.84`）
   - 顕熱処理量 `Hs` [W] と吸込/吹出条件から `Hr` [W] を評価し、`Q_L` および `supplyX` を決定する
-- `latent_method: "none"`  
-  潜熱処理なし（`Q_L=0`、`supplyX = X_in`）
+- `latent_method: "rh100"`（`"none"` と同義）
+  吸込絶対湿度を引き継ぎ、吹出温度で過飽和になる分だけ凝縮する。
+- `latent_method: "ideal_coil"`
+  湿度優先・温湿度満足の理想コイル用。新モードでは省略時もこの方式となり、rh100/noneも同義。新モードとrh95/bf/coil_aoafの組合せは未対応のため入力エラー。
+
+未知の方式名、非有限値、負またはゼロのコイル面積は入力エラー。
 
 補足:
 
@@ -105,12 +109,13 @@ flowchart LR
 
 ### 2.3 DUCT_CENTRAL
 
-- **必須**: `Q`, `P` の cooling/heating × **rtd, mid, min** 等
-- **必須**: `P_fan`, `V_inner`（必要に応じ `V_outer`）の cooling/heating × **rtd, mid, dsgn** 等
+- **必須**: 使用する運転モードごとに `Q.min/mid/rtd`、`P.rtd`、`P_fan.rtd`、`V_inner.mid/rtd/dsgn`。AUTOは冷暖房の両方が必要。
+- 数値は有限値とし、`0 <= Q.min < Q.mid < Q.rtd`、`P.rtd > P_fan.rtd >= 0`、風量は正値。
+- OFF送風は冷房側の `P_fan.rtd` と `V_inner.dsgn` を使用し、暖房専用機では暖房側を使用。停止風量が0ならOFF用の冷房仕様は不要。
 - 単位: `Q` / `P` / `P_fan` は [kW]、風量は [m³/s]
 - 運転点入力 `InputData` では `V_vent`（換気分, [m³/s]）を使用可能。`V_outer` とは別入力で、既定は `0`。
-- 任意の制御入力: `min_process.{heating,cooling}` [kW]。未指定時は `0.1×Q.rtd`（無ければ `0.1×Q.max`）。小負荷は最低能力処理。
-- solver 制御では `Q.<mode>.rtd` と `V_inner.<mode>.dsgn` を使って、処理熱量連動の送風量補正を行う（`Q=0 -> vol_zero`（既定0）, `0<Q<=1.2*min_process` で最低風量に入り、一度入ったらその時間ステップの終わりまで `V=V_dsgn*min_process/Q.rtd` を維持, `Q=Q_rtd -> V=V_dsgn`）。能力制限中・未達は `Q.max`/`rtd`/`mid`（未達は 0.5 K 超で入り、設定到達まで維持）、設定維持中は室負荷 `|required_heat_w|`。カタログ `Q.min` は風量床に使わない。
+- 任意の制御入力: `min_process.{heating,cooling}` [kW]。未指定時は `0.1×Q.rtd`（無ければ `0.1×Q.max`）。小負荷は最低風量を確保し、実際の顕熱処理量は室の熱収支による。
+- solver 制御では `Q.<mode>.rtd` と `V_inner.<mode>.dsgn` を使って、処理熱量連動の送風量補正を行う（`Q=0 -> vol_zero`（既定0）, 正の負荷では `V=V_dsgn*max(Q,min_process)/Q.rtd` を上限比1まで用いる, `Q=Q_rtd -> V=V_dsgn`）。能力制限中・未達は `Q.max`/`rtd`/`mid`（未達は 0.5 K 超で入り、設定到達まで維持）、設定維持中は室負荷 `|required_heat_w|`。カタログ `Q.min` は風量床に使わない。
 - この比の載せ方は二つある。`vol` のみなら還気・吹出の `fixed_flow`。`p_max`・`p1`・`q1`・`q_max` が揃えばファン枝を速度比で縮め、実風量は圧力計算の交点。同じ枝には両方載せない。詳細は [`aircon_control_principles.md`](aircon_control_principles.md) §5.3。
 
 能力上限: **`Q.<mode>.max`** があればそれを使用。無い場合は **`Q.<mode>.rtd`**。それも無い場合は **`Q.<mode>.mid`**。

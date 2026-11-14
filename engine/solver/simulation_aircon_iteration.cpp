@@ -67,7 +67,7 @@ AirconIterationAction runAirconIteration(AirconIterationContext& ctx,
     }
     if (adjustmentMade) {
         const auto reasons = aggregateProposalReasons(proposals) |
-                             reasonsFromAirconFlags(false, true, true, supplyHumidityChanged);
+                             reasonsFromAirconFlags(false, true, adjustmentMade, supplyHumidityChanged);
         recordAirconRecomputeMetrics(metrics, reasons);
         return decideAirconIterationAction(reasons);
     }

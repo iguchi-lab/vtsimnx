@@ -52,7 +52,8 @@ bool supplyHumidityNeedsUpdate(const VertexProperties& node,
 bool applySupplyHumidityToAirconNode(ThermalNetwork& thermalNetwork,
                                      const std::string& airconKey,
                                      const LatentProcessResult& loads,
-                                     double humidityAbsTol = 1e-9);
+                                     double humidityAbsTol = 1e-9,
+                                     double relaxation = 0.5);
 
 // OFF（または送風のみ）: 除湿量を 0 にする。湿度は室と同時に求解する。
 // 固定境界から未知数へ変わる場合 true（外側ループ再計算要求用）。

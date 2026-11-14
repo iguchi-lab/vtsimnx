@@ -243,8 +243,8 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
     }
 
     const std::string latentMethod = readLatentMethod(nodeProps);
-    if (latentMethod == "none") {
-        result.regime = "latent_disabled";
+    if (latentMethod == "none" || latentMethod == "rh100") {
+        result.regime = "saturation_only";
         return finishCooling();
     }
 
@@ -363,10 +363,13 @@ bool supplyHumidityNeedsUpdate(const VertexProperties& node,
 bool applySupplyHumidityToAirconNode(ThermalNetwork& thermalNetwork,
                                      const std::string& airconKey,
                                      const LatentProcessResult& loads,
-                                     double humidityAbsTol) {
+                                     double humidityAbsTol,
+                                     double relaxation) {
     auto& node = thermalNetwork.getNode(airconKey);
     const double newRemoval = std::max(0.0, loads.condensationRateKgPerS);
     const bool wasPassthrough = airconHumidityPassthrough(node);
+    node.aircon_humidity_transition = !wasPassthrough && newRemoval == 0.0 &&
+        supplyHumidityNeedsUpdate(node, loads, humidityAbsTol);
     node.aircon_moisture_removal_kg_s = newRemoval;
     const bool passthrough = airconHumidityPassthrough(node);
     if (passthrough) return !wasPassthrough;
@@ -374,11 +377,9 @@ bool applySupplyHumidityToAirconNode(ThermalNetwork& thermalNetwork,
     // Relax the boundary iteration, but test its unrelaxed defect above.
     // The hard saturation bound is applied immediately and triggers a re-solve.
     if (changed) {
-        const double relaxation = aircon::humidity_control::enabled(node) &&
-            !aircon::humidity_control::simultaneous(node) ? 1.0 : 0.5;
         const double mixed = std::isfinite(node.current_x)
             ? node.current_x + relaxation * (loads.supplyX - node.current_x) : loads.supplyX;
-        node.current_x = std::min(mixed, loads.supplyXUpperBound);
+        node.current_x = std::clamp(mixed, 0.0, loads.supplyXUpperBound);
     }
     return changed;
 }
@@ -390,6 +391,7 @@ bool applyPassthroughHumidityToAirconNode(ThermalNetwork& thermalNetwork,
     (void)humidityAbsTol;
     const bool changed = !airconHumidityPassthrough(node);
     node.aircon_moisture_removal_kg_s = 0.0;
+    node.aircon_humidity_transition = false;
     return changed;
 }
 

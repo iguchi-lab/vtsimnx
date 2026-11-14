@@ -1,6 +1,7 @@
 #include "simulation_coupled_step.h"
 
 #include "core/thermal/thermal_solver_linear_direct.h"
+#include "core/ventilation/passive_dead_end_reduction.h"
 #include "hrv/hrv_controller.h"
 #include "network/thermal_network.h"
 #include "network/ventilation_network.h"
@@ -28,6 +29,7 @@ CoupledStepData performCoupledStepCalculation(VentilationNetwork& ventNetwork,
 
     // 換気計算
     if (constants.pressureCalc) {
+        ventilation::PassiveDeadEndReduction reduction(ventNetwork.getGraph());
         std::unique_ptr<ScopedLogSection> pressureScope;
         if (logEnabled) pressureScope = std::make_unique<ScopedLogSection>(logs, "圧力計算");
         PressureSolveResult pressureResult;
@@ -45,18 +47,21 @@ CoupledStepData performCoupledStepCalculation(VentilationNetwork& ventNetwork,
                 if (pressureResult.usedFallback) ++metrics->pressureFallbackCount;
             }
         }
+        reduction.expand(pressureResult, constants.ventilationTolerance);
         step.pressureMap = std::move(pressureResult.pressures);
         step.flowRates = std::move(pressureResult.flows);
         step.flowBalance = std::move(pressureResult.balances);
 
         // 不採用解はグラフへ反映せず、熱計算にも進まない（ThermalNotConverged で隠さない）
         if (!pressureResult.accepted) {
+            ventNetwork.setLastPressureConverged(false);
             throw simulation::Error(
                 simulation::ErrorCode::PressureNotConverged,
                 std::string("Pressure solver did not accept solution during coupled step (method=") +
                     (pressureResult.method.empty() ? "none" : pressureResult.method) + ")");
         }
         ventNetwork.applySolveResults(step.pressureMap, step.flowRates);
+        reduction.applyExactZeroFlows();
     }
 
     // 熱計算

@@ -64,6 +64,21 @@ void buildLinearSystemAbsoluteFast(const Graph& graph, const TopologyCache& topo
             processNodeNet(i, topo.rowIndexMaps[i], v, 1.0);
         }
     }
+    // A zero-volume plenum disconnected by a stopped fan has no temperature
+    // equation. Retaining its last temperature is a gauge, not added heat.
+    // Require both a zero row and a zero column; never hide an unbalanced
+    // through-flow or an active setpoint constraint.
+    std::vector<bool> nonzeroColumn(n, false);
+    for (size_t i = 0; i < n; ++i)
+        for (size_t j = 0; j < system.A[i].size(); ++j)
+            if (system.A[i][j] != 0.0) nonzeroColumn[system.colIndices[i][j]] = true;
+    for (size_t i = 0; i < n; ++i) {
+        if (nonzeroColumn[i] || std::any_of(system.A[i].begin(), system.A[i].end(),
+                                           [](double v) { return v != 0.0; })) continue;
+        system.unconstrainedRows[i] = true;
+        const int local = topo.rowIndexMaps[i].get(static_cast<int>(i));
+        if (local >= 0) system.A[i][static_cast<size_t>(local)] = 1.0;
+    }
 }
 
 } // namespace ThermalSolverLinearDirect::detail
