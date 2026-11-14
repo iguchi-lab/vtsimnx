@@ -1,0 +1,961 @@
+{
+  "case": "standard_house_ac4_gap003",
+  "issue33_original_replay": true,
+  "builder_equal_between_a076790_and_5eeffb2": true,
+  "raw_input_sha256": "e50a4890cb745bc01621ea790327ca94fd5ae837a435037d5536265af13964e9",
+  "built_input_sha256": "82b0a6f0711d6a2e79283062feb3941f180772568ac5d541aadac5a3713dc8f4",
+  "old_failed_mass_residual_m3_s": {
+    "0.1": 1.331961e-06,
+    "0.01": 9.738872e-06
+  },
+  "baseline_a076790_january": {
+    "label": "baseline",
+    "hours": 744,
+    "solver_sha256": "d38de2981253d9d02a4d427afc4a819a3ab546833b2899be418522f03cc068bc",
+    "template_sha256": "82b0a6f0711d6a2e79283062feb3941f180772568ac5d541aadac5a3713dc8f4",
+    "provenance": {
+      "analysis_notebook": "sim検討2/隙間比較_003.ipynb",
+      "generator_notebook": "sim検討2/sim8760_001.ipynb",
+      "selected_cells": [
+        12,
+        14,
+        15,
+        16,
+        18,
+        20,
+        22,
+        23,
+        25,
+        27,
+        29,
+        31,
+        32,
+        34,
+        36,
+        37,
+        39,
+        41,
+        42,
+        45,
+        46
+      ],
+      "hashes": {
+        "source.ipynb": "c8107eb3185cb3262b25417814ea7265140e91215594f38a794f735b975211ca",
+        "sim8760.ipynb": "52baca4303398b4df4d08ef23969aadb37324ba06333efff9afd6fffec2ede8b",
+        "3639999.has": "de98ac5d090e2f42ef004e8effbe70cc13ba9f29985a356bd4927252abfa4af6",
+        "wind.csv": "96e29e25061b390874c9ddb52ab869118b3b5aa0f79c32539bba8ee764451ad3",
+        "reviewed_model.py": "64c71a7ad83c33969852a995e59397e3f92fc028230b6d377cf72779b6bea0a5"
+      },
+      "changes": [
+        "local weather/wind paths",
+        "ratio=1 baseline; scaled exterior-only per run",
+        "skip install, mount, authentication, API and output cells"
+      ]
+    },
+    "runs": [
+      {
+        "ratio": 0.1,
+        "run_id": "gap003_baseline_744_0p1",
+        "input_sha256": "d44a3a613320af67a037851803344e99490e42fcb19c715104190da2568f88f3",
+        "tolerance": {
+          "ventilation": 1e-06,
+          "thermal": 1e-06,
+          "convergence": 0.0001
+        },
+        "gap_count": 384,
+        "seconds": 1.4079606580198742,
+        "status": "error",
+        "error": "シミュレーション実行中にエラーが発生しました: Pressure solver did not accept solution during coupled step (method=none)",
+        "metrics": null,
+        "accepted_pressure_count": 86,
+        "accepted_mass_max_abs": 4.902296e-07,
+        "rejected_primary_count": 1,
+        "solved_node_counts": [
+          17
+        ]
+      },
+      {
+        "ratio": 0.01,
+        "run_id": "gap003_baseline_744_0p01",
+        "input_sha256": "cb8deb7232bf6966bbf6013ae36ca6debfc649198649c899c509b48e2d8e369e",
+        "tolerance": {
+          "ventilation": 1e-06,
+          "thermal": 1e-06,
+          "convergence": 0.0001
+        },
+        "gap_count": 384,
+        "seconds": 1.0792780219926499,
+        "status": "error",
+        "error": "シミュレーション実行中にエラーが発生しました: Pressure solver did not accept solution during coupled step (method=none)",
+        "metrics": null,
+        "accepted_pressure_count": 0,
+        "accepted_mass_max_abs": 0.0,
+        "rejected_primary_count": 1,
+        "solved_node_counts": [
+          17
+        ]
+      },
+      {
+        "ratio": 0.001,
+        "run_id": "gap003_baseline_744_0p001",
+        "input_sha256": "dee5f2bab8b656e0d538d158881eaecd02f5705ccb71c25f0df4066f193c5c8d",
+        "tolerance": {
+          "ventilation": 1e-06,
+          "thermal": 1e-06,
+          "convergence": 0.0001
+        },
+        "gap_count": 384,
+        "seconds": 1.8882102800125722,
+        "status": "error",
+        "error": "シミュレーション実行中にエラーが発生しました: Maximum iteration count reached: stopping after maximum iteration count",
+        "metrics": null,
+        "accepted_pressure_count": 266,
+        "accepted_mass_max_abs": 9.794037e-07,
+        "rejected_primary_count": 0,
+        "solved_node_counts": [
+          17
+        ]
+      }
+    ]
+  },
+  "pr41_january": {
+    "label": "current",
+    "hours": 744,
+    "solver_sha256": "2b249987fe394e16b60108492e8bbe3c591a3f8be4f3c00bcc9fe0aab0ec498d",
+    "template_sha256": "82b0a6f0711d6a2e79283062feb3941f180772568ac5d541aadac5a3713dc8f4",
+    "provenance": {
+      "analysis_notebook": "sim検討2/隙間比較_003.ipynb",
+      "generator_notebook": "sim検討2/sim8760_001.ipynb",
+      "selected_cells": [
+        12,
+        14,
+        15,
+        16,
+        18,
+        20,
+        22,
+        23,
+        25,
+        27,
+        29,
+        31,
+        32,
+        34,
+        36,
+        37,
+        39,
+        41,
+        42,
+        45,
+        46
+      ],
+      "hashes": {
+        "source.ipynb": "c8107eb3185cb3262b25417814ea7265140e91215594f38a794f735b975211ca",
+        "sim8760.ipynb": "52baca4303398b4df4d08ef23969aadb37324ba06333efff9afd6fffec2ede8b",
+        "3639999.has": "de98ac5d090e2f42ef004e8effbe70cc13ba9f29985a356bd4927252abfa4af6",
+        "wind.csv": "96e29e25061b390874c9ddb52ab869118b3b5aa0f79c32539bba8ee764451ad3",
+        "reviewed_model.py": "64c71a7ad83c33969852a995e59397e3f92fc028230b6d377cf72779b6bea0a5"
+      },
+      "changes": [
+        "local weather/wind paths",
+        "ratio=1 baseline; scaled exterior-only per run",
+        "skip install, mount, authentication, API and output cells"
+      ]
+    },
+    "runs": [
+      {
+        "ratio": 0.1,
+        "run_id": "gap003_current_744_0p1",
+        "input_sha256": "d44a3a613320af67a037851803344e99490e42fcb19c715104190da2568f88f3",
+        "tolerance": {
+          "ventilation": 1e-06,
+          "thermal": 1e-06,
+          "convergence": 0.0001
+        },
+        "gap_count": 384,
+        "seconds": 19.053623829007847,
+        "status": "ok",
+        "error": null,
+        "metrics": {
+          "aircon_capacity_recalc": 0,
+          "aircon_capacity_recalc_share": 0.0,
+          "aircon_flow_adjust_recalc": 0,
+          "aircon_ms": 28.754459999999966,
+          "aircon_on_off_recalc": 51,
+          "aircon_recalc_total": 51,
+          "aircon_recompute_reasons_mask": 1,
+          "aircon_supply_humidity_recalc": 0,
+          "coupled_iterations": 3245,
+          "humidity_factorizes": 3245,
+          "humidity_ms": 1239.566187,
+          "humidity_pattern_analyzes": 1,
+          "humidity_rhs_only_solves": 0,
+          "humidity_solution_reuse": 0,
+          "outer_iterations": 795,
+          "outer_iterations_ge3": 0,
+          "outer_iterations_ge3_share": 0.0,
+          "outer_iterations_max": 2,
+          "outer_iterations_mean": 1.0685483870967742,
+          "pressure_ceres_iterations": 28741,
+          "pressure_fallback_count": 0,
+          "pressure_ms": 2958.2234120000003,
+          "pressure_solve_calls": 3245,
+          "solve_timesteps": 744,
+          "thermal_full_builds": 3245,
+          "thermal_ms": 10924.967816000019,
+          "thermal_rhs_only_builds": 0
+        },
+        "accepted_pressure_count": 3245,
+        "accepted_mass_max_abs": 9.979516e-07,
+        "rejected_primary_count": 0,
+        "solved_node_counts": [
+          17
+        ],
+        "completed_hours": 744,
+        "fields": {
+          "vent_pressure": {
+            "finite": true,
+            "size_ok": true,
+            "min": -18.2420654296875,
+            "max": 18.2420654296875
+          },
+          "vent_flow_rate": {
+            "finite": true,
+            "size_ok": true,
+            "min": -0.002717601601034403,
+            "max": 1.3888888359069824
+          },
+          "thermal_temperature": {
+            "finite": true,
+            "size_ok": true,
+            "min": -1.0852205753326416,
+            "max": 62.420677185058594
+          },
+          "humidity_x": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 0.006874834652990103
+          },
+          "aircon_sensible_heat": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 7112.53369140625
+          },
+          "aircon_latent_heat": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 0.0
+          },
+          "aircon_power": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 2970.1591796875
+          }
+        },
+        "accuracy_ok": true
+      },
+      {
+        "ratio": 0.01,
+        "run_id": "gap003_current_744_0p01",
+        "input_sha256": "cb8deb7232bf6966bbf6013ae36ca6debfc649198649c899c509b48e2d8e369e",
+        "tolerance": {
+          "ventilation": 1e-06,
+          "thermal": 1e-06,
+          "convergence": 0.0001
+        },
+        "gap_count": 384,
+        "seconds": 23.96484400497866,
+        "status": "ok",
+        "error": null,
+        "metrics": {
+          "aircon_capacity_recalc": 0,
+          "aircon_capacity_recalc_share": 0.0,
+          "aircon_flow_adjust_recalc": 0,
+          "aircon_ms": 28.71280399999999,
+          "aircon_on_off_recalc": 52,
+          "aircon_recalc_total": 52,
+          "aircon_recompute_reasons_mask": 1,
+          "aircon_supply_humidity_recalc": 0,
+          "coupled_iterations": 4429,
+          "humidity_factorizes": 4429,
+          "humidity_ms": 1660.8539230000013,
+          "humidity_pattern_analyzes": 1,
+          "humidity_rhs_only_solves": 0,
+          "humidity_solution_reuse": 0,
+          "outer_iterations": 796,
+          "outer_iterations_ge3": 0,
+          "outer_iterations_ge3_share": 0.0,
+          "outer_iterations_max": 2,
+          "outer_iterations_mean": 1.0698924731182795,
+          "pressure_ceres_iterations": 28125,
+          "pressure_fallback_count": 0,
+          "pressure_ms": 3607.9475880000005,
+          "pressure_solve_calls": 4429,
+          "solve_timesteps": 744,
+          "thermal_full_builds": 4429,
+          "thermal_ms": 14397.408999999996,
+          "thermal_rhs_only_builds": 0
+        },
+        "accepted_pressure_count": 4429,
+        "accepted_mass_max_abs": 9.890822e-07,
+        "rejected_primary_count": 0,
+        "solved_node_counts": [
+          17
+        ],
+        "completed_hours": 744,
+        "fields": {
+          "vent_pressure": {
+            "finite": true,
+            "size_ok": true,
+            "min": -18.2420654296875,
+            "max": 18.2420654296875
+          },
+          "vent_flow_rate": {
+            "finite": true,
+            "size_ok": true,
+            "min": -0.0027158278971910477,
+            "max": 1.3888888359069824
+          },
+          "thermal_temperature": {
+            "finite": true,
+            "size_ok": true,
+            "min": -1.084496021270752,
+            "max": 62.38189697265625
+          },
+          "humidity_x": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 0.0068826801143586636
+          },
+          "aircon_sensible_heat": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 7106.03125
+          },
+          "aircon_latent_heat": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 0.0
+          },
+          "aircon_power": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 2965.886474609375
+          }
+        },
+        "accuracy_ok": true
+      },
+      {
+        "ratio": 0.001,
+        "run_id": "gap003_current_744_0p001",
+        "input_sha256": "dee5f2bab8b656e0d538d158881eaecd02f5705ccb71c25f0df4066f193c5c8d",
+        "tolerance": {
+          "ventilation": 1e-06,
+          "thermal": 1e-06,
+          "convergence": 0.0001
+        },
+        "gap_count": 384,
+        "seconds": 3.8341059689992107,
+        "status": "error",
+        "error": "シミュレーション実行中にエラーが発生しました: Maximum iteration count reached: stopping after maximum iteration count",
+        "metrics": null,
+        "accepted_pressure_count": 266,
+        "accepted_mass_max_abs": 9.794037e-07,
+        "rejected_primary_count": 0,
+        "solved_node_counts": [
+          17
+        ]
+      }
+    ]
+  },
+  "candidate_january": {
+    "label": "candidate",
+    "hours": 744,
+    "solver_sha256": "dc8fb9cabaa2a1696f6a53ba03c5724661bf0e556f0f63a76b7e3f2c523bf751",
+    "template_sha256": "82b0a6f0711d6a2e79283062feb3941f180772568ac5d541aadac5a3713dc8f4",
+    "provenance": {
+      "analysis_notebook": "sim検討2/隙間比較_003.ipynb",
+      "generator_notebook": "sim検討2/sim8760_001.ipynb",
+      "selected_cells": [
+        12,
+        14,
+        15,
+        16,
+        18,
+        20,
+        22,
+        23,
+        25,
+        27,
+        29,
+        31,
+        32,
+        34,
+        36,
+        37,
+        39,
+        41,
+        42,
+        45,
+        46
+      ],
+      "hashes": {
+        "source.ipynb": "c8107eb3185cb3262b25417814ea7265140e91215594f38a794f735b975211ca",
+        "sim8760.ipynb": "52baca4303398b4df4d08ef23969aadb37324ba06333efff9afd6fffec2ede8b",
+        "3639999.has": "de98ac5d090e2f42ef004e8effbe70cc13ba9f29985a356bd4927252abfa4af6",
+        "wind.csv": "96e29e25061b390874c9ddb52ab869118b3b5aa0f79c32539bba8ee764451ad3",
+        "reviewed_model.py": "64c71a7ad83c33969852a995e59397e3f92fc028230b6d377cf72779b6bea0a5"
+      },
+      "changes": [
+        "local weather/wind paths",
+        "ratio=1 baseline; scaled exterior-only per run",
+        "skip install, mount, authentication, API and output cells"
+      ]
+    },
+    "runs": [
+      {
+        "ratio": 0.001,
+        "run_id": "gap003_candidate_744_0p001",
+        "input_sha256": "dee5f2bab8b656e0d538d158881eaecd02f5705ccb71c25f0df4066f193c5c8d",
+        "tolerance": {
+          "ventilation": 1e-06,
+          "thermal": 1e-06,
+          "convergence": 0.0001
+        },
+        "gap_count": 384,
+        "seconds": 15.94430410701898,
+        "status": "ok",
+        "error": null,
+        "metrics": {
+          "aircon_capacity_recalc": 0,
+          "aircon_capacity_recalc_share": 0.0,
+          "aircon_flow_adjust_recalc": 0,
+          "aircon_ms": 20.419298,
+          "aircon_on_off_recalc": 52,
+          "aircon_recalc_total": 52,
+          "aircon_recompute_reasons_mask": 1,
+          "aircon_supply_humidity_recalc": 0,
+          "coupled_iterations": 4479,
+          "humidity_factorizes": 4479,
+          "humidity_ms": 1175.6845710000005,
+          "humidity_pattern_analyzes": 1,
+          "humidity_rhs_only_solves": 0,
+          "humidity_solution_reuse": 0,
+          "outer_iterations": 796,
+          "outer_iterations_ge3": 0,
+          "outer_iterations_ge3_share": 0.0,
+          "outer_iterations_max": 2,
+          "outer_iterations_mean": 1.0698924731182795,
+          "pressure_ceres_iterations": 36699,
+          "pressure_fallback_count": 0,
+          "pressure_ms": 2623.662275,
+          "pressure_solve_calls": 4479,
+          "solve_timesteps": 744,
+          "thermal_full_builds": 4479,
+          "thermal_ms": 9331.793138000008,
+          "thermal_rhs_only_builds": 0
+        },
+        "accepted_pressure_count": 4479,
+        "accepted_mass_max_abs": 9.9938e-07,
+        "rejected_primary_count": 0,
+        "solved_node_counts": [
+          17
+        ],
+        "completed_hours": 744,
+        "fields": {
+          "vent_pressure": {
+            "finite": true,
+            "size_ok": true,
+            "min": -18.2420654296875,
+            "max": 18.2420654296875
+          },
+          "vent_flow_rate": {
+            "finite": true,
+            "size_ok": true,
+            "min": -0.0027156269643455744,
+            "max": 1.3888888359069824
+          },
+          "thermal_temperature": {
+            "finite": true,
+            "size_ok": true,
+            "min": -1.0844208002090454,
+            "max": 62.378055572509766
+          },
+          "humidity_x": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 0.006883344613015652
+          },
+          "aircon_sensible_heat": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 7105.3876953125
+          },
+          "aircon_latent_heat": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 0.0
+          },
+          "aircon_power": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 2965.463623046875
+          }
+        },
+        "accuracy_ok": true
+      },
+      {
+        "ratio": 0.01,
+        "run_id": "gap003_candidate_744_0p01",
+        "input_sha256": "cb8deb7232bf6966bbf6013ae36ca6debfc649198649c899c509b48e2d8e369e",
+        "tolerance": {
+          "ventilation": 1e-06,
+          "thermal": 1e-06,
+          "convergence": 0.0001
+        },
+        "gap_count": 384,
+        "seconds": 16.14487770400592,
+        "status": "ok",
+        "error": null,
+        "metrics": {
+          "aircon_capacity_recalc": 0,
+          "aircon_capacity_recalc_share": 0.0,
+          "aircon_flow_adjust_recalc": 0,
+          "aircon_ms": 22.20944799999998,
+          "aircon_on_off_recalc": 52,
+          "aircon_recalc_total": 52,
+          "aircon_recompute_reasons_mask": 1,
+          "aircon_supply_humidity_recalc": 0,
+          "coupled_iterations": 3847,
+          "humidity_factorizes": 3847,
+          "humidity_ms": 1106.9239979999977,
+          "humidity_pattern_analyzes": 1,
+          "humidity_rhs_only_solves": 0,
+          "humidity_solution_reuse": 0,
+          "outer_iterations": 796,
+          "outer_iterations_ge3": 0,
+          "outer_iterations_ge3_share": 0.0,
+          "outer_iterations_max": 2,
+          "outer_iterations_mean": 1.0698924731182795,
+          "pressure_ceres_iterations": 40756,
+          "pressure_fallback_count": 0,
+          "pressure_ms": 3083.5018130000008,
+          "pressure_solve_calls": 3847,
+          "solve_timesteps": 744,
+          "thermal_full_builds": 3847,
+          "thermal_ms": 9154.060623000008,
+          "thermal_rhs_only_builds": 0
+        },
+        "accepted_pressure_count": 3847,
+        "accepted_mass_max_abs": 9.892537e-07,
+        "rejected_primary_count": 0,
+        "solved_node_counts": [
+          17
+        ],
+        "completed_hours": 744,
+        "fields": {
+          "vent_pressure": {
+            "finite": true,
+            "size_ok": true,
+            "min": -18.2420654296875,
+            "max": 18.2420654296875
+          },
+          "vent_flow_rate": {
+            "finite": true,
+            "size_ok": true,
+            "min": -0.0027158267330378294,
+            "max": 1.3888888359069824
+          },
+          "thermal_temperature": {
+            "finite": true,
+            "size_ok": true,
+            "min": -1.084494709968567,
+            "max": 62.38186264038086
+          },
+          "humidity_x": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 0.0068825786001980305
+          },
+          "aircon_sensible_heat": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 7106.02587890625
+          },
+          "aircon_latent_heat": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 0.0
+          },
+          "aircon_power": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 2965.883056640625
+          }
+        },
+        "accuracy_ok": true
+      },
+      {
+        "ratio": 0.1,
+        "run_id": "gap003_candidate_744_0p1",
+        "input_sha256": "d44a3a613320af67a037851803344e99490e42fcb19c715104190da2568f88f3",
+        "tolerance": {
+          "ventilation": 1e-06,
+          "thermal": 1e-06,
+          "convergence": 0.0001
+        },
+        "gap_count": 384,
+        "seconds": 13.93731998297153,
+        "status": "ok",
+        "error": null,
+        "metrics": {
+          "aircon_capacity_recalc": 0,
+          "aircon_capacity_recalc_share": 0.0,
+          "aircon_flow_adjust_recalc": 0,
+          "aircon_ms": 21.193771000000016,
+          "aircon_on_off_recalc": 51,
+          "aircon_recalc_total": 51,
+          "aircon_recompute_reasons_mask": 1,
+          "aircon_supply_humidity_recalc": 0,
+          "coupled_iterations": 3388,
+          "humidity_factorizes": 3388,
+          "humidity_ms": 950.7192630000002,
+          "humidity_pattern_analyzes": 1,
+          "humidity_rhs_only_solves": 0,
+          "humidity_solution_reuse": 0,
+          "outer_iterations": 795,
+          "outer_iterations_ge3": 0,
+          "outer_iterations_ge3_share": 0.0,
+          "outer_iterations_max": 2,
+          "outer_iterations_mean": 1.0685483870967742,
+          "pressure_ceres_iterations": 33543,
+          "pressure_fallback_count": 0,
+          "pressure_ms": 2332.7880689999993,
+          "pressure_solve_calls": 3388,
+          "solve_timesteps": 744,
+          "thermal_full_builds": 3388,
+          "thermal_ms": 7926.275736000002,
+          "thermal_rhs_only_builds": 0
+        },
+        "accepted_pressure_count": 3388,
+        "accepted_mass_max_abs": 9.977789e-07,
+        "rejected_primary_count": 0,
+        "solved_node_counts": [
+          17
+        ],
+        "completed_hours": 744,
+        "fields": {
+          "vent_pressure": {
+            "finite": true,
+            "size_ok": true,
+            "min": -18.2420654296875,
+            "max": 18.2420654296875
+          },
+          "vent_flow_rate": {
+            "finite": true,
+            "size_ok": true,
+            "min": -0.002717601601034403,
+            "max": 1.3888888359069824
+          },
+          "thermal_temperature": {
+            "finite": true,
+            "size_ok": true,
+            "min": -1.0852205753326416,
+            "max": 62.420677185058594
+          },
+          "humidity_x": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 0.006874850019812584
+          },
+          "aircon_sensible_heat": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 7112.53369140625
+          },
+          "aircon_latent_heat": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 0.0
+          },
+          "aircon_power": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 2970.1591796875
+          }
+        },
+        "accuracy_ok": true
+      },
+      {
+        "ratio": 0.5,
+        "run_id": "gap003_candidate_744_0p5",
+        "input_sha256": "7ac597db621dbd7985832c434fc9a9f4c47e6110e10079e6dab822485429b96c",
+        "tolerance": {
+          "ventilation": 1e-06,
+          "thermal": 1e-06,
+          "convergence": 0.0001
+        },
+        "gap_count": 384,
+        "seconds": 21.874213602975942,
+        "status": "ok",
+        "error": null,
+        "metrics": {
+          "aircon_capacity_recalc": 0,
+          "aircon_capacity_recalc_share": 0.0,
+          "aircon_flow_adjust_recalc": 0,
+          "aircon_ms": 29.15084000000001,
+          "aircon_on_off_recalc": 51,
+          "aircon_recalc_total": 51,
+          "aircon_recompute_reasons_mask": 1,
+          "aircon_supply_humidity_recalc": 0,
+          "coupled_iterations": 3381,
+          "humidity_factorizes": 3381,
+          "humidity_ms": 1459.9409110000001,
+          "humidity_pattern_analyzes": 1,
+          "humidity_rhs_only_solves": 0,
+          "humidity_solution_reuse": 0,
+          "outer_iterations": 795,
+          "outer_iterations_ge3": 0,
+          "outer_iterations_ge3_share": 0.0,
+          "outer_iterations_max": 2,
+          "outer_iterations_mean": 1.0685483870967742,
+          "pressure_ceres_iterations": 30795,
+          "pressure_fallback_count": 0,
+          "pressure_ms": 3438.5055489999977,
+          "pressure_solve_calls": 3381,
+          "solve_timesteps": 744,
+          "thermal_full_builds": 3381,
+          "thermal_ms": 12638.672728,
+          "thermal_rhs_only_builds": 0
+        },
+        "accepted_pressure_count": 3381,
+        "accepted_mass_max_abs": 3.561638e-07,
+        "rejected_primary_count": 0,
+        "solved_node_counts": [
+          17
+        ],
+        "completed_hours": 744,
+        "fields": {
+          "vent_pressure": {
+            "finite": true,
+            "size_ok": true,
+            "min": -18.2420654296875,
+            "max": 18.2420654296875
+          },
+          "vent_flow_rate": {
+            "finite": true,
+            "size_ok": true,
+            "min": -0.002725539030507207,
+            "max": 1.3888888359069824
+          },
+          "thermal_temperature": {
+            "finite": true,
+            "size_ok": true,
+            "min": -1.088437795639038,
+            "max": 62.592552185058594
+          },
+          "humidity_x": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 0.006839892361313105
+          },
+          "aircon_sensible_heat": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 7141.3515625
+          },
+          "aircon_latent_heat": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 0.0
+          },
+          "aircon_power": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 2989.126220703125
+          }
+        },
+        "accuracy_ok": true
+      },
+      {
+        "ratio": 8.0,
+        "run_id": "gap003_candidate_744_8p0",
+        "input_sha256": "fc27e23ec0fdf037b0d9eaf0ce224376585893a4f33e889db149550e2ceab319",
+        "tolerance": {
+          "ventilation": 1e-06,
+          "thermal": 1e-06,
+          "convergence": 0.0001
+        },
+        "gap_count": 384,
+        "seconds": 19.151493374985876,
+        "status": "ok",
+        "error": null,
+        "metrics": {
+          "aircon_capacity_recalc": 0,
+          "aircon_capacity_recalc_share": 0.0,
+          "aircon_flow_adjust_recalc": 0,
+          "aircon_ms": 29.977498000000015,
+          "aircon_on_off_recalc": 44,
+          "aircon_recalc_total": 44,
+          "aircon_recompute_reasons_mask": 1,
+          "aircon_supply_humidity_recalc": 0,
+          "coupled_iterations": 3205,
+          "humidity_factorizes": 3205,
+          "humidity_ms": 1282.8400900000006,
+          "humidity_pattern_analyzes": 1,
+          "humidity_rhs_only_solves": 0,
+          "humidity_solution_reuse": 0,
+          "outer_iterations": 788,
+          "outer_iterations_ge3": 0,
+          "outer_iterations_ge3_share": 0.0,
+          "outer_iterations_max": 2,
+          "outer_iterations_mean": 1.0591397849462365,
+          "pressure_ceres_iterations": 18016,
+          "pressure_fallback_count": 0,
+          "pressure_ms": 2458.866796999999,
+          "pressure_solve_calls": 3205,
+          "solve_timesteps": 744,
+          "thermal_full_builds": 3205,
+          "thermal_ms": 11400.849597000015,
+          "thermal_rhs_only_builds": 0
+        },
+        "accepted_pressure_count": 3205,
+        "accepted_mass_max_abs": 2.605902e-08,
+        "rejected_primary_count": 0,
+        "solved_node_counts": [
+          17
+        ],
+        "completed_hours": 744,
+        "fields": {
+          "vent_pressure": {
+            "finite": true,
+            "size_ok": true,
+            "min": -18.2420654296875,
+            "max": 18.2420654296875
+          },
+          "vent_flow_rate": {
+            "finite": true,
+            "size_ok": true,
+            "min": -0.005789887625724077,
+            "max": 1.3888888359069824
+          },
+          "thermal_temperature": {
+            "finite": true,
+            "size_ok": true,
+            "min": -1.1416972875595093,
+            "max": 65.55957794189453
+          },
+          "humidity_x": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 0.006685769651085138
+          },
+          "aircon_sensible_heat": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 7638.82275390625
+          },
+          "aircon_latent_heat": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 0.0
+          },
+          "aircon_power": {
+            "finite": true,
+            "size_ok": true,
+            "min": 0.0,
+            "max": 3320.328369140625
+          }
+        },
+        "accuracy_ok": true
+      }
+    ]
+  },
+  "january_comparison": [
+    {
+      "ratio": 0.1,
+      "baseline": "current",
+      "max_abs_difference": {
+        "vent_pressure": 0.07499122619628906,
+        "vent_flow_rate": 5.537808647204656e-07,
+        "thermal_temperature": 0.000148773193359375,
+        "humidity_x": 3.0151568353176117e-07,
+        "aircon_sensible_heat": 0.02490234375,
+        "aircon_latent_heat": 0.0,
+        "aircon_power": 0.006866455078125
+      }
+    },
+    {
+      "ratio": 0.01,
+      "baseline": "current",
+      "max_abs_difference": {
+        "vent_pressure": 0.41780805587768555,
+        "vent_flow_rate": 6.488680242000555e-07,
+        "thermal_temperature": 0.0001316070556640625,
+        "humidity_x": 5.73229044675827e-07,
+        "aircon_sensible_heat": 0.0218505859375,
+        "aircon_latent_heat": 0.0,
+        "aircon_power": 0.0185546875
+      }
+    },
+    {
+      "ratio": 0.5,
+      "baseline": "pr41-normal",
+      "max_abs_difference": {
+        "vent_pressure": 0.0045146942138671875,
+        "vent_flow_rate": 1.1636620911303908e-07,
+        "thermal_temperature": 2.86102294921875e-05,
+        "humidity_x": 1.1129304766654968e-07,
+        "aircon_sensible_heat": 0.0050048828125,
+        "aircon_latent_heat": 0.0,
+        "aircon_power": 0.001129150390625
+      }
+    },
+    {
+      "ratio": 8.0,
+      "baseline": "pr41-normal",
+      "max_abs_difference": {
+        "vent_pressure": 6.67572021484375e-06,
+        "vent_flow_rate": 1.920625436468981e-09,
+        "thermal_temperature": 1.9073486328125e-06,
+        "humidity_x": 9.313225746154785e-10,
+        "aircon_sensible_heat": 6.103515625e-05,
+        "aircon_latent_heat": 0.0,
+        "aircon_power": 3.0517578125e-05
+      }
+    }
+  ],
+  "checks": {
+    "cpp_passed": 29,
+    "engine_python_passed": 553,
+    "perf_deselected": 1
+  },
+  "note": "This file records January runs. Annual runs are separately archived and reported in the pull request. Timing overlaps other verification tasks; not a speed benchmark."
+}

@@ -198,6 +198,7 @@ void runInnerCoupling(InnerCouplingContext& ctx,
     const size_t nV = static_cast<size_t>(boost::num_vertices(ctx.thermal.getGraph()));
     detail::ensureHeatSourceVectors(heatSources, nV);
     double prevRawTemperatureChange = 0.0;
+    bool refinePressure = false;
 
     while (true) {
         ++coupledIter;
@@ -233,7 +234,7 @@ void runInnerCoupling(InnerCouplingContext& ctx,
         {
             ScopedTimer timer(ctx.timings, "performCoupledCalculation", loopMeta);
             step = performCoupledStepCalculation(ctx.ventilation, ctx.thermal, ctx.constants,
-                                                 ctx.logs, ctx.timings, loopMeta, metrics);
+                                                 ctx.logs, ctx.timings, loopMeta, metrics, refinePressure);
         }
         if (!ctx.constants.pressureCalc) {
             step.flowRates = ctx.ventilation.collectFlowRateMap();
@@ -402,6 +403,9 @@ void runInnerCoupling(InnerCouplingContext& ctx,
             throw Error(ErrorCode::CouplingMaxIterations,
                         "Maximum iteration count reached: stopping after maximum iteration count");
         }
+        // Local to this inner loop: retain precision until convergence, then
+        // reset for the next timestep / air-conditioner control iteration.
+        refinePressure = refinePressure || eval.refinePressure;
     }
 }
 

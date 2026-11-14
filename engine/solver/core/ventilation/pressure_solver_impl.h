@@ -67,7 +67,8 @@ struct PressureSolver::Impl {
                            ceres::Solver::Summary& summary,
                            SolverSetup& setup,
                            double massBalanceMaxAbs,
-                           bool& physicalAccepted);
+                           bool& physicalAccepted,
+                           bool refineForCoupling = false);
     TrialResult runSolverTrial(const std::string& startLog,
                                const std::string& successLog,
                                ceres::Problem& problem,
@@ -198,7 +199,7 @@ struct PressureSolver::Impl {
 
     std::optional<double> calculateFlowForEdge(const PressureMap& pressureMap, Edge edge) const;
 
-    SolverResult solvePressures(const SimulationConstants& constants);
+    SolverResult solvePressures(const SimulationConstants& constants, bool refineForCoupling);
 
     // 同一 PressureSolver 寿命内（構造シグネチャ不変）で primary Problem を再利用
     bool ensurePrimaryProblemCached();

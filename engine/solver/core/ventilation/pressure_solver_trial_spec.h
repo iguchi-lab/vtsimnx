@@ -71,8 +71,8 @@ inline void configureRobustDoglegQr(ceres::Solver::Options& o, const SimulationC
 }
 
 // A small J^T r can coexist with an unacceptable flow residual on weak paths.
-// Retry only after the normal solve fails physical acceptance; common cases
-// retain the inexpensive default stopping conditions.
+// Used after failed physical acceptance or an explicit coupling refinement
+// request; common cases retain the inexpensive default stopping conditions.
 inline void configureGradientRefinement(ceres::Solver::Options& o, const SimulationConstants& c) {
     configureStandardLmQr(o, c);
     // Combined with normalized residuals, this also prevents projected-gradient

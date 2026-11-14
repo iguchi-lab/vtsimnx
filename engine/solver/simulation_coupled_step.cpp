@@ -18,7 +18,8 @@ CoupledStepData performCoupledStepCalculation(VentilationNetwork& ventNetwork,
                                               std::ostream& logs,
                                               TimingList& timings,
                                               const std::string& meta,
-                                              simulation::TimestepSolveMetrics* metrics) {
+                                              simulation::TimestepSolveMetrics* metrics,
+                                              bool refinePressure) {
     const bool logEnabled = (constants.logVerbosity > 0);
     CoupledStepData step;
 
@@ -36,7 +37,7 @@ CoupledStepData performCoupledStepCalculation(VentilationNetwork& ventNetwork,
         {
             ScopedTimer timer(timings, "pressure_solve_iteration", meta);
             const auto t0 = std::chrono::steady_clock::now();
-            pressureResult = ventNetwork.solvePressureDetailed(constants, logs);
+            pressureResult = ventNetwork.solvePressureDetailed(constants, logs, refinePressure);
             if (metrics) {
                 const auto t1 = std::chrono::steady_clock::now();
                 metrics->pressureMs +=
