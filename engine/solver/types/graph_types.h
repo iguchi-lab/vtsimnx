@@ -72,8 +72,11 @@ struct VertexProperties {
     double humidity_supply_request = std::numeric_limits<double>::quiet_NaN();
     bool humidity_demand = false;
     bool humidity_overcool_hold = false;
+    bool humidity_capacity_limited = false; // latent-only limit, separate from the room-temperature constraint
     double humidity_search_low = std::numeric_limits<double>::quiet_NaN();
     double humidity_search_high = std::numeric_limits<double>::quiet_NaN();
+    double humidity_search_error_low = std::numeric_limits<double>::quiet_NaN();
+    double humidity_search_error_high = std::numeric_limits<double>::quiet_NaN();
     double v = 0.0;
     // 熱処理負荷が 0 のときの循環風量 [m³/s]（DUCT_CENTRAL）。未指定=0。
     double vol_zero = 0.0;
@@ -104,8 +107,10 @@ struct VertexProperties {
         humidity_supply_request = std::numeric_limits<double>::quiet_NaN();
         humidity_demand = false;
         humidity_overcool_hold = false;
+        humidity_capacity_limited = false;
         humidity_search_low = std::numeric_limits<double>::quiet_NaN();
         humidity_search_high = std::numeric_limits<double>::quiet_NaN();
+        humidity_search_error_low = humidity_search_error_high = std::numeric_limits<double>::quiet_NaN();
         if (!p.empty() && static_cast<size_t>(timestep) < p.size()) {
             current_p = p[timestep];
         }

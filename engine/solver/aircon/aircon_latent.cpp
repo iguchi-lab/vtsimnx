@@ -418,13 +418,15 @@ bool applySupplyHumidityToAirconNode(ThermalNetwork& thermalNetwork,
                                      double humidityAbsTol,
                                      double relaxation) {
     auto& node = thermalNetwork.getNode(airconKey);
+    const bool limitChanged = node.humidity_capacity_limited != loads.humidityCapacityLimited;
+    node.humidity_capacity_limited = loads.humidityCapacityLimited;
     const double newRemoval = std::max(0.0, loads.condensationRateKgPerS);
     const bool wasPassthrough = airconHumidityPassthrough(node);
     node.aircon_humidity_transition = !wasPassthrough && newRemoval == 0.0 &&
         supplyHumidityNeedsUpdate(node, loads, humidityAbsTol);
     node.aircon_moisture_removal_kg_s = newRemoval;
     const bool passthrough = airconHumidityPassthrough(node);
-    if (passthrough) return !wasPassthrough;
+    if (passthrough) return !wasPassthrough || limitChanged;
     const bool changed = wasPassthrough || supplyHumidityNeedsUpdate(node, loads, humidityAbsTol);
     // Relax the boundary iteration, but test its unrelaxed defect above.
     // The hard saturation bound is applied immediately and triggers a re-solve.
@@ -433,7 +435,7 @@ bool applySupplyHumidityToAirconNode(ThermalNetwork& thermalNetwork,
             ? node.current_x + relaxation * (loads.supplyX - node.current_x) : loads.supplyX;
         node.current_x = std::clamp(mixed, 0.0, loads.supplyXUpperBound);
     }
-    return changed;
+    return changed || limitChanged;
 }
 
 bool applyPassthroughHumidityToAirconNode(ThermalNetwork& thermalNetwork,
@@ -441,7 +443,8 @@ bool applyPassthroughHumidityToAirconNode(ThermalNetwork& thermalNetwork,
                                           double humidityAbsTol) {
     auto& node = thermalNetwork.getNode(airconKey);
     (void)humidityAbsTol;
-    const bool changed = !airconHumidityPassthrough(node);
+    const bool changed = !airconHumidityPassthrough(node) || node.humidity_capacity_limited;
+    node.humidity_capacity_limited = false;
     node.aircon_moisture_removal_kg_s = 0.0;
     node.aircon_humidity_transition = false;
     return changed;

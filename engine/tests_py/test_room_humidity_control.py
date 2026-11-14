@@ -305,3 +305,128 @@ def test_sensible_saturation_on_one_unit_does_not_overdry_the_other(target):
         # Both outlets must already be saturated for the sensible load. Extra
         # dehumidification/reheat would needlessly push RH even lower.
         assert max(s("aircon_reheat", "AC2")[1:]) < .01
+
+
+@pytest.mark.parametrize("mode", ["humidity_priority", "temperature_humidity"])
+@pytest.mark.parametrize("capacity_kw", [.4, 1.0, 2.0])
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("moist", [False, True])
+def test_one_capacity_limited_humidistat_keeps_other_room_on_target(mode, capacity_kw, reverse, moist):
+    raw = connected_two_ac_case(mode)
+    raw["simulation"]["coupling"]["moist_enthalpy_enabled"] = moist
+    raw["aircon"][0]["ac_spec"]["Q"]["cooling"]["max"] = capacity_kw
+    raw["aircon"][1]["min_coil_temperature"] = 0.0  # isolate equipment capacity from the coil floor
+    if reverse:
+        raw["aircon"].reverse()
+    s = run(raw)
+    # The weak unit may miss RH, but its feasible boundary must be reflected
+    # in the other room, whose coil and 20 kW capacity both have headroom.
+    assert max(abs(s("aircon_room_rh", "AC2") - 58.0)) < .05
+    assert min(s("aircon_humidity_unmet", "AC")) > .1
+    q = s("aircon_sensible_heat", "AC") + s("aircon_latent_heat", "AC")
+    assert max(q) <= capacity_kw*1000*1.001 + 1.01
+    if mode == "humidity_priority":
+        # With unmet RH and no coil/overcooling boundary, use available capacity.
+        assert min(q) >= capacity_kw*1000*.999 - 1.01
+    for room, ac, other, generation in [("room","AC","room2",0.), ("room2","AC2","room",.00002)]:
+        x = s("humidity_x", room)
+        residual = 1.2*40*(x-np.r_[.018,x[:-1]])/3600 - (
+            1.2*.05*(.018-x)+1.2*.1*(s("humidity_x",ac)-x)+1.2*.03*(s("humidity_x",other)-x)+generation)
+        assert max(abs(residual)) < 2e-7
+
+
+@pytest.mark.parametrize("mode", ["humidity_priority", "temperature_humidity"])
+def test_capacity_limited_humidistat_can_stop_and_restart(mode):
+    raw = connected_two_ac_case(mode)
+    raw["aircon"][0]["ac_spec"]["Q"]["cooling"]["max"] = 1.0
+    raw["aircon"][1]["min_coil_temperature"] = 0.0
+    raw["aircon"][0]["mode"] = ["COOLING", "OFF", "COOLING", "OFF", "COOLING", "COOLING"]
+    s = run(raw)
+    assert max(abs(s("aircon_room_rh", "AC2")-58.0)) < .05
+    for field in ("aircon_sensible_heat", "aircon_latent_heat", "aircon_reheat"):
+        assert max(abs(s(field,"AC")[[1,3]])) == 0.0
+
+
+@pytest.mark.parametrize("mode", ["humidity_priority", "temperature_humidity"])
+def test_latent_capacity_constraint_releases_when_outdoor_air_dries(mode):
+    raw = connected_two_ac_case(mode)
+    raw["aircon"][0]["ac_spec"]["Q"]["cooling"]["max"] = 1.0
+    raw["aircon"][1]["min_coil_temperature"] = 0.0
+    raw["nodes"][0]["x"] = [.018,.006,.018,.006,.018,.006]
+    s = run(raw)
+    assert max(abs(s("aircon_room_rh", "AC2")[[0,2,4]]-58.0)) < .05
+    for ac in ("AC", "AC2"):
+        assert max(s("aircon_humidity_unmet",ac)[[1,3,5]]) == 0.0
+        assert max(s("aircon_latent_heat",ac)[[1,3,5]]) == 0.0
+        assert max(s("aircon_reheat",ac)[[1,3,5]]) == 0.0
+
+
+@pytest.mark.parametrize("mode", ["humidity_priority", "temperature_humidity"])
+def test_three_interacting_units_with_one_capacity_limit(mode):
+    raw = connected_two_ac_case(mode)
+    raw["aircon"][0]["ac_spec"]["Q"]["cooling"]["max"] = 1.0
+    raw["aircon"][1]["min_coil_temperature"] = 0.0
+    room = deepcopy(raw["nodes"][-1])
+    room["key"] = "room3"
+    raw["nodes"].append(room)
+    raw["thermal_branches"].append({"key":"outside->room3", "conductance":1000.0})
+    third = deepcopy(raw["aircon"][1])
+    third.update({"key":"AC3","in":"room3","out":"room3","set":"room3","pre_rh":56.0})
+    raw["aircon"].append(third)
+    raw["ventilation_branches"].extend([
+        {"key":"outside->room3", "vol":.05}, {"key":"room3->outside", "vol":.05},
+        {"key":"room2->room3", "vol":.02}, {"key":"room3->room2", "vol":.02}])
+    s = run(raw)
+    for ac, goal in [("AC2",58.0),("AC3",56.0)]:
+        assert max(abs(s("aircon_room_rh",ac)-goal)) < .05
+    assert min(s("aircon_humidity_unmet","AC")) > .1
+
+
+@pytest.mark.parametrize("method", ["rh95", "bf", "coil_aoaf"])
+@pytest.mark.parametrize("moist", [False, True])
+def test_capacity_coupling_with_physical_latent_methods(method, moist):
+    raw = connected_two_ac_case("humidity_priority")
+    raw["simulation"]["coupling"]["moist_enthalpy_enabled"] = moist
+    raw["aircon"][0]["ac_spec"]["Q"]["cooling"]["max"] = 1.0
+    raw["aircon"][1]["vol"] = .15  # retain coil-temperature headroom even for BF
+    for ac in raw["aircon"]:
+        ac["ac_spec"]["latent_method"] = method
+        ac["min_coil_temperature"] = 0.0
+    s = run(raw)
+    assert max(abs(s("aircon_room_rh", "AC2")-58.0)) < .05
+    q = s("aircon_sensible_heat", "AC") + s("aircon_latent_heat", "AC")
+    assert min(q) >= 997.99 and max(q) <= 1002.01
+
+
+@pytest.mark.parametrize("moist", [False, True])
+def test_both_humidistats_capacity_limited(moist):
+    raw = connected_two_ac_case("humidity_priority")
+    raw["simulation"]["coupling"]["moist_enthalpy_enabled"] = moist
+    for ac in raw["aircon"]:
+        ac["ac_spec"]["Q"]["cooling"]["max"] = 1.0
+    s = run(raw)
+    for ac in ("AC", "AC2"):
+        assert min(s("aircon_humidity_unmet", ac)) > .1
+        q = s("aircon_sensible_heat", ac) + s("aircon_latent_heat", ac)
+        assert min(q) >= 997.99 and max(q) <= 1002.01
+
+
+@pytest.mark.parametrize("capacity_kw", [.4, 1.0, 2.0])
+@pytest.mark.parametrize("moist", [False, True])
+def test_equipment_capacity_and_other_units_coil_floor(capacity_kw, moist):
+    raw = connected_two_ac_case("humidity_priority")
+    raw["simulation"]["coupling"]["moist_enthalpy_enabled"] = moist
+    raw["aircon"][0]["ac_spec"]["Q"]["cooling"]["max"] = capacity_kw
+    s = run(raw)
+    # Preserve the original 5 C coil limit: early hours can be infeasible,
+    # but a constrained unit must not prevent the other root from converging.
+    supply = s("thermal_temperature", "AC2")
+    assert min(supply) >= 4.999
+    # The coil-derived watt limit reserves its acceptance band inside the
+    # temperature floor; that band can leave about 0.03 K of apparent room.
+    free = supply > 5.05
+    assert free.any()
+    assert max(abs(s("aircon_room_rh", "AC2")[free]-58.0)) < .05
+    q = s("aircon_sensible_heat", "AC") + s("aircon_latent_heat", "AC")
+    assert min(q) >= capacity_kw*1000*.999-1.01
+    assert max(q) <= capacity_kw*1000*1.001+1.01

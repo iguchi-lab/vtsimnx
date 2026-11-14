@@ -1,0 +1,341 @@
+{
+  "baseline_commit": "94517c896226118a50ad41598af1f9f46c3ca3dd",
+  "engine_tests_passed": 520,
+  "cpp_tests_passed": 28,
+  "humidity_regressions_passed": 90,
+  "synthetic_baseline": {
+    "solver_sha256": "63b22db08a858442540cc9fa7ed2ef1501c4e0c4964d9f7fd11811d81fbe17ff",
+    "hours": 8760,
+    "weather": "synthetic cooling year",
+    "cases": [
+      {
+        "mode": "humidity_priority",
+        "input_sha256": "3839811766da207b1723a30a65fa36076d57030b7f0e096efc8a84f120f34b3d",
+        "seconds": 9.72121424000943,
+        "status": "ok",
+        "metrics": {
+          "aircon_capacity_recalc": 77389,
+          "aircon_capacity_recalc_share": 0.2782435804324534,
+          "aircon_flow_adjust_recalc": 0,
+          "aircon_ms": 2800.74417299999,
+          "aircon_on_off_recalc": 0,
+          "aircon_recalc_total": 278134,
+          "aircon_recompute_reasons_mask": 10,
+          "aircon_supply_humidity_recalc": 200745,
+          "coupled_iterations": 586395,
+          "humidity_factorizes": 8241,
+          "humidity_ms": 3087.3051219999916,
+          "humidity_pattern_analyzes": 8241,
+          "humidity_rhs_only_solves": 1960449,
+          "humidity_solution_reuse": 376890,
+          "outer_iterations": 286894,
+          "outer_iterations_ge3": 5502,
+          "outer_iterations_ge3_share": 0.6280821917808219,
+          "outer_iterations_max": 156,
+          "outer_iterations_mean": 32.75045662100457,
+          "pressure_ceres_iterations": 0,
+          "pressure_fallback_count": 0,
+          "pressure_ms": 0.0,
+          "pressure_solve_calls": 0,
+          "solve_timesteps": 8760,
+          "thermal_full_builds": 1,
+          "thermal_ms": 1183.6327889999975,
+          "thermal_rhs_only_builds": 586394
+        },
+        "error": null,
+        "units": [
+          {
+            "key": "AC",
+            "free_hours": 2071,
+            "max_free_rh_error_pp": 0.00159454345703125,
+            "max_rh_unmet_pp": 0.0006256103515625,
+            "min_outlet_temperature": 5.000024318695068
+          },
+          {
+            "key": "AC2",
+            "free_hours": 2490,
+            "max_free_rh_error_pp": 0.001293182373046875,
+            "max_rh_unmet_pp": 0.001293182373046875,
+            "min_outlet_temperature": 5.000024318695068
+          }
+        ],
+        "accuracy_ok": true
+      },
+      {
+        "mode": "temperature_humidity",
+        "input_sha256": "7fcb537eff65a246430883a75cb2bf9e0263b3fee1f38104c45ead168c23a28f",
+        "seconds": 5.259226034992025,
+        "status": "ok",
+        "metrics": {
+          "aircon_capacity_recalc": 30280,
+          "aircon_capacity_recalc_share": 0.36940794690675743,
+          "aircon_flow_adjust_recalc": 0,
+          "aircon_ms": 1982.0427810000003,
+          "aircon_on_off_recalc": 0,
+          "aircon_recalc_total": 81969,
+          "aircon_recompute_reasons_mask": 10,
+          "aircon_supply_humidity_recalc": 51689,
+          "coupled_iterations": 190430,
+          "humidity_factorizes": 3,
+          "humidity_ms": 1009.8441010000005,
+          "humidity_pattern_analyzes": 3,
+          "humidity_rhs_only_solves": 631736,
+          "humidity_solution_reuse": 129981,
+          "outer_iterations": 90729,
+          "outer_iterations_ge3": 7163,
+          "outer_iterations_ge3_share": 0.8176940639269407,
+          "outer_iterations_max": 37,
+          "outer_iterations_mean": 10.357191780821918,
+          "pressure_ceres_iterations": 0,
+          "pressure_fallback_count": 0,
+          "pressure_ms": 0.0,
+          "pressure_solve_calls": 0,
+          "solve_timesteps": 8760,
+          "thermal_full_builds": 1,
+          "thermal_ms": 407.12630599999835,
+          "thermal_rhs_only_builds": 190429
+        },
+        "error": null,
+        "units": [
+          {
+            "key": "AC",
+            "free_hours": 2090,
+            "max_free_rh_error_pp": 0.0,
+            "max_rh_unmet_pp": 0.0,
+            "min_outlet_temperature": 5.000024318695068
+          },
+          {
+            "key": "AC2",
+            "free_hours": 2512,
+            "max_free_rh_error_pp": 0.0,
+            "max_rh_unmet_pp": 1.9073486328125e-05,
+            "min_outlet_temperature": 5.000024318695068
+          }
+        ],
+        "accuracy_ok": true
+      }
+    ]
+  },
+  "synthetic_new": {
+    "solver_sha256": "2dab27aefbb80a7bd45d81d35fd882b7f21a808fae7066323b0fc471fd5771cf",
+    "hours": 8760,
+    "weather": "synthetic cooling year",
+    "cases": [
+      {
+        "mode": "humidity_priority",
+        "input_sha256": "3839811766da207b1723a30a65fa36076d57030b7f0e096efc8a84f120f34b3d",
+        "seconds": 7.407244957998046,
+        "status": "ok",
+        "metrics": {
+          "aircon_capacity_recalc": 39546,
+          "aircon_capacity_recalc_share": 0.19396989361232508,
+          "aircon_flow_adjust_recalc": 0,
+          "aircon_ms": 1956.0815460000085,
+          "aircon_on_off_recalc": 0,
+          "aircon_recalc_total": 203877,
+          "aircon_recompute_reasons_mask": 10,
+          "aircon_supply_humidity_recalc": 164331,
+          "coupled_iterations": 440945,
+          "humidity_factorizes": 8108,
+          "humidity_ms": 2382.678067999995,
+          "humidity_pattern_analyzes": 8108,
+          "humidity_rhs_only_solves": 1487818,
+          "humidity_solution_reuse": 267854,
+          "outer_iterations": 212637,
+          "outer_iterations_ge3": 5502,
+          "outer_iterations_ge3_share": 0.6280821917808219,
+          "outer_iterations_max": 133,
+          "outer_iterations_mean": 24.273630136986302,
+          "pressure_ceres_iterations": 0,
+          "pressure_fallback_count": 0,
+          "pressure_ms": 0.0,
+          "pressure_solve_calls": 0,
+          "solve_timesteps": 8760,
+          "thermal_full_builds": 1,
+          "thermal_ms": 894.0780460000009,
+          "thermal_rhs_only_builds": 440944
+        },
+        "error": null,
+        "units": [
+          {
+            "key": "AC",
+            "free_hours": 2071,
+            "max_free_rh_error_pp": 0.001399993896484375,
+            "max_rh_unmet_pp": 0.001399993896484375,
+            "min_outlet_temperature": 5.000284194946289
+          },
+          {
+            "key": "AC2",
+            "free_hours": 2490,
+            "max_free_rh_error_pp": 0.001575469970703125,
+            "max_rh_unmet_pp": 0.001575469970703125,
+            "min_outlet_temperature": 5.000387191772461
+          }
+        ],
+        "accuracy_ok": true
+      },
+      {
+        "mode": "temperature_humidity",
+        "input_sha256": "7fcb537eff65a246430883a75cb2bf9e0263b3fee1f38104c45ead168c23a28f",
+        "seconds": 5.280041549005546,
+        "status": "ok",
+        "metrics": {
+          "aircon_capacity_recalc": 30268,
+          "aircon_capacity_recalc_share": 0.36942379749307364,
+          "aircon_flow_adjust_recalc": 0,
+          "aircon_ms": 1989.7686090000016,
+          "aircon_on_off_recalc": 0,
+          "aircon_recalc_total": 81933,
+          "aircon_recompute_reasons_mask": 10,
+          "aircon_supply_humidity_recalc": 51665,
+          "coupled_iterations": 190358,
+          "humidity_factorizes": 3,
+          "humidity_ms": 1025.5207539999997,
+          "humidity_pattern_analyzes": 3,
+          "humidity_rhs_only_solves": 631496,
+          "humidity_solution_reuse": 129933,
+          "outer_iterations": 90693,
+          "outer_iterations_ge3": 7163,
+          "outer_iterations_ge3_share": 0.8176940639269407,
+          "outer_iterations_max": 34,
+          "outer_iterations_mean": 10.353082191780821,
+          "pressure_ceres_iterations": 0,
+          "pressure_fallback_count": 0,
+          "pressure_ms": 0.0,
+          "pressure_solve_calls": 0,
+          "solve_timesteps": 8760,
+          "thermal_full_builds": 1,
+          "thermal_ms": 405.7661579999978,
+          "thermal_rhs_only_builds": 190357
+        },
+        "error": null,
+        "units": [
+          {
+            "key": "AC",
+            "free_hours": 2090,
+            "max_free_rh_error_pp": 0.0,
+            "max_rh_unmet_pp": 0.0,
+            "min_outlet_temperature": 5.000024318695068
+          },
+          {
+            "key": "AC2",
+            "free_hours": 2512,
+            "max_free_rh_error_pp": 0.0,
+            "max_rh_unmet_pp": 1.9073486328125e-05,
+            "min_outlet_temperature": 5.000024318695068
+          }
+        ],
+        "accuracy_ok": true
+      }
+    ]
+  },
+  "original_replay": [
+    {
+      "mode": "temperature_humidity",
+      "status": "ok",
+      "error": null,
+      "input_sha256": "582b92ce38cd045be2632f24416241635d662be8dbcd58a44c1cf37569f10565",
+      "rh": {
+        "AC": [
+          71.94216918945312,
+          70.76731872558594,
+          70.66058349609375,
+          70.65087127685547,
+          70.64998626708984,
+          70.64990997314453
+        ],
+        "AC2": [
+          57.99998474121094,
+          57.999977111816406,
+          57.9999885559082,
+          57.99998474121094,
+          57.99998474121094,
+          57.99998474121094
+        ]
+      },
+      "metrics": {
+        "aircon_capacity_recalc": 0,
+        "aircon_capacity_recalc_share": 0.0,
+        "aircon_flow_adjust_recalc": 0,
+        "aircon_ms": 20.758289,
+        "aircon_on_off_recalc": 0,
+        "aircon_recalc_total": 67,
+        "aircon_recompute_reasons_mask": 8,
+        "aircon_supply_humidity_recalc": 67,
+        "coupled_iterations": 141,
+        "humidity_factorizes": 3,
+        "humidity_ms": 1.5753789999999999,
+        "humidity_pattern_analyzes": 3,
+        "humidity_rhs_only_solves": 493,
+        "humidity_solution_reuse": 68,
+        "outer_iterations": 73,
+        "outer_iterations_ge3": 6,
+        "outer_iterations_ge3_share": 1.0,
+        "outer_iterations_max": 15,
+        "outer_iterations_mean": 12.166666666666666,
+        "pressure_ceres_iterations": 0,
+        "pressure_fallback_count": 0,
+        "pressure_ms": 0.0,
+        "pressure_solve_calls": 0,
+        "solve_timesteps": 6,
+        "thermal_full_builds": 1,
+        "thermal_ms": 0.569304,
+        "thermal_rhs_only_builds": 140
+      }
+    },
+    {
+      "mode": "humidity_priority",
+      "status": "ok",
+      "error": null,
+      "input_sha256": "b3bd73d9de9f6844509e19dc6e7e9f45b62996485762d367d691550190e6d1a6",
+      "rh": {
+        "AC": [
+          72.93425750732422,
+          71.398681640625,
+          71.26470947265625,
+          71.2525405883789,
+          71.25143432617188,
+          71.25133514404297
+        ],
+        "AC2": [
+          59.31889724731445,
+          58.0,
+          58.0,
+          58.0,
+          58.0,
+          58.0
+        ]
+      },
+      "metrics": {
+        "aircon_capacity_recalc": 346,
+        "aircon_capacity_recalc_share": 0.3473895582329317,
+        "aircon_flow_adjust_recalc": 0,
+        "aircon_ms": 21.701621000000003,
+        "aircon_on_off_recalc": 0,
+        "aircon_recalc_total": 996,
+        "aircon_recompute_reasons_mask": 10,
+        "aircon_supply_humidity_recalc": 650,
+        "coupled_iterations": 2005,
+        "humidity_factorizes": 29,
+        "humidity_ms": 20.922056999999995,
+        "humidity_pattern_analyzes": 29,
+        "humidity_rhs_only_solves": 6642,
+        "humidity_solution_reuse": 1349,
+        "outer_iterations": 1002,
+        "outer_iterations_ge3": 6,
+        "outer_iterations_ge3_share": 1.0,
+        "outer_iterations_max": 167,
+        "outer_iterations_mean": 167.0,
+        "pressure_ceres_iterations": 0,
+        "pressure_fallback_count": 0,
+        "pressure_ms": 0.0,
+        "pressure_solve_calls": 0,
+        "solve_timesteps": 6,
+        "thermal_full_builds": 1,
+        "thermal_ms": 6.614648000000003,
+        "thermal_rhs_only_builds": 2004
+      }
+    }
+  ],
+  "house_annual24_status": "running"
+}
