@@ -31,7 +31,8 @@ acmodel::InputData buildAcmodelInput(const AirconValidationData& validData,
                                      double airFlowRate);
 
 // Cooling: sensible temperature first, then one saturation constraint for all methods.
-// pre_rh takes precedence and uses current_requested_pre_temp of the controlled room.
+// Temperature priority uses latent_method; pre_rh never overrides the cooling process.
+// Active room humidity control requires humidity_priority or temperature_humidity.
 // No humidification: xSupply <= xIn. Latent heat and condensate use final xSupply.
 LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
                                           OperationMode operationMode,

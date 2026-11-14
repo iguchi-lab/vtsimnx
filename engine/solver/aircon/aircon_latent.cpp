@@ -232,17 +232,10 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
         return result;
     }
 
-    // Ideal dehumidification uses the scheduled temperature of the controlled
-    // room, not the return-air temperature or a capacity-relaxed setpoint.
-    // It never humidifies dry return air; the physical saturation bound wins.
-    const double preRh = nodeProps.current_pre_rh;
-    if (std::isfinite(preRh) && preRh > 0.0 && preRh <= 100.0) {
-        const double referenceT = std::isfinite(nodeProps.current_requested_pre_temp)
-            ? nodeProps.current_requested_pre_temp : validData.setTemp;
-        result.regime = "ideal_pre_rh";
-        result.supplyX = std::min(xIn, std::max(0.0, archenv::absolute_humidity(referenceT, preRh)));
-        return finishCooling();
-    }
+    // Temperature priority has no independent dehumidifier or reheat coil.
+    // pre_rh is an unmet-humidity threshold only: water removal must follow
+    // the temperature-driven cooling process and the selected latent method.
+    // Active room humidity requests are handled by the two modes above.
 
     if (!(tIn > tOut)) {
         result.regime = "no_temperature_drop";

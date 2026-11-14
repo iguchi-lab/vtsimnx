@@ -1,4 +1,5 @@
-"""Outlet saturation and controlled-room ideal RH, including serialized results."""
+"""Outlet saturation and temperature-driven dehumidification in serialized results."""
+from copy import deepcopy
 import os
 from pathlib import Path
 
@@ -10,7 +11,6 @@ import app.solver_runner as sr
 from tests_py.physics.helpers import read_series
 from tests_py.physics.test_coil_latent_continuity import _raw_coil_case
 from vtsimnx.archenv.archenv import (
-    humidity_ratio_from_rh,
     saturation_vapor_pressure_pa,
     vapor_pressure_from_humidity_ratio_pa,
 )
@@ -81,23 +81,35 @@ def test_actual_supply_stays_unsaturated_with_loose_tolerance(method, coupled, m
     assert s("aircon_latent_heat", "AC")[1] == 0
 
 
-def test_ideal_humidity_uses_requested_room_temperature_not_return_air():
-    raw = _raw_coil_case(0.022, duct=True)
-    raw["thermal_branches"][0]["conductance"] = 50.0
-    raw["nodes"].append({"key": "return", "t": 31.0, "x": 0.022})
-    raw["ventilation_branches"].append({"key": "room->return", "vol": 0.3})
+@pytest.mark.parametrize("method", ["none", "rh95", "bf", "coil_aoaf"])
+@pytest.mark.parametrize("moist", [False, True])
+def test_temperature_priority_rh_is_only_an_evaluation_threshold(method, moist):
+    raw = _raw_coil_case([0.018] * 4, duct=True, moist=moist)
+    raw["nodes"][0]["t"] = [26.1, 26.0, 32.0, 26.1]
+    raw["nodes"][1].update(t=26.0, x=0.018)
     ac = raw["aircon"][0]
-    ac.update({"in": "return", "pre_temp": 27.5, "pre_rh": 60.0})
-    # Match the design airflow to the specified circulation while retaining
-    # all equipment data required by the power model.
-    ac["ac_spec"]["V_inner"]["cooling"]["dsgn"] = 0.3
-    ac["ac_spec"]["latent_method"] = "rh95"
-    s = run(raw)
-    # At this mild sensible load the outlet remains above the target dew point.
-    expected = humidity_ratio_from_rh(27.5, 60.0)
-    assert s("humidity_x", "AC")[0] == pytest.approx(expected, abs=1e-7)
-    # Capacity-limited actual room temperature must not redefine the ideal goal.
-    assert s("thermal_temperature", "room")[0] > 27.5
+    ac.update(model="RAC", pre_temp=26.0, mode=["COOLING", "OFF", "COOLING", "COOLING"])
+    ac["ac_spec"]["Q"]["cooling"]["max"] = 20.0
+    ac["ac_spec"]["latent_method"] = method
+    baseline = run(raw)
+    for rh in (40.0, 60.0, 80.0):
+        requested = deepcopy(raw)
+        requested["aircon"][0].update(pre_rh=rh, control_mode="temperature_priority")
+        s = run(requested)
+        for artifact in ("thermal_temperature", "humidity_x", "aircon_sensible_heat",
+                         "aircon_latent_heat", "aircon_power", "aircon_reheat"):
+            np.testing.assert_allclose(s(artifact, "AC"), baseline(artifact, "AC"), rtol=0, atol=1e-7)
+        assert s("aircon_sensible_heat", "AC")[0] > 0
+        # Small nighttime cooling stays above the dew point: no independent drying.
+        assert s("aircon_latent_heat", "AC")[0] == pytest.approx(0.0, abs=1e-9)
+        assert s("humidity_x", "AC")[0] == pytest.approx(s("humidity_x", "room")[0], abs=1e-7)
+        assert s("aircon_latent_heat", "AC")[2] > 0
+        assert s("aircon_power", "AC")[2] > 0
+        assert max(s("aircon_reheat", "AC")) == 0
+        assert s("aircon_power", "AC")[1] == 0
+        assert s("aircon_latent_heat", "AC")[1] == 0
+        assert s("aircon_humidity_unmet", "AC")[0] == pytest.approx(
+            max(0.0, s("aircon_room_rh", "AC")[0] - rh), abs=1e-5)
 
 
 @pytest.mark.parametrize("method", ["coil_aoaf", "ideal_rh60"])

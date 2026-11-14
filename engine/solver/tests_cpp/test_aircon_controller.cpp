@@ -456,39 +456,41 @@ int main() {
         expectNear(b.current_x, acceptedX, 0.0, "no re-solve means no boundary mutation");
     }
 
-    // Ideal RH refers to the requested controlled-room temperature, even when
-    // return air and the capacity-relaxed temperature are different.
-    {
-        AirconValidationData vd{};
-        vd.indoorTemp = 30.0;
-        vd.indoorX = 0.020;
-        vd.airconTemp = 20.0;
-        vd.setTemp = 28.0;
-        VertexProperties ac{};
-        ac.current_pre_rh = 60.0;
-        ac.current_requested_pre_temp = 24.0;
-        ac.ac_spec = {{"latent_method", "rh95"}};
-        const double target = archenv::absolute_humidity(24.0, 60.0);
-        const auto over = aircon::latent::estimateLatentProcess(
-            vd, OperationMode::Cooling, 1000.0, 0.2, ac);
-        expectNear(over.supplyX, target, 1e-12, "ideal uses requested room temperature");
-        expectNear(over.sensibleHeatCapacity, 1000.0, 0.0, "latent does not change sensible load");
-
-        // Below the target, do not fall back to another dehumidification model.
-        ac.current_requested_pre_temp = 30.0;
-        ac.current_pre_rh = 80.0;
-        vd.indoorX = archenv::absolute_humidity(20.0, 97.0);
-        const auto dry = aircon::latent::estimateLatentProcess(
-            vd, OperationMode::Cooling, 1000.0, 0.2, ac);
-        expectNear(dry.supplyX, vd.indoorX, 1e-12, "ideal below target does not use rh95");
-        expectNear(dry.condensationRateKgPerS, 0.0, 0.0, "ideal never humidifies");
-
-        vd.airconTemp = 12.0;
-        const auto cold = aircon::latent::estimateLatentProcess(
-            vd, OperationMode::Cooling, 1000.0, 0.2, ac);
-        expectTrue(cold.saturationLimited && cold.supplyRhPercent <= 100.0,
-                   "saturation overrides an unreachable ideal target");
-        expectNear(cold.supplyX, cold.supplyXUpperBound, 1e-12, "minimum extra condensation");
+    // A temperature-only cooler cannot independently remove moisture to meet
+    // pre_rh. Check dry/wet operation, zero cooling, and every latent method.
+    for (const std::string method : {"rh95", "bf", "coil_aoaf", "none"}) {
+        for (bool moist : {false, true}) {
+            AirconValidationData vd{};
+            vd.indoorTemp = 30.0;
+            vd.indoorX = 0.018;
+            vd.setTemp = 28.0;
+            VertexProperties ac{};
+            ac.current_requested_pre_temp = 24.0;
+            ac.ac_spec = {{"latent_method", method}};
+            for (double outlet : {30.0, 29.999, 29.0, 12.0}) {
+                vd.airconTemp = outlet;
+                const double sensible = 1.2 * 0.2 * 1005.0 * (vd.indoorTemp - outlet);
+                ac.current_pre_rh = std::numeric_limits<double>::quiet_NaN();
+                const auto reference = aircon::latent::estimateLatentProcess(
+                    vd, OperationMode::Cooling, sensible, 0.2, ac, moist);
+                for (double rh : {40.0, 60.0, 80.0}) {
+                    ac.current_pre_rh = rh;
+                    const auto loads = aircon::latent::estimateLatentProcess(
+                        vd, OperationMode::Cooling, sensible, 0.2, ac, moist);
+                    expectNear(loads.supplyX, reference.supplyX, 0.0, "RH does not override " + method);
+                    expectNear(loads.latentHeatCapacity, reference.latentHeatCapacity, 0.0,
+                               "RH does not add independent latent load");
+                    expectNear(loads.reheatCapacity, 0.0, 0.0, "temperature priority has no reheat");
+                    if (outlet >= 29.0) {
+                        expectNear(loads.supplyX, vd.indoorX, 0.0, "dry cooling keeps inlet moisture");
+                        expectNear(loads.latentHeatCapacity, 0.0, 1e-8, "dry coil has no latent load");
+                    } else {
+                        expectTrue(loads.latentHeatCapacity > 0.0 && loads.supplyRhPercent <= 100.0,
+                                   "wet cooling removes moisture without supersaturation");
+                    }
+                }
+            }
+        }
     }
 
     // Every model must honor the sensible outlet temperature and derive water
@@ -502,7 +504,7 @@ int main() {
             VertexProperties ac{};
             ac.current_requested_pre_temp = 27.0;
             if (method == "ideal") ac.current_pre_rh = 60.0;
-            ac.ac_spec = {{"latent_method", method}};
+            ac.ac_spec = {{"latent_method", method == "ideal" ? "none" : method}};
             const auto loads = aircon::latent::estimateLatentProcess(
                 vd, OperationMode::Cooling, 4300.0, 0.2, ac, moist);
             const double mass = archenv::DENSITY_DRY_AIR * 0.2 * (vd.indoorX - loads.supplyX);

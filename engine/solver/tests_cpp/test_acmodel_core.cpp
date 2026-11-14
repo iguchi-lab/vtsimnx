@@ -1116,6 +1116,14 @@ int main() {
             expectTrue(cOutA.valid, "DUCT_CENTRAL cooling alignment: case A valid");
             expectNear(cOutA.power, 5.055572490384798, 2.0e-3,
                        "DUCT_CENTRAL cooling alignment: total power");
+            // Latent processing must reach the actual power model, not just
+            // the reported total/COP. Hold sensible load and airflow fixed.
+            InputData dryIn = cIn;
+            dryIn.Q_L = 0.0;
+            dryIn.Q = dryIn.Q_S;
+            const auto dryOut = model->estimateCOP("cooling", dryIn);
+            expectTrue(dryOut.valid && dryOut.power > 0.0 && cOutA.power > dryOut.power,
+                       "DUCT_CENTRAL latent load increases electrical power");
             {
                 double fanKw = 0.0;
                 double compKw = 0.0;

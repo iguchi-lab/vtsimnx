@@ -106,7 +106,7 @@ class NodeType(TypedDict):
     max_overcooling: float
     min_coil_temperature: float
     reheat_cop: float
-    pre_rh: Optional[float]  # 理想除湿の設定相対湿度 [%]
+    pre_rh: Optional[float]  # 室RHの評価・制御用設定値 [%]
     model: Optional[str]
     mode: Optional[str]
     ac_spec: Optional[dict]
