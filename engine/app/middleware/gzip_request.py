@@ -1,4 +1,4 @@
-"""gzip リクエスト展開ミドルウェア。"""
+"""圧縮・非圧縮リクエストのサイズ制限と gzip 展開。"""
 from __future__ import annotations
 
 import os
@@ -46,7 +46,7 @@ class _GzipBody:
 
 class GZipRequestMiddleware:
     """
-    Content-Encoding: gzip のとき、リクエストボディを展開して下流へ渡す。
+    JSONを下流が読む前にサイズを検査し、gzip のときは展開する。
     """
 
     def __init__(self, app):
@@ -59,13 +59,32 @@ class GZipRequestMiddleware:
         headers = dict(scope.get("headers") or [])
         enc_raw = headers.get(b"content-encoding", b"").decode("latin1").lower()
         enc_tokens = [t.strip() for t in enc_raw.split(",") if t.strip()]
-        if "gzip" not in enc_tokens and "x-gzip" not in enc_tokens:
-            return await self.app(scope, receive, send)
+        is_gzip = "gzip" in enc_tokens or "x-gzip" in enc_tokens
 
         max_compressed = int(os.getenv("VTSIMNX_MAX_GZIP_BODY_BYTES", str(64 * 1024 * 1024)))
         max_decompressed = int(os.getenv("VTSIMNX_MAX_JSON_BODY_BYTES", str(256 * 1024 * 1024)))
-        compressed_size = 0
-        decoder = _GzipBody(max_decompressed)
+        wire_limit = max_compressed if is_gzip else max_decompressed
+        wire_size = 0
+        decoder = _GzipBody(max_decompressed) if is_gzip else None
+        body = bytearray()
+
+        async def reject_wire_size():
+            resp = error_response(
+                413,
+                code="gzip_too_large" if is_gzip else "body_too_large",
+                message="gzip body too large" if is_gzip else "request body too large",
+                hint=("VTSIMNX_MAX_GZIP_BODY_BYTES" if is_gzip else "VTSIMNX_MAX_JSON_BODY_BYTES")
+                     + " を見直すか、入力を分割してください。",
+            )
+            return await resp(scope, receive, send)
+
+        try:
+            declared_size = int(headers.get(b"content-length", b"0"))
+        except ValueError:
+            declared_size = 0
+        if wire_limit > 0 and declared_size > wire_limit:
+            return await reject_wire_size()
+
         more_body = True
         try:
             while more_body:
@@ -75,18 +94,15 @@ class GZipRequestMiddleware:
                 if msg["type"] != "http.request":
                     continue
                 chunk = msg.get("body", b"")
-                compressed_size += len(chunk)
-                if max_compressed > 0 and compressed_size > max_compressed:
-                    resp = error_response(
-                        413,
-                        code="gzip_too_large",
-                        message="gzip body too large",
-                        hint="VTSIMNX_MAX_GZIP_BODY_BYTES を見直すか、入力を分割してください。",
-                    )
-                    return await resp(scope, receive, send)
-                decoder.feed(chunk)
+                wire_size += len(chunk)
+                if wire_limit > 0 and wire_size > wire_limit:
+                    return await reject_wire_size()
+                if decoder is not None:
+                    decoder.feed(chunk)
+                else:
+                    body.extend(chunk)
                 more_body = msg.get("more_body", False)
-            decompressed = decoder.finish()
+            decompressed = decoder.finish() if decoder is not None else bytes(body)
         except _BodyTooLarge:
             resp = error_response(
                 413, code="body_too_large", message="decompressed body too large",
@@ -113,7 +129,7 @@ class GZipRequestMiddleware:
 
         new_headers = []
         for k, v in (scope.get("headers") or []):
-            if k in (b"content-encoding", b"content-length"):
+            if k == b"content-length" or (is_gzip and k == b"content-encoding"):
                 continue
             new_headers.append((k, v))
         new_headers.append((b"content-length", str(len(decompressed)).encode("ascii")))

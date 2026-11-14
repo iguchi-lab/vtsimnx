@@ -13,6 +13,7 @@ from vtsimnx.artifacts import ArtifactClient, decode_f32_series
 from vtsimnx.artifacts._schema import extract_manifest_error, extract_result_files
 from vtsimnx.artifacts.errors import ArtifactError, ArtifactNotFound
 from vtsimnx.run_calc._http import RunCalcAPIError, _post_run, _submit_and_wait
+from vtsimnx.run_calc._http import wait_for_run as _wait_for_response
 from vtsimnx.run_calc._index import (
     _normalize_simulation_index_inplace,
     _pick_index_spec,
@@ -21,7 +22,7 @@ from vtsimnx.run_calc._io import _write_json
 from vtsimnx.run_calc._response import _output_block
 from vtsimnx.utils.jsonable import to_jsonable
 
-__all__ = ["CalcRunResult", "RunCalcAPIError", "run_calc"]
+__all__ = ["CalcRunResult", "RunCalcAPIError", "run_calc", "wait_for_run"]
 
 
 def _resolve_as_result(
@@ -440,6 +441,47 @@ def run_calc(
     if not return_result:
         return resp_json
 
+    return _make_result(resp_json, base_url=base_url, config=config_json, api_key=api_key,
+                        raise_on_error=raise_on_error, client_profile=client_profile)
+
+
+def wait_for_run(
+    base_url: str,
+    run_id: str,
+    *,
+    timeout: float = 3600.0,
+    api_key: Optional[str] = None,
+    poll_interval: float = 1.0,
+    as_result: bool = False,
+    raise_on_error: bool = False,
+    output_path: Optional[Union[str, Path]] = None,
+) -> Union[Dict[str, Any], CalcRunResult]:
+    """既存ジョブの結果取得を再開する。新しい計算は投入しない。
+
+    ``as_result=True`` なら ``run_calc`` と同じ遅延ロード結果を返す。
+    既存コードとの互換性のため、既定は生のAPIレスポンスdictを維持する。
+    時系列の日時は保存済み結果のindexまたはschemaから復元する。
+    ``raise_on_error`` は系列・ログ取得時に適用する。
+    """
+    if api_key is None:
+        api_key = os.getenv("VTSIMNX_API_KEY", "").strip() or None
+    profile: Dict[str, Any] = {}
+    started = time.perf_counter()
+    response = _wait_for_response(base_url, run_id, timeout=timeout, api_key=api_key,
+                                  poll_interval=poll_interval, profile_out=profile)
+    if output_path is not None:
+        _write_json(output_path, response)
+    profile["wait_for_run_total_ms"] = (time.perf_counter() - started) * 1000.0
+    if not as_result:
+        return response
+    return _make_result(response, base_url=base_url, config=None, api_key=api_key,
+                        raise_on_error=raise_on_error, client_profile=profile)
+
+
+def _make_result(
+    resp_json: Dict[str, Any], *, base_url: str, config: Optional[Dict[str, Any]],
+    api_key: Optional[str], raise_on_error: bool, client_profile: Dict[str, Any],
+) -> CalcRunResult:
     output = _output_block(resp_json)
     error_message = extract_manifest_error(output)
     if error_message:
@@ -447,7 +489,7 @@ def run_calc(
 
     artifact_dir = output.get("artifact_dir")
     if not isinstance(artifact_dir, str) or not artifact_dir:
-        raise ValueError(f"run_calcレスポンスから artifact_dir を取得できませんでした: {artifact_dir!r}")
+        raise ValueError(f"計算レスポンスから artifact_dir を取得できませんでした: {artifact_dir!r}")
 
     result_files = extract_result_files(output)
 
@@ -457,7 +499,7 @@ def run_calc(
         artifact_dir=artifact_dir,
         base_url=base_url,
         result_files=result_files,
-        config=config_json,
+        config=config,
         api_key=api_key,
         raise_on_error=bool(raise_on_error),
         client_profile=client_profile,

@@ -23,7 +23,7 @@ class ApiSymbol:
 
 
 STABLE: Final[tuple[ApiSymbol, ...]] = (
-    ApiSymbol("wait_for_run", "stable", "vtsimnx.run_calc", returns="dict (result envelope)"),
+    ApiSymbol("wait_for_run", "stable", "vtsimnx.run_calc", returns="dict by default; CalcRunResult with as_result=True"),
     ApiSymbol("run_calc", "stable", "vtsimnx.run_calc", returns="CalcRunResult"),
     ApiSymbol("CalcRunResult", "stable", "vtsimnx.run_calc"),
     ApiSymbol("RunCalcAPIError", "stable", "vtsimnx.run_calc"),
