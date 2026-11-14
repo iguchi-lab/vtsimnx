@@ -2,6 +2,7 @@
 
 #include "../../vtsim_solver.h"
 #include "../../archenv/include/archenv.h"
+#include "flow_law.h"
 #include <cmath>
 
 // =============================================================================
@@ -103,38 +104,26 @@ inline double calcFanFlow(double dp, const EdgeProperties& edgeData) {
     return cond1 * 0.0 + cond2 * flow2 + cond3 * flow3 + cond4 * q_max;
 }
 
-// 固定体積流量枝:
-// - type=fixed_flow
-// - JSON 等で vol が指定された枝 (has_prescribed_vol)
-// - C++ 側で vol 系列だけ設定した後方互換ケース
-inline bool isFixedVolumeFlowEdge(const EdgeProperties& edgeData) {
-    return edgeData.type == "fixed_flow"
-        || edgeData.has_prescribed_vol
-        || !edgeData.vol.empty();
-}
-
 // 統一風量計算インターフェース。
 // 戻り値は体積流量 [m³/s]。updateFlowRatesInGraph と同じ有効／固定判定を使う。
-inline double calculateUnifiedFlow(double dp, const EdgeProperties& edgeData) {
-    if (!edgeData.current_enabled) {
-        return 0.0;
-    }
-    if (isFixedVolumeFlowEdge(edgeData)) {
-        return edgeData.current_vol;
-    }
-    if (edgeData.type == "simple_opening") {
-        return calcSimpleOpeningFlow(dp, edgeData);
-    }
-    if (edgeData.type == "gap") {
-        return calcGapFlow(dp, edgeData);
-    }
-    if (edgeData.type == "fan") {
-        return calcFanFlow(dp, edgeData);
-    }
-    if (edgeData.type == "pressure_loss") {
-        return calcPressureLossFlow(dp, edgeData);
+// law は resolveFlowLaw で問題作成時に決め、同じ区分をヤコビアンにも渡す。
+inline double calculateUnifiedFlow(double dp, const EdgeProperties& edgeData, FlowLaw law) {
+    switch (law) {
+        case FlowLaw::Disabled: return 0.0;
+        case FlowLaw::FixedVolume: return edgeData.current_vol;
+        case FlowLaw::SimpleOpening: return calcSimpleOpeningFlow(dp, edgeData);
+        case FlowLaw::Gap: return calcGapFlow(dp, edgeData);
+        case FlowLaw::Fan: return calcFanFlow(dp, edgeData);
+        case FlowLaw::PressureLoss: return calcPressureLossFlow(dp, edgeData);
+        case FlowLaw::Unknown: return 0.0;
     }
     return 0.0;
+}
+
+// Public/mutable-edge callers classify the current state on every call. This
+// preserves fixed-flow overrides and enable/disable changes between timesteps.
+inline double calculateUnifiedFlow(double dp, const EdgeProperties& edgeData) {
+    return calculateUnifiedFlow(dp, edgeData, resolveFlowLaw(edgeData));
 }
 
 } // namespace FlowCalculation

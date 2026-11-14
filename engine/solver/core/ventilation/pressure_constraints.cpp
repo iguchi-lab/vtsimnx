@@ -39,10 +39,12 @@ public:
                 // Preserve the node residual's supernode/self-loop convention.
                 if (singleNode && si >= 0 && si == ti) continue;
                 const auto& ep = graph[edge];
-                if (!ep.current_enabled || FlowCalculation::isFixedVolumeFlowEdge(ep)) {
+                const auto law = FlowCalculation::resolveFlowLaw(ep);
+                if (law == FlowCalculation::FlowLaw::Disabled ||
+                    law == FlowCalculation::FlowLaw::FixedVolume) {
                     si = ti = -1;
                 }
-                terms_.push_back({edge, s, t, si, ti, out, in});
+                terms_.push_back({edge, s, t, si, ti, out, in, law});
                 if (si >= 0) parameterIndices_.push_back(si);
                 if (ti >= 0) parameterIndices_.push_back(ti);
             }
@@ -110,11 +112,11 @@ public:
             const double tTotal = pressure(term.target, term.targetIndex)
                 - densityAt(term.target) * archenv::GRAVITY * ep.h_to;
             const double dp = sTotal - tTotal;
-            const double q = FlowCalculation::calculateUnifiedFlow(dp, ep);
+            const double q = FlowCalculation::calculateUnifiedFlow(dp, ep, term.law);
             if (term.out) outflow += q;
             if (term.in) inflow += q;
             if (jacobians != nullptr) {
-                const double derivative = FlowJacobianCommon::calculateJacobian(dp, ep);
+                const double derivative = FlowJacobianCommon::calculateJacobian(dp, ep, term.law);
                 if (term.out) {
                     addJacobian(term.sourceIndex, -derivative);
                     addJacobian(term.targetIndex, derivative);
@@ -135,6 +137,7 @@ private:
         Vertex source, target;
         int sourceIndex, targetIndex;
         bool out, in;
+        FlowCalculation::FlowLaw law;
     };
     const Graph& graph_;
     const std::vector<double>* densityByVertex_;

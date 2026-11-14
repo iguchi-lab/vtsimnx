@@ -7,6 +7,7 @@
 
 #include "core/ventilation/pressure_constraints.h"
 #include "core/ventilation/pressure_solver_trial_spec.h"
+#include "core/ventilation/edge_mutation_guard.h"
 #include "archenv/include/archenv.h"
 
 double calculateDensity(double temperature) {
@@ -97,6 +98,55 @@ void checkResidual(Network& n, const std::vector<Vertex>& group, bool node) {
 }
 
 int main() {
+    {
+        // Rebuilds must classify the effective branch after timestep changes and
+        // temporary fallback overrides. Caching the type on the edge is unsafe.
+        Network n(2);
+        n.indices[1] = -1;
+        n.density = {1.2, 1.2};
+        auto edge = n.add(0, 1);
+        auto& ep = n.graph[edge];
+        auto evaluate = [&](double expected, double derivative, int columns) {
+            ceres::Problem problem;
+            PressureConstraints::addFlowBalanceConstraint(problem, 0, n.graph,
+                n.indices, n.incident, &n.density, n.pressures);
+            std::vector<double> residuals;
+            ceres::CRSMatrix jac;
+            check(problem.Evaluate({}, nullptr, &residuals, nullptr, &jac), "rebuilt balance evaluates");
+            near(residuals.at(0), expected, 1e-12, "rebuilt balance selects the current flow law");
+            check(jac.num_cols == columns, "pressure dependencies follow the current flow law");
+            if (columns) near(jac.values.at(0), derivative, 1e-12, "rebuilt flow derivative");
+        };
+        const double gap = -.002 * std::sqrt(.1);
+        const double slope = -.001 / std::sqrt(.1);
+        evaluate(gap, slope, 1);
+        {
+            ventilation::EdgeMutationGuard guard(n.graph);
+            guard.convertToFixedFlow(edge, .04);
+            evaluate(-.04, 0.0, 0);
+            guard.convertToFixedFlow(edge, .05);
+            evaluate(-.05, 0.0, 0);
+        }
+        evaluate(gap, slope, 1);
+        ep.enabled = {false, true};
+        ep.updateForTimestep(0);
+        evaluate(0.0, 0.0, 0);
+        ep.updateForTimestep(1);
+        evaluate(gap, slope, 1);
+        ep.type = "fan";
+        ep.q_max = .5; ep.q1 = .3; ep.p1 = 50; ep.p_max = 100;
+        evaluate(-.5, 0.0, 1);
+        ep.has_prescribed_vol = true; ep.current_vol = .06;
+        evaluate(-.06, 0.0, 0);
+        ep.current_enabled = false;
+        evaluate(0.0, 0.0, 0); // disabled takes precedence over prescribed flow
+        ep.current_enabled = true; ep.has_prescribed_vol = false;
+        ep.vol = {.07}; ep.updateForTimestep(0);
+        ep.current_enabled = true;
+        evaluate(-.07, 0.0, 0); // legacy C++ vol-only fixed branch
+        ep.vol.clear(); ep.type = "unrecognized";
+        evaluate(0.0, 0.0, 1); // existing direct-C++ unknown-type behavior
+    }
     {
         ceres::Solver::Options o;
         o.linear_solver_type = ceres::DENSE_QR;

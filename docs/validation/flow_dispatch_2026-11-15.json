@@ -1,0 +1,211 @@
+{
+  "baseline_commit": "e551591bea6ab99c02c052db2d88ef9ab32fff82",
+  "baseline_solver_sha256": "a287f5509356ef736c81182de58505b791ec8b3a59c63f5371ad191887d2f55e",
+  "candidate_solver_sha256": "2b249987fe394e16b60108492e8bbe3c591a3f8be4f3c00bcc9fe0aab0ec498d",
+  "model": "synthetic_pressure_chain",
+  "hours": 48,
+  "repeats": 3,
+  "cpp_tests_passed": 29,
+  "engine_tests_passed": 553,
+  "perf_tests_deselected": 1,
+  "benchmarks": [
+    {
+      "unknowns": 17,
+      "input_sha256": "541daf23fc17ec7b2d3c18a674c2f970116f024be4e7ab0fbf279cc1877687df",
+      "baseline_pressure_ms": [
+        17.845710000000008,
+        17.512726999999995,
+        17.567227
+      ],
+      "candidate_pressure_ms": [
+        15.773575,
+        15.223378,
+        15.078958000000002
+      ],
+      "reduction_percent": 13.342168345635875,
+      "ceres_iterations": [
+        330,
+        330,
+        330
+      ],
+      "fallback_count": 0,
+      "max_pressure_error_pa": 1.0238529256412221e-05,
+      "max_artifact_balance_m3_s": 8.381903171539307e-09,
+      "compared_float32_files": 81,
+      "max_abs_difference_all_repeats": 0.0
+    },
+    {
+      "unknowns": 64,
+      "input_sha256": "be5364c782e0040918a0cf6018cbc5b77780d909a97c6f57fcfd094db01be3c7",
+      "baseline_pressure_ms": [
+        88.687229,
+        88.094809,
+        87.230937
+      ],
+      "candidate_pressure_ms": [
+        75.29189099999999,
+        76.60321800000001,
+        75.76781900000002
+      ],
+      "reduction_percent": 13.992867616070292,
+      "ceres_iterations": [
+        570,
+        570,
+        570
+      ],
+      "fallback_count": 0,
+      "max_pressure_error_pa": 8.586392516107821e-06,
+      "max_artifact_balance_m3_s": 9.89530235528946e-09,
+      "compared_float32_files": 81,
+      "max_abs_difference_all_repeats": 0.0
+    },
+    {
+      "unknowns": 128,
+      "input_sha256": "6a442b7915fb70289ff3d50e06a094b279ed5956df2001abbe1106c8eba0fc9e",
+      "baseline_pressure_ms": [
+        161.50177399999998,
+        162.472094,
+        162.620239
+      ],
+      "candidate_pressure_ms": [
+        141.998209,
+        140.116314,
+        140.32040400000002
+      ],
+      "reduction_percent": 13.634150612966167,
+      "ceres_iterations": [
+        574,
+        574,
+        574
+      ],
+      "fallback_count": 0,
+      "max_pressure_error_pa": 7.014846346464765e-06,
+      "max_artifact_balance_m3_s": 8.662027539685369e-09,
+      "compared_float32_files": 81,
+      "max_abs_difference_all_repeats": 0.0
+    },
+    {
+      "unknowns": 256,
+      "input_sha256": "522b691175285ca15f00841c0b2bf2239cd66c1dda4d118e46b91578a432a622",
+      "baseline_pressure_ms": [
+        313.2671580000001,
+        314.62022700000006,
+        313.133966
+      ],
+      "candidate_pressure_ms": [
+        263.621219,
+        261.76138000000003,
+        261.8534860000001
+      ],
+      "reduction_percent": 16.412084920820202,
+      "ceres_iterations": [
+        868,
+        868,
+        868
+      ],
+      "fallback_count": 0,
+      "max_pressure_error_pa": 7.549725514977013e-06,
+      "max_artifact_balance_m3_s": 9.487848728895187e-09,
+      "compared_float32_files": 81,
+      "max_abs_difference_all_repeats": 0.0
+    }
+  ],
+  "standard_house_ac4": {
+    "case_id": "standard_house_ac4",
+    "case_name": "標準住宅・基本ケース（AC4台）",
+    "source_path": "engine/app/test_json/vs_simheat_8760.json",
+    "source_sha256": "c95a9f761e72bb6cf39776b2d735b6b66e783f30ef0305278eeae01cd393dfad",
+    "input_sha256": "70001ca94d43f2c81155273192be2101dda4584849d10b778e07e50b0ebb709c",
+    "aircon_rooms": [
+      "LD",
+      "寝室",
+      "子供室1",
+      "子供室2"
+    ],
+    "hours": 8760,
+    "ventilation": "prescribed flows; no added window/door gaps",
+    "issue33_original_replay": false,
+    "runs": [
+      {
+        "name": "baseline",
+        "solver_sha256": "a287f5509356ef736c81182de58505b791ec8b3a59c63f5371ad191887d2f55e",
+        "seconds": 37.29835057101445,
+        "status": "ok",
+        "metrics": {
+          "aircon_capacity_recalc": 1159,
+          "aircon_capacity_recalc_share": 0.5524308865586273,
+          "aircon_flow_adjust_recalc": 0,
+          "aircon_ms": 336.1875849999998,
+          "aircon_on_off_recalc": 939,
+          "aircon_recalc_total": 2098,
+          "aircon_recompute_reasons_mask": 3,
+          "aircon_supply_humidity_recalc": 0,
+          "coupled_iterations": 10858,
+          "humidity_factorizes": 0,
+          "humidity_ms": 0.0,
+          "humidity_pattern_analyzes": 0,
+          "humidity_rhs_only_solves": 0,
+          "humidity_solution_reuse": 0,
+          "outer_iterations": 10858,
+          "outer_iterations_ge3": 145,
+          "outer_iterations_ge3_share": 0.016552511415525113,
+          "outer_iterations_max": 11,
+          "outer_iterations_mean": 1.2394977168949772,
+          "pressure_ceres_iterations": 0,
+          "pressure_fallback_count": 0,
+          "pressure_ms": 0.0,
+          "pressure_solve_calls": 0,
+          "solve_timesteps": 8760,
+          "thermal_full_builds": 9699,
+          "thermal_ms": 26362.80230199995,
+          "thermal_rhs_only_builds": 1159
+        },
+        "error": null,
+        "accuracy_ok": true
+      },
+      {
+        "name": "candidate",
+        "solver_sha256": "2b249987fe394e16b60108492e8bbe3c591a3f8be4f3c00bcc9fe0aab0ec498d",
+        "seconds": 36.93889741797466,
+        "status": "ok",
+        "metrics": {
+          "aircon_capacity_recalc": 1159,
+          "aircon_capacity_recalc_share": 0.5524308865586273,
+          "aircon_flow_adjust_recalc": 0,
+          "aircon_ms": 333.0324920000013,
+          "aircon_on_off_recalc": 939,
+          "aircon_recalc_total": 2098,
+          "aircon_recompute_reasons_mask": 3,
+          "aircon_supply_humidity_recalc": 0,
+          "coupled_iterations": 10858,
+          "humidity_factorizes": 0,
+          "humidity_ms": 0.0,
+          "humidity_pattern_analyzes": 0,
+          "humidity_rhs_only_solves": 0,
+          "humidity_solution_reuse": 0,
+          "outer_iterations": 10858,
+          "outer_iterations_ge3": 145,
+          "outer_iterations_ge3_share": 0.016552511415525113,
+          "outer_iterations_max": 11,
+          "outer_iterations_mean": 1.2394977168949772,
+          "pressure_ceres_iterations": 0,
+          "pressure_fallback_count": 0,
+          "pressure_ms": 0.0,
+          "pressure_solve_calls": 0,
+          "solve_timesteps": 8760,
+          "thermal_full_builds": 9699,
+          "thermal_ms": 26233.720885000064,
+          "thermal_rhs_only_builds": 1159
+        },
+        "error": null,
+        "accuracy_ok": true,
+        "max_abs_difference": {
+          "thermal_temperature": 0.0,
+          "vent_flow_rate": 0.0,
+          "aircon_sensible_heat": 0.0
+        }
+      }
+    ]
+  },
+  "issue33_original_replay": false
+}

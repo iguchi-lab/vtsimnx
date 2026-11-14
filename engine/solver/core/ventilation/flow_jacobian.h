@@ -136,30 +136,23 @@ inline double calcFanJacobian(double dp, const EdgeProperties& edgeData) {
 
 namespace FlowJacobianCommon {
 // 統一されたヤコビアン計算関数（dQ/d(dp)、Q は体積流量 [m³/s]）
-inline double calculateJacobian(double dp, const EdgeProperties& edgeData) {
-    if (!edgeData.current_enabled || FlowCalculation::isFixedVolumeFlowEdge(edgeData)) {
-        return 0.0;
+inline double calculateJacobian(double dp, const EdgeProperties& edgeData,
+                                FlowCalculation::FlowLaw law) {
+    using FlowCalculation::FlowLaw;
+    switch (law) {
+        case FlowLaw::Disabled:
+        case FlowLaw::FixedVolume:
+        case FlowLaw::Unknown: return 0.0;
+        case FlowLaw::SimpleOpening: return FlowJacobian::calcSimpleOpeningJacobian(dp, edgeData);
+        case FlowLaw::Gap: return FlowJacobian::calcGapJacobian(dp, edgeData);
+        case FlowLaw::Fan: return FanJacobian::calcFanJacobian(dp, edgeData);
+        case FlowLaw::PressureLoss: return FlowJacobian::calcPressureLossJacobian(dp, edgeData);
     }
-    if (edgeData.type == "fan") {
-        return FanJacobian::calcFanJacobian(dp, edgeData);
-    }
-    if (edgeData.type == "simple_opening") {
-        return FlowJacobian::calcSimpleOpeningJacobian(dp, edgeData);
-    }
-    if (edgeData.type == "gap") {
-        return FlowJacobian::calcGapJacobian(dp, edgeData);
-    }
-    if (edgeData.type == "pressure_loss") {
-        return FlowJacobian::calcPressureLossJacobian(dp, edgeData);
-    }
+    return 0.0;
+}
 
-    // その他は互換性のため数値微分（未知タイプが来た時だけ）
-    const double eps = 1e-7;
-    const double q_plus = FlowCalculation::calculateUnifiedFlow(dp + eps, edgeData);
-    const double q_minus = FlowCalculation::calculateUnifiedFlow(dp - eps, edgeData);
-    double dQdp = (q_plus - q_minus) / (2.0 * eps);
-    if (!std::isfinite(dQdp)) dQdp = 0.0;
-    return dQdp;
+inline double calculateJacobian(double dp, const EdgeProperties& edgeData) {
+    return calculateJacobian(dp, edgeData, FlowCalculation::resolveFlowLaw(edgeData));
 }
 } // namespace FlowJacobianCommon
 
