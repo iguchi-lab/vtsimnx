@@ -405,16 +405,34 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
         if (aircon::humidity_control::enabled(nodeProps) && (nodeProps.humidity_demand || reheatDemand)) {
             const bool reheat = aircon::humidity_control::simultaneous(nodeProps);
             const double floor = targetTemp - nodeProps.max_overcooling;
+            // A remote return room can be colder than the controlled room.
+            // Use the coil's actual sensible sign, not just the set-room load:
+            // maintaining the floor must never introduce unreported heating.
+            const double heatingNeededW = flowRates
+                ? calculateHeatCapacity(thermalNetwork, "HEATING", nodeProps.in_node, airconKey, *flowRates)
+                : std::max(0.0, nodeProps.required_heat_w);
+            if (!reheat && nodeProps.on && heatingNeededW > 1.0 &&
+                nodeProps.current_pre_temp <= floor + 1e-4) {
+                humidityFloorBlocked_.insert(airconKey);
+            }
             // Do not heat an already cold room in humidity-priority mode.
             const bool mayCool = currentTemp >= floor - 1e-4 &&
-                !(nodeProps.on && std::isfinite(nodeProps.required_heat_w) &&
-                  nodeProps.required_heat_w > 1.0 && nodeProps.current_pre_temp <= floor + 1e-4);
+                !humidityFloorBlocked_.count(airconKey);
             if (reheat || mayCool) {
                 result.on = true;
                 result.stateChanged = !nodeProps.on;
                 result.logMessage = nodeProps.key + " humidistat: ON";
                 nodeProps.humidity_overcool_hold = !reheat;
             }
+        }
+        if (aircon::humidity_control::enabled(nodeProps) &&
+            humidityFloorBlocked_.count(airconKey)) {
+            // Stopping the fan changes the free-room state. Do not retry the
+            // same infeasible full-flow cooling state until the next timestep.
+            result.on = false;
+            result.stateChanged = nodeProps.on;
+            result.logMessage = nodeProps.key + " humidistat: OFF (overcooling floor requires heating)";
+            nodeProps.humidity_overcool_hold = false;
         }
         if (result.on && useRequiredHeat) {
             nodeProps.aircon_min_process_hold = holdAtMinimumCapacity;
@@ -1230,6 +1248,7 @@ void AirconController::clearCapacityLimitBracket() const {
     capacityLimitBracket_.clear();
     capacityFlowBoost_.clear();
     capacityRecoveryAttempted_.clear();
+    humidityFloorBlocked_.clear();
     boundaryIterations_.clear();
 }
 

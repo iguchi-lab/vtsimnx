@@ -154,3 +154,24 @@ def test_cooling_humidistat_does_not_disable_heating_airflow_recovery(control):
     assert s("thermal_temperature", "room")[-1] == pytest.approx(20.0, abs=1e-3)
     assert 20.0 < s("thermal_temperature", "AC")[-1] < 60.0
     assert s("aircon_sensible_heat", "AC")[-1] == pytest.approx(7000.0, abs=2.0)
+
+
+def test_humidity_priority_does_not_cycle_when_fan_mixing_requires_heating_at_floor():
+    from tests_py.test_room_humidity_control import case
+    raw = case("humidity_priority", outside_t=26.0, count=3)
+    raw["nodes"].append({"key": "return", "t": [20.0, 20.0, 27.0],
+                         "x": [0.014, 0.014, 0.020], "p": 0.0})
+    raw["simulation"]["calc_flag"]["p"] = True
+    raw["nodes"][1]["calc_p"] = True
+    raw["ventilation_branches"].append({"key": "room->return", "alpha": 0.65, "area": 2.0})
+    raw["thermal_branches"][0]["conductance"] = 100.0
+    raw["aircon"][0].pop("vol")
+    raw["aircon"][0].update({"model": "DUCT_CENTRAL", "in": "return", "out": "room",
+                             "p_max": 440.0, "p1": 200.0, "q1": 0.3777777778, "q_max": 0.5222222222})
+    raw["aircon"][0]["ac_spec"]["V_inner"]["cooling"]["dsgn"] = 0.1
+    s = run(raw)
+    assert min(s("thermal_temperature", "room")) >= 24.0 - 0.001
+    assert min(s("aircon_humidity_unmet", "AC")[:2]) > 0
+    assert max(s("aircon_power", "AC")[:2]) == 0
+    assert max(s("aircon_reheat", "AC")) == 0
+    assert s("aircon_latent_heat", "AC")[-1] > 1  # Lockout ends at the next timestep.

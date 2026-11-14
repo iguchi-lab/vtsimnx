@@ -79,6 +79,9 @@ private:
     // of whether the requested temperature can be recovered at the new flow.
     mutable std::unordered_set<std::string> capacityFlowBoost_;
     mutable std::unordered_set<std::string> capacityRecoveryAttempted_;
+    // At fixed humidistat airflow, the overcooling floor may require heating.
+    // Keep that infeasibility decision for this timestep; reset before the next.
+    mutable std::unordered_set<std::string> humidityFloorBlocked_;
     struct BoundaryIteration {
         double x = 0.0;
         double residual = 0.0;
