@@ -91,17 +91,34 @@ void updateHumidistatRequests(Graph& graph, const HumidityNetworkTerms& terms,
     // A constrained unit cannot provide its hypothetical target boundary.
     // Keep that actual boundary in the free units' response equations, while
     // retaining its own unconstrained request for capacity/release control.
-    std::vector<Eigen::Index> freeUnits;
-    for (Eigen::Index i = 0; i < n; ++i) {
-        const auto& node = graph[units[i]];
-        const bool limited = node.aircon_control_state == AirconControlState::CapacityLimited ||
-            (node.control_mode == "humidity_priority" && node.humidity_overcool_hold &&
-             node.current_pre_temp <= node.current_requested_pre_temp-node.max_overcooling+1e-4);
-        if (limited) adjustment[i] = node.current_x-base[i];
-        else freeUnits.push_back(i);
-    }
-    if (!freeUnits.empty() && static_cast<Eigen::Index>(freeUnits.size()) < n) {
-        for (auto i : freeUnits) adjustment[i] = 0.0;
+    std::vector<bool> limited(static_cast<std::size_t>(n), false);
+    for (Eigen::Index pass = 0; pass <= n; ++pass) {
+        bool added = false;
+        for (Eigen::Index i = 0; i < n; ++i) {
+            if (limited[i]) continue;
+            const auto& node = graph[units[i]];
+            const double inletX = graph[inlets[i]].current_x;
+            const bool simultaneous = aircon::humidity_control::simultaneous(node);
+            const bool temperatureHeld = simultaneous ||
+                node.current_pre_temp >= node.current_requested_pre_temp-1e-4;
+            const double upperX = std::min(inletX,
+                aircon::latent::saturationHumidityUpperBound(node.current_t));
+            const double lowerX = std::min(inletX,
+                aircon::latent::saturationHumidityUpperBound(node.min_coil_temperature));
+            const bool bound = node.aircon_control_state == AirconControlState::CapacityLimited ||
+                (node.control_mode == "humidity_priority" && node.humidity_overcool_hold &&
+                 node.current_pre_temp <= node.current_requested_pre_temp-node.max_overcooling+1e-4) ||
+                (node.on && temperatureHeld && request[i] > upperX+1e-8) ||
+                (node.on && simultaneous && request[i] < lowerX-1e-8);
+            if (bound) { limited[i] = true; added = true; }
+        }
+        if (!added) break;
+        std::vector<Eigen::Index> freeUnits;
+        for (Eigen::Index i = 0; i < n; ++i) {
+            if (limited[i]) adjustment[i] = graph[units[i]].current_x-base[i];
+            else { freeUnits.push_back(i); adjustment[i] = 0.0; }
+        }
+        if (freeUnits.empty()) break;
         const Eigen::Index m = static_cast<Eigen::Index>(freeUnits.size());
         Eigen::MatrixXd freeGains(m,m);
         Eigen::VectorXd residual = target-baseSet-gains*adjustment, freeRhs(m);

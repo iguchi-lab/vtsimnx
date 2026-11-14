@@ -1,5 +1,6 @@
 """Deterministic two-room cooling-year benchmark (synthetic weather, not a house report)."""
 import argparse
+from datetime import datetime, timedelta
 import hashlib
 import json
 from pathlib import Path
@@ -23,6 +24,8 @@ def main():
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--hours", type=int, default=8760)
     args = parser.parse_args()
+    if args.hours <= 0:
+        parser.error("--hours must be positive")
     args.output.mkdir(parents=True, exist_ok=True)
     sr.SOLVER_EXE = args.solver.resolve()
     sr.BASE_DIR = args.output.resolve()
@@ -33,7 +36,9 @@ def main():
     outside_rh = 75 + 5*np.sin(2*np.pi*hours/8760 + .4)
     for mode in ("humidity_priority", "temperature_humidity"):
         raw = connected_two_ac_case(mode, count=args.hours)
-        raw["simulation"]["index"].update(start="2025-01-01T00:00:00", end="2025-12-31T23:00:00")
+        raw["simulation"]["index"].update(
+            start="2025-01-01T00:00:00",
+            end=(datetime(2025, 1, 1) + timedelta(hours=args.hours-1)).isoformat())
         raw["nodes"][0].update(t=outside_t.tolist(), x=humidity_ratio_from_rh(outside_t, outside_rh).tolist())
         for unit in raw["aircon"]:
             unit["max_overcooling"] = 10.0  # also accepted by the baseline parser
@@ -55,6 +60,7 @@ def main():
                 room_t = series("thermal_temperature", room)
                 load = series("aircon_sensible_heat", unit)+series("aircon_latent_heat", unit)
                 free = (supply_t > 5.02) & (room_t > 16.02) & (load < 19999.0)
+                free &= series("aircon_latent_heat", unit) > 1.0
                 if mode == "temperature_humidity":
                     free &= abs(room_t-26.0) < .01
                     free &= series("aircon_reheat", unit) > 1.0
@@ -68,10 +74,13 @@ def main():
                     "max_free_rh_error_pp": float(max(abs(error[free]), default=0)),
                     "max_rh_unmet_pp": float(max(0.0, max(error))),
                     "min_outlet_temperature": float(min(supply_t))})
+            row["accuracy_ok"] = (row["metrics"]["solve_timesteps"] == args.hours and all(
+                u["max_free_rh_error_pp"] < .01 and u["min_outlet_temperature"] >= 4.999
+                for u in row["units"]))
         report["cases"].append(row)
         (args.output / "summary.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
         print(json.dumps(row), flush=True)
-    return 0 if all(r["status"] == "ok" for r in report["cases"]) else 1
+    return 0 if all(r["status"] == "ok" and r.get("accuracy_ok") for r in report["cases"]) else 1
 
 
 if __name__ == "__main__":

@@ -290,3 +290,18 @@ def test_selected_coil_temperature_limit_reports_unmet(method):
 def test_naturally_cool_room_is_not_cooling_temperature_unmet():
     s = run(case("temperature_priority", outside_t=22.0))
     assert max(s("aircon_temperature_unmet", "AC")) == 0
+
+
+@pytest.mark.parametrize("target", [56.0, 58.0])
+def test_sensible_saturation_on_one_unit_does_not_overdry_the_other(target):
+    raw = connected_two_ac_case("temperature_humidity")
+    raw["nodes"][0].update(t=27.3867607, x=[.016529355]*6)
+    raw["aircon"][1]["pre_rh"] = target
+    s = run(raw)
+    assert max(s("aircon_room_rh", "AC")[1:]) < 59.0  # sensible load forces extra condensation
+    if target == 56.0:
+        assert max(abs(s("aircon_room_rh", "AC2")-target)) < .01
+    else:
+        # Both outlets must already be saturated for the sensible load. Extra
+        # dehumidification/reheat would needlessly push RH even lower.
+        assert max(s("aircon_reheat", "AC2")[1:]) < .01
