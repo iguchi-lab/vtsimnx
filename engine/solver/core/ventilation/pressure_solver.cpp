@@ -132,16 +132,9 @@ void PressureSolver::Impl::addFlowBalanceConstraints(const SolverSetup& setup, c
         if (it == keyToVertex.end()) {
             continue;
         }
-        ceres::CostFunction* costFunction = PressureConstraints::createFlowBalanceConstraint(
-            it->second,
-            network_.getGraph(),
-            setup.vertexToParameterIndexVec,
-            setup.incidentEdgesByVertex,
-            density,
-            setup.pressures.size(),
-            logFile_);
-
-        problem.AddResidualBlock(costFunction, nullptr, const_cast<double*>(setup.pressures.data()));
+        PressureConstraints::addFlowBalanceConstraint(problem, it->second,
+            network_.getGraph(), setup.vertexToParameterIndexVec,
+            setup.incidentEdgesByVertex, density, setup.pressures);
     }
     addPressureGaugeAnchors(setup, problem);
 }
@@ -290,12 +283,12 @@ void PressureSolver::Impl::addPressureGaugeAnchors(
         }
         problem.AddResidualBlock(
             PressureConstraints::createSoftAnchorConstraint(
-                static_cast<size_t>(info.anchorParam),
+                0,
                 info.anchorTarget,
                 anchorWeight,
-                pressures.size()),
+                1),
             nullptr,
-            const_cast<double*>(pressures.data()));
+            const_cast<double*>(&pressures[static_cast<size_t>(info.anchorParam)]));
         ++anchorsAdded;
         writeDomainLog(logFile_, "圧力",
                  "[INFO] 圧力ゲージ固定: 成分に固定圧境界がないため soft anchor を追加 | node=" +

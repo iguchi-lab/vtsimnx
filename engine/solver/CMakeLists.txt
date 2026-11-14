@@ -165,6 +165,7 @@ if(VTSIMNX_BUILD_CPP_TESTS)
         moist_enthalpy_advection
         thermal_enable_response
         pressure_constraints
+        pressure_sparse_blocks
         pressure_solver_safety
         pressure_acceptance_coupling
         vent_parallel_branch_flow_rates

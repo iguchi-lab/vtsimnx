@@ -79,6 +79,7 @@ PressureSolver::Impl::TrialResult PressureSolver::Impl::runSolverTrial(
     log(startLog);
     ceres::Solver::Options options;
     configureOptions(options);
+    ventilation::selectPressureLinearSolver(options, problem.NumParameters());
     // function_tolerance は Ceres の相対停止条件。最終物理合否とは分離する。
     double usedTolerance = (options.function_tolerance > 0.0) ? options.function_tolerance : successTolerance;
     if (normalizeFlowResiduals) {
@@ -475,21 +476,11 @@ void PressureSolver::Impl::setupStageAProblem(
     std::vector<double>& pressuresFB,
     int superCountA,
     const std::vector<std::vector<Edge>>& incidentEdgesByVertex) {
-    size_t parameterCount = pressuresFB.size();
-    double* parameterData = pressuresFB.data();
     const auto* density = network_.densityCache();
 
     auto addNodeResidual = [&](Vertex nodeVertex) {
-        ceres::CostFunction* costFunction = PressureConstraints::createFlowBalanceConstraint(
-            nodeVertex,
-            graph,
-            mapping.vertexToParamIndexVec,
-            incidentEdgesByVertex,
-            density,
-            parameterCount,
-            logFile_
-        );
-        problemFB.AddResidualBlock(costFunction, nullptr, parameterData);
+        PressureConstraints::addFlowBalanceConstraint(problemFB, nodeVertex, graph,
+            mapping.vertexToParamIndexVec, incidentEdgesByVertex, density, pressuresFB);
     };
 
     if (superCountA > 0) {
@@ -508,16 +499,8 @@ void PressureSolver::Impl::setupStageAProblem(
 
         for (const auto& gv : groupVertices) {
             if (gv.empty()) continue;
-            ceres::CostFunction* costG = PressureConstraints::createGroupFlowBalanceConstraint(
-                gv,
-                graph,
-                mapping.vertexToParamIndexVec,
-                incidentEdgesByVertex,
-                density,
-                parameterCount,
-                logFile_
-            );
-            problemFB.AddResidualBlock(costG, nullptr, parameterData);
+            PressureConstraints::addGroupFlowBalanceConstraint(problemFB, gv, graph,
+                mapping.vertexToParamIndexVec, incidentEdgesByVertex, density, pressuresFB);
         }
 
         for (auto v : nonGroupVertices) {
@@ -547,9 +530,9 @@ void PressureSolver::Impl::setupStageAProblem(
             }
             const double target = groupMean[gid] / static_cast<double>(groupCount[gid]);
             problemFB.AddResidualBlock(
-                PressureConstraints::createSoftAnchorConstraint(idx, target, /*weight=*/1e-9, parameterCount),
+                PressureConstraints::createSoftAnchorConstraint(0, target, /*weight=*/1e-9, 1),
                 nullptr,
-                parameterData);
+                &pressuresFB[idx]);
         }
     } else {
         const auto& keyToVertex = network_.getKeyToVertex();

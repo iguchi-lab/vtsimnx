@@ -5,7 +5,7 @@
 #include <unordered_map>
 #include <vector>
 
-namespace ceres { class CostFunction; }
+namespace ceres { class CostFunction; class Problem; }
 
 // Ceresの CostFunction 実装は `.cpp` へ分離（ヘッダ依存・ビルド時間削減）。
 namespace PressureConstraints {
@@ -52,5 +52,20 @@ ceres::CostFunction* createSoftAnchorConstraint(
     double targetPressure,
     double weight,
     size_t numParameters);
+
+// Scalar pressure blocks: each balance depends only on incident unknowns.
+// The Problem owns the cost; graph state and pressure storage must stay stable
+// during Solve. Constant fixed-flow balances still get a zero-parameter residual.
+void addFlowBalanceConstraint(
+    ceres::Problem& problem, Vertex nodeVertex, const Graph& graph,
+    const std::vector<int>& vertexToParameterIndexVec,
+    const std::vector<std::vector<Edge>>& incidentEdgesByVertex,
+    const std::vector<double>* densityByVertex, const std::vector<double>& pressures);
+
+void addGroupFlowBalanceConstraint(
+    ceres::Problem& problem, const std::vector<Vertex>& groupVertices, const Graph& graph,
+    const std::vector<int>& vertexToParameterIndexVec,
+    const std::vector<std::vector<Edge>>& incidentEdgesByVertex,
+    const std::vector<double>* densityByVertex, const std::vector<double>& pressures);
 
 } // namespace PressureConstraints

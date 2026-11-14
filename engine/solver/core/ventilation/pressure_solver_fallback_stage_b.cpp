@@ -21,16 +21,9 @@ PressureSolver::Impl::StageBSolveResult PressureSolver::Impl::solveStageBFull(
         if (it == network_.getKeyToVertex().end()) {
             continue;
         }
-        ceres::CostFunction* costFunction = PressureConstraints::createFlowBalanceConstraint(
-            it->second,
-            g,
-            result.setup.vertexToParamIndexVec,
-            partition.incidentEdgesByVertex,
-            network_.densityCache(),
-            pressuresFBB.size(),
-            logFile_
-        );
-        problemFB2.AddResidualBlock(costFunction, nullptr, pressuresFBB.data());
+        PressureConstraints::addFlowBalanceConstraint(problemFB2, it->second, g,
+            result.setup.vertexToParamIndexVec, partition.incidentEdgesByVertex,
+            network_.densityCache(), pressuresFBB);
     }
     // Primary と同じ連結成分解析で、固定圧境界のない成分へゲージアンカーを付ける。
     addPressureGaugeAnchors(g,

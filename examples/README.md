@@ -8,10 +8,14 @@
 |---|---|
 | `run_calc_minimal.py` | 一室・給排気バランスの最小実行（`vt.run_calc`） |
 | `run_calc_humidity_moisture_minimal.py` | 湿気（`calc_x`）と壁材の吸放出 |
-| `vs_simheat_sample.py` | よく使う2階建の大規模例。層構成と接続面積に分けて書く（展開 JSON ではない） |
+| `vs_simheat_sample.py` | 標準住宅の基本ケース（AC4台：LD・寝室・子供室1・子供室2）。層構成と接続面積に分けて書く（展開 JSON ではない） |
+| `../engine/app/test_json/vs_simheat_8760.json` | 標準住宅・AC4台の保存済み年間入力（8760時間、固定流量換気） |
 | `ai_input/` | 一室・発熱・壁1面などの JSON 雛形（実行コードではない） |
 
 ## 置き方の目安
+
+標準住宅の基本ケースと、隙間・空調方式を変更した派生ケースは区別します。
+名称と検証時の記録方法は [標準住宅の計算例](../docs/vs_simheat_example.md) を参照してください。
 
 - 利用者がそのまま実行できる例を置く
 - 1ファイル1テーマ（例: 最小 `run_calc`、`surfaces` 利用、スケジュール利用）

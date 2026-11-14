@@ -50,7 +50,7 @@
 | [`heat_recovery_vent.md`](heat_recovery_vent.md) | 熱交換換気 |
 | [`schedule_usage.md`](schedule_usage.md) | 8760 スケジュール |
 | [`archenv_comfort_nocturnal_wind_usage.md`](archenv_comfort_nocturnal_wind_usage.md) | 風圧・夜間放射・地盤・PMV |
-| [`vs_simheat_example.md`](vs_simheat_example.md) | SimHeat 比較ケース |
+| [`vs_simheat_example.md`](vs_simheat_example.md) | 標準住宅の基本ケース（AC4台）・SimHeat 比較 |
 | [`building_environment_engineering_basics.md`](building_environment_engineering_basics.md) | 建築環境の背景 |
 
 ## 方針
@@ -76,6 +76,8 @@
 | 実装仕様の索引 | [`../engine/docs/README.md`](../engine/docs/README.md) |
 
 ## 規範仕様・解説書・点検記録
+
+- 圧力計算の構造改善: [2026-11-15の検証記録](pressure_sparse_blocks_2026-11-15.md)。標準住宅・AC4台の基本ケースとIssue #33の派生入力を区別する。
 
 - 仕様本文: [`specification/README.md`](specification/README.md)。章立ての契約であり、チュートリアルではありません。
 - 技術解説書 v3.3: [PDF](vtsimnx_calculation_model_and_implementation_flow_ja_v3.3.pdf) / [DOCX](vtsimnx_calculation_model_and_implementation_flow_ja_v3.3.docx)。パッケージ v1.8.0 時点の説明です。文書版とソフトウェア版は別です。
