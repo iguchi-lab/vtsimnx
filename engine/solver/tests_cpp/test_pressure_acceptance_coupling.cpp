@@ -241,6 +241,84 @@ void testDeadEndRoundoffAndSmallPrescribedFlow() {
     }
 }
 
+void testDeadEndTreeHydrostaticsAndFanRestart() {
+    std::ostringstream logs;
+    TimingList timings;
+    auto constants = baseConstants();
+    auto high = makeVentNode("HIGH", false, 100.0);
+    auto low = makeVentNode("LOW", false, 0.0);
+    auto room = makeVentNode("ROOM", true, -1000.0);
+    auto duct = makeVentNode("DUCT", true, 3000.0);
+    auto end = makeVentNode("END", true, -5000.0);
+    duct.current_t = 10.0;
+    end.current_t = 35.0;
+    auto first = makeOpening("ROOM->DUCT", "ROOM", "DUCT");
+    first.h_from = 1.0;
+    first.h_to = 2.0;
+    auto last = makeOpening("END->DUCT", "END", "DUCT");
+    last.h_from = 3.0;
+    last.h_to = 4.0;
+    std::vector<VertexProperties> nodes = {high, low, room, duct, end};
+    std::vector<EdgeProperties> edges = {
+        makeOpening("HIGH->ROOM", "HIGH", "ROOM"),
+        makeOpening("ROOM->LOW", "ROOM", "LOW"), first, last,
+        makeFixedFlow("LOW->END", "LOW", "END", 0.0),
+    };
+    VentilationNetwork vent;
+    ThermalNetwork thermal;
+    vent.buildFromData(nodes, edges, constants, logs);
+    auto step = performCoupledStepCalculation(vent, thermal, constants, logs, timings, "tree");
+    expectNear(step.pressureMap.at("ROOM"), 50.0, 1e-6, "remaining network solution");
+    auto& graph = vent.getGraph();
+    for (auto e : boost::make_iterator_range(boost::edges(graph))) {
+        if (graph[e].key != first.key && graph[e].key != last.key) continue;
+        const auto& s = graph[boost::source(e, graph)];
+        const auto& t = graph[boost::target(e, graph)];
+        const double ps = s.current_p - calculateDensity(s.current_t) * archenv::GRAVITY * graph[e].h_from;
+        const double pt = t.current_p - calculateDensity(t.current_t) * archenv::GRAVITY * graph[e].h_to;
+        expectNear(ps, pt, 1e-12, "recovered hydrostatic pressure");
+        expectNear(graph[e].flow_rate, 0.0, 0.0, "exact structural zero");
+        expectTrue(graph[e].current_enabled && s.calc_p && t.calc_p, "topology restored");
+    }
+    // The next solve must see a newly active prescribed fan and retain both
+    // passive branches. No persistent zero-flow mask may suppress circulation.
+    for (auto e : boost::make_iterator_range(boost::edges(graph)))
+        if (graph[e].key == "LOW->END") graph[e].current_vol = 0.02;
+    step = performCoupledStepCalculation(vent, thermal, constants, logs, timings, "restart");
+    expectNear(step.flowRates.at({"END", "DUCT"}), 0.02, constants.ventilationTolerance, "fan restart end");
+    expectNear(step.flowRates.at({"ROOM", "DUCT"}), -0.02, constants.ventilationTolerance, "fan restart duct");
+}
+
+void testFailedReducedSolveRestoresTopologyAndState() {
+    std::ostringstream logs;
+    TimingList timings;
+    auto constants = baseConstants();
+    std::vector<VertexProperties> nodes = {
+        makeVentNode("EXT", false, 0.0), makeVentNode("ROOM", true, 1.0),
+        makeVentNode("END", true, 123.0),
+    };
+    std::vector<EdgeProperties> edges = {
+        makeFixedFlow("EXT->ROOM", "EXT", "ROOM", 0.1),
+        makeOpening("ROOM->END", "ROOM", "END"),
+    };
+    VentilationNetwork vent;
+    ThermalNetwork thermal;
+    vent.buildFromData(nodes, edges, constants, logs);
+    bool threw = false;
+    try {
+        (void)performCoupledStepCalculation(vent, thermal, constants, logs, timings, "rejected-tree");
+    } catch (const simulation::Error& e) {
+        threw = e.code() == simulation::ErrorCode::PressureNotConverged;
+    }
+    expectTrue(threw, "dead end cannot dispose of a prescribed inflow");
+    expectTrue(!vent.getLastPressureConverged(), "rejected solve flag");
+    expectNear(vent.getNode("ROOM").current_p, 1.0, 0.0, "rejected room pressure unchanged");
+    expectNear(vent.getNode("END").current_p, 123.0, 0.0, "rejected leaf pressure unchanged");
+    expectTrue(vent.getNode("END").calc_p, "rejected leaf flag restored");
+    for (auto e : boost::make_iterator_range(boost::edges(vent.getGraph())))
+        expectTrue(vent.getGraph()[e].current_enabled, "rejected edge flag restored");
+}
+
 // 2つの ThermalNetwork で DirectT キャッシュ統計が独立
 void testDirectTContextsIndependentAcrossNetworks() {
     std::ostringstream logs;
@@ -330,6 +408,8 @@ int main() {
         testThermalNoActiveNodeState();
         testAcceptedPressureAppliedInCoupledStep();
         testDeadEndRoundoffAndSmallPrescribedFlow();
+        testDeadEndTreeHydrostaticsAndFanRestart();
+        testFailedReducedSolveRestoresTopologyAndState();
         testDirectTContextsIndependentAcrossNetworks();
         testFallbackLogsConvergenceNotUnknown();
         std::cout << "[OK] all tests passed\n";
