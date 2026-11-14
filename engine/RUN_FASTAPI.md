@@ -199,3 +199,11 @@ import vtsimnx as vt
 response = vt.wait_for_run(base_url, run_id, timeout=3600, api_key=api_key)
 output = response["result"]  # /runs/{id}/result と同じレスポンス形式
 ```
+
+クライアントの遅延ロード結果として受け取る場合は `as_result=True` を指定します。
+元の入力を送信せず、保存された結果の日時・認証を用いて系列を取得します。
+
+```python
+result = vt.wait_for_run(base_url, run_id, timeout=3600, api_key=api_key, as_result=True)
+temperature = result.get_series_df("thermal_temperature")
+```

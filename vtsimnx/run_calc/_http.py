@@ -258,7 +258,8 @@ def _get_with_retry(session, url, *, headers, deadline, run_id):
 
 
 def wait_for_run(base_url: str, run_id: str, *, timeout: float = 3600.0,
-                 api_key: Optional[str] = None, poll_interval: float = 1.0) -> Dict[str, Any]:
+                 api_key: Optional[str] = None, poll_interval: float = 1.0,
+                 profile_out: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """Wait for an existing run and return its result envelope, without submitting it again.
 
     Temporary connection errors and HTTP 408/429/500/502/503/504 are retried up
@@ -271,7 +272,7 @@ def wait_for_run(base_url: str, run_id: str, *, timeout: float = 3600.0,
                              auth_headers=_api_key_headers(api_key),
                              deadline=time.perf_counter()+float(timeout), timeout=timeout,
                              poll_interval=max(0.05, float(poll_interval)),
-                             initial_status=None, submit_profile={}, profile_out=None)
+                             initial_status=None, submit_profile={}, profile_out=profile_out)
 
 
 def _wait_for_run(root, run_id, *, session, auth_headers, deadline, timeout,

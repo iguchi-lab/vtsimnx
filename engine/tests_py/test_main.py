@@ -18,6 +18,16 @@ def test_ping():
     assert resp.json() == {"status": "ok"}
 
 
+def test_plain_body_limit_precedes_json_parsing(monkeypatch):
+    monkeypatch.setenv("VTSIMNX_MAX_JSON_BODY_BYTES", "10")
+    resp = client.post("/run", content=b"x" * 11, headers={"Content-Type": "application/json"})
+    assert resp.status_code == 413
+    assert resp.json()["error"]["code"] == "body_too_large"
+    # Body-less endpoints still work under the same limit.
+    assert client.get("/health/ready").status_code in (200, 503)
+    assert client.get("/ping").json() == {"status": "ok"}
+
+
 def test_run_returns_fixed_response():
     # /run は内部で C++ solver を起動するため、そのままだと環境/入力に依存して不安定になる。
     # API層のテストでは solver をモックして「200でJSONが返ること」を検証する。
