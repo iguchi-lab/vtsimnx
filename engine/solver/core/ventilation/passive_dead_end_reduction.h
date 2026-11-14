@@ -29,7 +29,8 @@ public:
             const auto& edge = graph[e];
             if (!edge.current_enabled ||
                 (FlowCalculation::isFixedVolumeFlowEdge(edge) && edge.current_vol == 0.0) ||
-                (edge.type == "fan" && edge.q_max == 0.0 && edge.q1 == 0.0)) continue;
+                (!FlowCalculation::isFixedVolumeFlowEdge(edge) && edge.type == "fan" &&
+                 edge.q_max == 0.0 && edge.q1 == 0.0)) continue;
             const auto index = activeEdges.size();
             activeEdges.push_back(e);
             for (auto v : {boost::source(e, graph), boost::target(e, graph)}) {

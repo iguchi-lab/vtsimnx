@@ -258,11 +258,14 @@ void testDeadEndTreeHydrostaticsAndFanRestart() {
     auto last = makeOpening("END->DUCT", "END", "DUCT");
     last.h_from = 3.0;
     last.h_to = 4.0;
+    auto fan = makeFixedFlow("LOW->END", "LOW", "END", 0.0);
+    fan.type = "fan"; // Prescribed flow takes precedence over a zero PQ curve.
+    fan.q_max = fan.q1 = 0.0;
     std::vector<VertexProperties> nodes = {high, low, room, duct, end};
     std::vector<EdgeProperties> edges = {
         makeOpening("HIGH->ROOM", "HIGH", "ROOM"),
         makeOpening("ROOM->LOW", "ROOM", "LOW"), first, last,
-        makeFixedFlow("LOW->END", "LOW", "END", 0.0),
+        fan,
     };
     VentilationNetwork vent;
     ThermalNetwork thermal;
