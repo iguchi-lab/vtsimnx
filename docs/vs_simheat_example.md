@@ -1,4 +1,34 @@
-# SimHeat 比較ケースの入力
+# 標準住宅の基本ケース（AC4台）と SimHeat 比較
+
+この計算例を **標準住宅の基本ケース（AC4台）** として扱います。
+ACは **LD・寝室・子供室1・子供室2に各1台** で、ケース識別子は `standard_house_ac4` です。
+
+| ケース | 入力・識別 | 位置づけ |
+|---|---|---|
+| 標準住宅・基本ケース（AC4台） | [`engine/app/test_json/vs_simheat_8760.json`](../engine/app/test_json/vs_simheat_8760.json)、`standard_house_ac4` | 保存済み年間8760時間の基本入力。換気は固定流量で、窓・建具の圧力依存の隙間は含まない |
+| 標準住宅・隙間追加ケース（AC4台） | 基本入力に窓・建具の `gap` を追加した派生入力 | Issue #33の対象。隙間係数・高さ・接続・倍率を別途記録する。基本JSONだけでは元の停止条件を再現できない |
+| 全館空調・湿度方式の比較ケース | AC1台など、空調構成を変更した派生入力 | 過去の年間24条件の比較。AC4台の基本ケースの検証とは区別する |
+
+入力作成用Pythonは [`examples/vs_simheat_sample.py`](../examples/vs_simheat_sample.py) です。
+保存済みJSONと、新しくPythonから作成した入力の同一性は、気象・スケジュール等も含めて確認してください。
+入力を複製して別の正本を作らず、基本ファイルへの参照と変更条件を残します。
+
+### 基本ケースの再実行・比較
+
+リポジトリのルートで、ビルド済みsolverとengine依存ライブラリを用いて実行します。
+
+```bash
+python3 engine/tools/benchmark_standard_house.py \
+  --solver engine/build/vtsimnx_solver \
+  --output /tmp/standard-house-ac4
+```
+
+既定は年間8760時間です。`--hours 744` で1月、`--baseline-solver /path/to/previous_solver`
+で旧版との比較もできます。出力の `summary.json` にはケース名、AC対象室、入力・solverのSHA-256、
+完了時間数、反復数、計算時間、旧版との室温・換気量・顕熱の最大差を記録します。
+基本ケースの結果を Issue #33 の元入力再現として扱わないよう、`issue33_original_replay: false` も記録します。
+
+隙間などを変更した計算のレポートには、基本ケース名に加えて **変更内容、倍率、計算期間、入力ハッシュ** を記載してください。
 
 > **使い方** — 最小の一室は [入力JSONの組み立て](ai_input_guide.md) と [クイックスタート](builder_input_quickstart.md)。この文書は大規模比較の組み立てです。住宅1棟を AI に書かせるときは、この層構造を真似て展開 JSON は書かないでください。[モデル作成を AI に頼むとき](ai_authoring.md)。
 

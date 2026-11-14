@@ -63,7 +63,11 @@ curl -sS http://127.0.0.1:8000/ping
 python examples/run_calc_minimal.py
 ```
 
-大規模ケース: `examples/vs_simheat_sample.py`  
+**標準住宅の基本ケース（AC4台）**: LD・寝室・子供室1・子供室2に各1台。
+入力作成例は [`examples/vs_simheat_sample.py`](examples/vs_simheat_sample.py)、
+保存済み年間入力は [`engine/app/test_json/vs_simheat_8760.json`](engine/app/test_json/vs_simheat_8760.json) です。
+ケースの区別と再実行方法は [標準住宅の計算例](docs/vs_simheat_example.md) を参照してください。
+
 サンプル一覧: `examples/README.md`
 
 ## ドキュメント

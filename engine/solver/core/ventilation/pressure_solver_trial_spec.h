@@ -40,6 +40,22 @@ inline void configureStandardLmQr(ceres::Solver::Options& o, const SimulationCon
     o.minimizer_progress_to_stdout = false;
 }
 
+// Scalar residual blocks expose the network sparsity to Ceres. Keep dense QR
+// for small networks and all explicit QR fallback trials (normal equations can
+// lose accuracy on ill-conditioned networks). Missing sparse support is safe.
+inline void selectPressureLinearSolver(ceres::Solver::Options& o, int parameters) {
+    if (parameters < 64 || o.minimizer_type != ceres::TRUST_REGION ||
+        o.trust_region_strategy_type != ceres::LEVENBERG_MARQUARDT ||
+        o.linear_solver_type != ceres::DENSE_QR) return;
+    for (auto backend : {ceres::SUITE_SPARSE, ceres::EIGEN_SPARSE}) {
+        if (ceres::IsSparseLinearAlgebraLibraryTypeAvailable(backend)) {
+            o.sparse_linear_algebra_library_type = backend;
+            o.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
+            return;
+        }
+    }
+}
+
 inline void configureRobustDoglegQr(ceres::Solver::Options& o, const SimulationConstants& c) {
     o.trust_region_strategy_type = ceres::DOGLEG;
     o.linear_solver_type = ceres::DENSE_QR;
