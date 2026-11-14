@@ -402,7 +402,13 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
         const bool reheatDemand = aircon::humidity_control::simultaneous(nodeProps) &&
             (currentTemp < targetTemp - setpointBandK ||
              (nodeProps.on && std::isfinite(nodeProps.required_heat_w) && nodeProps.required_heat_w > 1.0));
-        if (aircon::humidity_control::enabled(nodeProps) && (nodeProps.humidity_demand || reheatDemand)) {
+        // A humidity-triggered fan can itself satisfy RH by mixing dry return
+        // air. Keep that trial active while solving its cooling/fan-only state;
+        // turning it off merely because its own airflow removed the demand
+        // would alternate between two different moisture networks forever.
+        const bool humidityTrial = nodeProps.on && nodeProps.humidity_overcool_hold;
+        if (aircon::humidity_control::enabled(nodeProps) &&
+            (nodeProps.humidity_demand || reheatDemand || humidityTrial)) {
             const bool reheat = aircon::humidity_control::simultaneous(nodeProps);
             const double floor = targetTemp - nodeProps.max_overcooling;
             // A remote return room can be colder than the controlled room.
@@ -646,10 +652,24 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                     nodeProps.humidity_search_low = floor;
                     nodeProps.humidity_search_high = requested;
                 }
-                const double desiredCoil = std::max(nodeProps.min_coil_temperature,
-                    aircon::humidity_control::dewPoint(nodeProps.humidity_supply_request));
-                const double error = context.validData.airconTemp - desiredCoil;
                 const double old = nodeProps.current_pre_temp;
+                const double fanOnlyError = context.validData.airconTemp - context.validData.indoorTemp;
+                if (!humidityFanTrialDone_.count(airconKey) &&
+                    (std::abs(fanOnlyError) <= 1e-4 ||
+                     (old >= requested - 1e-4 && fanOnlyError < 0.0))) {
+                    humidityFanTrialDone_.insert(airconKey);
+                    nodeProps.humidity_search_low = floor;
+                    nodeProps.humidity_search_high = old;
+                }
+                const double desiredCoil = humidityFanTrialDone_.count(airconKey) && nodeProps.humidity_demand
+                    ? std::min(context.validData.indoorTemp,
+                        std::max(nodeProps.min_coil_temperature,
+                            aircon::humidity_control::dewPoint(nodeProps.humidity_supply_request)))
+                    : context.validData.indoorTemp;
+                // Without reheat the coil cannot warm the return air. When
+                // mixing alone satisfies RH, search for T_out == T_in (fan
+                // only), subject to the same room overcooling bound.
+                const double error = context.validData.airconTemp - desiredCoil;
                 // Latent enthalpy feedback and return-air moisture can move
                 // the root after a bracket was formed. Reopen an exhausted
                 // interior bracket instead of accepting an obsolete root.
@@ -1249,6 +1269,7 @@ void AirconController::clearCapacityLimitBracket() const {
     capacityFlowBoost_.clear();
     capacityRecoveryAttempted_.clear();
     humidityFloorBlocked_.clear();
+    humidityFanTrialDone_.clear();
     boundaryIterations_.clear();
 }
 

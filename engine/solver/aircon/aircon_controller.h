@@ -82,6 +82,10 @@ private:
     // At fixed humidistat airflow, the overcooling floor may require heating.
     // Keep that infeasibility decision for this timestep; reset before the next.
     mutable std::unordered_set<std::string> humidityFloorBlocked_;
+    // Establish the warmest non-heating fan state before searching a wet
+    // coil. Cooling dry air can increase RH, so that search is not monotone
+    // across the dry/wet transition.
+    mutable std::unordered_set<std::string> humidityFanTrialDone_;
     struct BoundaryIteration {
         double x = 0.0;
         double residual = 0.0;

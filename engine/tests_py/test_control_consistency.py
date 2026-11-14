@@ -156,11 +156,10 @@ def test_cooling_humidistat_does_not_disable_heating_airflow_recovery(control):
     assert s("aircon_sensible_heat", "AC")[-1] == pytest.approx(7000.0, abs=2.0)
 
 
-def test_humidity_priority_does_not_cycle_when_fan_mixing_requires_heating_at_floor():
+def _remote_return_humidity_case(temperatures, humidity):
     from tests_py.test_room_humidity_control import case
-    raw = case("humidity_priority", outside_t=26.0, count=3)
-    raw["nodes"].append({"key": "return", "t": [20.0, 20.0, 27.0],
-                         "x": [0.014, 0.014, 0.020], "p": 0.0})
+    raw = case("humidity_priority", outside_t=26.0, count=len(temperatures))
+    raw["nodes"].append({"key": "return", "t": temperatures, "x": humidity, "p": 0.0})
     raw["simulation"]["calc_flag"]["p"] = True
     raw["nodes"][1]["calc_p"] = True
     raw["ventilation_branches"].append({"key": "room->return", "alpha": 0.65, "area": 2.0})
@@ -169,9 +168,30 @@ def test_humidity_priority_does_not_cycle_when_fan_mixing_requires_heating_at_fl
     raw["aircon"][0].update({"model": "DUCT_CENTRAL", "in": "return", "out": "room",
                              "p_max": 440.0, "p1": 200.0, "q1": 0.3777777778, "q_max": 0.5222222222})
     raw["aircon"][0]["ac_spec"]["V_inner"]["cooling"]["dsgn"] = 0.1
+    return raw
+
+
+def test_humidity_priority_does_not_cycle_when_fan_mixing_requires_heating_at_floor():
+    raw = _remote_return_humidity_case([20.0, 20.0, 27.0], [0.014, 0.014, 0.020])
     s = run(raw)
     assert min(s("thermal_temperature", "room")) >= 24.0 - 0.001
     assert min(s("aircon_humidity_unmet", "AC")[:2]) > 0
     assert max(s("aircon_power", "AC")[:2]) == 0
     assert max(s("aircon_reheat", "AC")) == 0
     assert s("aircon_latent_heat", "AC")[-1] > 1  # Lockout ends at the next timestep.
+
+
+@pytest.mark.parametrize("return_x", [0.009, 0.01115])
+def test_humidity_priority_can_meet_demand_by_dry_return_air_without_heating(return_x):
+    # The second case is near the RH limit: premature cooling raises RH and
+    # would incorrectly select the overcooling floor instead of fan-only flow.
+    raw = _remote_return_humidity_case([24.8] * 3, [return_x] * 3)
+    s = run(raw)
+    assert min(s("thermal_temperature", "room")) >= 24.0 - 0.001
+    assert max(s("thermal_temperature", "room")) < 26.0 - 0.01
+    assert max(s("thermal_temperature", "AC")) <= 24.8 + 0.001
+    assert max(s("aircon_room_rh", "AC")) <= 60.05
+    assert max(s("aircon_sensible_heat", "AC")) < 1.0
+    assert max(s("aircon_latent_heat", "AC")) < 1.0
+    assert max(s("aircon_reheat", "AC")) == 0
+    assert min(s("aircon_power", "AC")) > 1.0  # Intentional fan-only operation.
