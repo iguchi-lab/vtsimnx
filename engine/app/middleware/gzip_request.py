@@ -118,6 +118,9 @@ class GZipRequestMiddleware:
             )
             return await resp(scope, receive, send)
 
+        # The downstream API may keep this request alive for a long calculation.
+        # Retain only the final bytes, not another copy in the input/decoder buffer.
+        del decoder, body
         sent = False
 
         async def receive2():

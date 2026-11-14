@@ -9,7 +9,8 @@ import pytest
 from app.middleware.gzip_request import GZipRequestMiddleware, _GzipBody, _BodyTooLarge
 
 
-def invoke(monkeypatch, chunks, *, limit=100, compressed_limit=10000, disconnect=False, headers=None):
+def invoke(monkeypatch, chunks, *, limit=100, compressed_limit=10000, disconnect=False,
+           headers=None, on_forward=None):
     monkeypatch.setenv("VTSIMNX_MAX_JSON_BODY_BYTES", str(limit))
     monkeypatch.setenv("VTSIMNX_MAX_GZIP_BODY_BYTES", str(compressed_limit))
     sent, received = [], []
@@ -30,6 +31,8 @@ def invoke(monkeypatch, chunks, *, limit=100, compressed_limit=10000, disconnect
     async def application(scope, receive, send):
         message = await receive()
         received.append(message["body"])
+        if on_forward is not None:
+            on_forward()
         assert dict(scope["headers"])[b"content-length"] == str(len(message["body"])).encode()
         if b"gzip" in dict(headers).get(b"content-encoding", b""):
             assert b"content-encoding" not in dict(scope["headers"])
@@ -123,5 +126,21 @@ def test_oversized_plain_chunk_is_not_copied(monkeypatch):
         _, peak = tracemalloc.get_traced_memory()
         assert sent[0]["status"] == 413 and not received
         assert peak < 1024 * 1024
+    finally:
+        tracemalloc.stop()
+
+
+@pytest.mark.parametrize("compressed", [False, True])
+def test_working_buffer_is_released_before_downstream_calculation(monkeypatch, compressed):
+    payload = b"a" * (1024 * 1024)
+    wire = gzip.compress(payload) if compressed else payload
+    retained = []
+    tracemalloc.start()
+    try:
+        sent, received = invoke(monkeypatch, [wire], headers=None if compressed else [],
+                                limit=len(payload),
+                                on_forward=lambda: retained.append(tracemalloc.get_traced_memory()[0]))
+        assert sent[0]["status"] == 200 and received == [payload]
+        assert retained[0] < len(payload) * 1.5  # Final bytes, without a second full-size buffer.
     finally:
         tracemalloc.stop()
