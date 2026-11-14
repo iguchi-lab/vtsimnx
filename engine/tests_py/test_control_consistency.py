@@ -140,3 +140,17 @@ def test_thermostat_stop_does_not_keep_a_rejected_supply_state():
     assert abs(s("vent_flow_rate", "room->AC")[1]) < 1e-10
     for field in ("thermal_temperature", "humidity_x"):
         assert s(field, "AC")[1] == pytest.approx(s(field, "AC")[0], abs=1e-7)
+
+
+@pytest.mark.parametrize("control", ["humidity_priority", "temperature_humidity"])
+def test_cooling_humidistat_does_not_disable_heating_airflow_recovery(control):
+    from tests_py.test_heating_fan_coupling import heating_fan_case
+    raw = heating_fan_case()
+    raw["simulation"]["calc_flag"]["x"] = True
+    raw["nodes"][0]["x"] = 0.005
+    raw["nodes"][1].update(calc_x=True, x=0.005, v=30.0)
+    raw["aircon"][0].update(control_mode=control, pre_rh=60.0)
+    s = run(raw)
+    assert s("thermal_temperature", "room")[-1] == pytest.approx(20.0, abs=1e-3)
+    assert 20.0 < s("thermal_temperature", "AC")[-1] < 60.0
+    assert s("aircon_sensible_heat", "AC")[-1] == pytest.approx(7000.0, abs=2.0)

@@ -296,7 +296,7 @@ int main() {
         }
 
         // ------------------------------------------------------------------
-        // 失敗時診断は 0 ではなく NaN（A=0 かつ b≠0 の特異系で DirectT を失敗させる）
+        // 孤立ノードの未処理熱源は固定温度で隠さず、物理残差付きで拒否する。
         // ------------------------------------------------------------------
         {
             ThermalSolverLinearDirect::resetDirectTSolverContext();
@@ -304,6 +304,24 @@ int main() {
             auto a = makeNode("A", true, 0.0);
             a.heat_source = 10.0; // 0*T = -10 は解けない
             thermal.addNode(a);
+            ThermalSolver solver(thermal, logs);
+            solver.solveTemperatures(constants);
+            expectTrue(!thermal.getLastThermalConverged(), "isolated source: not converged");
+            expectTrue(thermal.getLastThermalMethod() == "DirectT(unconnected-source)",
+                       "isolated source: explicit rejection reason");
+            expectNear(thermal.getLastThermalMaxBalance(), 10.0, 1e-12,
+                       "isolated source: unbalanced heat is retained");
+        }
+
+        // 特異な連結系の分解失敗は引き続き NaN で表す（温度基準なし・正味加熱）。
+        {
+            ThermalNetwork thermal;
+            auto a = makeNode("A", true, 0.0);
+            a.heat_source = 10.0;
+            const auto b = makeNode("B", true, 0.0);
+            std::ostringstream buildLogs;
+            thermal.buildFromData({a, b}, {makeConductance("A->B", "A", "B", 1.0)},
+                                  {}, constants, buildLogs);
             ThermalSolver solver(thermal, logs);
             solver.solveTemperatures(constants);
             expectTrue(!thermal.getLastThermalConverged(), "failed solve: not converged");

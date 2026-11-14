@@ -234,7 +234,6 @@ bool increaseAirflowForCoupledSolve(VentilationNetwork& ventNetwork,
     bool updated = false;
     for (auto v : boost::make_iterator_range(boost::vertices(thermalGraph))) {
         const auto& node = thermalGraph[v];
-        if (node.control_mode != "temperature_priority") continue;
         if (node.getTypeCode() != VertexProperties::TypeCode::Aircon || !node.on ||
             !isDuctCentralModel(node) || node.current_mode == "OFF" ||
             node.set_node.empty() ||
@@ -245,6 +244,9 @@ bool increaseAirflowForCoupledSolve(VentilationNetwork& ventNetwork,
         const OperationMode mode = node.current_mode == "AUTO"
             ? (node.required_heat_w > 0.0 ? OperationMode::Heating : OperationMode::Cooling)
             : parseOperationModeOrDefaultCooling(node.current_mode);
+        // Humidistat modes alter cooling only; heating still needs the same
+        // airflow recovery when its load rises from a low-speed state.
+        if (!isHeating(mode) && node.control_mode != "temperature_priority") continue;
         if ((isHeating(mode) && node.required_heat_w < 0.0) ||
             (!isHeating(mode) && node.required_heat_w > 0.0)) continue;
         // 設定維持負荷と能力上限は通常の外側風量制御と同じ定義を使う。
