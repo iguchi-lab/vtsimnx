@@ -95,7 +95,8 @@ public:
 
     // 3) Solve
     // accepted / metrics / method を含む詳細結果。連成側はこちらを使う。
-    PressureSolveResult solvePressureDetailed(const SimulationConstants& constants, std::ostream& logs);
+    PressureSolveResult solvePressureDetailed(const SimulationConstants& constants, std::ostream& logs,
+                                             bool refineForCoupling = false);
     // 互換: pressures/flows/balances の 3 要素タプルのみ（accepted は捨てる）
     std::tuple<PressureMap, std::map<std::pair<std::string, std::string>, double>, FlowBalanceMap> solvePressure(
         const SimulationConstants& constants, std::ostream& logs);

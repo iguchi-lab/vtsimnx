@@ -28,7 +28,8 @@ public:
     PressureSolver& operator=(PressureSolver&&) noexcept;
 
     // 詳細結果（accepted / metrics / method 付き）
-    PressureSolveResult solveDetailed(const SimulationConstants& constants);
+    // Coupling may request precision beyond flow-balance acceptance on weak paths.
+    PressureSolveResult solveDetailed(const SimulationConstants& constants, bool refineForCoupling = false);
 
     // 3-tuple 互換ラッパ（一時オブジェクトからは maps を move）
     SolverResult solvePressures(const SimulationConstants& constants);

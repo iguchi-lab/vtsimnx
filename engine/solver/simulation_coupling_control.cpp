@@ -57,10 +57,15 @@ InnerCouplingEval evaluateInnerCoupling(const SimulationConstants& constants,
             eval.action = InnerCouplingAction::BreakConverged;
             return eval;
         }
+        // Keep the same acceptance tolerances. Ask the next pressure solve for
+        // numerical refinement only when pressure is the remaining blocker.
+        eval.refinePressure = !pOk && tOk && xOk && qOk &&
+                              std::isfinite(delta.pressureChange);
     }
 
     const std::size_t maxCoupling = effectiveMaxCouplingIterations(constants);
     if (coupledIter >= maxCoupling) {
+        eval.refinePressure = false;
         const double pRatio =
             constants.pressureCalc ? (delta.pressureChange / std::max(1e-30, eval.pressureTol)) : 0.0;
         const double tRatio =

@@ -97,7 +97,7 @@ SimulationConstants baseConstants() {
 }
 
 // 不採用圧力を apply せず PressureNotConverged で止まり、熱も汚染しない
-void testRejectedPressureNotAppliedAndNoThermal() {
+void testRejectedPressureNotAppliedAndNoThermal(bool refine = false) {
     std::ostringstream logs;
     TimingList timings;
     auto constants = baseConstants();
@@ -125,7 +125,7 @@ void testRejectedPressureNotAppliedAndNoThermal() {
 
     bool threw = false;
     try {
-        (void)performCoupledStepCalculation(ventNet, thermal, constants, logs, timings, "rej");
+        (void)performCoupledStepCalculation(ventNet, thermal, constants, logs, timings, "rej", nullptr, refine);
     } catch (const simulation::Error& e) {
         threw = true;
         expectTrue(e.code() == simulation::ErrorCode::PressureNotConverged,
@@ -139,6 +139,42 @@ void testRejectedPressureNotAppliedAndNoThermal() {
     expectNear(thermal.getGraph()[thermal.getKeyToVertex().at("ROOM")].current_t,
                tRoomBefore, 0.0, "thermal not polluted");
     expectTrue(!ventNet.getLastPressureConverged(), "lastPressureConverged false");
+}
+
+// 弱い隙間では体積流量収支の合格だけでは圧力の数値精度が足りない場合がある。
+void testCouplingRefinesAnAlreadyAcceptedWeakGapSolution() {
+    std::ostringstream logs;
+    TimingList timings;
+    auto c = baseConstants();
+    c.ventilationTolerance = 1e-6;
+    std::vector<VertexProperties> nodes = {
+        makeVentNode("HIGH", false, 10.0),
+        makeVentNode("ROOM", true, 4.9),
+        makeVentNode("LOW", false, 0.0),
+    };
+    auto inlet = makeOpening("HIGH->ROOM", "HIGH", "ROOM");
+    auto outlet = makeOpening("ROOM->LOW", "ROOM", "LOW");
+    for (auto* e : {&inlet, &outlet}) {
+        e->type = "gap";
+        e->a = 1e-6;
+        e->n = 1.81;
+    }
+    VentilationNetwork ventNet;
+    ThermalNetwork thermal;
+    ventNet.buildFromData(nodes, {inlet, outlet}, c, logs);
+    const auto ordinary = ventNet.solvePressureDetailed(c, logs);
+    expectTrue(ordinary.accepted, "weak gap already satisfies physical flow tolerance");
+    expectTrue(std::abs(ordinary.pressures.at("ROOM") - 5.0) > 1e-4,
+               "accepted weak flow can still have pressure error");
+    const auto refined = performCoupledStepCalculation(ventNet, thermal, c, logs, timings,
+                                                       "refine", nullptr, true);
+    expectNear(refined.pressureMap.at("ROOM"), 5.0, 1e-7,
+               "explicit coupling request reaches symmetric known pressure");
+    const auto repeat = performCoupledStepCalculation(ventNet, thermal, c, logs, timings,
+                                                      "repeat", nullptr, true);
+    expectNear(repeat.pressureMap.at("ROOM"), refined.pressureMap.at("ROOM"), 1e-7,
+               "refined pressure is stationary on repeated solve");
+    expectTrue(ventNet.getLastPressureConverged(), "refined solution remains physically accepted");
 }
 
 // 全固定圧: 圧力求解スキップで流量評価し accepted
@@ -407,6 +443,8 @@ void testFallbackLogsConvergenceNotUnknown() {
 int main() {
     try {
         testRejectedPressureNotAppliedAndNoThermal();
+        testRejectedPressureNotAppliedAndNoThermal(true);
+        testCouplingRefinesAnAlreadyAcceptedWeakGapSolution();
         testFixedPressureOnlyAccepted();
         testThermalNoActiveNodeState();
         testAcceptedPressureAppliedInCoupledStep();

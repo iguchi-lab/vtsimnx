@@ -26,6 +26,8 @@ struct InnerCouplingEval {
     double temperatureTol = 0.0;
     double humidityTol = 0.0;
     double latentTol = 0.0;
+    // Flow balance can pass while weak-path pressures still drift between solves.
+    bool refinePressure = false;
 };
 
 // minCouplingIterations: 通常1、モード切替等では2。

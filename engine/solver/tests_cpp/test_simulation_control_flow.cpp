@@ -130,6 +130,42 @@ void testInnerCouplingPressureFirstFail() {
                    "inner: pressure non-convergence on first iter");
 }
 
+void testPressureRefinementOnlyForRemainingPressureError() {
+    auto c = baseConstants();
+    c.humidityCalc = true;
+    auto d = tinyDelta();
+    d.pressureChange = 0.01;
+    auto eval = evaluateInnerCoupling(c, true, false, 2, 2, d, true);
+    expectEqAction(eval.action, InnerCouplingAction::Continue, "pressure refinement does not accept the step");
+    expectTrue(eval.refinePressure, "stable temperature/humidity with drifting pressure requests precision");
+    d.temperatureChange = 1.0;
+    expectTrue(!evaluateInnerCoupling(c, true, false, 2, 2, d, true).refinePressure,
+               "temperature still changing: ordinary solve");
+    d.temperatureChange = 1e-9;
+    d.humidityChange = 1.0;
+    expectTrue(!evaluateInnerCoupling(c, true, false, 2, 2, d, true).refinePressure,
+               "humidity still changing: ordinary solve");
+    d.humidityChange = 1e-9;
+    d.latentHeatChange = 1e9;
+    expectTrue(!evaluateInnerCoupling(c, true, true, 2, 2, d, true).refinePressure,
+               "latent heat still changing: ordinary solve");
+    expectTrue(!evaluateInnerCoupling(c, true, false, 1, 2, d, true).refinePressure,
+               "minimum iteration guard retained");
+    eval = evaluateInnerCoupling(c, true, false, 5, 2, d, true);
+    expectEqAction(eval.action, InnerCouplingAction::ThrowMaxIteration, "refinement does not bypass iteration limit");
+    expectTrue(!eval.refinePressure, "no request after iteration limit");
+    d.pressureChange = std::numeric_limits<double>::quiet_NaN();
+    expectTrue(!evaluateInnerCoupling(c, true, false, 2, 2, d, true).refinePressure,
+               "non-finite pressure change cannot request refinement");
+    d = tinyDelta();
+    expectTrue(!evaluateInnerCoupling(c, true, false, 2, 2, d, true).refinePressure,
+               "already converged: no refinement");
+    c.pressureCalc = false;
+    d.pressureChange = 1.0;
+    expectTrue(!evaluateInnerCoupling(c, true, false, 2, 2, d, true).refinePressure,
+               "disabled pressure: no refinement");
+}
+
 void testTemperatureRelaxationAlpha() {
     using simulation::detail::couplingTemperatureRelaxation;
     using simulation::detail::kCouplingTemperatureMaxMixedStepK;
@@ -627,6 +663,7 @@ int main() {
     testInnerCouplingContinueOnFirst();
     testInnerCouplingAllowFirstWhenMinOne();
     testInnerCouplingPressureFirstFail();
+    testPressureRefinementOnlyForRemainingPressureError();
     testInnerCouplingMaxIterations();
     testTemperatureRelaxationAlpha();
     testUnphysicalTemperatureDetection();

@@ -253,7 +253,8 @@ void PressureSolver::Impl::runPrimarySolvers(const SimulationConstants& constant
                                        ceres::Solver::Summary& summary,
                                        SolverSetup& setup,
                                        double massBalanceMaxAbs,
-                                       bool& physicalAccepted) {
+                                       bool& physicalAccepted,
+                                       bool refineForCoupling) {
     physicalAccepted = false;
     auto checkPhysical = [&]() -> bool {
         if (!std::isfinite(summary.final_cost)) return false;
@@ -278,8 +279,15 @@ void PressureSolver::Impl::runPrimarySolvers(const SimulationConstants& constant
         return false;
     };
 
-    for (const auto& t : ventilation::primaryTrustRegionTrials()) {
+    const auto& trials = ventilation::primaryTrustRegionTrials();
+    if (refineForCoupling) {
+        writeDomainLog(logFile_, "圧力", "連成収束のため勾配精密化から開始します（物理許容値は維持）");
+    }
+    for (const auto& t : trials) {
         if (physicalAccepted) break;
+        // The first trial can satisfy the flow tolerance with pressure drift.
+        // On explicit coupling requests, start at the existing normalized retry.
+        if (refineForCoupling && &t == &trials.front()) continue;
         (void)runSolverTrial(
                         t.startLog,
                         t.successLog,

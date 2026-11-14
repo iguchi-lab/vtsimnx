@@ -24,4 +24,5 @@ CoupledStepData performCoupledStepCalculation(VentilationNetwork& ventNetwork,
                                               std::ostream& logs,
                                               TimingList& timings,
                                               const std::string& meta,
-                                              simulation::TimestepSolveMetrics* metrics = nullptr);
+                                              simulation::TimestepSolveMetrics* metrics = nullptr,
+                                              bool refinePressure = false);

@@ -233,7 +233,8 @@ void VentilationNetwork::syncTemperaturesFromThermalNetwork(const ThermalNetwork
 
 // 圧力計算
 PressureSolveResult VentilationNetwork::solvePressureDetailed(const SimulationConstants& constants,
-                                                              std::ostream& logs) {
+                                                              std::ostream& logs,
+                                                              bool refineForCoupling) {
     refreshDensityCache();
     const auto sig = pressureStructureSignature();
     if (!pressureSolver_ || sig != pressureStructureSig_) {
@@ -241,7 +242,7 @@ PressureSolveResult VentilationNetwork::solvePressureDetailed(const SimulationCo
         pressureStructureSig_ = sig;
         pressureStructureValid_ = true;
     }
-    return pressureSolver_->solveDetailed(constants);
+    return pressureSolver_->solveDetailed(constants, refineForCoupling);
 }
 
 std::tuple<PressureMap, std::map<std::pair<std::string, std::string>, double>, FlowBalanceMap>

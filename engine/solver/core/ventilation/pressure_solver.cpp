@@ -33,8 +33,8 @@ PressureSolver::~PressureSolver() = default;
 PressureSolver::PressureSolver(PressureSolver&&) noexcept = default;
 PressureSolver& PressureSolver::operator=(PressureSolver&&) noexcept = default;
 
-PressureSolveResult PressureSolver::solveDetailed(const SimulationConstants& constants) {
-    return impl_->solvePressures(constants);
+PressureSolveResult PressureSolver::solveDetailed(const SimulationConstants& constants, bool refineForCoupling) {
+    return impl_->solvePressures(constants, refineForCoupling);
 }
 
 PressureSolver::SolverResult PressureSolver::solvePressures(const SimulationConstants& constants) {
@@ -530,7 +530,7 @@ bool PressureSolver::Impl::ensurePrimaryProblemCached() {
 }
 
 PressureSolver::Impl::SolverResult PressureSolver::Impl::solvePressures(
-    const SimulationConstants& constants) {
+    const SimulationConstants& constants, bool refineForCoupling) {
     const auto tols = ventilation::makePressureSolverTolerances(constants);
 
     if (!ensurePrimaryProblemCached()) {
@@ -561,7 +561,8 @@ PressureSolver::Impl::SolverResult PressureSolver::Impl::solvePressures(
 
     ceres::Solver::Summary summary;
     bool physicalAccepted = false;
-    runPrimarySolvers(constants, problem, summary, setup, tols.massBalanceMaxAbs, physicalAccepted);
+    runPrimarySolvers(constants, problem, summary, setup, tols.massBalanceMaxAbs, physicalAccepted,
+                      refineForCoupling);
 
     PressureMap pressureMap = extractPressures(pressures, nodeNames);
     auto eval = evaluatePressureSolution(pressureMap, tols.massBalanceMaxAbs);
