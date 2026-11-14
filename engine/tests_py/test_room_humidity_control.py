@@ -411,7 +411,7 @@ def test_both_humidistats_capacity_limited(moist):
         assert min(q) >= 997.99 and max(q) <= 1002.01
 
 
-@pytest.mark.parametrize("capacity_kw", [.4, 1.0, 2.0])
+@pytest.mark.parametrize("capacity_kw", [.4-1e-10, .4, .4+1e-10, 1.0, 2.0])
 @pytest.mark.parametrize("moist", [False, True])
 def test_equipment_capacity_and_other_units_coil_floor(capacity_kw, moist):
     raw = connected_two_ac_case("humidity_priority")
@@ -430,3 +430,29 @@ def test_equipment_capacity_and_other_units_coil_floor(capacity_kw, moist):
     q = s("aircon_sensible_heat", "AC") + s("aircon_latent_heat", "AC")
     assert min(q) >= capacity_kw*1000*.999-1.01
     assert max(q) <= capacity_kw*1000*1.001+1.01
+
+
+@pytest.mark.parametrize("field,delta", [("temperature",-1e-8),("temperature",1e-8),
+                                        ("humidity",-1e-10),("humidity",1e-10),
+                                        ("flow",-1e-8),("flow",1e-8)])
+@pytest.mark.parametrize("moist", [False, True])
+def test_coupled_capacity_roots_tolerate_small_input_changes(field, delta, moist):
+    raw = connected_two_ac_case("humidity_priority")
+    raw["simulation"]["coupling"]["moist_enthalpy_enabled"] = moist
+    raw["aircon"][0]["ac_spec"]["Q"]["cooling"]["max"] = .4
+    if field == "temperature":
+        raw["nodes"][0]["t"] = 26.+delta
+    elif field == "humidity":
+        raw["nodes"][0]["x"] = [.018+delta]*6
+    else:
+        for branch in raw["ventilation_branches"]:
+            if branch["key"] in ["room->room2","room2->room"]:
+                branch["vol"] += delta
+    s = run(raw)
+    q = s("aircon_sensible_heat", "AC") + s("aircon_latent_heat", "AC")
+    assert min(q) >= 398.59 and max(q) <= 401.41
+    supply = s("thermal_temperature", "AC2")
+    assert min(supply) >= 4.999
+    free = supply > 5.05
+    assert free.any()
+    assert max(abs(s("aircon_room_rh", "AC2")[free]-58.0)) < .05

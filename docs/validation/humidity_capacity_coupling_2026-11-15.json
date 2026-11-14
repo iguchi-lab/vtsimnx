@@ -1,8 +1,8 @@
 {
   "baseline_commit": "94517c896226118a50ad41598af1f9f46c3ca3dd",
-  "engine_tests_passed": 520,
+  "engine_tests_passed": 536,
   "cpp_tests_passed": 28,
-  "humidity_regressions_passed": 90,
+  "humidity_regressions_passed": 106,
   "synthetic_baseline": {
     "solver_sha256": "63b22db08a858442540cc9fa7ed2ef1501c4e0c4964d9f7fd11811d81fbe17ff",
     "hours": 8760,
@@ -117,43 +117,43 @@
     ]
   },
   "synthetic_new": {
-    "solver_sha256": "2dab27aefbb80a7bd45d81d35fd882b7f21a808fae7066323b0fc471fd5771cf",
+    "solver_sha256": "18bb8ad32f69747623b7d164aface3a69178252a0b48b1af12d4c268d572f519",
     "hours": 8760,
     "weather": "synthetic cooling year",
     "cases": [
       {
         "mode": "humidity_priority",
         "input_sha256": "3839811766da207b1723a30a65fa36076d57030b7f0e096efc8a84f120f34b3d",
-        "seconds": 7.407244957998046,
+        "seconds": 10.441181037997012,
         "status": "ok",
         "metrics": {
-          "aircon_capacity_recalc": 39546,
-          "aircon_capacity_recalc_share": 0.19396989361232508,
+          "aircon_capacity_recalc": 72729,
+          "aircon_capacity_recalc_share": 0.2377922583218626,
           "aircon_flow_adjust_recalc": 0,
-          "aircon_ms": 1956.0815460000085,
+          "aircon_ms": 2688.5957700000017,
           "aircon_on_off_recalc": 0,
-          "aircon_recalc_total": 203877,
+          "aircon_recalc_total": 305851,
           "aircon_recompute_reasons_mask": 10,
-          "aircon_supply_humidity_recalc": 164331,
-          "coupled_iterations": 440945,
-          "humidity_factorizes": 8108,
-          "humidity_ms": 2382.678067999995,
-          "humidity_pattern_analyzes": 8108,
-          "humidity_rhs_only_solves": 1487818,
-          "humidity_solution_reuse": 267854,
-          "outer_iterations": 212637,
+          "aircon_supply_humidity_recalc": 233122,
+          "coupled_iterations": 642996,
+          "humidity_factorizes": 13848,
+          "humidity_ms": 3526.552383999989,
+          "humidity_pattern_analyzes": 13848,
+          "humidity_rhs_only_solves": 2157022,
+          "humidity_solution_reuse": 401114,
+          "outer_iterations": 314611,
           "outer_iterations_ge3": 5502,
           "outer_iterations_ge3_share": 0.6280821917808219,
-          "outer_iterations_max": 133,
-          "outer_iterations_mean": 24.273630136986302,
+          "outer_iterations_max": 95,
+          "outer_iterations_mean": 35.91449771689498,
           "pressure_ceres_iterations": 0,
           "pressure_fallback_count": 0,
           "pressure_ms": 0.0,
           "pressure_solve_calls": 0,
           "solve_timesteps": 8760,
           "thermal_full_builds": 1,
-          "thermal_ms": 894.0780460000009,
-          "thermal_rhs_only_builds": 440944
+          "thermal_ms": 1319.4798189999924,
+          "thermal_rhs_only_builds": 642995
         },
         "error": null,
         "units": [
@@ -162,14 +162,14 @@
             "free_hours": 2071,
             "max_free_rh_error_pp": 0.001399993896484375,
             "max_rh_unmet_pp": 0.001399993896484375,
-            "min_outlet_temperature": 5.000284194946289
+            "min_outlet_temperature": 5.0001983642578125
           },
           {
             "key": "AC2",
             "free_hours": 2490,
             "max_free_rh_error_pp": 0.001575469970703125,
             "max_rh_unmet_pp": 0.001575469970703125,
-            "min_outlet_temperature": 5.000387191772461
+            "min_outlet_temperature": 5.000011444091797
           }
         ],
         "accuracy_ok": true
@@ -177,20 +177,20 @@
       {
         "mode": "temperature_humidity",
         "input_sha256": "7fcb537eff65a246430883a75cb2bf9e0263b3fee1f38104c45ead168c23a28f",
-        "seconds": 5.280041549005546,
+        "seconds": 5.292942890999257,
         "status": "ok",
         "metrics": {
           "aircon_capacity_recalc": 30268,
           "aircon_capacity_recalc_share": 0.36942379749307364,
           "aircon_flow_adjust_recalc": 0,
-          "aircon_ms": 1989.7686090000016,
+          "aircon_ms": 1987.3470680000016,
           "aircon_on_off_recalc": 0,
           "aircon_recalc_total": 81933,
           "aircon_recompute_reasons_mask": 10,
           "aircon_supply_humidity_recalc": 51665,
           "coupled_iterations": 190358,
           "humidity_factorizes": 3,
-          "humidity_ms": 1025.5207539999997,
+          "humidity_ms": 1024.2755699999964,
           "humidity_pattern_analyzes": 3,
           "humidity_rhs_only_solves": 631496,
           "humidity_solution_reuse": 129933,
@@ -205,7 +205,7 @@
           "pressure_solve_calls": 0,
           "solve_timesteps": 8760,
           "thermal_full_builds": 1,
-          "thermal_ms": 405.7661579999978,
+          "thermal_ms": 403.06853000000007,
           "thermal_rhs_only_builds": 190357
         },
         "error": null,
@@ -257,14 +257,14 @@
         "aircon_capacity_recalc": 0,
         "aircon_capacity_recalc_share": 0.0,
         "aircon_flow_adjust_recalc": 0,
-        "aircon_ms": 20.758289,
+        "aircon_ms": 20.506467,
         "aircon_on_off_recalc": 0,
         "aircon_recalc_total": 67,
         "aircon_recompute_reasons_mask": 8,
         "aircon_supply_humidity_recalc": 67,
         "coupled_iterations": 141,
         "humidity_factorizes": 3,
-        "humidity_ms": 1.5753789999999999,
+        "humidity_ms": 1.5357890000000003,
         "humidity_pattern_analyzes": 3,
         "humidity_rhs_only_solves": 493,
         "humidity_solution_reuse": 68,
@@ -279,7 +279,7 @@
         "pressure_solve_calls": 0,
         "solve_timesteps": 6,
         "thermal_full_builds": 1,
-        "thermal_ms": 0.569304,
+        "thermal_ms": 0.5227120000000001,
         "thermal_rhs_only_builds": 140
       }
     },
@@ -290,15 +290,15 @@
       "input_sha256": "b3bd73d9de9f6844509e19dc6e7e9f45b62996485762d367d691550190e6d1a6",
       "rh": {
         "AC": [
-          72.93425750732422,
-          71.398681640625,
-          71.26470947265625,
-          71.2525405883789,
-          71.25143432617188,
-          71.25133514404297
+          72.93413543701172,
+          71.4007797241211,
+          71.2669677734375,
+          71.25480651855469,
+          71.25370788574219,
+          71.25360870361328
         ],
         "AC2": [
-          59.31889724731445,
+          59.31755447387695,
           58.0,
           58.0,
           58.0,
@@ -307,35 +307,234 @@
         ]
       },
       "metrics": {
-        "aircon_capacity_recalc": 346,
-        "aircon_capacity_recalc_share": 0.3473895582329317,
+        "aircon_capacity_recalc": 211,
+        "aircon_capacity_recalc_share": 0.2997159090909091,
         "aircon_flow_adjust_recalc": 0,
-        "aircon_ms": 21.701621000000003,
+        "aircon_ms": 15.019656999999999,
         "aircon_on_off_recalc": 0,
-        "aircon_recalc_total": 996,
+        "aircon_recalc_total": 704,
         "aircon_recompute_reasons_mask": 10,
-        "aircon_supply_humidity_recalc": 650,
-        "coupled_iterations": 2005,
-        "humidity_factorizes": 29,
-        "humidity_ms": 20.922056999999995,
-        "humidity_pattern_analyzes": 29,
-        "humidity_rhs_only_solves": 6642,
-        "humidity_solution_reuse": 1349,
-        "outer_iterations": 1002,
+        "aircon_supply_humidity_recalc": 493,
+        "coupled_iterations": 1424,
+        "humidity_factorizes": 27,
+        "humidity_ms": 13.755078000000001,
+        "humidity_pattern_analyzes": 27,
+        "humidity_rhs_only_solves": 4744,
+        "humidity_solution_reuse": 925,
+        "outer_iterations": 710,
         "outer_iterations_ge3": 6,
         "outer_iterations_ge3_share": 1.0,
-        "outer_iterations_max": 167,
-        "outer_iterations_mean": 167.0,
+        "outer_iterations_max": 119,
+        "outer_iterations_mean": 118.33333333333333,
         "pressure_ceres_iterations": 0,
         "pressure_fallback_count": 0,
         "pressure_ms": 0.0,
         "pressure_solve_calls": 0,
         "solve_timesteps": 6,
         "thermal_full_builds": 1,
-        "thermal_ms": 6.614648000000003,
-        "thermal_rhs_only_builds": 2004
+        "thermal_ms": 4.572245000000001,
+        "thermal_rhs_only_builds": 1423
       }
     }
   ],
-  "house_annual24_status": "running"
+  "house_annual24_status": "pending_final_validation",
+  "house_seasonal24_status": "running",
+  "perturbation_sweep": [
+    {
+      "field": "temperature",
+      "delta": -1e-06,
+      "status": "ok",
+      "outer_max": 198,
+      "error": null
+    },
+    {
+      "field": "temperature",
+      "delta": -1e-08,
+      "status": "ok",
+      "outer_max": 198,
+      "error": null
+    },
+    {
+      "field": "temperature",
+      "delta": -1e-10,
+      "status": "ok",
+      "outer_max": 198,
+      "error": null
+    },
+    {
+      "field": "temperature",
+      "delta": 0.0,
+      "status": "ok",
+      "outer_max": 198,
+      "error": null
+    },
+    {
+      "field": "temperature",
+      "delta": 1e-10,
+      "status": "ok",
+      "outer_max": 198,
+      "error": null
+    },
+    {
+      "field": "temperature",
+      "delta": 1e-08,
+      "status": "ok",
+      "outer_max": 198,
+      "error": null
+    },
+    {
+      "field": "temperature",
+      "delta": 1e-06,
+      "status": "ok",
+      "outer_max": 198,
+      "error": null
+    },
+    {
+      "field": "humidity",
+      "delta": -1e-06,
+      "status": "ok",
+      "outer_max": 198,
+      "error": null
+    },
+    {
+      "field": "humidity",
+      "delta": -1e-08,
+      "status": "ok",
+      "outer_max": 201,
+      "error": null
+    },
+    {
+      "field": "humidity",
+      "delta": -1e-10,
+      "status": "ok",
+      "outer_max": 198,
+      "error": null
+    },
+    {
+      "field": "humidity",
+      "delta": 0.0,
+      "status": "ok",
+      "outer_max": 198,
+      "error": null
+    },
+    {
+      "field": "humidity",
+      "delta": 1e-10,
+      "status": "ok",
+      "outer_max": 198,
+      "error": null
+    },
+    {
+      "field": "humidity",
+      "delta": 1e-08,
+      "status": "ok",
+      "outer_max": 198,
+      "error": null
+    },
+    {
+      "field": "humidity",
+      "delta": 1e-06,
+      "status": "ok",
+      "outer_max": 201,
+      "error": null
+    },
+    {
+      "field": "capacity",
+      "delta": -1e-06,
+      "status": "ok",
+      "outer_max": 198,
+      "error": null
+    },
+    {
+      "field": "capacity",
+      "delta": -1e-08,
+      "status": "ok",
+      "outer_max": 198,
+      "error": null
+    },
+    {
+      "field": "capacity",
+      "delta": -1e-10,
+      "status": "ok",
+      "outer_max": 198,
+      "error": null
+    },
+    {
+      "field": "capacity",
+      "delta": 0.0,
+      "status": "ok",
+      "outer_max": 198,
+      "error": null
+    },
+    {
+      "field": "capacity",
+      "delta": 1e-10,
+      "status": "ok",
+      "outer_max": 198,
+      "error": null
+    },
+    {
+      "field": "capacity",
+      "delta": 1e-08,
+      "status": "ok",
+      "outer_max": 198,
+      "error": null
+    },
+    {
+      "field": "capacity",
+      "delta": 1e-06,
+      "status": "ok",
+      "outer_max": 198,
+      "error": null
+    },
+    {
+      "field": "interroom_flow",
+      "delta": -1e-06,
+      "status": "ok",
+      "outer_max": 198,
+      "error": null
+    },
+    {
+      "field": "interroom_flow",
+      "delta": -1e-08,
+      "status": "ok",
+      "outer_max": 198,
+      "error": null
+    },
+    {
+      "field": "interroom_flow",
+      "delta": -1e-10,
+      "status": "ok",
+      "outer_max": 141,
+      "error": null
+    },
+    {
+      "field": "interroom_flow",
+      "delta": 0.0,
+      "status": "ok",
+      "outer_max": 198,
+      "error": null
+    },
+    {
+      "field": "interroom_flow",
+      "delta": 1e-10,
+      "status": "ok",
+      "outer_max": 198,
+      "error": null
+    },
+    {
+      "field": "interroom_flow",
+      "delta": 1e-08,
+      "status": "ok",
+      "outer_max": 141,
+      "error": null
+    },
+    {
+      "field": "interroom_flow",
+      "delta": 1e-06,
+      "status": "ok",
+      "outer_max": 198,
+      "error": null
+    }
+  ]
 }
