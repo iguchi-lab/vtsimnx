@@ -1,0 +1,164 @@
+{
+  "engine_commit": "5eeffb2f8012a2fe41bca705450b0dd0a952326d",
+  "solver_sha256": "2b249987fe394e16b60108492e8bbe3c591a3f8be4f3c00bcc9fe0aab0ec498d",
+  "method": "Jupyter nbclient; real HTTP /runs and artifact reads; isolated loopback API",
+  "dependency_cell": "dependencies installed once in an isolated venv; in-notebook reinstall skipped",
+  "passed": 18,
+  "total": 18,
+  "notebooks": [
+    {
+      "file": "01_三節点の換気計算.ipynb",
+      "status": "passed",
+      "code_cells": 5,
+      "plots": 1,
+      "seconds": 3.62
+    },
+    {
+      "file": "02_風圧と隙間.ipynb",
+      "status": "passed",
+      "code_cells": 5,
+      "plots": 1,
+      "seconds": 3.15
+    },
+    {
+      "file": "03_ファンのPQ特性.ipynb",
+      "status": "passed",
+      "code_cells": 5,
+      "plots": 1,
+      "seconds": 2.99
+    },
+    {
+      "file": "04_一室の発熱と蓄熱.ipynb",
+      "status": "passed",
+      "code_cells": 5,
+      "plots": 1,
+      "seconds": 3.16
+    },
+    {
+      "file": "05_授業の9節点熱回路.ipynb",
+      "status": "passed",
+      "code_cells": 5,
+      "plots": 1,
+      "seconds": 3.21
+    },
+    {
+      "file": "06_壁層・日射・夜間放射.ipynb",
+      "status": "passed",
+      "code_cells": 5,
+      "plots": 2,
+      "seconds": 4.45
+    },
+    {
+      "file": "07_湿気容量と吸放湿.ipynb",
+      "status": "passed",
+      "code_cells": 5,
+      "plots": 2,
+      "seconds": 4.65
+    },
+    {
+      "file": "08_CO2減衰と多室保存.ipynb",
+      "status": "passed",
+      "code_cells": 6,
+      "plots": 2,
+      "seconds": 4.23
+    },
+    {
+      "file": "09_粉塵沈着とフィルター.ipynb",
+      "status": "passed",
+      "code_cells": 5,
+      "plots": 1,
+      "seconds": 2.91
+    },
+    {
+      "file": "10_床下を介した多室暖房.ipynb",
+      "status": "passed",
+      "code_cells": 5,
+      "plots": 1,
+      "seconds": 2.98
+    },
+    {
+      "file": "11_顕熱交換と全熱交換.ipynb",
+      "status": "passed",
+      "code_cells": 5,
+      "plots": 2,
+      "seconds": 4.25
+    },
+    {
+      "file": "12_別室設置の空調制御.ipynb",
+      "status": "passed",
+      "code_cells": 5,
+      "plots": 1,
+      "seconds": 3.0
+    },
+    {
+      "file": "13_温度優先・湿度優先・再熱.ipynb",
+      "status": "passed",
+      "code_cells": 6,
+      "plots": 3,
+      "seconds": 5.51
+    },
+    {
+      "file": "14_潜熱モデル比較.ipynb",
+      "status": "passed",
+      "code_cells": 5,
+      "plots": 3,
+      "seconds": 5.3
+    },
+    {
+      "file": "15_隙間倍率6条件の比較.ipynb",
+      "status": "passed",
+      "code_cells": 5,
+      "plots": 5,
+      "seconds": 9.64
+    },
+    {
+      "file": "16_枚方のαA推定モデル.ipynb",
+      "status": "passed",
+      "code_cells": 5,
+      "plots": 1,
+      "seconds": 4.52
+    },
+    {
+      "file": "17_実測と気象の前処理.ipynb",
+      "status": "passed",
+      "code_cells": 4,
+      "plots": 1,
+      "seconds": 2.01
+    },
+    {
+      "file": "18_全館空調の保存入力を再計算.ipynb",
+      "status": "passed",
+      "code_cells": 5,
+      "plots": 2,
+      "seconds": 11.06
+    }
+  ],
+  "scope": "Execution evidence from the Drive distribution. Calculation cells are unchanged; GitHub input bootstrap is validated separately in github_package_validation.json.",
+  "packaging_code_changes": [
+    {
+      "file": "18_全館空調の保存入力を再計算.ipynb",
+      "cell_index": 5,
+      "change": "Replace Drive fallback with pinned GitHub download and SHA-256 checks."
+    }
+  ],
+  "executed_notebook_sha256": {
+    "01_三節点の換気計算.ipynb": "1b1f7e5563fd7dc1003d419f6484b709767fdb63fab493dd5b8dcb3d7197b873",
+    "02_風圧と隙間.ipynb": "f123a2a0d656cee583a08c28de8f7615e177d5c44956c37177172c284271a114",
+    "03_ファンのPQ特性.ipynb": "353331f31953f2816924a13c86151b828cfc5e087c6dc2d6ade90fc78f9eb5d2",
+    "04_一室の発熱と蓄熱.ipynb": "2a9b4ca2c57d9bec10bd9baae88282e43524244553f160cfd13974bfc971c3ff",
+    "05_授業の9節点熱回路.ipynb": "a386d30ac50c702bd5b8b78b6c0d85d02211ec43906a3eabaabc9b10f6d91d2d",
+    "06_壁層・日射・夜間放射.ipynb": "5d2fa9233bb3d0fbb483f5c1355355b7208d0acf61e3b7f45ca579ac5d82ec46",
+    "07_湿気容量と吸放湿.ipynb": "9f89c1d20c30f9f89317569f9fdbe3b2264380dc5b64b1c9b48b6945f58aacd9",
+    "08_CO2減衰と多室保存.ipynb": "bfecb523df199f599734ded318c5852eab1794e1fcc6e95ff0abc7d1b83ae60b",
+    "09_粉塵沈着とフィルター.ipynb": "9c29deb91c830517b3a5253f737a227cbf52d8ce8dcd8a77eff7cfb9af556881",
+    "10_床下を介した多室暖房.ipynb": "d344414d1ba4406492979dd60e99c615f9e1aef863962bd798cd4dd014245eac",
+    "11_顕熱交換と全熱交換.ipynb": "0e9160943abab553d6ac01409866ead406e8dfcca5752876f4b012f2d797cb42",
+    "12_別室設置の空調制御.ipynb": "68c54d6330add2d84684e6a946dc145f20340e40754aa61ce6a970ed32b93a58",
+    "13_温度優先・湿度優先・再熱.ipynb": "0c8bfacb8dc59931ce9fbbe63d9a481dcd4ca8dd255f83b565b74eb1bad5fe1d",
+    "14_潜熱モデル比較.ipynb": "15383c720d2e8ff3626c93407633dc7d32ee76ac5050d20e8839e145824ec274",
+    "15_隙間倍率6条件の比較.ipynb": "9ba96c1302bd18bf17e208df5256734e9c7ec1ed59bb9134ad36036dbd038a96",
+    "16_枚方のαA推定モデル.ipynb": "6d50ba9df6bf8df09c267bd3cacaba0328991122cd7e2fd05503d5857888cd41",
+    "17_実測と気象の前処理.ipynb": "47a2efeec778f37a7f05bc7e202bc7319d683e09f362211a7092ae7d162c69a4",
+    "18_全館空調の保存入力を再計算.ipynb": "c348a1cf019a3bb82113ec68d6018467143b023ff9449235e3220ce294623338"
+  }
+}

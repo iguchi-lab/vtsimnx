@@ -1,0 +1,10 @@
+{
+  "source_notebook_sha256": "4089996ae3e7ee470bc47dd948eb914b1e4ec9094e0b928f5bcfbc109ed0d3a4",
+  "input_archive": "20261112_latent3_c6_round6_data.zip",
+  "compressed_input_sha256": "f983ca142ad7acb1e13008ad8dd2e96be6429651250d38d03fb2598cd6a1b179",
+  "period": "2026-01-01 00:00 to 2026-12-31 23:00, hourly, 8760 steps",
+  "validation_scope": "January 15 and August 1, 24 hours each; rh95; multiplier 1; original initial state",
+  "regenerated_from_weather": false,
+  "annual_reproduction_verified": false,
+  "source_title": "261112_全館空調_湿度3方式_C値6条件比較"
+}

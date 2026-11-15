@@ -1,0 +1,4 @@
+vtsimnx @ git+https://github.com/iguchi-lab/vtsimnx@5eeffb2f8012a2fe41bca705450b0dd0a952326d
+matplotlib
+japanize-matplotlib
+jupyterlab>=4,<5
