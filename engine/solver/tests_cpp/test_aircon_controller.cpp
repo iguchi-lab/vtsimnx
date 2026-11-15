@@ -242,7 +242,22 @@ void testPassiveDischargeWaterBalance() {
         std::ostringstream logs;
         expectTrue(controller.acceptedHumidityConverged(net, flows, 1e-9, logs),
                    "sub-saturated discharge must not stall on a roundoff-sized target overshoot");
+        aircon::latent::LatentProcessResult boundary;
+        boundary.supplyXUpperBound = c.supplyXUpperBound;
+        boundary.supplyX = c.supplyXUpperBound;
+        boundary.condensationRateKgPerS = 1e-4;
+        supply.aircon_moisture_removal_kg_s = boundary.condensationRateKgPerS;
+        supply.current_x = c.supplyXUpperBound + 5e-17;
+        const double acceptedX = supply.current_x;
+        expectTrue(!aircon::latent::supplyHumidityNeedsUpdate(supply, boundary, 1e-9),
+                   "sub-saturated AC also distinguishes guarded target from physical acceptance");
+        expectTrue(!aircon::latent::applySupplyHumidityToAirconNode(net, "AC", boundary, 1e-9),
+                   "tiny safe target drift cannot consume the boundary iteration budget");
+        expectNear(supply.current_x, acceptedX, 0,
+                   "within-tolerance acceptance never silently changes the solved water state");
         discharge.current_x = sat * (1.0 + 1e-7);
+        expectTrue(aircon::latent::applySupplyHumidityToAirconNode(net, "AC", boundary, 1e-9),
+                   "supersaturated plenum still forces the upstream boundary to be reapplied");
         expectTrue(!controller.acceptedHumidityConverged(net, flows, 1e-9, logs),
                    "true discharge supersaturation is rejected");
         discharge.current_x = std::numeric_limits<double>::quiet_NaN();

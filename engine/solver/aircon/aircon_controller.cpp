@@ -525,7 +525,7 @@ bool AirconController::acceptedHumidityConverged(ThermalNetwork& thermalNetwork,
         const auto loads = aircon::latent::estimateLatentProcess(
             context.validData, context.operationMode, context.heatCapacity,
             context.airFlowRate, node, moistEnthalpyEnabled_);
-        if (node.current_x > loads.supplyXUpperBound ||
+        if (!aircon::latent::unsaturatedBeforeAndAfterSerialization(node.current_t, node.current_x) ||
             ((loads.condensationRateKgPerS > 0.0) &&
              aircon::latent::supplyHumidityNeedsUpdate(node, loads, humidityAbsTol))) {
             writeDomainLog(logs, "受入検査", "空調吹出湿度未達: aircon=" + key);

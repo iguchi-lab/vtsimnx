@@ -353,7 +353,7 @@ bool supplyHumidityNeedsUpdate(const VertexProperties& node,
                                 const LatentProcessResult& loads,
                                 double humidityAbsTol) {
     return !std::isfinite(node.current_x) ||
-        node.current_x > loads.supplyXUpperBound ||
+        !unsaturatedBeforeAndAfterSerialization(node.current_t, node.current_x) ||
         std::abs(node.current_x - loads.supplyX) > supplyHumidityRecomputeTol(humidityAbsTol);
 }
 
@@ -375,9 +375,20 @@ bool applySupplyHumidityToAirconNode(ThermalNetwork& thermalNetwork,
     node.aircon_moisture_removal_kg_s = newRemoval;
     const bool passthrough = airconHumidityPassthrough(node);
     if (passthrough) return !wasPassthrough || limitChanged;
-    const bool changed = wasPassthrough || supplyHumidityNeedsUpdate(node, loads, humidityAbsTol);
+    bool changed = wasPassthrough || supplyHumidityNeedsUpdate(node, loads, humidityAbsTol);
+    if (!changed) {
+        for (const auto& constraint : aircon::network_utils::passiveSupplyOutletConstraints(thermalNetwork, node)) {
+            const auto& outlet = thermalNetwork.getNode(constraint.outletKey);
+            if (!unsaturatedBeforeAndAfterSerialization(outlet.current_t, outlet.current_x)) {
+                changed = true;
+                break;
+            }
+        }
+    }
     // Relax the boundary iteration, but test its unrelaxed defect above.
-    // The hard saturation bound is applied immediately and triggers a re-solve.
+    // An actually supersaturated node/plenum triggers an immediate conservative
+    // target and a re-solve. Do not chase a sub-tolerance drift of that target
+    // when the solved double AND serialized float states are unsaturated.
     if (changed) {
         const double mixed = std::isfinite(node.current_x)
             ? node.current_x + relaxation * (loads.supplyX - node.current_x) : loads.supplyX;
