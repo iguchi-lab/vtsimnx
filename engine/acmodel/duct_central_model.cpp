@@ -1,4 +1,3 @@
-#include "coil_transfer.h"
 #include "duct_central_model.h"
 #include "refrigerant_calculator.h"  // RefrigerantCalculator::calculateTheoreticalHeatingEfficiency
 #include "acmodel.h"  // acmodel::log
@@ -181,8 +180,7 @@ COPResult DuctCentralModel::estimateCoolingCOP(const InputData& in) {
     // ---- 評価点（実風量）：閉式で Θ_surf → 冷媒温度 → e_th_C ----
     // α_c(eval)：X_hs_in を使用
     const double alpha_c_eval = sensibleHTCoeffCooling_eval(V_hs_supply, X_hs_in);
-    const double Theta_sur_eval = in.cooling_coil_temperature.value_or(
-        coolingSurfaceTempEval(Theta_hs_in, Theta_hs_out, V_hs_supply, alpha_c_eval));
+    const double Theta_sur_eval = coolingSurfaceTempEval(Theta_hs_in, Theta_hs_out, V_hs_supply, alpha_c_eval);
     double Theta_ref_evp = std::max(Theta_sur_eval, -50.0);
     double Theta_ref_cnd = coolingCondensingTemp_eval(Theta, Theta_ref_evp);
     const double Theta_ref_SC = coolingSubcooling(Theta_ref_cnd);
@@ -472,7 +470,8 @@ double DuctCentralModel::calculateFanPower(double v_supply_m3h,
 
 // ---- 伝熱係数 ----
 double DuctCentralModel::latentHTCoeff(double v_flow_m3h) {
-    return coolingCoilMassTransferCoefficient(v_flow_m3h / 3600.0, A_F_HEX);
+    const double a = std::max(v_flow_m3h, 400.0);
+    return 0.050 * std::log((a/3600.0) / A_F_HEX) + 0.073; // [kg/(m2·s)]
 }
 double DuctCentralModel::sensibleHTCoeffCooling_mid_rtd(double v_flow_m3h) {
     // α_c = α'_c * (c_p_air + c_p_w*0.010376)

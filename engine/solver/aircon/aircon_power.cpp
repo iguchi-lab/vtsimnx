@@ -53,8 +53,6 @@ std::pair<double, double> AirconController::estimatePowerAndCOPForAircon(
         aircon::latent::buildAcmodelInput(context.validData,
                                           loads.sensibleHeatCapacity, loads.latentHeatCapacity,
                                           context.airFlowRate);
-    if (context.operationMode == OperationMode::Cooling && aircon::latent::usesPhysicalCoil(nodeProps))
-        input.cooling_coil_temperature = loads.coilTemp;
 
     const bool heating = isHeating(context.operationMode);
     bool usedFallbackEx = false;

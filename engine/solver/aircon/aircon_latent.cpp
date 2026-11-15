@@ -6,7 +6,7 @@
 #include "aircon/aircon_operation_mode.h"
 #include "archenv/include/archenv.h"
 #include "core/thermal/thermal_moist_air.h"
-#include "../../acmodel/coil_transfer.h"
+#include "aircon/coil_transfer.h"
 #include "network/thermal_network.h"
 
 #include <algorithm>
@@ -271,7 +271,7 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
             result.effectiveBypassFactor = effectiveBypassFactor(nodeProps, flow);
             contact = 1.0 - result.effectiveBypassFactor;
         } else {
-            const double coefficient = acmodel::coolingCoilMassTransferCoefficient(
+            const double coefficient = coolingCoilMassTransferCoefficient(
                 flow, readCoilFaceArea(nodeProps));
             const double ntu = coefficient * readCoilSurfaceArea(nodeProps) / (kAirDensity * flow);
             result.effectiveBypassFactor = std::exp(-ntu);

@@ -479,14 +479,8 @@ int main() {
         if (!history.empty()) {
             qlDefault = history.back().input.Q_L;
             expectTrue(qlDefault >= 0.0, "coil_aoaf: Q_L should be non-negative");
-            const auto& input = history.back().input;
-            const double coefficient = .050 * std::log((400.0 / 3600.0) / .133) + .073;
-            const double bf = std::exp(-coefficient * 2.42 / (1.2 * .1));
-            const double expectedCoil = input.T_in - (input.T_in - b.current_t) / (1.0-bf);
-            expectNear(input.V_inner, .1, 1e-12, "coil COP uses actual network airflow");
-            expectTrue(input.cooling_coil_temperature.has_value(), "coil temperature supplied to COP");
-            expectNear(input.cooling_coil_temperature.value_or(999.0), expectedCoil, 1e-9,
-                       "COP receives the same surface temperature as the latent process");
+            expectNear(history.back().input.V_inner, .1, 1e-12,
+                       "coil COP uses actual network airflow");
         }
 
         // 飽和制約が支配しない条件ではコイル面積が除湿量に反映される
