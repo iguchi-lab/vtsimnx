@@ -11,6 +11,12 @@
 
 をまとめたものです。
 
+温度だけによる発停と負荷追従風量の説明は、温度優先および暖房に適用します。
+冷房の湿度優先・温湿度満足では、共通の温湿度要求で発停し、DUCT_CENTRALの風量は
+`aircon/aircon_operating_point.cpp` による有限候補の比較で選びます。各候補の能力探索中に
+通常の風量則で上書きせず、最終候補も物理収支を検査します。
+詳細は[湿度制御の契約](../../docs/aircon_room_humidity_modes.md)を参照してください。
+
 主な実装箇所:
 
 - `solver/aircon/aircon_controller.cpp`

@@ -4,6 +4,7 @@
 #include "aircon/aircon_onoff.h"
 #include "aircon/aircon_operation_mode.h"
 #include "aircon/aircon_capacity.h"
+#include "aircon/aircon_operating_point.h"
 #include "types/aircon_control_state.h"
 #include <cstdint>
 #include <limits>
@@ -95,6 +96,29 @@ private:
         std::string regime;
     };
     mutable std::unordered_map<std::string, BoundaryIteration> boundaryIterations_;
+    mutable std::unordered_map<std::string, aircon::operating_point::AirflowSearch> humidityAirflowSearch_;
+    mutable std::unordered_map<std::string, double> humidityAirflowWarmRatio_;
+    mutable bool disableHumidityWarmStart_ = false;
+    struct AirflowCandidateSnapshot {
+        bool initialWarmStart = false;
+        std::string key;
+        double ratio = 0.0;
+        // Only runtime scalar fields are copied; annual schedule arrays and
+        // material/equipment configuration are never duplicated.
+        std::vector<VertexProperties> thermalNodes, ventilationNodes;
+        std::vector<EdgeProperties> ventilationEdges;
+        aircon::capacity::CapacityBracketMap capacity;
+        std::unordered_set<std::string> flowBoost, recovery, floorBlocked, fanTrial, rebase;
+        std::unordered_map<std::string, BoundaryIteration> boundary;
+        std::unordered_map<std::string, double> freeTemperature;
+    };
+    mutable std::optional<AirflowCandidateSnapshot> airflowCandidateSnapshot_;
+    void captureAirflowCandidate(ThermalNetwork& thermal, VentilationNetwork& ventilation,
+                                const std::string& key, double ratio) const;
+
+    aircon::operating_point::CoolingRequest coolingRequest(
+        ThermalNetwork& thermal, const VertexProperties& node, bool temperatureDemand,
+        bool numericalTrial, bool mayCool, bool blocked, const FlowRateMap* flows) const;
 
     // OFF 中に観測した set 室温。停止後の再起動判定などで参照する。
     mutable std::unordered_map<std::string, double> lastFreeSetTempC_;
@@ -233,6 +257,22 @@ public:
                                     std::ostream& logs) const;
     void validateAcceptedCapacity(ThermalNetwork& thermalNetwork,
                                   const FlowRateMap& flowRates) const;
+
+    // Advance a finite airflow search only from a physically accepted state.
+    // true requests a new complete coupled solve from the same timestep inventory.
+    bool advanceHumidityAirflowSearch(ThermalNetwork& thermal, VentilationNetwork& ventilation,
+                                      const FlowRateMap& flows, std::ostream& logs) const;
+    // Reject a domain-invalid or coupling-budget-exhausted speculative point.
+    // Initial/final-point failures and individual solver errors remain errors;
+    // a discarded trial is unavailable, not evidence of physical infeasibility.
+    bool rejectHumidityAirflowCandidate(ThermalNetwork& thermal, VentilationNetwork& ventilation,
+                                        std::ostream& logs, const std::string& detail) const;
+
+    // Mixing moist reverse flow into cold supply can require condensation in
+    // a plenum. This model has no plenum condensate/latent-heat sink; reject
+    // that operating point rather than silently deleting its excess water.
+    std::string invalidMixedSupplyOutlet(ThermalNetwork& thermal,
+                                         const FlowRateMap& flows) const;
 
     bool checkAndAdjustCapacity(ThermalNetwork& thermalNetwork, VentilationNetwork& ventNetwork,
                                 const SimulationConstants& constants,

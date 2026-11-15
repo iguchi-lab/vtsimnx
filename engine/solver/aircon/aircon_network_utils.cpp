@@ -19,13 +19,13 @@ OperationMode fanMode(const VertexProperties& node) {
 }
 
 
-std::vector<PassiveSupplyOutletConstraint> passiveSupplyOutletConstraints(
+std::vector<std::string> supplyOutletKeys(
     const ThermalNetwork& network, const VertexProperties& ac) {
     const auto& graph = network.getGraph();
     const auto found = network.getKeyToVertex().find(ac.key);
     if (found == network.getKeyToVertex().end()) return {};
     const Vertex av = found->second;
-    std::vector<Vertex> candidates;
+    std::vector<std::string> candidates;
     for (auto e : boost::make_iterator_range(boost::edges(graph))) {
         const auto& edge = graph[e];
         if (!edge.current_enabled || edge.getTypeCode() != EdgeProperties::TypeCode::Advection ||
@@ -37,11 +37,21 @@ std::vector<PassiveSupplyOutletConstraint> passiveSupplyOutletConstraints(
         if (node.key == ac.in_node || node.key == ac.set_node ||
             node.getTypeCode() != VertexProperties::TypeCode::Normal || !node.calc_x ||
             node.v > 0.0 || node.moisture_capacity > 0.0 || node.heat_source != 0.0) continue;
-        if (std::find(candidates.begin(), candidates.end(), target) == candidates.end())
-            candidates.push_back(target);
+        if (std::find(candidates.begin(), candidates.end(), node.key) == candidates.end())
+            candidates.push_back(node.key);
     }
+    return candidates;
+}
+
+std::vector<PassiveSupplyOutletConstraint> passiveSupplyOutletConstraints(
+    const ThermalNetwork& network, const VertexProperties& ac) {
+    const auto& graph = network.getGraph();
+    const auto found = network.getKeyToVertex().find(ac.key);
+    if (found == network.getKeyToVertex().end()) return {};
+    const Vertex av = found->second;
     std::vector<PassiveSupplyOutletConstraint> result;
-    for (Vertex outlet : candidates) {
+    for (const auto& key : supplyOutletKeys(network, ac)) {
+        const Vertex outlet = network.getKeyToVertex().at(key);
         double inflow = 0.0, outflow = 0.0;
         bool passive = true;
         for (auto e : boost::make_iterator_range(boost::edges(graph))) {

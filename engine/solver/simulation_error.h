@@ -51,4 +51,13 @@ private:
     ErrorCode code_;
 };
 
+// Distinguish a finite trial outside the thermal domain from numerical
+// nonconvergence, while preserving the public failure code and message.
+class ThermalDomainError : public Error {
+public:
+    explicit ThermalDomainError(const std::string& detail)
+        : Error(ErrorCode::ThermalNotConverged,
+                "Unphysical thermal candidate rejected; " + detail) {}
+};
+
 } // namespace simulation

@@ -263,9 +263,7 @@ void runInnerCoupling(InnerCouplingContext& ctx,
             rawTemperatureChange =
                 calculateTemperatureChangeByVertex(ctx.thermal.getGraph(), snap.temperature);
             if (anyUnphysicalCalcTemperature(ctx.thermal.getGraph())) {
-                throw Error(ErrorCode::ThermalNotConverged,
-                            "Unphysical thermal candidate rejected; " +
-                            invalidStateDetail(ctx.thermal.getGraph(), true));
+                throw ThermalDomainError(invalidStateDetail(ctx.thermal.getGraph(), true));
             } else if (needsInnerCoupledIteration(ctx.constants)) {
                 // 20K 混合は Picard 再反復があるときだけ。温度だけの 1 回解に
                 // 掛けると空調 ON 直後のコイル ΔT が切れ、次ステップで除熱になる。

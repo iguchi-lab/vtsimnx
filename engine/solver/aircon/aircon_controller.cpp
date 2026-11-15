@@ -310,7 +310,6 @@ void AirconController::syncHumidityBoundariesBeforeSolve(ThermalNetwork& thermal
         auto& node = thermalNetwork.getNode(airconKey);
         if (airconHumidityPassthrough(node)) {
             node.aircon_moisture_removal_kg_s = 0.0;
-            node.aircon_humidity_transition = false;
         }
     }
 }
@@ -319,10 +318,48 @@ void AirconController::prepareAirflowForSolve(ThermalNetwork& thermalNetwork,
                                               VentilationNetwork& ventNetwork) const {
     const auto flows = ventNetwork.collectFlowRateMap();
     for (const auto& key : getAirconKeys()) {
-        const auto& node = thermalNetwork.getNode(key);
+        auto& node = thermalNetwork.getNode(key);
         if (!aircon::airflow::isDuctCentralModel(node)) continue;
+        const bool humidistat = aircon::humidity_control::enabled(node);
+        if (!humidistat) humidityAirflowWarmRatio_.erase(key);
         const double current = aircon::network_utils::getAirconProcessFlowRate(flows, node.in_node, key);
-        if (node.on && std::abs(current) > 1e-4) continue;
+        if (humidistat && node.on && !disableHumidityWarmStart_ &&
+            humidityAirflowWarmRatio_.count(key)) {
+            auto& search = humidityAirflowSearch_[key];
+            if (!search.initialized && !search.seededFromPrevious) {
+                if (!airflowCandidateSnapshot_) {
+                    captureAirflowCandidate(thermalNetwork, ventNetwork, key, 1.0);
+                    airflowCandidateSnapshot_->initialWarmStart = true;
+                }
+                search.seededFromPrevious = true;
+                search.ratio = humidityAirflowWarmRatio_.at(key);
+                const double roomT = aircon::network_utils::getControlledRoomTemperature(thermalNetwork, node);
+                node.current_pre_temp = aircon::humidity_control::simultaneous(node)
+                    ? node.current_requested_pre_temp
+                    : std::max(roomT, node.current_requested_pre_temp-node.max_overcooling);
+                // A previous operating point is only a numerical initial guess.
+                // Today's humidity request must establish its own on/hold state;
+                // otherwise a dry hour would keep yesterday's fan trial alive.
+                node.humidity_overcool_hold = false;
+                node.aircon_control_state = node.current_pre_temp > node.current_requested_pre_temp+1e-5
+                    ? AirconControlState::CapacityLimited : AirconControlState::SetpointControlled;
+                bool fan = false;
+                const double target = search.ratio * node.ac_spec["V_inner"]["cooling"]["dsgn"].get<double>();
+                aircon::airflow::updateDuctCentralFanAffinity(ventNetwork, node, OperationMode::Cooling,
+                    key, target, 1e-6, &fan, false, false);
+                if (!fan) aircon::airflow::updateDuctCentralCircuitFixedFlows(
+                    ventNetwork, node.in_node, key, target, 1e-6);
+                continue;
+            }
+        }
+        const auto trial = humidityAirflowSearch_.find(key);
+        const bool initialHumidityPoint = humidistat &&
+            (trial == humidityAirflowSearch_.end() ||
+             (!trial->second.initialized && !trial->second.seededFromPrevious));
+        // Without a validated preceding point, use canonical full flow.
+        // A warm start pairs its flow with the previous room temperature,
+        // never the warmer reset requested setpoint that can imply heating.
+        if (node.on && std::abs(current) > 1e-4 && !initialHumidityPoint) continue;
         const auto mode = aircon::network_utils::fanMode(node);
         double target = node.vol_zero;
         if (node.on) {
@@ -332,6 +369,9 @@ void AirconController::prepareAirflowForSolve(ThermalNetwork& thermalNetwork,
             const auto flow = aircon::airflow::computeTargetFlowFromProcessedHeat(node, mode, *qmax, target, 0.0);
             if (!flow) continue;
             target = *flow;
+            if (aircon::humidity_control::enabled(node) && trial != humidityAirflowSearch_.end() &&
+                (trial->second.initialized || trial->second.seededFromPrevious))
+                target = trial->second.ratio * node.ac_spec["V_inner"]["cooling"]["dsgn"].get<double>();
         }
         bool fan = false;
         aircon::airflow::updateDuctCentralFanAffinity(ventNetwork, node, mode, key, target,
@@ -393,16 +433,12 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
                                     useRequiredHeat, nodeProps.required_heat_w,
                                     aircon::onoff::kLoadDeadbandW, minProcessHeatW,
                                     holdAtMinimumCapacity, nodeProps.aircon_min_process_hold);
-        const bool reheatDemand = aircon::humidity_control::simultaneous(nodeProps) &&
-            (currentTemp < targetTemp - setpointBandK ||
-             (nodeProps.on && std::isfinite(nodeProps.required_heat_w) && nodeProps.required_heat_w > 1.0));
         // A humidity-triggered fan can itself satisfy RH by mixing dry return
         // air. Keep that trial active while solving its cooling/fan-only state;
         // turning it off merely because its own airflow removed the demand
         // would alternate between two different moisture networks forever.
         const bool humidityTrial = nodeProps.on && nodeProps.humidity_overcool_hold;
-        if (aircon::humidity_control::enabled(nodeProps) &&
-            (nodeProps.humidity_demand || reheatDemand || humidityTrial)) {
+        if (aircon::humidity_control::enabled(nodeProps)) {
             const bool reheat = aircon::humidity_control::simultaneous(nodeProps);
             const double floor = targetTemp - nodeProps.max_overcooling;
             // A remote return room can be colder than the controlled room.
@@ -418,30 +454,31 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
             // Do not heat an already cold room in humidity-priority mode.
             const bool mayCool = currentTemp >= floor - 1e-4 &&
                 !humidityFloorBlocked_.count(airconKey);
-            if (reheat || mayCool) {
-                result.on = true;
-                result.stateChanged = !nodeProps.on;
-                result.logMessage = nodeProps.key + " humidistat: ON";
-                nodeProps.humidity_overcool_hold = !reheat;
+            const auto request = coolingRequest(thermalNetwork, nodeProps, result.on,
+                humidityTrial, mayCool, humidityFloorBlocked_.count(airconKey), flowRates);
+            result.on = request.on();
+            result.stateChanged = result.on != nodeProps.on;
+            nodeProps.humidity_overcool_hold = result.on && !reheat &&
+                (request.humidity || request.numericalTrial);
+            // The minimum-process diagnostic uses the whole cooling request;
+            // it must not drop a latent-only request just because Qs is small.
+            if (const auto* spec = nodeProps.getAirconSpec()) {
+                minProcessHeatW = aircon::onoff::resolveMinProcessHeatW(spec->getMinProcess("cooling"));
             }
+            nodeProps.aircon_min_process_hold = result.on && aircon::onoff::inMinProcessHoldBand(
+                "cooling", -request.coolingW(), minProcessHeatW, aircon::onoff::kLoadDeadbandW,
+                nodeProps.aircon_min_process_hold);
+            result.logMessage = nodeProps.key + (result.on ? " humidistat: ON" : " humidistat: OFF") +
+                (request.blocked ? " (overcooling floor requires heating)" : "");
         }
-        if (aircon::humidity_control::enabled(nodeProps) &&
-            humidityFloorBlocked_.count(airconKey)) {
-            // Stopping the fan changes the free-room state. Do not retry the
-            // same infeasible full-flow cooling state until the next timestep.
-            result.on = false;
-            result.stateChanged = nodeProps.on;
-            result.logMessage = nodeProps.key + " humidistat: OFF (overcooling floor requires heating)";
-            nodeProps.humidity_overcool_hold = false;
-        }
-        if (result.on && useRequiredHeat) {
+        if (!aircon::humidity_control::enabled(nodeProps) && result.on && useRequiredHeat) {
             nodeProps.aircon_min_process_hold = holdAtMinimumCapacity;
         } else if (!result.on) {
             nodeProps.aircon_min_process_hold = false;
         }
         // DUCTの風量は生の設定維持負荷を参照する。最低能力は風量則側で
         // 下限として適用し、ON/OFFホールドで負荷を上書きしない。
-        if (holdAtMinimumCapacity && result.on && std::isfinite(nodeProps.required_heat_w) &&
+        if (!aircon::humidity_control::enabled(nodeProps) && holdAtMinimumCapacity && result.on && std::isfinite(nodeProps.required_heat_w) &&
             !aircon::airflow::isDuctCentralModel(nodeProps)) {
             nodeProps.required_heat_w =
                 aircon::onoff::signedMinProcessHeatW(minMode, minProcessHeatW);
@@ -519,22 +556,20 @@ bool AirconController::acceptedHumidityConverged(ThermalNetwork& thermalNetwork,
         const auto loads = aircon::latent::estimateLatentProcess(
             context.validData, context.operationMode, context.heatCapacity,
             context.airFlowRate, node, moistEnthalpyEnabled_);
-        if (node.current_x > loads.supplyXUpperBound ||
-            ((loads.condensationRateKgPerS > 0.0 || node.aircon_humidity_transition) &&
+        if (!aircon::latent::unsaturatedBeforeAndAfterSerialization(node.current_t, node.current_x) ||
+            ((loads.condensationRateKgPerS > 0.0) &&
              aircon::latent::supplyHumidityNeedsUpdate(node, loads, humidityAbsTol))) {
             writeDomainLog(logs, "受入検査", "空調吹出湿度未達: aircon=" + key);
             return false;
         }
-        for (const auto& outlet : aircon::network_utils::passiveSupplyOutletConstraints(thermalNetwork, node)) {
-            const auto& discharge = thermalNetwork.getNode(outlet.outletKey);
+        for (const auto& outletKey : aircon::network_utils::supplyOutletKeys(thermalNetwork, node)) {
+            const auto& discharge = thermalNetwork.getNode(outletKey);
             if (!aircon::latent::unsaturatedBeforeAndAfterSerialization(
                     discharge.current_t, discharge.current_x)) {
                 std::ostringstream detail;
-                detail << std::setprecision(17) << "空調出口湿度未達: outlet=" << outlet.outletKey
-                       << ", x=" << thermalNetwork.getNode(outlet.outletKey).current_x
-                       << ", guarded_target=" << outlet.outletXUpperBound
-                       << ", supply_x=" << node.current_x
-                       << ", supply_limit=" << outlet.supplyXUpperBound;
+                detail << std::setprecision(17) << "空調出口湿度未達: outlet=" << outletKey
+                       << ", x=" << discharge.current_x << ", T=" << discharge.current_t
+                       << ", supply_x=" << node.current_x;
                 writeDomainLog(logs, "受入検査", detail.str());
                 return false;
             }
@@ -752,6 +787,20 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                     nodeProps.humidity_search_high = error > 0.0 ? old : std::min(requested, old+width);
                     next = 0.5*(nodeProps.humidity_search_low+nodeProps.humidity_search_high);
                 }
+                if (!humidityFanTrialDone_.count(airconKey) && nodeProps.humidity_demand &&
+                    std::abs(next-old) <= 1e-5 && std::abs(fanOnlyError) <= 1e-3) {
+                    // A settled fan-only root is an intermediate phase when
+                    // humidity is still demanded. The room-step stopping band
+                    // can be reached before the stricter fan-error trigger
+                    // above; never accept that intermediate phase as final.
+                    humidityFanTrialDone_.insert(airconKey);
+                    nodeProps.humidity_search_low = floor;
+                    nodeProps.humidity_search_high = std::clamp(old, floor, requested);
+                    nodeProps.humidity_search_error_low = nodeProps.humidity_search_error_high =
+                        std::numeric_limits<double>::quiet_NaN();
+                    adjustmentMade = true;
+                    continue;
+                }
                 if (logVerbosity_ >= 2) {
                     std::ostringstream searchLog;
                     searchLog << airconKey << " humidity search: room=" << old << "->" << next
@@ -801,6 +850,14 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                     maxHeatCapacity = std::max(0.0,
                         (coilLimit-aircon::capacity::kCapacityConvergenceAbsTol) /
                         (1.0+aircon::capacity::kCapacityConvergenceRelTol));
+                    // At the exact physical floor, subtracting and re-adding
+                    // the watt tolerance can round one ulp below the load.
+                    // Do not start a room-temperature capacity search for it.
+                    const double exactFloorRoundoff = 64.0*std::numeric_limits<double>::epsilon()*
+                        std::max(1.0, coilLimit);
+                    if (loads.coilTemp >= nodeProps.min_coil_temperature - 1e-9 &&
+                        std::abs(aircon::latent::totalHeatCapacity(loads)-coilLimit) <= exactFloorRoundoff)
+                        maxHeatCapacity = coilLimit;
                     sourceLabel = "min_coil_temperature";
                 }
             }
@@ -836,7 +893,8 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                 capacityLimitBracket_.at(airconKey).interpolate = true;
             bool unitAdjusted = false;
             if (maxHeatCapacity && aircon::capacity::capacityExceedsLimit(current, *maxHeatCapacity)) {
-                if (aircon::airflow::isDuctCentralModel(nodeProps) && equipmentMaxHeatCapacity &&
+                if (!aircon::humidity_control::enabled(nodeProps) &&
+                    aircon::airflow::isDuctCentralModel(nodeProps) && equipmentMaxHeatCapacity &&
                     capacityFlowBoost_.insert(airconKey).second) {
                     const auto flow = aircon::airflow::computeTargetFlowFromProcessedHeat(
                         nodeProps, context.operationMode, *equipmentMaxHeatCapacity, nodeProps.vol_zero, 0.0);
@@ -863,6 +921,15 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                             continue;
                         }
                     }
+                }
+                if (aircon::humidity_control::enabled(nodeProps) &&
+                    !capacityLimitBracket_.count(airconKey)) {
+                    const double old = nodeProps.current_pre_temp;
+                    const double width = std::clamp(2.0*std::abs(current-*maxHeatCapacity) /
+                        std::max(1e-9, archenv::DENSITY_DRY_AIR*archenv::SPECIFIC_HEAT_AIR*
+                            context.airFlowRate), 0.005, 0.25);
+                    capacityLimitBracket_[airconKey] = {old, std::min(50.0, old+width), false};
+                    capacityLimitBracket_.at(airconKey).interpolate = true;
                 }
                 aircon::capacity::applyExceededCapacityAdjustment(
                     airconKey,
@@ -1033,6 +1100,13 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
             continue;
         }
 
+        if (aircon::humidity_control::enabled(nodeProps)) {
+            // Airflow is a separate, bounded operating-point search. Hold it
+            // while the current room/coil/capacity candidate converges. In
+            // particular, do not overwrite it with design/design == speed 1.
+            continue;
+        }
+
         auto context = prepareRuntimeContext(airconKey, thermalNetwork, nodeProps, flowRates);
         const auto loads = aircon::latent::estimateLatentProcess(
             context.validData, context.operationMode, context.heatCapacity, context.airFlowRate,
@@ -1069,14 +1143,6 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
         auto targetFlowOpt = aircon::airflow::computeTargetFlowFromProcessedHeat(
             nodeProps, context.operationMode, heatForFlowW, nodeProps.vol_zero, minProcessHeatW,
             &heldAtMinimumFlow);
-        if (aircon::humidity_control::enabled(nodeProps)) {
-            // A humidity-only load must not collapse the fan to zero because
-            // sensible demand is zero. Hold design flow for the ideal modes.
-            const auto& spec = nodeProps.ac_spec;
-            if (spec.contains("V_inner") && spec["V_inner"].contains("cooling") &&
-                spec["V_inner"]["cooling"].contains("dsgn"))
-                targetFlowOpt = spec["V_inner"]["cooling"]["dsgn"].get<double>();
-        }
         if (!targetFlowOpt) {
             continue;
         }
@@ -1298,9 +1364,13 @@ void AirconController::clearCapacityLimitBracket() const {
     humidityFanTrialDone_.clear();
     humiditySearchRebase_.clear();
     boundaryIterations_.clear();
+    humidityAirflowSearch_.clear();
+    airflowCandidateSnapshot_.reset();
+    disableHumidityWarmStart_ = false;
 }
 
 void AirconController::clearCouplingWarmStart() {
+    humidityAirflowWarmRatio_.clear();
     prevAirconStateSig_ = 0;
     havePrevAirconStateSig_ = false;
 }

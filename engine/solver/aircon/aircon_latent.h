@@ -19,7 +19,7 @@ struct LatentProcessResult {
     double coilX = 0.0;                // [kg/kg(DA)]
     double effectiveBypassFactor = 0.0; // operating-flow value, for coil diagnostics
     double supplyRhPercent = 0.0;      // [%]
-    double supplyXUpperBound = std::numeric_limits<double>::infinity(); // physical saturation limit
+    double supplyXUpperBound = std::numeric_limits<double>::infinity(); // conservative boundary target, including outlet/f32 guards
     double unboundedSupplyRhPercent = 0.0;
     bool saturationLimited = false;
 };

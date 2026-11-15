@@ -186,8 +186,8 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
             ? nodeProps.humidity_supply_request : xIn;
         const double wetCoilFloor = saturationHumidityUpperBound(nodeProps.min_coil_temperature);
         result.regime = reheat ? "room_humidistat_reheat" : "room_humidistat_overcool";
-        // Humidity priority has a saturated ideal coil, with no reheat. The
-        // controller searches the room temperature within its overcool bound.
+        // Simultaneous temperature/RH control uses an ideal cooling coil and
+        // explicit reheat. Humidity priority uses its selected coil below.
         const double desiredX = reheat ? std::max(wetCoilFloor, request) : xIn;
         auto evaluate = [&](double x) {
             result.supplyX = std::clamp(x, 0.0, std::min(xIn, result.supplyXUpperBound));
@@ -245,7 +245,8 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
     // Temperature priority has no independent dehumidifier or reheat coil.
     // pre_rh is an unmet-humidity threshold only: water removal must follow
     // the temperature-driven cooling process and the selected latent method.
-    // Active room humidity requests are handled by the two modes above.
+    // Humidity priority uses the same forward coil below; the controller
+    // searches its temperature and airflow without an independent dehumidifier.
 
     if (!(tIn > tOut)) {
         result.regime = "no_temperature_drop";
@@ -352,7 +353,7 @@ bool supplyHumidityNeedsUpdate(const VertexProperties& node,
                                 const LatentProcessResult& loads,
                                 double humidityAbsTol) {
     return !std::isfinite(node.current_x) ||
-        node.current_x > loads.supplyXUpperBound ||
+        !unsaturatedBeforeAndAfterSerialization(node.current_t, node.current_x) ||
         std::abs(node.current_x - loads.supplyX) > supplyHumidityRecomputeTol(humidityAbsTol);
 }
 
@@ -366,14 +367,28 @@ bool applySupplyHumidityToAirconNode(ThermalNetwork& thermalNetwork,
     node.humidity_capacity_limited = loads.humidityCapacityLimited;
     const double newRemoval = std::max(0.0, loads.condensationRateKgPerS);
     const bool wasPassthrough = airconHumidityPassthrough(node);
-    node.aircon_humidity_transition = !wasPassthrough && newRemoval == 0.0 &&
-        supplyHumidityNeedsUpdate(node, loads, humidityAbsTol);
+    // A dry coil is an exact algebraic mixing problem. Release the old wet
+    // boundary immediately; the next network solve tests the dry active set.
+    // If it becomes wet, the normal forward coil reinstates its boundary.
+    // Copying return humidity through a retained zero-removal boundary would
+    // instead create a slow recirculation fixed point and lose convergence.
     node.aircon_moisture_removal_kg_s = newRemoval;
     const bool passthrough = airconHumidityPassthrough(node);
     if (passthrough) return !wasPassthrough || limitChanged;
-    const bool changed = wasPassthrough || supplyHumidityNeedsUpdate(node, loads, humidityAbsTol);
+    bool changed = wasPassthrough || supplyHumidityNeedsUpdate(node, loads, humidityAbsTol);
+    if (!changed) {
+        for (const auto& constraint : aircon::network_utils::passiveSupplyOutletConstraints(thermalNetwork, node)) {
+            const auto& outlet = thermalNetwork.getNode(constraint.outletKey);
+            if (!unsaturatedBeforeAndAfterSerialization(outlet.current_t, outlet.current_x)) {
+                changed = true;
+                break;
+            }
+        }
+    }
     // Relax the boundary iteration, but test its unrelaxed defect above.
-    // The hard saturation bound is applied immediately and triggers a re-solve.
+    // An actually supersaturated node/plenum triggers an immediate conservative
+    // target and a re-solve. Do not chase a sub-tolerance drift of that target
+    // when the solved double AND serialized float states are unsaturated.
     if (changed) {
         const double mixed = std::isfinite(node.current_x)
             ? node.current_x + relaxation * (loads.supplyX - node.current_x) : loads.supplyX;
@@ -390,7 +405,6 @@ bool applyPassthroughHumidityToAirconNode(ThermalNetwork& thermalNetwork,
     const bool changed = !airconHumidityPassthrough(node) || node.humidity_capacity_limited;
     node.humidity_capacity_limited = false;
     node.aircon_moisture_removal_kg_s = 0.0;
-    node.aircon_humidity_transition = false;
     return changed;
 }
 
