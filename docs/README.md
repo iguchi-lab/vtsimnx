@@ -79,6 +79,7 @@
 
 - 圧力計算の構造改善: [2026-11-15の検証記録](pressure_sparse_blocks_2026-11-15.md)。標準住宅・AC4台の基本ケースとIssue #33の派生入力を区別する。
 - 圧力反復中の種別判定: [風量・微分の共通化](flow_dispatch_2026-11-15.md)。一時的な固定流量化と時刻ごとの有効状態を含む検証。
+- 湿度要求による発停・風量選定: [2026-11-15の修正・検証記録](humidity_airflow_control_2026-11-15.md)。実回路網での候補比較、乾きコイルへの移行、実状態と安全余裕目標の区別。
 
 - 仕様本文: [`specification/README.md`](specification/README.md)。章立ての契約であり、チュートリアルではありません。
 - 技術解説書 v3.3: [PDF](vtsimnx_calculation_model_and_implementation_flow_ja_v3.3.pdf) / [DOCX](vtsimnx_calculation_model_and_implementation_flow_ja_v3.3.docx)。パッケージ v1.8.0 時点の説明です。文書版とソフトウェア版は別です。

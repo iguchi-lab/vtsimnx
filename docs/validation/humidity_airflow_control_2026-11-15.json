@@ -1,0 +1,3665 @@
+{
+  "date": "2026-11-15",
+  "pull_request": "https://github.com/iguchi-lab/vtsimnx/pull/45",
+  "baseline_commit": "93c93788d44b67507a45d61b90ed92a90039db11",
+  "experiment": {
+    "source_commit": "65f2a72522fd62ca8f71595491f6246871830020",
+    "solver_sha256": "2cc7d432b23c5116b1c25a1a1cd6755b48924af67ccd654d2725a15bbc17015d",
+    "identical_annual_inputs": true,
+    "hours": 8760,
+    "methods": 5
+  },
+  "scope": {
+    "source_model": "sim検討2 / 隙間比較_003",
+    "C_cm2_m2": 4.74,
+    "equipment": "全館空調1台、LD制御（標準住宅AC4台ケースとは別）",
+    "mode": "humidity_priority",
+    "cooling_setpoint_C": 27,
+    "RH_setpoint_pct": 60,
+    "max_overcooling_K": 2,
+    "minimum_coil_temperature_C": 5,
+    "reheat": false,
+    "identical_baseline_input_bytes": true,
+    "accepted_hours_total": 43800,
+    "independent_water_node_hours_total": 1620415
+  },
+  "tests": {
+    "engine_python_passed": 572,
+    "perf_deselected": 1,
+    "cpp_passed": 29,
+    "github_actions": {
+      "commit": "65f2a72522fd62ca8f71595491f6246871830020",
+      "workflow_run": 43699088238,
+      "jobs": [
+        {
+          "id": 132765996394,
+          "name": "C++ address / undefined sanitizers",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 132765996569,
+          "name": "Python client tests (py3.13)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 132765996590,
+          "name": "C++ solver build + CTest",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 132765996614,
+          "name": "Python client tests (py3.12)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 132765996649,
+          "name": "Python client tests (py3.11)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 132765996672,
+          "name": "lint / typecheck",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 132765996687,
+          "name": "Python client tests (py3.10)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 132765996720,
+          "name": "Package wheel",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 132766718747,
+          "name": "Performance history (py3.11, warn-only)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 132766718764,
+          "name": "Example smoke (run_calc_minimal)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 132766718770,
+          "name": "Physics baseline regression (py3.11)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 132766718779,
+          "name": "Engine / builder tests (py3.10)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 132766718811,
+          "name": "Engine / builder tests (py3.13)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 132766718817,
+          "name": "Engine / builder tests (py3.11)",
+          "status": "completed",
+          "conclusion": "success"
+        },
+        {
+          "id": 132766718846,
+          "name": "Engine / builder tests (py3.12)",
+          "status": "completed",
+          "conclusion": "success"
+        }
+      ]
+    }
+  },
+  "tasks": [
+    {
+      "key": "bf_8",
+      "method": "bf",
+      "input": "/home/ubuntu/work/vtsimnx-humidity-control-20261115/annual-r3/inputs/bf_8.json",
+      "input_sha256": "7554b2919f26ce8d9807b8a49df4cbe5bcaaa060fc27be8dc5bcc0a8e843f264",
+      "source_input": "/home/ubuntu/work/vtsimnx-humidity-priority-c474-20261115/annual/inputs/bf_8.json",
+      "source_sha256": "7554b2919f26ce8d9807b8a49df4cbe5bcaaa060fc27be8dc5bcc0a8e843f264"
+    },
+    {
+      "key": "ideal_rh60_8",
+      "method": "ideal_rh60",
+      "input": "/home/ubuntu/work/vtsimnx-humidity-control-20261115/annual-r3/inputs/ideal_rh60_8.json",
+      "input_sha256": "b4b5fd52a9ba14be48fa75cf8f46ccd77f6a12b35d32694de18983eced02d805",
+      "source_input": "/home/ubuntu/work/vtsimnx-humidity-priority-c474-20261115/annual/inputs/ideal_rh60_8.json",
+      "source_sha256": "b4b5fd52a9ba14be48fa75cf8f46ccd77f6a12b35d32694de18983eced02d805"
+    },
+    {
+      "key": "coil_aoaf_8",
+      "method": "coil_aoaf",
+      "input": "/home/ubuntu/work/vtsimnx-humidity-control-20261115/annual-r3/inputs/coil_aoaf_8.json",
+      "input_sha256": "8edfeb27f8bd6fac769fd6214b52aaed48c6aee0b537bfc716ccb8c2573ed2a4",
+      "source_input": "/home/ubuntu/work/vtsimnx-humidity-priority-c474-20261115/annual/inputs/coil_aoaf_8.json",
+      "source_sha256": "8edfeb27f8bd6fac769fd6214b52aaed48c6aee0b537bfc716ccb8c2573ed2a4"
+    },
+    {
+      "key": "rh95_8",
+      "method": "rh95",
+      "input": "/home/ubuntu/work/vtsimnx-humidity-control-20261115/annual-r3/inputs/rh95_8.json",
+      "input_sha256": "8a900166fa47c6f13f95754635e00d36678ac8f21f4a40a50893f30bd4d4cdbc",
+      "source_input": "/home/ubuntu/work/vtsimnx-humidity-priority-c474-20261115/annual/inputs/rh95_8.json",
+      "source_sha256": "8a900166fa47c6f13f95754635e00d36678ac8f21f4a40a50893f30bd4d4cdbc"
+    },
+    {
+      "key": "bf_fixed_8",
+      "method": "bf_fixed",
+      "input": "/home/ubuntu/work/vtsimnx-humidity-control-20261115/annual-r3/inputs/bf_fixed_8.json",
+      "input_sha256": "9369bf14877962fa750ea8872d79cdfd67496773e3755774a3985a274f8a3ccd",
+      "source_input": "/home/ubuntu/work/vtsimnx-humidity-priority-c474-20261115/annual/inputs/bf_fixed_8.json",
+      "source_sha256": "9369bf14877962fa750ea8872d79cdfd67496773e3755774a3985a274f8a3ccd"
+    }
+  ],
+  "annual_results": [
+    {
+      "status": "ok",
+      "hours": 8760,
+      "accepted": 8760,
+      "residual_max": [
+        3.08504e-10,
+        1.82628e-15,
+        0.0,
+        1.98057e-15
+      ],
+      "exported_flow_balance": {
+        "max_abs_m3s": 5.960464477539063e-08,
+        "original_tolerance_m3s": 1e-05,
+        "float32_rounding_bound_max_m3s": 5.960464477539063e-08
+      },
+      "equipment": [
+        {
+          "key": "全館空調",
+          "supply_rh_max_active": 99.99999925796662,
+          "supply_rh_max_all": 99.99999925796662,
+          "energy_kWh": 4027.0174077034,
+          "sensible_kWh": 10302.724588147827,
+          "latent_kWh": 1569.5351290937958,
+          "discharge_plenum_rh_max": {
+            "AC出口": 99.99999925796662
+          },
+          "zero_heat_flow_max_m3s": 0.0,
+          "target_period_diagnostics": {
+            "aircon_temperature_unmet": {
+              "maximum": 0.9950659275054932,
+              "mean": 0.013689438995855252,
+              "hours_above_0_1": 216
+            },
+            "aircon_humidity_unmet": {
+              "maximum": 31.476829528808594,
+              "mean": 1.1797684766281038,
+              "hours_above_0_1": 1154
+            },
+            "aircon_reheat": {
+              "maximum": 0.0,
+              "mean": 0.0,
+              "hours_above_0_1": 0
+            }
+          },
+          "coil_physics": {
+            "network_sensible_error_W": 0.0009962224494302063,
+            "network_latent_error_W": 0.019580168476522886,
+            "supply_boundary_tolerance_kgkg": 1e-07,
+            "network_latent_allowance_max_W": 0.15070650102067185,
+            "network_latent_error_allowance_ratio_max": 0.8259536725126855
+          }
+        }
+      ],
+      "metrics": {
+        "aircon_capacity_recalc": 75017,
+        "aircon_capacity_recalc_share": 0.6872772581103243,
+        "aircon_flow_adjust_recalc": 7441,
+        "aircon_ms": 49530.594789999916,
+        "aircon_on_off_recalc": 718,
+        "aircon_recalc_total": 109151,
+        "aircon_recompute_reasons_mask": 15,
+        "aircon_supply_humidity_recalc": 25975,
+        "coupled_iterations": 297588,
+        "humidity_factorizes": 542788,
+        "humidity_ms": 251544.72091400053,
+        "humidity_pattern_analyzes": 4278,
+        "humidity_rhs_only_solves": 247042,
+        "humidity_solution_reuse": 0,
+        "outer_iterations": 121646,
+        "outer_iterations_ge3": 2665,
+        "outer_iterations_ge3_share": 0.3042237442922374,
+        "outer_iterations_max": 325,
+        "outer_iterations_mean": 13.886529680365296,
+        "pressure_ceres_iterations": 3261829,
+        "pressure_fallback_count": 3,
+        "pressure_ms": 308758.4035049987,
+        "pressure_solve_calls": 297588,
+        "solve_timesteps": 8760,
+        "thermal_full_builds": 297588,
+        "thermal_ms": 965600.9440529995,
+        "thermal_rhs_only_builds": 0
+      },
+      "timings": [
+        {
+          "duration_ms": 1990.218673,
+          "name": "load_input"
+        },
+        {
+          "duration_ms": 0.103044,
+          "name": "parse_simulation_constants"
+        },
+        {
+          "duration_ms": 1732220.357516,
+          "name": "runSimulationLoop"
+        },
+        {
+          "duration_ms": 1732220.833826,
+          "name": "simulation_total"
+        }
+      ],
+      "key": "ideal_rh60_8",
+      "seconds": 1741.8977869219962,
+      "solver_sha256": "2cc7d432b23c5116b1c25a1a1cd6755b48924af67ccd654d2725a15bbc17015d",
+      "input_sha256": "b4b5fd52a9ba14be48fa75cf8f46ccd77f6a12b35d32694de18983eced02d805"
+    },
+    {
+      "status": "ok",
+      "hours": 8760,
+      "accepted": 8760,
+      "residual_max": [
+        3.16163e-10,
+        1.12206e-15,
+        0.0,
+        2.03394e-15
+      ],
+      "exported_flow_balance": {
+        "max_abs_m3s": 5.960464477539063e-08,
+        "original_tolerance_m3s": 1e-05,
+        "float32_rounding_bound_max_m3s": 5.960464477539063e-08
+      },
+      "equipment": [
+        {
+          "key": "全館空調",
+          "supply_rh_max_active": 99.99999970345091,
+          "supply_rh_max_all": 99.99999970345091,
+          "energy_kWh": 4018.762491355896,
+          "sensible_kWh": 10314.74856874888,
+          "latent_kWh": 1563.2766315762997,
+          "discharge_plenum_rh_max": {
+            "AC出口": 99.99999970345091
+          },
+          "zero_heat_flow_max_m3s": 0.0,
+          "target_period_diagnostics": {
+            "aircon_temperature_unmet": {
+              "maximum": 0.9950690865516663,
+              "mean": 0.013716982455751923,
+              "hours_above_0_1": 216
+            },
+            "aircon_humidity_unmet": {
+              "maximum": 31.4789981842041,
+              "mean": 1.1814611204148913,
+              "hours_above_0_1": 1153
+            },
+            "aircon_reheat": {
+              "maximum": 0.0,
+              "mean": 0.0,
+              "hours_above_0_1": 0
+            }
+          },
+          "coil_physics": {
+            "network_sensible_error_W": 0.0012966788453923073,
+            "network_latent_error_W": 0.1354876638085898,
+            "supply_boundary_tolerance_kgkg": 1e-07,
+            "network_latent_allowance_max_W": 0.15072664075648634,
+            "network_latent_error_allowance_ratio_max": 0.9944573010027645,
+            "coil_min_C": 5.000000470575625,
+            "operating_BF_min": 6.374569976867775e-11,
+            "operating_BF_max": 0.12452893748853298,
+            "wet_floor_margin_min_kgkg": -1.0501918389603515e-07
+          }
+        }
+      ],
+      "metrics": {
+        "aircon_capacity_recalc": 75379,
+        "aircon_capacity_recalc_share": 0.6602867879573585,
+        "aircon_flow_adjust_recalc": 7441,
+        "aircon_ms": 196269.9602969995,
+        "aircon_on_off_recalc": 720,
+        "aircon_recalc_total": 114161,
+        "aircon_recompute_reasons_mask": 15,
+        "aircon_supply_humidity_recalc": 30621,
+        "coupled_iterations": 302706,
+        "humidity_factorizes": 553016,
+        "humidity_ms": 258437.23703599971,
+        "humidity_pattern_analyzes": 4372,
+        "humidity_rhs_only_solves": 252160,
+        "humidity_solution_reuse": 4,
+        "outer_iterations": 126655,
+        "outer_iterations_ge3": 2895,
+        "outer_iterations_ge3_share": 0.3304794520547945,
+        "outer_iterations_max": 413,
+        "outer_iterations_mean": 14.458333333333334,
+        "pressure_ceres_iterations": 3267445,
+        "pressure_fallback_count": 6,
+        "pressure_ms": 314924.49094200105,
+        "pressure_solve_calls": 302706,
+        "solve_timesteps": 8760,
+        "thermal_full_builds": 302702,
+        "thermal_ms": 982744.7111160046,
+        "thermal_rhs_only_builds": 4
+      },
+      "timings": [
+        {
+          "duration_ms": 1883.829302,
+          "name": "load_input"
+        },
+        {
+          "duration_ms": 0.101609,
+          "name": "parse_simulation_constants"
+        },
+        {
+          "duration_ms": 1912647.471035,
+          "name": "runSimulationLoop"
+        },
+        {
+          "duration_ms": 1912647.484086,
+          "name": "simulation_total"
+        }
+      ],
+      "key": "bf_8",
+      "seconds": 1922.9123707069957,
+      "solver_sha256": "2cc7d432b23c5116b1c25a1a1cd6755b48924af67ccd654d2725a15bbc17015d",
+      "input_sha256": "7554b2919f26ce8d9807b8a49df4cbe5bcaaa060fc27be8dc5bcc0a8e843f264"
+    },
+    {
+      "status": "ok",
+      "hours": 8760,
+      "accepted": 8760,
+      "residual_max": [
+        3.48493e-10,
+        9.02649e-16,
+        0.0,
+        1.52307e-15
+      ],
+      "exported_flow_balance": {
+        "max_abs_m3s": 4.3248292058706284e-08,
+        "original_tolerance_m3s": 1e-05,
+        "float32_rounding_bound_max_m3s": 5.960464477539063e-08
+      },
+      "equipment": [
+        {
+          "key": "全館空調",
+          "supply_rh_max_active": 95.00149008396387,
+          "supply_rh_max_all": 95.00149008396387,
+          "energy_kWh": 3990.103570453644,
+          "sensible_kWh": 10292.614045398826,
+          "latent_kWh": 1618.4392413365244,
+          "discharge_plenum_rh_max": {
+            "AC出口": 96.22728000377823
+          },
+          "zero_heat_flow_max_m3s": 0.0,
+          "target_period_diagnostics": {
+            "aircon_temperature_unmet": {
+              "maximum": 0.9950635433197021,
+              "mean": 0.01358294743543797,
+              "hours_above_0_1": 215
+            },
+            "aircon_humidity_unmet": {
+              "maximum": 31.481067657470703,
+              "mean": 1.1291746904982372,
+              "hours_above_0_1": 1117
+            },
+            "aircon_reheat": {
+              "maximum": 0.0,
+              "mean": 0.0,
+              "hours_above_0_1": 0
+            }
+          },
+          "coil_physics": {
+            "network_sensible_error_W": 0.0011414781010898878,
+            "network_latent_error_W": 0.018554065522948804,
+            "supply_boundary_tolerance_kgkg": 1e-07,
+            "network_latent_allowance_max_W": 0.15078591419214182,
+            "network_latent_error_allowance_ratio_max": 0.8739149827658705
+          }
+        }
+      ],
+      "metrics": {
+        "aircon_capacity_recalc": 70708,
+        "aircon_capacity_recalc_share": 0.7021090677999762,
+        "aircon_flow_adjust_recalc": 7441,
+        "aircon_ms": 176786.7023510002,
+        "aircon_on_off_recalc": 715,
+        "aircon_recalc_total": 100708,
+        "aircon_recompute_reasons_mask": 15,
+        "aircon_supply_humidity_recalc": 21844,
+        "coupled_iterations": 280379,
+        "humidity_factorizes": 508367,
+        "humidity_ms": 232302.12592400066,
+        "humidity_pattern_analyzes": 4448,
+        "humidity_rhs_only_solves": 229818,
+        "humidity_solution_reuse": 0,
+        "outer_iterations": 113004,
+        "outer_iterations_ge3": 2561,
+        "outer_iterations_ge3_share": 0.29235159817351597,
+        "outer_iterations_max": 302,
+        "outer_iterations_mean": 12.9,
+        "pressure_ceres_iterations": 3096849,
+        "pressure_fallback_count": 4,
+        "pressure_ms": 288932.2754700018,
+        "pressure_solve_calls": 280379,
+        "solve_timesteps": 8760,
+        "thermal_full_builds": 280379,
+        "thermal_ms": 910762.6867449979,
+        "thermal_rhs_only_builds": 0
+      },
+      "timings": [
+        {
+          "duration_ms": 1864.431423,
+          "name": "load_input"
+        },
+        {
+          "duration_ms": 0.080125,
+          "name": "parse_simulation_constants"
+        },
+        {
+          "duration_ms": 1752924.894835,
+          "name": "runSimulationLoop"
+        },
+        {
+          "duration_ms": 1752924.900631,
+          "name": "simulation_total"
+        }
+      ],
+      "key": "rh95_8",
+      "seconds": 1761.7020918749913,
+      "solver_sha256": "2cc7d432b23c5116b1c25a1a1cd6755b48924af67ccd654d2725a15bbc17015d",
+      "input_sha256": "8a900166fa47c6f13f95754635e00d36678ac8f21f4a40a50893f30bd4d4cdbc"
+    },
+    {
+      "status": "ok",
+      "hours": 8760,
+      "accepted": 8760,
+      "residual_max": [
+        2.93738e-10,
+        1.74753e-15,
+        0.0,
+        1.70769e-15
+      ],
+      "exported_flow_balance": {
+        "max_abs_m3s": 3.7834979593753815e-08,
+        "original_tolerance_m3s": 1e-05,
+        "float32_rounding_bound_max_m3s": 5.960464477539063e-08
+      },
+      "equipment": [
+        {
+          "key": "全館空調",
+          "supply_rh_max_active": 99.99999157534866,
+          "supply_rh_max_all": 99.99999157534866,
+          "energy_kWh": 3784.036926176071,
+          "sensible_kWh": 10339.473402893584,
+          "latent_kWh": 1507.9229311866761,
+          "discharge_plenum_rh_max": {
+            "AC出口": 99.99998309162963
+          },
+          "zero_heat_flow_max_m3s": 0.0,
+          "target_period_diagnostics": {
+            "aircon_temperature_unmet": {
+              "maximum": 0.9950514435768127,
+              "mean": 0.014073300414631508,
+              "hours_above_0_1": 213
+            },
+            "aircon_humidity_unmet": {
+              "maximum": 29.019289016723633,
+              "mean": 1.0758592949874695,
+              "hours_above_0_1": 1096
+            },
+            "aircon_reheat": {
+              "maximum": 0.0,
+              "mean": 0.0,
+              "hours_above_0_1": 0
+            }
+          },
+          "coil_physics": {
+            "network_sensible_error_W": 0.0011596589283726644,
+            "network_latent_error_W": 0.13797793143999115,
+            "supply_boundary_tolerance_kgkg": 1e-07,
+            "network_latent_allowance_max_W": 0.14967317443736572,
+            "network_latent_error_allowance_ratio_max": 0.977740009813763,
+            "coil_min_C": 5.000000140597233,
+            "operating_BF_min": 0.0031572406383284166,
+            "operating_BF_max": 0.32798185946887043,
+            "wet_floor_margin_min_kgkg": -1.862645149230957e-09
+          }
+        }
+      ],
+      "metrics": {
+        "aircon_capacity_recalc": 75670,
+        "aircon_capacity_recalc_share": 0.5760680897713085,
+        "aircon_flow_adjust_recalc": 7441,
+        "aircon_ms": 201649.07284200078,
+        "aircon_on_off_recalc": 666,
+        "aircon_recalc_total": 131356,
+        "aircon_recompute_reasons_mask": 15,
+        "aircon_supply_humidity_recalc": 47579,
+        "coupled_iterations": 319139,
+        "humidity_factorizes": 585897,
+        "humidity_ms": 271519.6002169981,
+        "humidity_pattern_analyzes": 4982,
+        "humidity_rhs_only_solves": 269185,
+        "humidity_solution_reuse": 134,
+        "outer_iterations": 143795,
+        "outer_iterations_ge3": 2997,
+        "outer_iterations_ge3_share": 0.3421232876712329,
+        "outer_iterations_max": 461,
+        "outer_iterations_mean": 16.414954337899545,
+        "pressure_ceres_iterations": 3256098,
+        "pressure_fallback_count": 2,
+        "pressure_ms": 311438.00637100043,
+        "pressure_solve_calls": 319139,
+        "solve_timesteps": 8760,
+        "thermal_full_builds": 318955,
+        "thermal_ms": 1033650.5099009988,
+        "thermal_rhs_only_builds": 184
+      },
+      "timings": [
+        {
+          "duration_ms": 1874.924898,
+          "name": "load_input"
+        },
+        {
+          "duration_ms": 0.083278,
+          "name": "parse_simulation_constants"
+        },
+        {
+          "duration_ms": 1989644.191761,
+          "name": "runSimulationLoop"
+        },
+        {
+          "duration_ms": 1989644.195068,
+          "name": "simulation_total"
+        }
+      ],
+      "key": "coil_aoaf_8",
+      "seconds": 2005.6759341740108,
+      "solver_sha256": "2cc7d432b23c5116b1c25a1a1cd6755b48924af67ccd654d2725a15bbc17015d",
+      "input_sha256": "8edfeb27f8bd6fac769fd6214b52aaed48c6aee0b537bfc716ccb8c2573ed2a4"
+    },
+    {
+      "status": "ok",
+      "hours": 8760,
+      "accepted": 8760,
+      "residual_max": [
+        3.12639e-10,
+        1.65641e-15,
+        0.0,
+        2.03394e-15
+      ],
+      "exported_flow_balance": {
+        "max_abs_m3s": 5.960464477539063e-08,
+        "original_tolerance_m3s": 1e-05,
+        "float32_rounding_bound_max_m3s": 5.960464477539063e-08
+      },
+      "equipment": [
+        {
+          "key": "全館空調",
+          "supply_rh_max_active": 99.99999719744025,
+          "supply_rh_max_all": 99.99999719744025,
+          "energy_kWh": 3824.6764191703796,
+          "sensible_kWh": 10326.027650259623,
+          "latent_kWh": 1507.916644719839,
+          "discharge_plenum_rh_max": {
+            "AC出口": 99.99999719744025
+          },
+          "zero_heat_flow_max_m3s": 0.0,
+          "target_period_diagnostics": {
+            "aircon_temperature_unmet": {
+              "maximum": 0.9950630068778992,
+              "mean": 0.014288624796588994,
+              "hours_above_0_1": 228
+            },
+            "aircon_humidity_unmet": {
+              "maximum": 31.491111755371094,
+              "mean": 1.163379828009294,
+              "hours_above_0_1": 1162
+            },
+            "aircon_reheat": {
+              "maximum": 0.0,
+              "mean": 0.0,
+              "hours_above_0_1": 0
+            }
+          },
+          "coil_physics": {
+            "network_sensible_error_W": 0.0010822623974036105,
+            "network_latent_error_W": 0.1375931259888148,
+            "supply_boundary_tolerance_kgkg": 1e-07,
+            "network_latent_allowance_max_W": 0.1500112929654444,
+            "network_latent_error_allowance_ratio_max": 0.9881678782235553,
+            "coil_min_C": 5.00000105963813,
+            "operating_BF_min": 0.1,
+            "operating_BF_max": 0.1,
+            "wet_floor_margin_min_kgkg": -9.313225746154785e-10
+          }
+        }
+      ],
+      "metrics": {
+        "aircon_capacity_recalc": 79958,
+        "aircon_capacity_recalc_share": 0.5901002959431435,
+        "aircon_flow_adjust_recalc": 7441,
+        "aircon_ms": 125925.35373999977,
+        "aircon_on_off_recalc": 725,
+        "aircon_recalc_total": 135499,
+        "aircon_recompute_reasons_mask": 15,
+        "aircon_supply_humidity_recalc": 47375,
+        "coupled_iterations": 332183,
+        "humidity_factorizes": 611904,
+        "humidity_ms": 189739.5847020002,
+        "humidity_pattern_analyzes": 5116,
+        "humidity_rhs_only_solves": 281640,
+        "humidity_solution_reuse": 24,
+        "outer_iterations": 148175,
+        "outer_iterations_ge3": 2971,
+        "outer_iterations_ge3_share": 0.33915525114155254,
+        "outer_iterations_max": 398,
+        "outer_iterations_mean": 16.914954337899545,
+        "pressure_ceres_iterations": 3435544,
+        "pressure_fallback_count": 7,
+        "pressure_ms": 213050.94527100018,
+        "pressure_solve_calls": 332183,
+        "solve_timesteps": 8760,
+        "thermal_full_builds": 332157,
+        "thermal_ms": 685529.3212850007,
+        "thermal_rhs_only_builds": 26
+      },
+      "timings": [
+        {
+          "duration_ms": 1819.81139,
+          "name": "load_input"
+        },
+        {
+          "duration_ms": 0.071062,
+          "name": "parse_simulation_constants"
+        },
+        {
+          "duration_ms": 1329284.347907,
+          "name": "runSimulationLoop"
+        },
+        {
+          "duration_ms": 1329285.077768,
+          "name": "simulation_total"
+        }
+      ],
+      "key": "bf_fixed_8",
+      "seconds": 1338.260465237021,
+      "solver_sha256": "2cc7d432b23c5116b1c25a1a1cd6755b48924af67ccd654d2725a15bbc17015d",
+      "input_sha256": "9369bf14877962fa750ea8872d79cdfd67496773e3755774a3985a274f8a3ccd"
+    }
+  ],
+  "baseline_results": [
+    {
+      "status": "ok",
+      "hours": 8760,
+      "accepted": 8760,
+      "residual_max": [
+        3.02151e-10,
+        1.52301e-15,
+        0.0,
+        2.46676e-15
+      ],
+      "exported_flow_balance": {
+        "max_abs_m3s": 5.960464477539063e-08,
+        "original_tolerance_m3s": 1e-05,
+        "float32_rounding_bound_max_m3s": 5.960464477539063e-08
+      },
+      "equipment": [
+        {
+          "key": "全館空調",
+          "supply_rh_max_active": 95.00000926429259,
+          "supply_rh_max_all": 95.00000926429259,
+          "energy_kWh": 3587.228070602417,
+          "sensible_kWh": 10921.01293692708,
+          "latent_kWh": 770.5407405910491,
+          "discharge_plenum_rh_max": {
+            "AC出口": 95.00000926429259
+          },
+          "zero_heat_flow_max_m3s": 0.0,
+          "target_period_diagnostics": {
+            "aircon_temperature_unmet": {
+              "maximum": 0.9953395128250122,
+              "mean": 0.011801171044502238,
+              "hours_above_0_1": 196
+            },
+            "aircon_humidity_unmet": {
+              "maximum": 31.68016242980957,
+              "mean": 3.9024534833787614,
+              "hours_above_0_1": 2347
+            },
+            "aircon_reheat": {
+              "maximum": 0.0,
+              "mean": 0.0,
+              "hours_above_0_1": 0
+            }
+          },
+          "coil_physics": {
+            "network_sensible_error_W": 0.0012638219404834672,
+            "network_latent_error_W": 0.005140503387565332,
+            "supply_boundary_tolerance_kgkg": 1e-07,
+            "network_latent_allowance_max_W": 0.15151283910743055,
+            "network_latent_error_allowance_ratio_max": 0.0341188459762687
+          }
+        }
+      ],
+      "metrics": {
+        "aircon_capacity_recalc": 30791,
+        "aircon_capacity_recalc_share": 0.5339448904919625,
+        "aircon_flow_adjust_recalc": 7441,
+        "aircon_ms": 103620.03678500056,
+        "aircon_on_off_recalc": 578,
+        "aircon_recalc_total": 57667,
+        "aircon_recompute_reasons_mask": 15,
+        "aircon_supply_humidity_recalc": 18857,
+        "coupled_iterations": 147635,
+        "humidity_factorizes": 236332,
+        "humidity_ms": 112315.42205699993,
+        "humidity_pattern_analyzes": 1400,
+        "humidity_rhs_only_solves": 104184,
+        "humidity_solution_reuse": 392,
+        "outer_iterations": 66427,
+        "outer_iterations_ge3": 3151,
+        "outer_iterations_ge3_share": 0.35970319634703196,
+        "outer_iterations_max": 84,
+        "outer_iterations_mean": 7.582990867579909,
+        "pressure_ceres_iterations": 1493888,
+        "pressure_fallback_count": 3,
+        "pressure_ms": 145612.93763500024,
+        "pressure_solve_calls": 147635,
+        "solve_timesteps": 8760,
+        "thermal_full_builds": 143908,
+        "thermal_ms": 474743.63633000024,
+        "thermal_rhs_only_builds": 3727
+      },
+      "timings": [
+        {
+          "duration_ms": 1846.214515,
+          "name": "load_input"
+        },
+        {
+          "duration_ms": 0.087952,
+          "name": "parse_simulation_constants"
+        },
+        {
+          "duration_ms": 912185.627998,
+          "name": "runSimulationLoop"
+        },
+        {
+          "duration_ms": 912187.210273,
+          "name": "simulation_total"
+        }
+      ],
+      "key": "rh95_8",
+      "seconds": 921.7604536440049,
+      "solver_sha256": "d1bb2682493f75f63b3014d3a19cbbed0046bf6008c8d2a2690228ce4ffd4bfd",
+      "input_sha256": "8a900166fa47c6f13f95754635e00d36678ac8f21f4a40a50893f30bd4d4cdbc"
+    },
+    {
+      "status": "ok",
+      "hours": 8760,
+      "accepted": 8760,
+      "residual_max": [
+        2.83961e-10,
+        1.86977e-15,
+        0.0,
+        2.18262e-15
+      ],
+      "exported_flow_balance": {
+        "max_abs_m3s": 5.960464477539063e-08,
+        "original_tolerance_m3s": 1e-05,
+        "float32_rounding_bound_max_m3s": 5.960464477539063e-08
+      },
+      "equipment": [
+        {
+          "key": "全館空調",
+          "supply_rh_max_active": 98.81957447971324,
+          "supply_rh_max_all": 98.81957447971324,
+          "energy_kWh": 3589.06860017395,
+          "sensible_kWh": 10927.646421063722,
+          "latent_kWh": 731.8301681816578,
+          "discharge_plenum_rh_max": {
+            "AC出口": 98.81957447971324
+          },
+          "zero_heat_flow_max_m3s": 0.0,
+          "target_period_diagnostics": {
+            "aircon_temperature_unmet": {
+              "maximum": 0.995340883731842,
+              "mean": 0.011800764749872766,
+              "hours_above_0_1": 196
+            },
+            "aircon_humidity_unmet": {
+              "maximum": 31.685693740844727,
+              "mean": 4.028217484759055,
+              "hours_above_0_1": 2359
+            },
+            "aircon_reheat": {
+              "maximum": 0.0,
+              "mean": 0.0,
+              "hours_above_0_1": 0
+            }
+          },
+          "coil_physics": {
+            "network_sensible_error_W": 0.00123070113841095,
+            "network_latent_error_W": 0.11587184164864084,
+            "supply_boundary_tolerance_kgkg": 1e-07,
+            "network_latent_allowance_max_W": 0.15158382480092977,
+            "network_latent_error_allowance_ratio_max": 0.7685875451919125,
+            "coil_min_C": 15.772761662801107,
+            "operating_BF_min": 0.1,
+            "operating_BF_max": 0.1,
+            "wet_floor_margin_min_kgkg": -9.313225746154785e-10
+          }
+        }
+      ],
+      "metrics": {
+        "aircon_capacity_recalc": 31041,
+        "aircon_capacity_recalc_share": 0.47480000611835965,
+        "aircon_flow_adjust_recalc": 7441,
+        "aircon_ms": 110374.7383639996,
+        "aircon_on_off_recalc": 576,
+        "aircon_recalc_total": 65377,
+        "aircon_recompute_reasons_mask": 15,
+        "aircon_supply_humidity_recalc": 26319,
+        "coupled_iterations": 155683,
+        "humidity_factorizes": 253173,
+        "humidity_ms": 119973.45085400026,
+        "humidity_pattern_analyzes": 1300,
+        "humidity_rhs_only_solves": 111520,
+        "humidity_solution_reuse": 361,
+        "outer_iterations": 74137,
+        "outer_iterations_ge3": 3159,
+        "outer_iterations_ge3_share": 0.36061643835616436,
+        "outer_iterations_max": 116,
+        "outer_iterations_mean": 8.463127853881279,
+        "pressure_ceres_iterations": 1511276,
+        "pressure_fallback_count": 1,
+        "pressure_ms": 149250.20663500036,
+        "pressure_solve_calls": 155683,
+        "solve_timesteps": 8760,
+        "thermal_full_builds": 152354,
+        "thermal_ms": 501666.63513899985,
+        "thermal_rhs_only_builds": 3329
+      },
+      "timings": [
+        {
+          "duration_ms": 1812.528665,
+          "name": "load_input"
+        },
+        {
+          "duration_ms": 0.120331,
+          "name": "parse_simulation_constants"
+        },
+        {
+          "duration_ms": 960905.534709,
+          "name": "runSimulationLoop"
+        },
+        {
+          "duration_ms": 960905.543872,
+          "name": "simulation_total"
+        }
+      ],
+      "key": "bf_fixed_8",
+      "seconds": 971.3504254729778,
+      "solver_sha256": "d1bb2682493f75f63b3014d3a19cbbed0046bf6008c8d2a2690228ce4ffd4bfd",
+      "input_sha256": "9369bf14877962fa750ea8872d79cdfd67496773e3755774a3985a274f8a3ccd"
+    },
+    {
+      "status": "ok",
+      "hours": 8760,
+      "accepted": 8760,
+      "residual_max": [
+        2.95472e-10,
+        1.60183e-15,
+        0.0,
+        2.01398e-15
+      ],
+      "exported_flow_balance": {
+        "max_abs_m3s": 5.960464477539063e-08,
+        "original_tolerance_m3s": 1e-05,
+        "float32_rounding_bound_max_m3s": 5.960464477539063e-08
+      },
+      "equipment": [
+        {
+          "key": "全館空調",
+          "supply_rh_max_active": 98.50624429608911,
+          "supply_rh_max_all": 98.50624429608911,
+          "energy_kWh": 3588.6355910491943,
+          "sensible_kWh": 10909.30827646247,
+          "latent_kWh": 764.441387969017,
+          "discharge_plenum_rh_max": {
+            "AC出口": 98.50624429608911
+          },
+          "zero_heat_flow_max_m3s": 0.0,
+          "target_period_diagnostics": {
+            "aircon_temperature_unmet": {
+              "maximum": 0.9953369498252869,
+              "mean": 0.012110622986310191,
+              "hours_above_0_1": 199
+            },
+            "aircon_humidity_unmet": {
+              "maximum": 31.664201736450195,
+              "mean": 3.905643018549994,
+              "hours_above_0_1": 2327
+            },
+            "aircon_reheat": {
+              "maximum": 0.0,
+              "mean": 0.0,
+              "hours_above_0_1": 0
+            }
+          },
+          "coil_physics": {
+            "network_sensible_error_W": 0.0012651025881496025,
+            "network_latent_error_W": 0.10922306404972915,
+            "supply_boundary_tolerance_kgkg": 1e-07,
+            "network_latent_allowance_max_W": 0.1515854998703114,
+            "network_latent_error_allowance_ratio_max": 0.7241983775126742,
+            "coil_min_C": 15.507494678097528,
+            "operating_BF_min": 0.12355119678052445,
+            "operating_BF_max": 0.12474874622713693,
+            "wet_floor_margin_min_kgkg": -9.313225746154785e-10
+          }
+        }
+      ],
+      "metrics": {
+        "aircon_capacity_recalc": 30585,
+        "aircon_capacity_recalc_share": 0.45893792296265173,
+        "aircon_flow_adjust_recalc": 7441,
+        "aircon_ms": 110551.44720600024,
+        "aircon_on_off_recalc": 596,
+        "aircon_recalc_total": 66643,
+        "aircon_recompute_reasons_mask": 15,
+        "aircon_supply_humidity_recalc": 28021,
+        "coupled_iterations": 156576,
+        "humidity_factorizes": 254313,
+        "humidity_ms": 121320.35513099993,
+        "humidity_pattern_analyzes": 1338,
+        "humidity_rhs_only_solves": 112943,
+        "humidity_solution_reuse": 387,
+        "outer_iterations": 75403,
+        "outer_iterations_ge3": 3145,
+        "outer_iterations_ge3_share": 0.3590182648401826,
+        "outer_iterations_max": 125,
+        "outer_iterations_mean": 8.607648401826484,
+        "pressure_ceres_iterations": 1507102,
+        "pressure_fallback_count": 1,
+        "pressure_ms": 150275.04334500004,
+        "pressure_solve_calls": 156576,
+        "solve_timesteps": 8760,
+        "thermal_full_builds": 152934,
+        "thermal_ms": 502898.2902579997,
+        "thermal_rhs_only_builds": 3642
+      },
+      "timings": [
+        {
+          "duration_ms": 1785.56789,
+          "name": "load_input"
+        },
+        {
+          "duration_ms": 0.09531,
+          "name": "parse_simulation_constants"
+        },
+        {
+          "duration_ms": 970550.871671,
+          "name": "runSimulationLoop"
+        },
+        {
+          "duration_ms": 970550.87565,
+          "name": "simulation_total"
+        }
+      ],
+      "key": "bf_8",
+      "seconds": 983.8831720880116,
+      "solver_sha256": "d1bb2682493f75f63b3014d3a19cbbed0046bf6008c8d2a2690228ce4ffd4bfd",
+      "input_sha256": "7554b2919f26ce8d9807b8a49df4cbe5bcaaa060fc27be8dc5bcc0a8e843f264"
+    },
+    {
+      "status": "ok",
+      "hours": 8760,
+      "accepted": 8760,
+      "residual_max": [
+        2.91109e-10,
+        1.82232e-15,
+        0.0,
+        2.05353e-15
+      ],
+      "exported_flow_balance": {
+        "max_abs_m3s": 5.960464477539063e-08,
+        "original_tolerance_m3s": 1e-05,
+        "float32_rounding_bound_max_m3s": 5.960464477539063e-08
+      },
+      "equipment": [
+        {
+          "key": "全館空調",
+          "supply_rh_max_active": 95.44384089852994,
+          "supply_rh_max_all": 95.44384089852994,
+          "energy_kWh": 3531.691420852661,
+          "sensible_kWh": 10792.549356008576,
+          "latent_kWh": 982.4712172498703,
+          "discharge_plenum_rh_max": {
+            "AC出口": 95.44384089852994
+          },
+          "zero_heat_flow_max_m3s": 0.0,
+          "target_period_diagnostics": {
+            "aircon_temperature_unmet": {
+              "maximum": 0.99528968334198,
+              "mean": 0.012156939417863749,
+              "hours_above_0_1": 206
+            },
+            "aircon_humidity_unmet": {
+              "maximum": 31.626955032348633,
+              "mean": 3.0983117312162416,
+              "hours_above_0_1": 2032
+            },
+            "aircon_reheat": {
+              "maximum": 0.0,
+              "mean": 0.0,
+              "hours_above_0_1": 0
+            }
+          },
+          "coil_physics": {
+            "network_sensible_error_W": 0.0014335328278320958,
+            "network_latent_error_W": 0.14598800047622262,
+            "supply_boundary_tolerance_kgkg": 1e-07,
+            "network_latent_allowance_max_W": 0.15140586113244964,
+            "network_latent_error_allowance_ratio_max": 0.9731386541448664,
+            "coil_min_C": 14.092316237302763,
+            "operating_BF_min": 0.3270955148303322,
+            "operating_BF_max": 0.328180502276124,
+            "wet_floor_margin_min_kgkg": -9.313225746154785e-10
+          }
+        }
+      ],
+      "metrics": {
+        "aircon_capacity_recalc": 26496,
+        "aircon_capacity_recalc_share": 0.3828182566858827,
+        "aircon_flow_adjust_recalc": 7441,
+        "aircon_ms": 99459.04242000006,
+        "aircon_on_off_recalc": 706,
+        "aircon_recalc_total": 69213,
+        "aircon_recompute_reasons_mask": 15,
+        "aircon_supply_humidity_recalc": 34570,
+        "coupled_iterations": 154579,
+        "humidity_factorizes": 249298,
+        "humidity_ms": 117440.90708899987,
+        "humidity_pattern_analyzes": 1378,
+        "humidity_rhs_only_solves": 111230,
+        "humidity_solution_reuse": 716,
+        "outer_iterations": 77973,
+        "outer_iterations_ge3": 3112,
+        "outer_iterations_ge3_share": 0.3552511415525114,
+        "outer_iterations_max": 151,
+        "outer_iterations_mean": 8.901027397260274,
+        "pressure_ceres_iterations": 1446972,
+        "pressure_fallback_count": 3,
+        "pressure_ms": 144654.84239299977,
+        "pressure_solve_calls": 154579,
+        "solve_timesteps": 8760,
+        "thermal_full_builds": 150536,
+        "thermal_ms": 490681.88675699744,
+        "thermal_rhs_only_builds": 4043
+      },
+      "timings": [
+        {
+          "duration_ms": 1803.478055,
+          "name": "load_input"
+        },
+        {
+          "duration_ms": 0.083817,
+          "name": "parse_simulation_constants"
+        },
+        {
+          "duration_ms": 932224.697972,
+          "name": "runSimulationLoop"
+        },
+        {
+          "duration_ms": 932224.701496,
+          "name": "simulation_total"
+        }
+      ],
+      "key": "coil_aoaf_8",
+      "seconds": 942.3992317369848,
+      "solver_sha256": "d1bb2682493f75f63b3014d3a19cbbed0046bf6008c8d2a2690228ce4ffd4bfd",
+      "input_sha256": "8edfeb27f8bd6fac769fd6214b52aaed48c6aee0b537bfc716ccb8c2573ed2a4"
+    },
+    {
+      "status": "ok",
+      "hours": 8760,
+      "accepted": 8760,
+      "residual_max": [
+        3.23354e-10,
+        1.18792e-15,
+        0.0,
+        2.48347e-15
+      ],
+      "exported_flow_balance": {
+        "max_abs_m3s": 5.960464477539063e-08,
+        "original_tolerance_m3s": 1e-05,
+        "float32_rounding_bound_max_m3s": 5.960464477539063e-08
+      },
+      "equipment": [
+        {
+          "key": "全館空調",
+          "supply_rh_max_active": 99.99991494646112,
+          "supply_rh_max_all": 99.99991494646112,
+          "energy_kWh": 3575.76828465271,
+          "sensible_kWh": 10961.824679321251,
+          "latent_kWh": 611.4403131966591,
+          "discharge_plenum_rh_max": {
+            "AC出口": 99.99991716965904
+          },
+          "zero_heat_flow_max_m3s": 0.0,
+          "target_period_diagnostics": {
+            "aircon_temperature_unmet": {
+              "maximum": 0.9953608512878418,
+              "mean": 0.011807152256954325,
+              "hours_above_0_1": 196
+            },
+            "aircon_humidity_unmet": {
+              "maximum": 31.70197105407715,
+              "mean": 4.430300914565076,
+              "hours_above_0_1": 2420
+            },
+            "aircon_reheat": {
+              "maximum": 0.0,
+              "mean": 0.0,
+              "hours_above_0_1": 0
+            }
+          },
+          "coil_physics": {
+            "network_sensible_error_W": 0.001225371003329201,
+            "network_latent_error_W": 0.0027977225133213324,
+            "supply_boundary_tolerance_kgkg": 1e-07,
+            "network_latent_allowance_max_W": 0.1516458393668875,
+            "network_latent_error_allowance_ratio_max": 0.018492269094655008
+          }
+        }
+      ],
+      "metrics": {
+        "aircon_capacity_recalc": 31916,
+        "aircon_capacity_recalc_share": 0.509335801602247,
+        "aircon_flow_adjust_recalc": 7441,
+        "aircon_ms": 12513.436899000057,
+        "aircon_on_off_recalc": 558,
+        "aircon_recalc_total": 62662,
+        "aircon_recompute_reasons_mask": 15,
+        "aircon_supply_humidity_recalc": 22747,
+        "coupled_iterations": 153757,
+        "humidity_factorizes": 249762,
+        "humidity_ms": 78134.07977800014,
+        "humidity_pattern_analyzes": 1156,
+        "humidity_rhs_only_solves": 109213,
+        "humidity_solution_reuse": 353,
+        "outer_iterations": 71422,
+        "outer_iterations_ge3": 3189,
+        "outer_iterations_ge3_share": 0.36404109589041095,
+        "outer_iterations_max": 113,
+        "outer_iterations_mean": 8.153196347031963,
+        "pressure_ceres_iterations": 1521331,
+        "pressure_fallback_count": 5,
+        "pressure_ms": 97383.89867000023,
+        "pressure_solve_calls": 153757,
+        "solve_timesteps": 8760,
+        "thermal_full_builds": 150646,
+        "thermal_ms": 313422.5090249996,
+        "thermal_rhs_only_builds": 3111
+      },
+      "timings": [
+        {
+          "duration_ms": 1105.82793,
+          "name": "load_input"
+        },
+        {
+          "duration_ms": 0.073285,
+          "name": "parse_simulation_constants"
+        },
+        {
+          "duration_ms": 553285.712535,
+          "name": "runSimulationLoop"
+        },
+        {
+          "duration_ms": 553285.717507,
+          "name": "simulation_total"
+        }
+      ],
+      "key": "ideal_rh60_8",
+      "seconds": 558.4522762350098,
+      "solver_sha256": "d1bb2682493f75f63b3014d3a19cbbed0046bf6008c8d2a2690228ce4ffd4bfd",
+      "input_sha256": "b4b5fd52a9ba14be48fa75cf8f46ccd77f6a12b35d32694de18983eced02d805"
+    }
+  ],
+  "cooling_period_comparison": [
+    {
+      "key": "ideal_rh60_8",
+      "input_sha256": "b4b5fd52a9ba14be48fa75cf8f46ccd77f6a12b35d32694de18983eced02d805",
+      "solver_sha256": "2cc7d432b23c5116b1c25a1a1cd6755b48924af67ccd654d2725a15bbc17015d",
+      "seconds": 1741.8977869219962,
+      "identical_annual_input": true,
+      "comparison_note": "same annual input",
+      "before": {
+        "hours": 2808,
+        "RH_mean_pct": 72.97740014801677,
+        "RH_max_pct": 91.70197296142578,
+        "RH_above60p1_hours": 2420,
+        "RH_unmet_at_or_below_25p001_hours": 2349,
+        "RH_unmet_without_cooling_load_hours": 712,
+        "temperature_mean_C": 24.817627283243034,
+        "temperature_min_C": 18.72366714477539,
+        "active_temperature_min_C": 25.0,
+        "temperature_above27p1_hours": 32,
+        "sensible_kWh": 4116.4207465324025,
+        "latent_kWh": 611.4403131966591,
+        "electricity_kWh": 1358.132162536621,
+        "active_hours": 1880,
+        "active_flow_mean_m3h": 1819.8470875557432,
+        "active_supply_temperature_mean_C": 22.04570831948138,
+        "latent_without_sensible_hours": 0,
+        "rejected_candidates_entire_run": {},
+        "warm_start_fallbacks_entire_run": 0,
+        "selected_unmet_entire_run": 0
+      },
+      "after": {
+        "hours": 2808,
+        "RH_mean_pct": 59.71512278532371,
+        "RH_max_pct": 91.4768295288086,
+        "RH_above60p1_hours": 1154,
+        "RH_unmet_at_or_below_25p001_hours": 1028,
+        "RH_unmet_without_cooling_load_hours": 606,
+        "temperature_mean_C": 25.590943873098432,
+        "temperature_min_C": 18.723377227783203,
+        "active_temperature_min_C": 25.0,
+        "temperature_above27p1_hours": 52,
+        "sensible_kWh": 3457.4533134571993,
+        "latent_kWh": 1569.535129093796,
+        "electricity_kWh": 1809.3955885047912,
+        "active_hours": 1831,
+        "active_flow_mean_m3h": 509.30023841490714,
+        "active_supply_temperature_mean_C": 14.288588422820062,
+        "latent_without_sensible_hours": 0,
+        "rejected_candidates_entire_run": {
+          "thermal_domain": 16,
+          "mixed_outlet_supersaturation": 9,
+          "coupling_budget": 7
+        },
+        "warm_start_fallbacks_entire_run": 36,
+        "selected_unmet_entire_run": 569
+      }
+    },
+    {
+      "key": "bf_8",
+      "input_sha256": "7554b2919f26ce8d9807b8a49df4cbe5bcaaa060fc27be8dc5bcc0a8e843f264",
+      "solver_sha256": "2cc7d432b23c5116b1c25a1a1cd6755b48924af67ccd654d2725a15bbc17015d",
+      "seconds": 1922.9123707069957,
+      "identical_annual_input": true,
+      "comparison_note": "same annual input",
+      "before": {
+        "hours": 2808,
+        "RH_mean_pct": 71.31029938972235,
+        "RH_max_pct": 91.66419982910156,
+        "RH_above60p1_hours": 2327,
+        "RH_unmet_at_or_below_25p001_hours": 2227,
+        "RH_unmet_without_cooling_load_hours": 707,
+        "temperature_mean_C": 24.88406348771859,
+        "temperature_min_C": 18.72366714477539,
+        "active_temperature_min_C": 25.0,
+        "temperature_above27p1_hours": 35,
+        "sensible_kWh": 4063.9150955046744,
+        "latent_kWh": 764.441387969017,
+        "electricity_kWh": 1371.0006288452148,
+        "active_hours": 1877,
+        "active_flow_mean_m3h": 1819.8513497554309,
+        "active_supply_temperature_mean_C": 22.160683365152693,
+        "latent_without_sensible_hours": 0,
+        "rejected_candidates_entire_run": {},
+        "warm_start_fallbacks_entire_run": 0,
+        "selected_unmet_entire_run": 0
+      },
+      "after": {
+        "hours": 2808,
+        "RH_mean_pct": 59.83500166564246,
+        "RH_max_pct": 91.47899627685547,
+        "RH_above60p1_hours": 1153,
+        "RH_unmet_at_or_below_25p001_hours": 1027,
+        "RH_unmet_without_cooling_load_hours": 607,
+        "temperature_mean_C": 25.577821619490273,
+        "temperature_min_C": 18.723379135131836,
+        "active_temperature_min_C": 25.0,
+        "temperature_above27p1_hours": 52,
+        "sensible_kWh": 3469.475858145167,
+        "latent_kWh": 1563.2766315762997,
+        "electricity_kWh": 1801.1405161514283,
+        "active_hours": 1829,
+        "active_flow_mean_m3h": 527.2305758257522,
+        "active_supply_temperature_mean_C": 14.379517152180366,
+        "latent_without_sensible_hours": 0,
+        "rejected_candidates_entire_run": {
+          "thermal_domain": 13,
+          "mixed_outlet_supersaturation": 9,
+          "coupling_budget": 4
+        },
+        "warm_start_fallbacks_entire_run": 35,
+        "selected_unmet_entire_run": 567
+      }
+    },
+    {
+      "key": "rh95_8",
+      "input_sha256": "8a900166fa47c6f13f95754635e00d36678ac8f21f4a40a50893f30bd4d4cdbc",
+      "solver_sha256": "2cc7d432b23c5116b1c25a1a1cd6755b48924af67ccd654d2725a15bbc17015d",
+      "seconds": 1761.7020918749913,
+      "identical_annual_input": true,
+      "comparison_note": "same annual input",
+      "before": {
+        "hours": 2808,
+        "RH_mean_pct": 71.30262540344499,
+        "RH_max_pct": 91.68016052246094,
+        "RH_above60p1_hours": 2347,
+        "RH_unmet_at_or_below_25p001_hours": 2263,
+        "RH_unmet_without_cooling_load_hours": 709,
+        "temperature_mean_C": 24.869052281067244,
+        "temperature_min_C": 18.72366714477539,
+        "active_temperature_min_C": 25.0,
+        "temperature_above27p1_hours": 32,
+        "sensible_kWh": 4075.618630177736,
+        "latent_kWh": 770.5407405910491,
+        "electricity_kWh": 1369.5929864196778,
+        "active_hours": 1883,
+        "active_flow_mean_m3h": 1819.84984020065,
+        "active_supply_temperature_mean_C": 22.151146581308424,
+        "latent_without_sensible_hours": 0,
+        "rejected_candidates_entire_run": {},
+        "warm_start_fallbacks_entire_run": 0,
+        "selected_unmet_entire_run": 0
+      },
+      "after": {
+        "hours": 2808,
+        "RH_mean_pct": 59.22220707890654,
+        "RH_max_pct": 91.48106384277344,
+        "RH_above60p1_hours": 1117,
+        "RH_unmet_at_or_below_25p001_hours": 1014,
+        "RH_unmet_without_cooling_load_hours": 600,
+        "temperature_mean_C": 25.60323973598643,
+        "temperature_min_C": 18.723350524902344,
+        "active_temperature_min_C": 25.0,
+        "temperature_above27p1_hours": 51,
+        "sensible_kWh": 3447.343848724481,
+        "latent_kWh": 1618.4392413365244,
+        "electricity_kWh": 1772.4818669166566,
+        "active_hours": 1831,
+        "active_flow_mean_m3h": 515.1563843438562,
+        "active_supply_temperature_mean_C": 14.64186552663373,
+        "latent_without_sensible_hours": 0,
+        "rejected_candidates_entire_run": {
+          "thermal_domain": 9,
+          "coupling_budget": 3
+        },
+        "warm_start_fallbacks_entire_run": 25,
+        "selected_unmet_entire_run": 538
+      }
+    },
+    {
+      "key": "coil_aoaf_8",
+      "input_sha256": "8edfeb27f8bd6fac769fd6214b52aaed48c6aee0b537bfc716ccb8c2573ed2a4",
+      "solver_sha256": "2cc7d432b23c5116b1c25a1a1cd6755b48924af67ccd654d2725a15bbc17015d",
+      "seconds": 2005.6759341740108,
+      "identical_annual_input": true,
+      "comparison_note": "same annual input",
+      "before": {
+        "hours": 2808,
+        "RH_mean_pct": 68.7043734276057,
+        "RH_max_pct": 91.626953125,
+        "RH_above60p1_hours": 2032,
+        "RH_unmet_at_or_below_25p001_hours": 1970,
+        "RH_unmet_without_cooling_load_hours": 690,
+        "temperature_mean_C": 25.029470499424512,
+        "temperature_min_C": 18.72366714477539,
+        "active_temperature_min_C": 25.0,
+        "temperature_above27p1_hours": 42,
+        "sensible_kWh": 3947.177472381639,
+        "latent_kWh": 982.4712172498703,
+        "electricity_kWh": 1314.058754486084,
+        "active_hours": 1867,
+        "active_flow_mean_m3h": 1819.8588944145492,
+        "active_supply_temperature_mean_C": 22.40931634540282,
+        "latent_without_sensible_hours": 0,
+        "rejected_candidates_entire_run": {},
+        "warm_start_fallbacks_entire_run": 0,
+        "selected_unmet_entire_run": 0
+      },
+      "after": {
+        "hours": 2808,
+        "RH_mean_pct": 59.93025411431945,
+        "RH_max_pct": 89.019287109375,
+        "RH_above60p1_hours": 1096,
+        "RH_unmet_at_or_below_25p001_hours": 977,
+        "RH_unmet_without_cooling_load_hours": 560,
+        "temperature_mean_C": 25.663933986272568,
+        "temperature_min_C": 18.723512649536133,
+        "active_temperature_min_C": 25.0,
+        "temperature_above27p1_hours": 49,
+        "sensible_kWh": 3494.2086351380767,
+        "latent_kWh": 1507.9229311866761,
+        "electricity_kWh": 1566.4158079051972,
+        "active_hours": 1850,
+        "active_flow_mean_m3h": 647.2835957963724,
+        "active_supply_temperature_mean_C": 15.583766028172262,
+        "latent_without_sensible_hours": 0,
+        "rejected_candidates_entire_run": {
+          "mixed_outlet_supersaturation": 8,
+          "thermal_domain": 2
+        },
+        "warm_start_fallbacks_entire_run": 31,
+        "selected_unmet_entire_run": 558
+      }
+    },
+    {
+      "key": "bf_fixed_8",
+      "input_sha256": "9369bf14877962fa750ea8872d79cdfd67496773e3755774a3985a274f8a3ccd",
+      "solver_sha256": "2cc7d432b23c5116b1c25a1a1cd6755b48924af67ccd654d2725a15bbc17015d",
+      "seconds": 1338.260465237021,
+      "identical_annual_input": true,
+      "comparison_note": "same annual input",
+      "before": {
+        "hours": 2808,
+        "RH_mean_pct": 71.70216916157649,
+        "RH_max_pct": 91.6856918334961,
+        "RH_above60p1_hours": 2359,
+        "RH_unmet_at_or_below_25p001_hours": 2270,
+        "RH_unmet_without_cooling_load_hours": 709,
+        "temperature_mean_C": 24.86061226608407,
+        "temperature_min_C": 18.72366714477539,
+        "active_temperature_min_C": 25.0,
+        "temperature_above27p1_hours": 32,
+        "sensible_kWh": 4082.2514794629215,
+        "latent_kWh": 731.8301681816578,
+        "electricity_kWh": 1371.4334485473632,
+        "active_hours": 1883,
+        "active_flow_mean_m3h": 1819.849432242784,
+        "active_supply_temperature_mean_C": 22.135007102630016,
+        "latent_without_sensible_hours": 0,
+        "rejected_candidates_entire_run": {},
+        "warm_start_fallbacks_entire_run": 0,
+        "selected_unmet_entire_run": 0
+      },
+      "after": {
+        "hours": 2808,
+        "RH_mean_pct": 60.28012884172619,
+        "RH_max_pct": 91.4911117553711,
+        "RH_above60p1_hours": 1162,
+        "RH_unmet_at_or_below_25p001_hours": 1011,
+        "RH_unmet_without_cooling_load_hours": 602,
+        "temperature_mean_C": 25.569241554309162,
+        "temperature_min_C": 18.723432540893555,
+        "active_temperature_min_C": 25.0,
+        "temperature_above27p1_hours": 64,
+        "sensible_kWh": 3480.7576885114977,
+        "latent_kWh": 1507.916644719839,
+        "electricity_kWh": 1607.0547406578064,
+        "active_hours": 1838,
+        "active_flow_mean_m3h": 612.7738077513736,
+        "active_supply_temperature_mean_C": 15.54523751836866,
+        "latent_without_sensible_hours": 0,
+        "rejected_candidates_entire_run": {
+          "thermal_domain": 15,
+          "mixed_outlet_supersaturation": 3,
+          "coupling_budget": 2
+        },
+        "warm_start_fallbacks_entire_run": 32,
+        "selected_unmet_entire_run": 584
+      }
+    }
+  ],
+  "independent_exported_water_audit": [
+    {
+      "key": "bf_8",
+      "batch": "/home/ubuntu/work/vtsimnx-humidity-control-20261115/annual-r3",
+      "hours": 8760,
+      "room_and_material_nodes": 37,
+      "node_hours_checked": 324083,
+      "max_RH_recompute_error_pp": 1.0621990227832612e-05,
+      "supply_RH_max_pct": {
+        "全館空調": 99.99999970345091,
+        "AC出口": 99.99999970345091
+      },
+      "water_balance": [
+        {
+          "node": "床下",
+          "max_residual_kg_s": 0.0,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "和室",
+          "max_residual_kg_s": 2.272755151251624e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "LD",
+          "max_residual_kg_s": 3.669172284199929e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "台所",
+          "max_residual_kg_s": 1.7862202387068192e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "浴室",
+          "max_residual_kg_s": 5.622031875966192e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "1階トイレ",
+          "max_residual_kg_s": 8.023254891896616e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "洗面所",
+          "max_residual_kg_s": 5.5666145151499956e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "ホール",
+          "max_residual_kg_s": 4.480516906202186e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "クローゼット",
+          "max_residual_kg_s": 7.767018643502529e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "寝室",
+          "max_residual_kg_s": 1.9262945519874641e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "子供室1",
+          "max_residual_kg_s": 1.6551123800392583e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "子供室2",
+          "max_residual_kg_s": 1.4937665450719996e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "2階ホール",
+          "max_residual_kg_s": 9.278603025759068e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "切妻",
+          "max_residual_kg_s": 3.8513944012087483e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "片流れ(3)",
+          "max_residual_kg_s": 9.159195789658696e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "片流れ(4)",
+          "max_residual_kg_s": 2.4393762283790617e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "階間(L4)",
+          "max_residual_kg_s": 0.0,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "2階トイレ",
+          "max_residual_kg_s": 9.383237440754161e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "AC出口",
+          "max_residual_kg_s": 8.910612161322495e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "床下_mx",
+          "max_residual_kg_s": 0.0,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "和室_mx",
+          "max_residual_kg_s": 2.0648973683877405e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "LD_mx",
+          "max_residual_kg_s": 2.684106843376028e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "台所_mx",
+          "max_residual_kg_s": 1.499972616630891e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "浴室_mx",
+          "max_residual_kg_s": 5.8050888280363735e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "1階トイレ_mx",
+          "max_residual_kg_s": 1.9376269645298046e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "洗面所_mx",
+          "max_residual_kg_s": 3.8700592188038534e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "ホール_mx",
+          "max_residual_kg_s": 1.677891446507355e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "クローゼット_mx",
+          "max_residual_kg_s": 9.28814212480314e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "寝室_mx",
+          "max_residual_kg_s": 2.477876842021243e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "子供室1_mx",
+          "max_residual_kg_s": 2.0126905292077823e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "子供室2_mx",
+          "max_residual_kg_s": 1.342313157226213e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "2階ホール_mx",
+          "max_residual_kg_s": 1.4176364574423894e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "切妻_mx",
+          "max_residual_kg_s": 3.6593098192707566e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "片流れ(3)_mx",
+          "max_residual_kg_s": 8.709970861686591e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "片流れ(4)_mx",
+          "max_residual_kg_s": 2.3212563246338344e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "階間(L4)_mx",
+          "max_residual_kg_s": 0.0,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "2階トイレ_mx",
+          "max_residual_kg_s": 2.0623000132090406e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        }
+      ],
+      "sample_room_state": {
+        "index": 5016,
+        "timestamp": "2026-07-29T00:00:00",
+        "temperature_C": 25.37747573852539,
+        "x_gkg": 12.161845341324806,
+        "ventilation_g_h": -75.59995461570244,
+        "generation_g_h": 0.0,
+        "material_g_h": 57.88732705824077,
+        "storage_g_h": -17.712923660874367,
+        "residual_g_h": -0.00029610341269369,
+        "RH_pct": 59.99989897263798
+      },
+      "selected_coil_forward_reconstruction": {
+        "latent_method": "bf",
+        "active_cooling_hours": 1829,
+        "forward_supply_x_max_error_kgkg": 1.0047554285970428e-07,
+        "min_inferred_coil_T_C": 5.000000470575625,
+        "no_cooling_load_without_positive_power": true
+      },
+      "max_abs_moisture_residual_kg_s": 9.278603025759068e-10,
+      "max_normalized_defect_after_float32_bound_kgkg": 0.0,
+      "passed": true
+    },
+    {
+      "key": "ideal_rh60_8",
+      "batch": "/home/ubuntu/work/vtsimnx-humidity-control-20261115/annual-r3",
+      "hours": 8760,
+      "room_and_material_nodes": 37,
+      "node_hours_checked": 324083,
+      "max_RH_recompute_error_pp": 1.0120390371071153e-05,
+      "supply_RH_max_pct": {
+        "全館空調": 99.99999925796662,
+        "AC出口": 99.99999925796662
+      },
+      "water_balance": [
+        {
+          "node": "床下",
+          "max_residual_kg_s": 0.0,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "和室",
+          "max_residual_kg_s": 2.1242379397509595e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "LD",
+          "max_residual_kg_s": 3.3597545939464436e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "台所",
+          "max_residual_kg_s": 1.5610550603265179e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "浴室",
+          "max_residual_kg_s": 4.981208620268539e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "1階トイレ",
+          "max_residual_kg_s": 8.387815594011235e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "洗面所",
+          "max_residual_kg_s": 5.625724040874559e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "ホール",
+          "max_residual_kg_s": 5.499498849047054e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "クローゼット",
+          "max_residual_kg_s": 7.101401501576228e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "寝室",
+          "max_residual_kg_s": 1.7150268960782733e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "子供室1",
+          "max_residual_kg_s": 1.3827497064971541e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "子供室2",
+          "max_residual_kg_s": 1.4995178095235243e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "2階ホール",
+          "max_residual_kg_s": 8.126270343427579e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "切妻",
+          "max_residual_kg_s": 3.8513944012087483e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "片流れ(3)",
+          "max_residual_kg_s": 9.159195789658696e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "片流れ(4)",
+          "max_residual_kg_s": 2.4393762283790617e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "階間(L4)",
+          "max_residual_kg_s": 0.0,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "2階トイレ",
+          "max_residual_kg_s": 7.163722529082462e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "AC出口",
+          "max_residual_kg_s": 8.055237796233961e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "床下_mx",
+          "max_residual_kg_s": 0.0,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "和室_mx",
+          "max_residual_kg_s": 2.0648973683538591e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "LD_mx",
+          "max_residual_kg_s": 2.684106843376028e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "台所_mx",
+          "max_residual_kg_s": 9.999817444431816e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "浴室_mx",
+          "max_residual_kg_s": 3.8700592188038534e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "1階トイレ_mx",
+          "max_residual_kg_s": 1.9376269645721562e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "洗面所_mx",
+          "max_residual_kg_s": 5.8050888280363735e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "ホール_mx",
+          "max_residual_kg_s": 1.677891446507355e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "クローゼット_mx",
+          "max_residual_kg_s": 6.192094750052284e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "寝室_mx",
+          "max_residual_kg_s": 1.6519178947372974e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "子供室1_mx",
+          "max_residual_kg_s": 1.341793686166756e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "子供室2_mx",
+          "max_residual_kg_s": 1.342313157226213e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "2階ホール_mx",
+          "max_residual_kg_s": 1.4176364574423894e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "切妻_mx",
+          "max_residual_kg_s": 3.6593098192707566e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "片流れ(3)_mx",
+          "max_residual_kg_s": 8.709970861686591e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "片流れ(4)_mx",
+          "max_residual_kg_s": 2.3212563246338344e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "階間(L4)_mx",
+          "max_residual_kg_s": 0.0,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "2階トイレ_mx",
+          "max_residual_kg_s": 2.0623000132090406e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        }
+      ],
+      "sample_room_state": {
+        "index": 5016,
+        "timestamp": "2026-07-29T00:00:00",
+        "temperature_C": 25.37381362915039,
+        "x_gkg": 12.15914636850357,
+        "ventilation_g_h": -75.14216952855274,
+        "generation_g_h": 0.0,
+        "material_g_h": 57.521107520535594,
+        "storage_g_h": -17.620992466807365,
+        "residual_g_h": 6.954120978099976e-05,
+        "RH_pct": 59.99989825670532
+      },
+      "selected_coil_forward_reconstruction": {
+        "latent_method": "none",
+        "active_cooling_hours": 1831,
+        "forward_supply_x_max_error_kgkg": 8.409620421909181e-08,
+        "min_inferred_coil_T_C": 5.000000476837158,
+        "no_cooling_load_without_positive_power": true
+      },
+      "max_abs_moisture_residual_kg_s": 8.126270343427579e-10,
+      "max_normalized_defect_after_float32_bound_kgkg": 0.0,
+      "passed": true
+    },
+    {
+      "key": "coil_aoaf_8",
+      "batch": "/home/ubuntu/work/vtsimnx-humidity-control-20261115/annual-r3",
+      "hours": 8760,
+      "room_and_material_nodes": 37,
+      "node_hours_checked": 324083,
+      "max_RH_recompute_error_pp": 1.0390706648877313e-05,
+      "supply_RH_max_pct": {
+        "全館空調": 99.99999157534866,
+        "AC出口": 99.99998309162963
+      },
+      "water_balance": [
+        {
+          "node": "床下",
+          "max_residual_kg_s": 0.0,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "和室",
+          "max_residual_kg_s": 2.0065959535444148e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "LD",
+          "max_residual_kg_s": 4.0045748323938406e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "台所",
+          "max_residual_kg_s": 1.3947222199827325e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "浴室",
+          "max_residual_kg_s": 5.583727830792303e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "1階トイレ",
+          "max_residual_kg_s": 6.812048776933199e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "洗面所",
+          "max_residual_kg_s": 5.5468995511721416e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "ホール",
+          "max_residual_kg_s": 5.061400256418807e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "クローゼット",
+          "max_residual_kg_s": 7.147071755301473e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "寝室",
+          "max_residual_kg_s": 1.8556192004151764e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "子供室1",
+          "max_residual_kg_s": 1.7929482363924612e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "子供室2",
+          "max_residual_kg_s": 1.5441601921350264e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "2階ホール",
+          "max_residual_kg_s": 8.111073522799547e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "切妻",
+          "max_residual_kg_s": 3.8513944012087483e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "片流れ(3)",
+          "max_residual_kg_s": 9.159195789658696e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "片流れ(4)",
+          "max_residual_kg_s": 2.4393762283790617e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "階間(L4)",
+          "max_residual_kg_s": 0.0,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "2階トイレ",
+          "max_residual_kg_s": 7.91910224973687e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "AC出口",
+          "max_residual_kg_s": 7.288236012967242e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "床下_mx",
+          "max_residual_kg_s": 0.0,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "和室_mx",
+          "max_residual_kg_s": 2.0648973683877405e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "LD_mx",
+          "max_residual_kg_s": 4.026160265030161e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "台所_mx",
+          "max_residual_kg_s": 9.999817444431816e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "浴室_mx",
+          "max_residual_kg_s": 5.805088827994022e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "1階トイレ_mx",
+          "max_residual_kg_s": 1.9376269645721562e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "洗面所_mx",
+          "max_residual_kg_s": 5.805088827994022e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "ホール_mx",
+          "max_residual_kg_s": 1.677891446507355e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "クローゼット_mx",
+          "max_residual_kg_s": 9.288142124866668e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "寝室_mx",
+          "max_residual_kg_s": 1.6519178947372974e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "子供室1_mx",
+          "max_residual_kg_s": 1.3417936861836966e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "子供室2_mx",
+          "max_residual_kg_s": 2.0134697357884973e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "2階ホール_mx",
+          "max_residual_kg_s": 2.1264546861127622e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "切妻_mx",
+          "max_residual_kg_s": 3.6593098192707566e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "片流れ(3)_mx",
+          "max_residual_kg_s": 8.709970861686591e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "片流れ(4)_mx",
+          "max_residual_kg_s": 2.3212563246338344e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "階間(L4)_mx",
+          "max_residual_kg_s": 0.0,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "2階トイレ_mx",
+          "max_residual_kg_s": 2.0623000132090406e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        }
+      ],
+      "sample_room_state": {
+        "index": 5016,
+        "timestamp": "2026-07-29T00:00:00",
+        "temperature_C": 25.0,
+        "x_gkg": 12.12379802018404,
+        "ventilation_g_h": -12.59543749070035,
+        "generation_g_h": 0.0,
+        "material_g_h": 27.0789876639843,
+        "storage_g_h": 14.483782723546028,
+        "residual_g_h": 0.00023255026207924957,
+        "RH_pct": 61.17501680638267
+      },
+      "selected_coil_forward_reconstruction": {
+        "latent_method": "coil_aoaf",
+        "active_cooling_hours": 1850,
+        "forward_supply_x_max_error_kgkg": 9.97360927214308e-08,
+        "min_inferred_coil_T_C": 5.000000140597233,
+        "no_cooling_load_without_positive_power": true
+      },
+      "max_abs_moisture_residual_kg_s": 8.111073522799547e-10,
+      "max_normalized_defect_after_float32_bound_kgkg": 0.0,
+      "passed": true
+    },
+    {
+      "key": "rh95_8",
+      "batch": "/home/ubuntu/work/vtsimnx-humidity-control-20261115/annual-r3",
+      "hours": 8760,
+      "room_and_material_nodes": 37,
+      "node_hours_checked": 324083,
+      "max_RH_recompute_error_pp": 9.786659049382251e-06,
+      "supply_RH_max_pct": {
+        "全館空調": 95.00149008396387,
+        "AC出口": 96.22728000377823
+      },
+      "water_balance": [
+        {
+          "node": "床下",
+          "max_residual_kg_s": 0.0,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "和室",
+          "max_residual_kg_s": 1.782272660923493e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "LD",
+          "max_residual_kg_s": 3.329666910198176e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "台所",
+          "max_residual_kg_s": 1.588391432332647e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "浴室",
+          "max_residual_kg_s": 4.683013949271343e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "1階トイレ",
+          "max_residual_kg_s": 8.054190365110615e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "洗面所",
+          "max_residual_kg_s": 5.520389994289143e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "ホール",
+          "max_residual_kg_s": 5.019560093654706e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "クローゼット",
+          "max_residual_kg_s": 7.194543511604845e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "寝室",
+          "max_residual_kg_s": 1.8351865369698427e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "子供室1",
+          "max_residual_kg_s": 1.3060253459812316e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "子供室2",
+          "max_residual_kg_s": 2.0005738037720154e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "2階ホール",
+          "max_residual_kg_s": 8.516915008195102e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "切妻",
+          "max_residual_kg_s": 3.8513944012087483e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "片流れ(3)",
+          "max_residual_kg_s": 9.159195789658696e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "片流れ(4)",
+          "max_residual_kg_s": 2.4393762283790617e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "階間(L4)",
+          "max_residual_kg_s": 0.0,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "2階トイレ",
+          "max_residual_kg_s": 7.163722529082462e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "AC出口",
+          "max_residual_kg_s": 7.813546476498345e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "床下_mx",
+          "max_residual_kg_s": 0.0,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "和室_mx",
+          "max_residual_kg_s": 2.0648973683877405e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "LD_mx",
+          "max_residual_kg_s": 2.684106843376028e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "台所_mx",
+          "max_residual_kg_s": 9.999817444431816e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "浴室_mx",
+          "max_residual_kg_s": 3.8700592188038534e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "1階トイレ_mx",
+          "max_residual_kg_s": 1.9376269645509804e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "洗面所_mx",
+          "max_residual_kg_s": 3.8700592188038534e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "ホール_mx",
+          "max_residual_kg_s": 1.6778914465242958e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "クローゼット_mx",
+          "max_residual_kg_s": 9.288142124993723e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "寝室_mx",
+          "max_residual_kg_s": 1.6519178947372974e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "子供室1_mx",
+          "max_residual_kg_s": 1.3417936861836966e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "子供室2_mx",
+          "max_residual_kg_s": 2.0134697358223787e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "2階ホール_mx",
+          "max_residual_kg_s": 1.4176364574423894e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "切妻_mx",
+          "max_residual_kg_s": 3.6593098192707566e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "片流れ(3)_mx",
+          "max_residual_kg_s": 8.709970861686591e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "片流れ(4)_mx",
+          "max_residual_kg_s": 2.3212563246338344e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "階間(L4)_mx",
+          "max_residual_kg_s": 0.0,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "2階トイレ_mx",
+          "max_residual_kg_s": 2.062300013293744e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        }
+      ],
+      "sample_room_state": {
+        "index": 5016,
+        "timestamp": "2026-07-29T00:00:00",
+        "temperature_C": 25.0,
+        "x_gkg": 11.892599053680897,
+        "ventilation_g_h": -107.71867496929254,
+        "generation_g_h": 0.0,
+        "material_g_h": 101.07369357123972,
+        "storage_g_h": -6.645435769110918,
+        "residual_g_h": -0.0004543710580910519,
+        "RH_pct": 60.030305436022594
+      },
+      "selected_coil_forward_reconstruction": {
+        "latent_method": "rh95",
+        "active_cooling_hours": 1831,
+        "forward_supply_x_max_error_kgkg": 8.856045333443391e-08,
+        "min_inferred_coil_T_C": 5.000000953674316,
+        "no_cooling_load_without_positive_power": true
+      },
+      "max_abs_moisture_residual_kg_s": 8.516915008195102e-10,
+      "max_normalized_defect_after_float32_bound_kgkg": 0.0,
+      "passed": true
+    },
+    {
+      "key": "bf_fixed_8",
+      "batch": "/home/ubuntu/work/vtsimnx-humidity-control-20261115/annual-r3",
+      "hours": 8760,
+      "room_and_material_nodes": 37,
+      "node_hours_checked": 324083,
+      "max_RH_recompute_error_pp": 1.0110422863363056e-05,
+      "supply_RH_max_pct": {
+        "全館空調": 99.99999719744025,
+        "AC出口": 99.99999719744025
+      },
+      "water_balance": [
+        {
+          "node": "床下",
+          "max_residual_kg_s": 0.0,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "和室",
+          "max_residual_kg_s": 1.8523759424584807e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "LD",
+          "max_residual_kg_s": 4.343516451610856e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "台所",
+          "max_residual_kg_s": 1.807869978208903e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "浴室",
+          "max_residual_kg_s": 4.477734868991042e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "1階トイレ",
+          "max_residual_kg_s": 7.092902724799937e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "洗面所",
+          "max_residual_kg_s": 6.027175871630484e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "ホール",
+          "max_residual_kg_s": 5.160083928122493e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "クローゼット",
+          "max_residual_kg_s": 7.542284393725478e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "寝室",
+          "max_residual_kg_s": 2.045804872477679e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "子供室1",
+          "max_residual_kg_s": 1.5681130868267708e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "子供室2",
+          "max_residual_kg_s": 1.6725778850777153e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "2階ホール",
+          "max_residual_kg_s": 7.282423829042177e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "切妻",
+          "max_residual_kg_s": 3.8513944012087483e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "片流れ(3)",
+          "max_residual_kg_s": 9.159195789658696e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "片流れ(4)",
+          "max_residual_kg_s": 2.4393762283790617e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "階間(L4)",
+          "max_residual_kg_s": 0.0,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "2階トイレ",
+          "max_residual_kg_s": 7.899186086317286e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "AC出口",
+          "max_residual_kg_s": 6.4697784629697e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "床下_mx",
+          "max_residual_kg_s": 0.0,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "和室_mx",
+          "max_residual_kg_s": 2.0648973683877405e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "LD_mx",
+          "max_residual_kg_s": 4.0261602649623984e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "台所_mx",
+          "max_residual_kg_s": 1.499972616630891e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "浴室_mx",
+          "max_residual_kg_s": 5.80508882795167e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "1階トイレ_mx",
+          "max_residual_kg_s": 1.9376269645298046e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "洗面所_mx",
+          "max_residual_kg_s": 3.8700592188038534e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "ホール_mx",
+          "max_residual_kg_s": 1.677891446507355e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "クローゼット_mx",
+          "max_residual_kg_s": 6.192094750221691e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "寝室_mx",
+          "max_residual_kg_s": 2.477876842004302e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "子供室1_mx",
+          "max_residual_kg_s": 1.3417936861836966e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "子供室2_mx",
+          "max_residual_kg_s": 2.0134697357884973e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "2階ホール_mx",
+          "max_residual_kg_s": 1.4176364574423894e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "切妻_mx",
+          "max_residual_kg_s": 3.6593098192707566e-10,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "片流れ(3)_mx",
+          "max_residual_kg_s": 8.709970861686591e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "片流れ(4)_mx",
+          "max_residual_kg_s": 2.3212563246338344e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "階間(L4)_mx",
+          "max_residual_kg_s": 0.0,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        },
+        {
+          "node": "2階トイレ_mx",
+          "max_residual_kg_s": 2.0623000132090406e-11,
+          "max_excess_over_rounding_kg_s": 0.0,
+          "max_normalized_defect_kgkg": 0.0
+        }
+      ],
+      "sample_room_state": {
+        "index": 5016,
+        "timestamp": "2026-07-29T00:00:00",
+        "temperature_C": 25.36473846435547,
+        "x_gkg": 12.152490206062794,
+        "ventilation_g_h": -59.71219867855061,
+        "generation_g_h": 0.0,
+        "material_g_h": 41.870295245572926,
+        "storage_g_h": -17.8418121188879,
+        "residual_g_h": 9.13140897795719e-05,
+        "RH_pct": 60.00004138840085
+      },
+      "selected_coil_forward_reconstruction": {
+        "latent_method": "bf",
+        "active_cooling_hours": 1838,
+        "forward_supply_x_max_error_kgkg": 9.956854734195081e-08,
+        "min_inferred_coil_T_C": 5.00000105963813,
+        "no_cooling_load_without_positive_power": true
+      },
+      "max_abs_moisture_residual_kg_s": 7.282423829042177e-10,
+      "max_normalized_defect_after_float32_bound_kgkg": 0.0,
+      "passed": true
+    }
+  ],
+  "short_replay": [
+    {
+      "key": "ideal_rh60_8",
+      "hours": 168,
+      "identical_input": true,
+      "initialization": "Exported node T/x/p; hidden response-factor histories not restored",
+      "before_validation": {
+        "status": "failed",
+        "error": "('discharge plenum RH', 'AC出口', 100.88899598678006)",
+        "key": "ideal_rh60_8",
+        "seconds": 394.5822257590189,
+        "solver_sha256": "b30cd47350a54c8fb4ccf51ae359e4ed173f2d2b6fdda8ec66bdfea47ad801f8",
+        "input_sha256": "92cf501d5f1e70fdbcf6654df5c9137fc5af9537df4727ccb4e26792d60b7dd6"
+      },
+      "before_metrics": {
+        "aircon_capacity_recalc": 18193,
+        "aircon_capacity_recalc_share": 0.6014016065584609,
+        "aircon_flow_adjust_recalc": 0,
+        "aircon_ms": 13988.238226000005,
+        "aircon_on_off_recalc": 84,
+        "aircon_recalc_total": 30251,
+        "aircon_recompute_reasons_mask": 11,
+        "aircon_supply_humidity_recalc": 11974,
+        "coupled_iterations": 67771,
+        "humidity_factorizes": 135331,
+        "humidity_ms": 64538.913285000024,
+        "humidity_pattern_analyzes": 1697,
+        "humidity_rhs_only_solves": 67562,
+        "humidity_solution_reuse": 0,
+        "outer_iterations": 31219,
+        "outer_iterations_ge3": 154,
+        "outer_iterations_ge3_share": 0.9166666666666666,
+        "outer_iterations_max": 317,
+        "outer_iterations_mean": 185.82738095238096,
+        "pressure_ceres_iterations": 675145,
+        "pressure_fallback_count": 0,
+        "pressure_ms": 64489.03269799997,
+        "pressure_solve_calls": 67771,
+        "solve_timesteps": 168,
+        "thermal_full_builds": 67771,
+        "thermal_ms": 220474.22439699995,
+        "thermal_rhs_only_builds": 0
+      },
+      "after_validation": {
+        "status": "ok",
+        "hours": 168,
+        "accepted": 168,
+        "residual_max": [
+          2.85013e-10,
+          7.59396e-16,
+          0.0,
+          1.01638e-15
+        ],
+        "exported_flow_balance": {
+          "max_abs_m3s": 3.725290298461914e-08,
+          "original_tolerance_m3s": 1e-05,
+          "float32_rounding_bound_max_m3s": 5.960464477539063e-08
+        },
+        "equipment": [
+          {
+            "key": "全館空調",
+            "supply_rh_max_active": 99.99999360229756,
+            "supply_rh_max_all": 99.99999360229756,
+            "energy_kWh": 172.7621340789795,
+            "sensible_kWh": 316.5794119261396,
+            "latent_kWh": 199.77654393005372,
+            "discharge_plenum_rh_max": {
+              "AC出口": 99.99999360229756
+            },
+            "zero_heat_flow_max_m3s": 0.0,
+            "target_period_diagnostics": {
+              "aircon_temperature_unmet": {
+                "maximum": 0.0,
+                "mean": 0.0,
+                "hours_above_0_1": 0
+              },
+              "aircon_humidity_unmet": {
+                "maximum": 28.305728912353516,
+                "mean": 4.286091812803823,
+                "hours_above_0_1": 78
+              },
+              "aircon_reheat": {
+                "maximum": 0.0,
+                "mean": 0.0,
+                "hours_above_0_1": 0
+              }
+            },
+            "coil_physics": {
+              "network_sensible_error_W": 0.000576092872506706,
+              "network_latent_error_W": 0.013261191254514415,
+              "supply_boundary_tolerance_kgkg": 1e-07,
+              "network_latent_allowance_max_W": 0.1506190514986938,
+              "network_latent_error_allowance_ratio_max": 0.9029742937406259
+            }
+          }
+        ],
+        "metrics": {
+          "aircon_capacity_recalc": 8786,
+          "aircon_capacity_recalc_share": 0.7100371747211895,
+          "aircon_flow_adjust_recalc": 0,
+          "aircon_ms": 5597.181884000002,
+          "aircon_on_off_recalc": 7,
+          "aircon_recalc_total": 12374,
+          "aircon_recompute_reasons_mask": 11,
+          "aircon_supply_humidity_recalc": 3581,
+          "coupled_iterations": 28267,
+          "humidity_factorizes": 56464,
+          "humidity_ms": 26627.502506999976,
+          "humidity_pattern_analyzes": 561,
+          "humidity_rhs_only_solves": 28204,
+          "humidity_solution_reuse": 1,
+          "outer_iterations": 12947,
+          "outer_iterations_ge3": 125,
+          "outer_iterations_ge3_share": 0.7440476190476191,
+          "outer_iterations_max": 336,
+          "outer_iterations_mean": 77.06547619047619,
+          "pressure_ceres_iterations": 284843,
+          "pressure_fallback_count": 0,
+          "pressure_ms": 26706.576027000006,
+          "pressure_solve_calls": 28267,
+          "solve_timesteps": 168,
+          "thermal_full_builds": 28266,
+          "thermal_ms": 90771.94314599999,
+          "thermal_rhs_only_builds": 1
+        },
+        "timings": [
+          {
+            "duration_ms": 86.95403,
+            "name": "load_input"
+          },
+          {
+            "duration_ms": 0.091113,
+            "name": "parse_simulation_constants"
+          },
+          {
+            "duration_ms": 162884.644023,
+            "name": "runSimulationLoop"
+          },
+          {
+            "duration_ms": 162884.649508,
+            "name": "simulation_total"
+          }
+        ],
+        "key": "ideal_rh60_8",
+        "seconds": 163.72057785498328,
+        "solver_sha256": "2cc7d432b23c5116b1c25a1a1cd6755b48924af67ccd654d2725a15bbc17015d",
+        "input_sha256": "92cf501d5f1e70fdbcf6654df5c9137fc5af9537df4727ccb4e26792d60b7dd6"
+      },
+      "after_water_audit": {
+        "key": "ideal_rh60_8",
+        "batch": "/home/ubuntu/work/vtsimnx-humidity-control-20261115/short-r6-new",
+        "hours": 168,
+        "room_and_material_nodes": 37,
+        "node_hours_checked": 6179,
+        "max_RH_recompute_error_pp": 5.959753949014157e-06,
+        "supply_RH_max_pct": {
+          "全館空調": 99.99999360229756,
+          "AC出口": 99.99999360229756
+        },
+        "water_balance": [
+          {
+            "node": "床下",
+            "max_residual_kg_s": 0.0,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "和室",
+            "max_residual_kg_s": 1.301232607492573e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "LD",
+            "max_residual_kg_s": 2.992347154465874e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "台所",
+            "max_residual_kg_s": 1.2254599845125456e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "浴室",
+            "max_residual_kg_s": 4.613281327873884e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "1階トイレ",
+            "max_residual_kg_s": 3.799202296789477e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "洗面所",
+            "max_residual_kg_s": 4.681898890307982e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "ホール",
+            "max_residual_kg_s": 2.6037894018610873e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "クローゼット",
+            "max_residual_kg_s": 7.038530939450069e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "寝室",
+            "max_residual_kg_s": 1.744596871777225e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "子供室1",
+            "max_residual_kg_s": 1.1590377830383831e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "子供室2",
+            "max_residual_kg_s": 1.2277549659967896e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "2階ホール",
+            "max_residual_kg_s": 6.286290382921653e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "切妻",
+            "max_residual_kg_s": 3.436657253442984e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "片流れ(3)",
+            "max_residual_kg_s": 8.192384947078644e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "片流れ(4)",
+            "max_residual_kg_s": 2.1858002474685698e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "階間(L4)",
+            "max_residual_kg_s": 0.0,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "2階トイレ",
+            "max_residual_kg_s": 5.697531298423308e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "AC出口",
+            "max_residual_kg_s": 5.604585970667153e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "床下_mx",
+            "max_residual_kg_s": 0.0,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "和室_mx",
+            "max_residual_kg_s": 1.0324486842446922e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "LD_mx",
+            "max_residual_kg_s": 1.342053421789658e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "台所_mx",
+            "max_residual_kg_s": 4.999908722724128e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "浴室_mx",
+            "max_residual_kg_s": 3.87005921871915e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "1階トイレ_mx",
+            "max_residual_kg_s": 1.9376269645298046e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "洗面所_mx",
+            "max_residual_kg_s": 3.87005921871915e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "ホール_mx",
+            "max_residual_kg_s": 2.5168371697017404e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "クローゼット_mx",
+            "max_residual_kg_s": 6.192094750052284e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "寝室_mx",
+            "max_residual_kg_s": 1.6519178947372974e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "子供室1_mx",
+            "max_residual_kg_s": 1.3417936861836966e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "子供室2_mx",
+            "max_residual_kg_s": 1.342313157226213e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "2階ホール_mx",
+            "max_residual_kg_s": 2.1264546860958215e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "切妻_mx",
+            "max_residual_kg_s": 2.439539879649363e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "片流れ(3)_mx",
+            "max_residual_kg_s": 5.806647241180863e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "片流れ(4)_mx",
+            "max_residual_kg_s": 1.547504216479025e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "階間(L4)_mx",
+            "max_residual_kg_s": 0.0,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "2階トイレ_mx",
+            "max_residual_kg_s": 2.0623000132090406e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          }
+        ],
+        "sample_room_state": {
+          "index": 38,
+          "timestamp": "2026-08-05T14:00:00",
+          "temperature_C": 25.91846466064453,
+          "x_gkg": 12.566485442221165,
+          "ventilation_g_h": -101.08203017112028,
+          "generation_g_h": 0.0,
+          "material_g_h": 70.30593787245452,
+          "storage_g_h": -30.775468602776527,
+          "residual_g_h": 0.000623695889234038,
+          "RH_pct": 59.99999822975924
+        },
+        "selected_coil_forward_reconstruction": {
+          "latent_method": "none",
+          "active_cooling_hours": 154,
+          "forward_supply_x_max_error_kgkg": 9.20398761363947e-08,
+          "min_inferred_coil_T_C": 5.000005722045898,
+          "no_cooling_load_without_positive_power": true
+        },
+        "max_abs_moisture_residual_kg_s": 6.286290382921653e-10,
+        "max_normalized_defect_after_float32_bound_kgkg": 0.0,
+        "passed": true
+      },
+      "wall_time_reduction_fraction": 0.585078680267338
+    },
+    {
+      "key": "bf_8",
+      "hours": 168,
+      "identical_input": true,
+      "initialization": "Exported node T/x/p; hidden response-factor histories not restored",
+      "before_validation": {
+        "status": "failed",
+        "error": "('discharge plenum RH', 'AC出口', 100.80190016613231)",
+        "key": "bf_8",
+        "seconds": 405.6955495099828,
+        "solver_sha256": "b30cd47350a54c8fb4ccf51ae359e4ed173f2d2b6fdda8ec66bdfea47ad801f8",
+        "input_sha256": "a962ba2e04bd0d5abf2d4d2d87888c1932287330654ffaeb499baff8ebcd607a"
+      },
+      "before_metrics": {
+        "aircon_capacity_recalc": 17753,
+        "aircon_capacity_recalc_share": 0.5099824768033093,
+        "aircon_flow_adjust_recalc": 0,
+        "aircon_ms": 18697.578374000008,
+        "aircon_on_off_recalc": 88,
+        "aircon_recalc_total": 34811,
+        "aircon_recompute_reasons_mask": 11,
+        "aircon_supply_humidity_recalc": 16970,
+        "coupled_iterations": 70717,
+        "humidity_factorizes": 141204,
+        "humidity_ms": 66394.38431300002,
+        "humidity_pattern_analyzes": 1653,
+        "humidity_rhs_only_solves": 70505,
+        "humidity_solution_reuse": 4,
+        "outer_iterations": 35764,
+        "outer_iterations_ge3": 154,
+        "outer_iterations_ge3_share": 0.9166666666666666,
+        "outer_iterations_max": 448,
+        "outer_iterations_mean": 212.88095238095238,
+        "pressure_ceres_iterations": 655546,
+        "pressure_fallback_count": 0,
+        "pressure_ms": 63137.276869999994,
+        "pressure_solve_calls": 70717,
+        "solve_timesteps": 168,
+        "thermal_full_builds": 70712,
+        "thermal_ms": 226954.37829500006,
+        "thermal_rhs_only_builds": 5
+      },
+      "after_validation": {
+        "status": "ok",
+        "hours": 168,
+        "accepted": 168,
+        "residual_max": [
+          2.70525e-10,
+          4.65941e-16,
+          0.0,
+          1.05741e-15
+        ],
+        "exported_flow_balance": {
+          "max_abs_m3s": 3.725290298461914e-08,
+          "original_tolerance_m3s": 1e-05,
+          "float32_rounding_bound_max_m3s": 5.960464477539063e-08
+        },
+        "equipment": [
+          {
+            "key": "全館空調",
+            "supply_rh_max_active": 99.99999503039805,
+            "supply_rh_max_all": 99.99999503039805,
+            "energy_kWh": 170.6220461425781,
+            "sensible_kWh": 317.7033510702852,
+            "latent_kWh": 198.42249238586425,
+            "discharge_plenum_rh_max": {
+              "AC出口": 99.99997323977371
+            },
+            "zero_heat_flow_max_m3s": 0.0,
+            "target_period_diagnostics": {
+              "aircon_temperature_unmet": {
+                "maximum": 0.03815904259681702,
+                "mean": 0.000227137158314387,
+                "hours_above_0_1": 0
+              },
+              "aircon_humidity_unmet": {
+                "maximum": 29.264427185058594,
+                "mean": 4.3346695927767716,
+                "hours_above_0_1": 79
+              },
+              "aircon_reheat": {
+                "maximum": 0.0,
+                "mean": 0.0,
+                "hours_above_0_1": 0
+              }
+            },
+            "coil_physics": {
+              "network_sensible_error_W": 0.0009175502518701251,
+              "network_latent_error_W": 0.04350728191639064,
+              "supply_boundary_tolerance_kgkg": 1e-07,
+              "network_latent_allowance_max_W": 0.15058743065104097,
+              "network_latent_error_allowance_ratio_max": 0.9011609555668499,
+              "coil_min_C": 5.000010486929014,
+              "operating_BF_min": 7.135552874131547e-11,
+              "operating_BF_max": 0.12424292503090285,
+              "wet_floor_margin_min_kgkg": -9.70147043914682e-08
+            }
+          }
+        ],
+        "metrics": {
+          "aircon_capacity_recalc": 9049,
+          "aircon_capacity_recalc_share": 0.6531216167448575,
+          "aircon_flow_adjust_recalc": 0,
+          "aircon_ms": 7656.652907000001,
+          "aircon_on_off_recalc": 7,
+          "aircon_recalc_total": 13855,
+          "aircon_recompute_reasons_mask": 11,
+          "aircon_supply_humidity_recalc": 4799,
+          "coupled_iterations": 30185,
+          "humidity_factorizes": 60290,
+          "humidity_ms": 27735.675569000017,
+          "humidity_pattern_analyzes": 585,
+          "humidity_rhs_only_solves": 30125,
+          "humidity_solution_reuse": 5,
+          "outer_iterations": 14436,
+          "outer_iterations_ge3": 147,
+          "outer_iterations_ge3_share": 0.875,
+          "outer_iterations_max": 446,
+          "outer_iterations_mean": 85.92857142857143,
+          "pressure_ceres_iterations": 293994,
+          "pressure_fallback_count": 0,
+          "pressure_ms": 27183.75117,
+          "pressure_solve_calls": 30185,
+          "solve_timesteps": 168,
+          "thermal_full_builds": 30180,
+          "thermal_ms": 94575.13644299998,
+          "thermal_rhs_only_builds": 5
+        },
+        "timings": [
+          {
+            "duration_ms": 76.425401,
+            "name": "load_input"
+          },
+          {
+            "duration_ms": 0.092629,
+            "name": "parse_simulation_constants"
+          },
+          {
+            "duration_ms": 170433.962127,
+            "name": "runSimulationLoop"
+          },
+          {
+            "duration_ms": 170433.966576,
+            "name": "simulation_total"
+          }
+        ],
+        "key": "bf_8",
+        "seconds": 170.75111808200018,
+        "solver_sha256": "2cc7d432b23c5116b1c25a1a1cd6755b48924af67ccd654d2725a15bbc17015d",
+        "input_sha256": "a962ba2e04bd0d5abf2d4d2d87888c1932287330654ffaeb499baff8ebcd607a"
+      },
+      "after_water_audit": {
+        "key": "bf_8",
+        "batch": "/home/ubuntu/work/vtsimnx-humidity-control-20261115/short-r6-new",
+        "hours": 168,
+        "room_and_material_nodes": 37,
+        "node_hours_checked": 6179,
+        "max_RH_recompute_error_pp": 7.296990091276712e-06,
+        "supply_RH_max_pct": {
+          "全館空調": 99.99999503039805,
+          "AC出口": 99.99997323977371
+        },
+        "water_balance": [
+          {
+            "node": "床下",
+            "max_residual_kg_s": 0.0,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "和室",
+            "max_residual_kg_s": 1.268131264098951e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "LD",
+            "max_residual_kg_s": 1.8080916527112522e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "台所",
+            "max_residual_kg_s": 6.879398150788705e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "浴室",
+            "max_residual_kg_s": 4.6710916192744584e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "1階トイレ",
+            "max_residual_kg_s": 5.4628421241511907e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "洗面所",
+            "max_residual_kg_s": 5.096012999096218e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "ホール",
+            "max_residual_kg_s": 3.540387700039397e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "クローゼット",
+            "max_residual_kg_s": 6.441921588133281e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "寝室",
+            "max_residual_kg_s": 1.8393947160749773e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "子供室1",
+            "max_residual_kg_s": 1.2493609824993458e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "子供室2",
+            "max_residual_kg_s": 1.2011538079088505e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "2階ホール",
+            "max_residual_kg_s": 8.32226106088193e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "切妻",
+            "max_residual_kg_s": 3.436657253442984e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "片流れ(3)",
+            "max_residual_kg_s": 8.192384947078644e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "片流れ(4)",
+            "max_residual_kg_s": 2.1858002474685698e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "階間(L4)",
+            "max_residual_kg_s": 0.0,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "2階トイレ",
+            "max_residual_kg_s": 4.0824090717563145e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "AC出口",
+            "max_residual_kg_s": 5.993916613045158e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "床下_mx",
+            "max_residual_kg_s": 0.0,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "和室_mx",
+            "max_residual_kg_s": 1.0324486842446922e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "LD_mx",
+            "max_residual_kg_s": 1.342053421789658e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "台所_mx",
+            "max_residual_kg_s": 4.999908722724128e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "浴室_mx",
+            "max_residual_kg_s": 3.87005921871915e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "1階トイレ_mx",
+            "max_residual_kg_s": 2.906440446773531e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "洗面所_mx",
+            "max_residual_kg_s": 3.87005921871915e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "ホール_mx",
+            "max_residual_kg_s": 2.516837169718681e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "クローゼット_mx",
+            "max_residual_kg_s": 6.192094750052284e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "寝室_mx",
+            "max_residual_kg_s": 1.6519178947372974e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "子供室1_mx",
+            "max_residual_kg_s": 1.3417936861836966e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "子供室2_mx",
+            "max_residual_kg_s": 1.3423131573278568e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "2階ホール_mx",
+            "max_residual_kg_s": 1.417636457408508e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "切妻_mx",
+            "max_residual_kg_s": 2.439539879649363e-10,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "片流れ(3)_mx",
+            "max_residual_kg_s": 5.806647241180863e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "片流れ(4)_mx",
+            "max_residual_kg_s": 1.547504216479025e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "階間(L4)_mx",
+            "max_residual_kg_s": 0.0,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          },
+          {
+            "node": "2階トイレ_mx",
+            "max_residual_kg_s": 2.062300013177277e-11,
+            "max_excess_over_rounding_kg_s": 0.0,
+            "max_normalized_defect_kgkg": 0.0
+          }
+        ],
+        "sample_room_state": {
+          "index": 38,
+          "timestamp": "2026-08-05T14:00:00",
+          "temperature_C": 25.92439842224121,
+          "x_gkg": 12.570992112159729,
+          "ventilation_g_h": -98.44867709869744,
+          "generation_g_h": 0.0,
+          "material_g_h": 68.2342368464917,
+          "storage_g_h": -30.2143533937633,
+          "residual_g_h": 8.685844244776765e-05,
+          "RH_pct": 60.00001102400344
+        },
+        "selected_coil_forward_reconstruction": {
+          "latent_method": "bf",
+          "active_cooling_hours": 154,
+          "forward_supply_x_max_error_kgkg": 9.185842139800698e-08,
+          "min_inferred_coil_T_C": 5.000010486929014,
+          "no_cooling_load_without_positive_power": true
+        },
+        "max_abs_moisture_residual_kg_s": 8.32226106088193e-10,
+        "max_normalized_defect_after_float32_bound_kgkg": 0.0,
+        "passed": true
+      },
+      "wall_time_reduction_fraction": 0.5791151313140088
+    }
+  ],
+  "rejected_annual_intermediate": [
+    {
+      "status": "failed",
+      "error": "('discharge plenum RH', 'AC出口', 100.68171666676102)",
+      "key": "ideal_rh60_8",
+      "seconds": 4080.375710480992,
+      "solver_sha256": "b30cd47350a54c8fb4ccf51ae359e4ed173f2d2b6fdda8ec66bdfea47ad801f8",
+      "input_sha256": "b4b5fd52a9ba14be48fa75cf8f46ccd77f6a12b35d32694de18983eced02d805"
+    },
+    {
+      "status": "failed",
+      "error": "('discharge plenum RH', 'AC出口', 101.30295346969815)",
+      "key": "bf_8",
+      "seconds": 4227.926012628013,
+      "solver_sha256": "b30cd47350a54c8fb4ccf51ae359e4ed173f2d2b6fdda8ec66bdfea47ad801f8",
+      "input_sha256": "7554b2919f26ce8d9807b8a49df4cbe5bcaaa060fc27be8dc5bcc0a8e843f264"
+    }
+  ],
+  "limits": [
+    "Finite candidate control; electricity is an output and is not an optimization or ranking objective.",
+    "Rejected speculative candidates are numerically unavailable; this is not proof of physical infeasibility.",
+    "Annual numerical acceptance is distinct from meeting RH60 at every hour.",
+    "First exported hour is excluded from the independent water-storage audit because its initial inventory is not exported.",
+    "Execution time depends on concurrent jobs; iteration counts are also retained.",
+    "This annual validation covers five humidity-priority conditions, not the earlier thirty temperature-priority conditions."
+  ]
+}
