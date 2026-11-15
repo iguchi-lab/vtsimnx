@@ -254,6 +254,98 @@ void testPassiveDischargeWaterBalance() {
 } // namespace
 
 int main() {
+    // Reference BF varies with actual network airflow, without changing that flow.
+    {
+        VertexProperties node{};
+        node.ac_spec = {{"latent_method", "bf"}, {"bf_reference_flow_rate", 0.4}};
+        expectNear(aircon::latent::effectiveBypassFactor(node, 0.4), 0.1, 1e-12,
+                   "reference airflow uses default reference BF 0.1");
+        expectNear(aircon::latent::effectiveBypassFactor(node, 0.2), 0.01, 1e-12,
+                   "half reference airflow improves contact");
+        expectNear(aircon::latent::effectiveBypassFactor(node, 0.8), std::sqrt(0.1), 1e-12,
+                   "double reference airflow increases bypass");
+        node.ac_spec["V_inner"] = {{"cooling", {{"rtd", 0.8}}}};
+        expectNear(aircon::latent::effectiveBypassFactor(node, 0.4), 0.1, 1e-12,
+                   "explicit reference overrides catalog rating");
+        node.ac_spec.erase("bf_reference_flow_rate");
+        expectNear(aircon::latent::effectiveBypassFactor(node, 0.4), 0.01, 1e-12,
+                   "catalog rated cooling airflow supplies the reference");
+        node.ac_spec["bf_flow_correction"] = false;
+        expectNear(aircon::latent::effectiveBypassFactor(node, 0.4), 0.1, 1e-12,
+                   "fixed-BF compatibility is explicit");
+    }
+    // Regression: the old Ao/Af arithmetic-mean model dried the outlet below
+    // its own wet surface at 2026-07-29 14:00 (C=0.59), and reversed the
+    // surface/outlet temperature ordering at low flow.
+    for (const std::string method : {"bf", "coil_aoaf", "aoaf", "literature"}) {
+        for (const double flow : {0.003, 0.015, 0.05, 0.2510001063, 0.8}) {
+            for (const double xin : {0.004, 0.01082139648, 0.020}) {
+                VertexProperties node{};
+                node.control_mode = "temperature_priority";
+                node.ac_spec = {{"latent_method", method}, {"Af", 0.133}, {"Ao", 4.84},
+                               {"bf_reference_flow_rate", 0.4575541667}};
+                AirconValidationData data{};
+                data.indoorTemp = 28.38200378;
+                data.airconTemp = 15.71959877;
+                data.indoorX = xin;
+                const double sensible = archenv::DENSITY_DRY_AIR * flow *
+                    archenv::SPECIFIC_HEAT_AIR * (data.indoorTemp-data.airconTemp);
+                for (bool moist : {false, true}) {
+                    const auto result = aircon::latent::estimateLatentProcess(
+                        data, OperationMode::Cooling, sensible, flow, node, moist);
+                    expectTrue(std::isfinite(result.coilTemp) && result.coilTemp <= data.airconTemp,
+                               "cooling surface cannot be warmer than outlet: " + method);
+                    expectTrue(result.supplyX >= std::min(xin, result.coilX) - 1e-7,
+                               "outlet cannot cross the wet-surface humidity: " + method);
+                    expectTrue(result.supplyX <= xin && result.supplyX >= 0.0,
+                               "no humidification or negative water: " + method);
+                    expectNear(result.condensationRateKgPerS,
+                        archenv::DENSITY_DRY_AIR * flow * (xin-result.supplyX), 1e-12,
+                        "condensate uses actual network airflow, including below 400 m3/h");
+                    const double bf = result.effectiveBypassFactor;
+                    expectNear(bf*data.indoorTemp+(1-bf)*result.coilTemp,
+                               data.airconTemp, 1e-9, "single surface reproduces sensible outlet");
+                }
+            }
+        }
+    }
+    // A default migration must preserve explicit values, including zero and aliases.
+    {
+        AirconValidationData data{};
+        data.indoorTemp = 28.0;
+        data.airconTemp = 16.0;
+        data.indoorX = 0.012;
+        constexpr double flow = 0.25;
+        const double sensible = archenv::DENSITY_DRY_AIR * flow *
+            archenv::SPECIFIC_HEAT_AIR * (data.indoorTemp - data.airconTemp);
+        auto evaluate = [&](const nlohmann::json& spec) {
+            VertexProperties node{};
+            node.control_mode = "temperature_priority";
+            node.ac_spec = spec;
+            return aircon::latent::estimateLatentProcess(
+                data, OperationMode::Cooling, sensible, flow, node, false);
+        };
+        const auto implicit = evaluate({{"latent_method", "bf"}});
+        const auto explicitDefault = evaluate({{"latent_method", "bf"}, {"bf", 0.1}});
+        const auto previousDefault = evaluate({{"latent_method", "bf"}, {"bf", 0.2}});
+        expectNear(implicit.supplyX, explicitDefault.supplyX, 1e-12,
+                   "omitted BF uses 0.1");
+        expectNear(implicit.coilTemp, explicitDefault.coilTemp, 1e-12,
+                   "default BF uses the same coil state as explicit 0.1");
+        expectTrue(previousDefault.latentHeatCapacity > implicit.latentHeatCapacity + 1.0,
+                   "explicit old BF=0.2 remains distinct from the new default");
+        for (const char* alias : {"bf", "BF", "bypass_factor"}) {
+            for (const double value : {0.0, 0.1, 0.2}) {
+                const auto actual = evaluate({{"latent_method", "bf"}, {alias, value}});
+                const auto canonical = evaluate({{"latent_method", "bf"}, {"bf", value}});
+                expectNear(actual.supplyX, canonical.supplyX, 1e-12,
+                           std::string("explicit BF alias is preserved: ") + alias);
+            }
+        }
+        const auto zero = evaluate({{"latent_method", "bf"}, {"bf", 0.0}});
+        expectNear(zero.coilTemp, data.airconTemp, 1e-12,
+                   "BF=0 is an explicit value, not a missing default");
+    }
     testPassiveDischargeWaterBalance();
     {
         const double t = 25.0000001;
@@ -359,6 +451,8 @@ int main() {
         expectTrue(!history.empty(), "history has one entry");
         if (!history.empty()) {
             const auto& in = history.back().input;
+            expectNear(in.V_inner, 0.1, 1e-12,
+                       "COP receives the exact process flow from the ventilation network");
             expectTrue(in.Q_L > 0.0, "Q_L should be positive in humid cooling case");
             expectNear(in.Q, in.Q_S + in.Q_L, 1e-6, "Q should equal Q_S + Q_L");
         }
@@ -385,6 +479,8 @@ int main() {
         if (!history.empty()) {
             qlDefault = history.back().input.Q_L;
             expectTrue(qlDefault >= 0.0, "coil_aoaf: Q_L should be non-negative");
+            expectNear(history.back().input.V_inner, .1, 1e-12,
+                       "coil COP uses actual network airflow");
         }
 
         // 飽和制約が支配しない条件ではコイル面積が除湿量に反映される

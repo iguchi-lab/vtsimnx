@@ -116,35 +116,35 @@ $$x_{\mathrm{sup}}=\min\{x_{\mathrm{in}},x(T_{\mathrm{sup}},0.95)\}$$
 
 ### 10.4.4　バイパスファクター法
 
-バイパスファクター $\mathrm{BF}$ は、コイルと十分に熱・物質交換しない空気の割合を表す。吸込・吹出温度から仮想コイル温度を求め、飽和コイル点と吸込点を混合する。
+`bf` / `BF` / `bypass_factor` は基準風量におけるBFを指定する（既定0.1、0以上0.99以下）。`bf_reference_flow_rate` [m³/s] を基準風量とし、省略時は `V_inner.cooling.rtd` を使う。実運転風量は換気回路網の吸込枝から取得する。
 
-$$T_{\mathrm{coil}}=T_{\mathrm{in}}-\frac{T_{\mathrm{in}}-T_{\mathrm{sup}}}{1-\mathrm{BF}}$$
+$$\mathrm{BF}_{\mathrm{op}}=\mathrm{BF}_{\mathrm{ref}}^{\dot V_{\mathrm{ref}}/\dot V},\qquad \varepsilon=1-\mathrm{BF}_{\mathrm{op}}$$
 
-$$x_{\mathrm{sup}}=\min\{x_{\mathrm{in}},\max[0,\mathrm{BF}x_{\mathrm{in}}+(1-\mathrm{BF})x_{\mathrm{sat}}(T_{\mathrm{coil}})]\}$$
+これは有効伝達パラメータを一定とするBF/NTUの風量補正で、BF=0は完全接触として扱う。基準風量も定格風量もない最小入力では固定BFを使う。`bf_flow_correction: false` を指定すると、基準風量の有無によらず固定値になる。旧BF=0.2の固定設定を使うには `bf: 0.2` と `bf_flow_correction: false` を指定する。
 
-これは実装の温度比による補間式と同じ関係である。BFは0以上0.99以下の有限値を指定し、範囲外は入力エラーとする。未指定時は0.2とする。算定状態が過飽和の場合は、全方式共通の飽和制約で追加除湿する。95%法への切替は行わない。
+$$T_{\mathrm{coil}}=T_{\mathrm{in}}-\frac{T_{\mathrm{in}}-T_{\mathrm{sup}}}{\varepsilon},\qquad x_{\mathrm{sup}}=\min\{x_{\mathrm{in}},\mathrm{BF}_{\mathrm{op}}x_{\mathrm{in}}+\varepsilon x_{\mathrm{sat}}(T_{\mathrm{coil}})\}$$
+
+吸込と飽和コイル点から同じ接触効率で出口温湿度を決める。明示BFは既定値で上書きせず、基準値として補正する。ここでのBFは潜熱処理法の設定で、CRIEPI消費電力モデル内部の定数とは別である。対象機器の定格顕熱比・除湿量による校正は別途必要となる。
+
+BF固定は接触効率を一定とする簡易モデル、BF風量補正は基準BFから有効交換能力を逆算して一定とするモデルである。面積法も同じNTUの考え方を使うが、有効交換能力を面積と風速依存の伝達係数から求める。両者は独立に選択する方式であり、面積法にBF法の風量補正を重ねない。結果比較には「BF固定」または「BF風量補正（基準BF・基準風量）」を記録する。圧縮機回転数・濡れ面積などによる実機の変化は、この単純なBF風量補正だけでは表現しない。
+
+参考：[EnergyPlus Engineering Reference, Coils](https://bigladdersoftware.com/epx/docs/25-1/engineering-reference/coils.html) のADP/BFおよび風量補正。
 
 ### 10.4.5　コイル面積法
 
-コイル面積法は、前面面積 $A_{\mathrm{f}}$、有効表面積 $A_{\mathrm{o}}$、風量から熱・物質移動を推定する。顕熱処理量から暫定出口温度 $T_{\mathrm{e}}$ を求める。暫定出口絶対湿度 $x_{\mathrm{e}}$ は、その温度での飽和絶対湿度と吸込絶対湿度の小さい方とし、吸込との中間状態を定義する。
+`coil_aoaf`（`aoaf`, `literature` は別名）は一様温度のコイル面とLewis関係を仮定し、熱・物質交換の接触効率をNTUから求める。既定面積は $A_f=0.133$ m²、$A_o=4.84$ m²。いずれも有効値で、実機の幾何面積だけから精度が保証されるものではない。
 
-$$T_{\mathrm{e}}=T_{\mathrm{in}}-\frac{Q_{\mathrm{S}}}{\rho_0 c_p\dot{V}},\quad x_{\mathrm{e}}=\min\{x_{\mathrm{in}},x_{\mathrm{sat}}(T_{\mathrm{e}})\}$$
+$$v_{\mathrm{eval}}=\max\{\dot V/A_f,\ (400/3600)/0.133\},\qquad k_m=0.050\ln[v_{\mathrm{eval}}/(1\,\mathrm{m/s})]+0.073$$
 
-$$T^*=(T_{\mathrm{in}}+T_{\mathrm{e}})/2,\quad x^*=(x_{\mathrm{in}}+x_{\mathrm{e}})/2,\quad v_{\mathrm{f}}=\dot{V}/A_{\mathrm{f}}$$
+$$\mathrm{NTU}=\frac{k_m A_o}{\rho_0\dot V},\qquad \mathrm{BF}_{\mathrm{op}}=\exp(-\mathrm{NTU}),\qquad \varepsilon=1-\exp(-\mathrm{NTU})$$
 
-$$k_{\mathrm{m}}=\max\{0,0.037\ln[v_{\mathrm{f}}/(1\,\mathrm{m/s})]+0.0637\}$$
+$k_m$ の単位はkg/(m²·s)。係数は細井（2018）の式(24)を使う。低風速域で相関式が負にならないよう、面風速の評価には400m³/h・Af=0.133m²相当の下限を置く。**回路網の実風量、NTUの質量流量、温度差、凝縮水量、ファン電力には下限を代入しない。** この低風速への延長は実測で検証すべき近似である。
 
-$$\alpha_{\mathrm{c}}=k_{\mathrm{m}}(c_{p,\mathrm{a}}+c_{p,\mathrm{v}}x^*),\qquad T_{\mathrm{d}}=T^*-\frac{Q_{\mathrm{S}}}{\alpha_{\mathrm{c}}A_{\mathrm{o}}}$$
+出口温湿度には10.4.4節と同じコイル混合式を使う。旧方式の暫定出口湿度と算術平均から独立して除湿量を引く計算を廃し、湿ったコイルでは $x_{\mathrm{sat}}(T_{\mathrm{coil}})\le x_{\mathrm{sup}}\le x_{\mathrm{in}}$、冷却中は $T_{\mathrm{coil}}\le T_{\mathrm{sup}}$ を保つ。乾いたコイルは除湿量0に連続的につながる。これは元論文の式をそのまま再現するものではなく、同じ係数を使った物理範囲を守るNTUモデルである。
 
-物質移動係数 $k_{\mathrm{m}}$ の単位はkg/(m²·s)、熱伝達率 $\alpha_{\mathrm{c}}$ はW/(m²·K)である。実装名 `kx` は湿気回路網の枝コンダクタンスと紛らわしいため、本節では別記号とする。対数にはm/sで表した風速の数値を用いる経験式であり、係数の出典と適用風速域の確認は別途必要である。
+BF・面積法では温度優先を含め `min_coil_temperature`（既定5℃）を共通の能力探索で守る。潜熱量は最終出口湿度から水分収支で確定し、顕熱との合計を能力・消費電力へ渡す。COPは独立した機器モデルとして計算し、除湿側のコイル温度は渡さない。COPへ渡す顕熱・潜熱処理量と実風量は、受理された回路網・除湿計算の結果を使う。
 
-表面温度が吸込空気の露点より低いとき、湿度差の正の部分から潜熱量を求める。
-
-$$Q_{\mathrm{L,model}}=(h_{\mathrm{fg},0}+c_{p,\mathrm{v}}T_{\mathrm{d}})k_{\mathrm{m}}\max\{0,x^*-x_{\mathrm{sat}}(T_{\mathrm{d}})\}A_{\mathrm{o}}$$
-
-暫定出口湿度を吸込以下に制限するのは、冷却だけで空気に水分を加えないためである。露点境界では $x_{\mathrm{sat}}(T_{\mathrm{d}})=x_{\mathrm{in}}$ かつ $x^*\le x_{\mathrm{in}}$ なので、上式の正の湿度差は0となり、潜熱量は0から連続に立ち上がる。出口湿度を常に飽和値とすると、吸込より大きい暫定湿度が混合され、この境界で有限の潜熱量へ跳ぶ場合がある（[Issue #24](https://github.com/iguchi-lab/vtsimnx/issues/24)）。
-
-露点以下にならない場合はコイルモデルの暫定潜熱量を0とする。算定潜熱を凝縮水量へ換算し、吹出絶対湿度を0以上かつ吸込以下へ制限する。既定面積は $A_{\mathrm{f}}=0.133$ m²、$A_{\mathrm{o}}=4.84$ m²で、正の有限値に変更できる。湿りエンタルピー連成時は、得た吹出状態から10.3節の全熱と顕潜熱分解を再評価する。
+出典：[細井昭憲（2018）「ルームエアコンおよび住宅用セントラルエアコンの潜熱負荷とCOP評価法」](https://doi.org/10.3130/aije.83.597)、式(24)。原論文でも係数と有効面積の機器別同定が必要とされており、既定値は検証済みの実機特性ではない。
 
 ### 10.4.6　共通の飽和制約と収支
 

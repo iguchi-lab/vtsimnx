@@ -48,6 +48,8 @@ void logLatentBoundary(std::ostream& logs, const char* stage, const std::string&
     if (std::isnan(node.current_pre_rh)) out << "unset";
     else out << node.current_pre_rh;
     out << " flow=" << flow
+        << " T_coil=" << loads.coilTemp << " x_coil=" << loads.coilX
+        << " BF_operating=" << loads.effectiveBypassFactor
         << " sensible_W=" << loads.sensibleHeatCapacity << " latent_W=" << loads.latentHeatCapacity
         << " saturation_limited=" << loads.saturationLimited
         << " RH_supply=" << loads.supplyRhPercent
@@ -560,7 +562,8 @@ void AirconController::validateAcceptedCapacity(ThermalNetwork& thermalNetwork,
                 ", Q=" + std::to_string(total) + ", Qmax=" +
                 (maximum ? std::to_string(*maximum) : "unset"));
         }
-        if (aircon::humidity_control::enabled(node) && loads.sensibleHeatCapacity > 1.0 &&
+        if ((aircon::humidity_control::enabled(node) || aircon::latent::usesPhysicalCoil(node)) &&
+            context.operationMode == OperationMode::Cooling && loads.sensibleHeatCapacity > 1.0 &&
             context.validData.indoorTemp > node.min_coil_temperature &&
             loads.coilTemp < node.min_coil_temperature - 1e-3) {
             throw simulation::Error(simulation::ErrorCode::CapacityConstraintUnresolved,
@@ -771,7 +774,9 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
             std::string sourceLabel = "unknown";
             auto maxHeatCapacity = aircon::capacity::resolveMaxHeatCapacity(
                 nodeProps, context.operationMode, sourceLabel);
-            if (aircon::humidity_control::enabled(nodeProps)) {
+            const auto equipmentMaxHeatCapacity = maxHeatCapacity;
+            if (context.operationMode == OperationMode::Cooling &&
+                (aircon::humidity_control::enabled(nodeProps) || aircon::latent::usesPhysicalCoil(nodeProps))) {
                 // The coldest permitted wet coil also bounds cooling capacity.
                 // Feed that bound into the shared capacity search so a large
                 // sensible load cannot bypass the coil-temperature limit.
@@ -831,11 +836,14 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
                 capacityLimitBracket_.at(airconKey).interpolate = true;
             bool unitAdjusted = false;
             if (maxHeatCapacity && aircon::capacity::capacityExceedsLimit(current, *maxHeatCapacity)) {
-                if (aircon::airflow::isDuctCentralModel(nodeProps) &&
+                if (aircon::airflow::isDuctCentralModel(nodeProps) && equipmentMaxHeatCapacity &&
                     capacityFlowBoost_.insert(airconKey).second) {
                     const auto flow = aircon::airflow::computeTargetFlowFromProcessedHeat(
-                        nodeProps, context.operationMode, *maxHeatCapacity, nodeProps.vol_zero, 0.0);
-                    if (flow) {
+                        nodeProps, context.operationMode, *equipmentMaxHeatCapacity, nodeProps.vol_zero, 0.0);
+                    // A coil-temperature ceiling is NOT the equipment rating.
+                    // Using that small ceiling here could reduce airflow and
+                    // turn the requested-temperature retry into an extreme trial.
+                    if (flow && *flow > context.airFlowRate + 1e-4) {
                         bool fan = false;
                         bool changed = aircon::airflow::updateDuctCentralFanAffinity(
                             ventNetwork, nodeProps, context.operationMode, airconKey, *flow,

@@ -17,6 +17,7 @@ struct LatentProcessResult {
     double condensationRateKgPerS = 0.0;
     double coilTemp = 0.0;             // [degC]
     double coilX = 0.0;                // [kg/kg(DA)]
+    double effectiveBypassFactor = 0.0; // operating-flow value, for coil diagnostics
     double supplyRhPercent = 0.0;      // [%]
     double supplyXUpperBound = std::numeric_limits<double>::infinity(); // physical saturation limit
     double unboundedSupplyRhPercent = 0.0;
@@ -24,6 +25,9 @@ struct LatentProcessResult {
 };
 
 double totalHeatCapacity(const LatentProcessResult& loads);
+
+bool usesPhysicalCoil(const VertexProperties& node);
+double effectiveBypassFactor(const VertexProperties& node, double actualFlowM3s);
 
 double minimumCoolingOutletTemperature(const AirconValidationData& data,
     const VertexProperties& node, double flow, bool moist);

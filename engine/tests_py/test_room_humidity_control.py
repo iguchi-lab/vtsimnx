@@ -200,7 +200,10 @@ def test_simultaneous_mode_uses_reheat_for_a_cold_dry_room():
 @pytest.mark.parametrize("moist", [False, True])
 def test_humidity_priority_uses_selected_coil(method, moist):
     raw = case("humidity_priority", moist=moist)
-    raw["aircon"][0]["ac_spec"].update(latent_method=method, Ao=2.0)
+    raw["aircon"][0]["ac_spec"].update(latent_method=method, Ao=2.0, bf_reference_flow_rate=.1)
+    # Isolate coil selection from a surface-temperature limit. The updated
+    # transfer law can need a colder surface during the initial wet-room step.
+    raw["aircon"][0]["min_coil_temperature"] = 0.0
     raw["aircon"][0]["max_overcooling"] = 12.0
     s = run(raw)
     assert max(s("aircon_room_rh", "AC")) <= 60.05

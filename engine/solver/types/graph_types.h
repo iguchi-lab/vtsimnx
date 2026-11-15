@@ -67,7 +67,7 @@ struct VertexProperties {
     // Control objective is independent of the legacy latent_method.
     std::string control_mode = "temperature_priority";
     double max_overcooling = 2.0;       // [K] below the requested room temperature
-    double min_coil_temperature = 5.0; // [degC], ideal wet-coil lower limit
+    double min_coil_temperature = 5.0; // [degC], cooling-coil lower limit, including BF/AoAf temperature priority
     double reheat_cop = 1.0;           // ideal electric reheat by default
     double humidity_supply_request = std::numeric_limits<double>::quiet_NaN();
     bool humidity_demand = false;
