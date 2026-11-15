@@ -19,7 +19,9 @@ inline void validateSpec(const nlohmann::json& spec, const std::string& model,
         throw std::runtime_error("temperature_humidity latent_method requires ideal_coil (none/rh100 aliases)");
     if (control == "temperature_priority" && method == "ideal_coil")
         throw std::runtime_error("latent_method=ideal_coil requires a humidity control mode");
-    for (const char* key : {"bf", "BF", "bypass_factor", "Af", "Ao", "coil_face_area", "coil_surface_area"}) {
+    if (spec.contains("bf_flow_correction") && !spec["bf_flow_correction"].is_boolean())
+        throw std::runtime_error("ac_spec.bf_flow_correction must be a boolean");
+    for (const char* key : {"bf", "BF", "bypass_factor", "bf_reference_flow_rate", "Af", "Ao", "coil_face_area", "coil_surface_area"}) {
         if (!spec.contains(key)) continue;
         if (!spec[key].is_number()) throw std::runtime_error(std::string("invalid ac_spec.") + key);
         const double v = spec[key].get<double>();

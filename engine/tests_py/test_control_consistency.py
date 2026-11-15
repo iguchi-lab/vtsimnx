@@ -36,6 +36,8 @@ def test_true_capacity_shortfall_remains_bounded():
 @pytest.mark.parametrize("field,value", [
     ("latent_method", "misspelled"), ("bf", -0.1), ("bf", 1.0), ("bf", 0.995),
     ("Af", -0.3), ("Ao", 0.0),
+    ("bf_reference_flow_rate", 0.0), ("bf_reference_flow_rate", -0.2),
+    ("bf_flow_correction", "yes"),
 ])
 def test_explicit_invalid_latent_inputs_are_rejected(field, value):
     raw = cooling_case()

@@ -22,6 +22,7 @@ struct InputData {
     double V_inner;   // 内部風量 [m³/s]
     double V_outer;   // 外部風量 [m³/s]
     double V_vent = 0.0; // 換気風量 [m³/s]（DUCT_CENTRAL用、未入力時はモデル側既定値）
+    std::optional<double> cooling_coil_temperature; // solver's coupled BF/AoAf state [degC]
 };
 
 /**

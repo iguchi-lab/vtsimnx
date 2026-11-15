@@ -183,7 +183,7 @@ class NodeModel(_StrictExtraBase):
     )
     control_mode: Literal["temperature_priority", "humidity_priority", "temperature_humidity"] = "temperature_priority"
     max_overcooling: float = Field(default=2.0, ge=0.0, allow_inf_nan=False, description="湿度優先時の許容過冷却幅 [K]（有限の非負値）")
-    min_coil_temperature: float = Field(default=5.0, ge=0.0, le=20.0, description="理想除湿コイルの最低温度 [℃]")
+    min_coil_temperature: float = Field(default=5.0, ge=0.0, le=20.0, description="冷却コイルの最低温度 [℃]。BF・Ao/Afでは温度優先にも適用")
     reheat_cop: float = Field(default=1.0, gt=0.0, description="温湿度満足時の再熱COP（既定は電気ヒーター）")
     pre_rh: Optional[ScalarOrSeries] = Field(
         default=None,
@@ -422,9 +422,16 @@ class AcSpecModel(_StrictExtraBase):
         default=None,
         description="潜熱処理方式: rh95 / bf / coil_aoaf / rh100（none同義）。湿度優先は各方式または ideal_coil（省略時）、温湿度満足は ideal_coil",
     )
-    bf: Optional[float] = None
-    BF: Optional[float] = None
-    bypass_factor: Optional[float] = None
+    bf: Optional[float] = Field(default=None, description="潜熱BF法の基準風量でのバイパスファクター。全別名を省略した場合は0.1")
+    BF: Optional[float] = Field(default=None, description="bfの別名。明示値を優先し、省略時に0.1を使用")
+    bypass_factor: Optional[float] = Field(default=None, description="bfの別名。明示値を優先し、省略時に0.1を使用")
+    bf_reference_flow_rate: Optional[float] = Field(
+        default=None, description="BFの基準風量 [m³/s]。省略時はV_inner.cooling.rtd。両方なければ固定BF",
+        json_schema_extra=field_extra(VOLUME_FLOW_M3_S),
+    )
+    bf_flow_correction: Optional[bool] = Field(
+        default=None, description="基準風量によるBF補正。省略時true。falseで従来の固定BF",
+    )
     Af: Optional[float] = Field(default=None, json_schema_extra=field_extra(AREA_M2))
     coil_face_area: Optional[float] = Field(default=None, json_schema_extra=field_extra(AREA_M2))
     Ao: Optional[float] = Field(default=None, json_schema_extra=field_extra(AREA_M2))
@@ -506,7 +513,7 @@ class AirconModel(_StrictExtraBase):
     )
     control_mode: Literal["temperature_priority", "humidity_priority", "temperature_humidity"] = "temperature_priority"
     max_overcooling: float = Field(default=2.0, ge=0.0, allow_inf_nan=False, description="湿度優先時の許容過冷却幅 [K]（有限の非負値）")
-    min_coil_temperature: float = Field(default=5.0, ge=0.0, le=20.0, description="理想除湿コイルの最低温度 [℃]")
+    min_coil_temperature: float = Field(default=5.0, ge=0.0, le=20.0, description="冷却コイルの最低温度 [℃]。BF・Ao/Afでは温度優先にも適用")
     reheat_cop: float = Field(default=1.0, gt=0.0, description="温湿度満足時の再熱COP（既定は電気ヒーター）")
     pre_rh: Optional[ScalarOrSeries] = Field(
         default=None,

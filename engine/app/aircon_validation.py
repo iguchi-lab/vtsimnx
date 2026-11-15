@@ -17,7 +17,9 @@ def validate_aircon_spec(node: dict[str, Any]) -> None:
         raise ValueError("temperature_humidity latent_method must be ideal_coil (none/rh100 aliases)")
     if control == "temperature_priority" and method == "ideal_coil":
         raise ValueError("latent_method=ideal_coil requires a room humidity control mode; use rh100 for temperature priority")
-    for key in ("bf", "BF", "bypass_factor", "Af", "Ao", "coil_face_area", "coil_surface_area"):
+    if "bf_flow_correction" in spec and not isinstance(spec["bf_flow_correction"], bool):
+        raise ValueError("ac_spec.bf_flow_correction must be a boolean")
+    for key in ("bf", "BF", "bypass_factor", "bf_reference_flow_rate", "Af", "Ao", "coil_face_area", "coil_surface_area"):
         if key not in spec:
             continue
         value = spec[key]

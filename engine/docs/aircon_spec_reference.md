@@ -57,18 +57,32 @@ flowchart LR
   吹出温度 `Tout` から吹出空気 RH を 95% として `supplyX` を決める
 - `latent_method: "bf"`  
   バイパスファクタ法で `supplyX` を計算  
-  BF は `bf` / `BF` / `bypass_factor` で指定（省略時 `0.2`、許容範囲 `0.0..0.99`、範囲外は入力エラー）。
+  BF は `bf` / `BF` / `bypass_factor` で指定（省略時 `0.1`、許容範囲 `0.0..0.99`、範囲外は入力エラー）。明示した値は既定値で上書きしない。
+  `bf_reference_flow_rate` [m³/s]（省略時 `V_inner.cooling.rtd`）を基準に実風量で補正する。`bf_flow_correction: false` または基準風量なしなら固定BF。
   吹出RHが100%を超える場合は、温度を保持して飽和上限まで凝縮させ、その潜熱を能力・電力に含める。
 - `latent_method: "coil_aoaf"`（別名: `"aoaf"`, `"literature"`）  
-  コイル前面風速・有効表面積を用いる文献式（4.2.1）に基づく潜熱評価。
+  コイル前面風速・有効表面積からNTUを求め、熱・水分移動の接触効率を一致させる。
   - 追加パラメータ:
     - `Af` または `coil_face_area` : 実質コイル前面面積 [m²]（既定 `0.133`）
     - `Ao` または `coil_surface_area` : コイル有効表面積 [m²]（既定 `4.84`）
-  - 顕熱処理量 `Hs` [W] と吸込/吹出条件から `Hr` [W] を評価し、`Q_L` および `supplyX` を決定する
+  - 吸込/吹出温度と接触効率からコイル面温度と `supplyX` を決め、凝縮水量から `Q_L` を評価する
 - `latent_method: "rh100"`（`"none"` と同義）
   吸込絶対湿度を引き継ぎ、吹出温度で過飽和になる分だけ凝縮する。
 - `latent_method: "ideal_coil"`
-  湿度優先・温湿度満足の理想コイル用。新モードでは省略時もこの方式となり、rh100/noneも同義。新モードとrh95/bf/coil_aoafの組合せは未対応のため入力エラー。
+  湿度優先・温湿度満足の理想コイル用。新モードでは省略時もこの方式となり、rh100/noneも同義。湿度優先ではrh95/bf/coil_aoafも選択でき、温湿度満足はideal_coilのみ。
+
+BF設定例（`ac_spec` 内。風量の単位はm³/s）:
+
+```json
+{
+  "latent_method": "bf",
+  "bf": 0.1,
+  "bf_reference_flow_rate": 0.4,
+  "bf_flow_correction": true
+}
+```
+
+この例では回路網の実風量が0.4 m³/sならBF=0.1、0.2 m³/sならBF=0.01となる。基準風量はBFの校正点であり、回路網の風量を指定・上書きしない。
 
 未知の方式名、非有限値、負またはゼロのコイル面積は入力エラー。
 

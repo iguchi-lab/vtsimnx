@@ -6,6 +6,7 @@
 #include "aircon/aircon_operation_mode.h"
 #include "archenv/include/archenv.h"
 #include "core/thermal/thermal_moist_air.h"
+#include "../../acmodel/coil_transfer.h"
 #include "network/thermal_network.h"
 
 #include <algorithm>
@@ -17,7 +18,7 @@ namespace {
 constexpr double kAirDensity = archenv::DENSITY_DRY_AIR;         // [kg/m^3]
 constexpr double kAirSpecificHeat = archenv::SPECIFIC_HEAT_AIR;   // [J/(kg·K)]
 constexpr double kDefaultOuterFlowRate = 25.5 / 60.0;             // m^3/s
-constexpr double kDefaultBypassFactor = 0.2;                      // [-]
+constexpr double kDefaultBypassFactor = 0.1;                      // [-]
 constexpr double kDefaultSupplyRhPercent = 95.0;                  // [%]
 constexpr double kDefaultCoilFaceArea = 0.133;                    // [m^2]
 constexpr double kDefaultCoilSurfaceArea = 4.84;                  // [m^2]
@@ -65,26 +66,33 @@ inline double readCoilSurfaceArea(const VertexProperties& nodeProps) {
     return kDefaultCoilSurfaceArea;
 }
 
-inline double dewPointFromAbsoluteHumidity(double x) {
-    const double xx = std::max(0.0, x);
-    double lo = -40.0;
-    double hi = 80.0;
-    for (int i = 0; i < 60; ++i) {
-        const double mid = 0.5 * (lo + hi);
-        const double xSat = std::max(0.0, archenv::absolute_humidity_from_vapor_pressure(
-                                              archenv::saturation_vapor_pressure(mid)));
-        if (xSat < xx) {
-            lo = mid;
-        } else {
-            hi = mid;
-        }
-    }
-    return 0.5 * (lo + hi);
+inline std::optional<double> referenceFlow(const VertexProperties& node) {
+    if (auto v = readFinitePositiveSpecNumber(node.ac_spec, "bf_reference_flow_rate")) return v;
+    const auto& spec = node.ac_spec;
+    if (spec.is_object() && spec.contains("V_inner") && spec["V_inner"].is_object() &&
+        spec["V_inner"].contains("cooling"))
+        return readFinitePositiveSpecNumber(spec["V_inner"]["cooling"], "rtd");
+    return std::nullopt;
 }
 
 } // namespace
 
 namespace aircon::latent {
+
+bool usesPhysicalCoil(const VertexProperties& node) {
+    const std::string method = readLatentMethod(node);
+    return method == "bf" || method == "coil_aoaf" || method == "aoaf" || method == "literature";
+}
+
+double effectiveBypassFactor(const VertexProperties& node, double actualFlowM3s) {
+    const double referenceBF = readBypassFactor(node);
+    if (!(actualFlowM3s > 0.0) || referenceBF == 0.0) return 0.0;
+    if (node.ac_spec.is_object() && !node.ac_spec.value("bf_flow_correction", true)) return referenceBF;
+    const auto reference = referenceFlow(node);
+    // Older/minimal models without a rated/reference airflow retain a fixed BF.
+    if (!reference) return referenceBF;
+    return std::exp(std::log(referenceBF) * *reference / actualFlowM3s);
+}
 
 double totalHeatCapacity(const LatentProcessResult& loads) {
     return std::max(0.0, loads.sensibleHeatCapacity) + std::max(0.0, loads.latentHeatCapacity);
@@ -256,95 +264,34 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
         result.supplyX = std::min(xIn, x95);
     };
 
-    if (latentMethod == "bf") {
-        result.regime = "bypass_factor";
-        const double bf = readBypassFactor(nodeProps);
-        if (!(bf < 1.0)) {
-            result.supplyX = xIn;
+    if (usesPhysicalCoil(nodeProps)) {
+        const double flow = std::abs(airFlowRate);
+        double contact = 0.0;
+        if (latentMethod == "bf") {
+            result.effectiveBypassFactor = effectiveBypassFactor(nodeProps, flow);
+            contact = 1.0 - result.effectiveBypassFactor;
         } else {
-            const double tCoil = tIn - (tIn - tOut) / std::max(1e-9, (1.0 - bf));
-            const double xCoil = std::max(0.0, archenv::absolute_humidity(tCoil, 100.0));
-            result.coilTemp = tCoil;
-            result.coilX = xCoil;
-
-            const double denom = (tIn - tCoil);
-            double xOut = xIn;
-            if (std::abs(denom) > 1e-9) {
-                const double ratio = (tIn - tOut) / denom;
-                xOut = xIn + (xCoil - xIn) * ratio;
-            }
-            if (!std::isfinite(xOut)) xOut = xIn;
-            xOut = std::max(0.0, xOut);
-            result.supplyX = std::min(xOut, xIn);
+            const double coefficient = acmodel::coolingCoilMassTransferCoefficient(
+                flow, readCoilFaceArea(nodeProps));
+            const double ntu = coefficient * readCoilSurfaceArea(nodeProps) / (kAirDensity * flow);
+            result.effectiveBypassFactor = std::exp(-ntu);
+            contact = -std::expm1(-ntu);
         }
-
+        // Integrate heat and water transfer through ONE uniform-temperature
+        // surface. Lewis relation gives the same contact effectiveness for T
+        // and x; no guessed outlet humidity or arithmetic-mean overshoot.
+        const double effectiveness = std::max(contact, 1e-12);
+        result.coilTemp = tIn - (tIn-tOut) / effectiveness;
+        // Capacity trials can request physically unreachable coil temperatures.
+        // Keep psychrometrics finite; the shared coil-floor search bounds the
+        // accepted solution, rather than hiding the infeasible temperature.
+        result.coilX = std::max(0.0, archenv::absolute_humidity(
+            std::max(-80.0, result.coilTemp), 100.0));
+        result.supplyX = std::min(xIn, xIn + contact * (result.coilX-xIn));
+        result.regime = latentMethod == "bf" ? "bypass_factor" :
+            (result.coilX < xIn ? "coil_wet" : "coil_dry_or_inactive");
     } else {
-        if (latentMethod == "coil_aoaf" || latentMethod == "aoaf" || latentMethod == "literature") {
-            result.regime = "coil_dry_or_inactive";
-            const double V = std::abs(airFlowRate);
-            const double Af = readCoilFaceArea(nodeProps);
-            const double Ao = readCoilSurfaceArea(nodeProps);
-            const double HsW = std::max(0.0, result.sensibleHeatCapacity);
-            if (V <= std::numeric_limits<double>::epsilon() ||
-                Af <= std::numeric_limits<double>::epsilon() ||
-                Ao <= std::numeric_limits<double>::epsilon() ||
-                HsW <= std::numeric_limits<double>::epsilon()) {
-                result.supplyX = xIn;
-            } else {
-                const double tr = tIn;
-                const double xr = xIn;
-                const double trDp = dewPointFromAbsoluteHumidity(xr);
-
-                const double te = tr - HsW / (kAirSpecificHeat * kAirDensity * V);
-                // A cooling coil cannot humidify its tentative outlet state.
-                // At the dew-point boundary xr == x_sat(td), this makes
-                // xStar <= xr, so the positive latent driving difference
-                // approaches zero instead of jumping to a finite load.
-                const double xe = std::min(xr, std::max(0.0, archenv::absolute_humidity(te, 100.0)));
-
-                const double tStar = 0.5 * (tr + te);
-                const double xStar = 0.5 * (xr + xe);
-
-                const double vx = V / Af;
-                if (vx > 0.0) {
-                    const double kx = std::max(0.0, 0.037 * std::log(vx) + 0.0637);
-                    const double alphaC = kx * (archenv::SPECIFIC_HEAT_AIR +
-                                                archenv::SPECIFIC_HEAT_WATER_VAPOR * xStar);
-                    if (alphaC > std::numeric_limits<double>::epsilon()) {
-                        const double td = tStar - HsW / (alphaC * Ao);
-                        const double xd = std::max(0.0, archenv::absolute_humidity(td, 100.0));
-                        result.coilTemp = td;
-                        result.coilX = xd;
-
-                        double hrW = 0.0;
-                        if (trDp > td) {
-                            result.regime = "coil_wet";
-                            const double dx = std::max(0.0, xStar - xd);
-                            hrW = std::max(0.0, (archenv::LATENT_HEAT_VAPORIZATION +
-                                                 archenv::SPECIFIC_HEAT_WATER_VAPOR * td) *
-                                                kx * dx * Ao);
-                        }
-                        result.latentHeatCapacity = hrW;
-
-                        const double denom = (archenv::LATENT_HEAT_VAPORIZATION +
-                                              archenv::SPECIFIC_HEAT_WATER_VAPOR * td);
-                        if (denom > std::numeric_limits<double>::epsilon()) {
-                            const double mWater = hrW / denom;
-                            const double deltaX = mWater / (kAirDensity * V);
-                            result.supplyX = std::clamp(xr - std::max(0.0, deltaX), 0.0, xr);
-                        } else {
-                            result.supplyX = xr;
-                        }
-                    } else {
-                        result.supplyX = xr;
-                    }
-                } else {
-                    result.supplyX = xr;
-                }
-            }
-        } else {
-            applyRh95();
-        }
+        applyRh95();
     }
 
     return finishCooling();
@@ -369,15 +316,12 @@ double minimumCoolingOutletTemperature(const AirconValidationData& data,
     if (aircon::humidity_control::simultaneous(node) ||
         (method != "bf" && method != "coil_aoaf" && method != "aoaf" && method != "literature"))
         return node.min_coil_temperature;
-    double lo = node.min_coil_temperature;
-    double hi = std::max(lo, data.indoorTemp);
-    if (coolingAtTemperature(data, node, flow, moist, lo).coilTemp >= node.min_coil_temperature) return lo;
-    for (int i = 0; i < 35; ++i) {
-        const double mid = (lo+hi)/2.0;
-        if (coolingAtTemperature(data, node, flow, moist, mid).coilTemp < node.min_coil_temperature) lo = mid;
-        else hi = mid;
-    }
-    return hi;
+    if (data.indoorTemp <= node.min_coil_temperature) return node.min_coil_temperature;
+    const auto probe = coolingAtTemperature(data, node, flow, moist, node.min_coil_temperature);
+    const double bf = probe.effectiveBypassFactor;
+    // Both physical coils have a flow-dependent, temperature-independent
+    // contact factor: their surface limit has an exact inverse.
+    return bf*data.indoorTemp + (1.0-bf)*node.min_coil_temperature;
 }
 
 double humidityRequestedOutletTemperature(const AirconValidationData& data,
