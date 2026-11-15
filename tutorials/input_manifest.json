@@ -1,0 +1,143 @@
+{
+  "tutorials": [
+    {
+      "number": "01",
+      "file": "01_三節点の換気計算.ipynb",
+      "external_files": [],
+      "engine_commit": "5eeffb2f8012a2fe41bca705450b0dd0a952326d",
+      "notebook_sha256": "6cf65cc01d45d5b15ba7809784ea92aa49eb4914a68e82732283318c120ea2fa"
+    },
+    {
+      "number": "02",
+      "file": "02_風圧と隙間.ipynb",
+      "external_files": [],
+      "engine_commit": "5eeffb2f8012a2fe41bca705450b0dd0a952326d",
+      "notebook_sha256": "265c873d71936d8c4909e8f9a727b77e821e37407b248c7f5f04e1b0fefa148c"
+    },
+    {
+      "number": "03",
+      "file": "03_ファンのPQ特性.ipynb",
+      "external_files": [],
+      "engine_commit": "5eeffb2f8012a2fe41bca705450b0dd0a952326d",
+      "notebook_sha256": "fb7e9689686670f44d396116b8f1dac0a4c2601af1502e856d0064d52b7c5252"
+    },
+    {
+      "number": "04",
+      "file": "04_一室の発熱と蓄熱.ipynb",
+      "external_files": [],
+      "engine_commit": "5eeffb2f8012a2fe41bca705450b0dd0a952326d",
+      "notebook_sha256": "d09b7601dbbb7852b20d2be613734ebde8b6b575f07881b827ff16c0a97078fa"
+    },
+    {
+      "number": "05",
+      "file": "05_授業の9節点熱回路.ipynb",
+      "external_files": [],
+      "engine_commit": "5eeffb2f8012a2fe41bca705450b0dd0a952326d",
+      "notebook_sha256": "7ce5ba4ebcdffb287795d87a104f1fa282807feb7ad5c3bc041c8301e8f799af"
+    },
+    {
+      "number": "06",
+      "file": "06_壁層・日射・夜間放射.ipynb",
+      "external_files": [],
+      "engine_commit": "5eeffb2f8012a2fe41bca705450b0dd0a952326d",
+      "notebook_sha256": "e340e5f28a440138f7108e15ddd119793bd6ce63dccb91826f3a6eb9514e4b34"
+    },
+    {
+      "number": "07",
+      "file": "07_湿気容量と吸放湿.ipynb",
+      "external_files": [],
+      "engine_commit": "5eeffb2f8012a2fe41bca705450b0dd0a952326d",
+      "notebook_sha256": "017d567d70ffe7ce1a97db0af2efc284dc62f659352153a697793d0739adf34f"
+    },
+    {
+      "number": "08",
+      "file": "08_CO2減衰と多室保存.ipynb",
+      "external_files": [],
+      "engine_commit": "5eeffb2f8012a2fe41bca705450b0dd0a952326d",
+      "notebook_sha256": "40333542a7c405515fb14771d37ab3b7ab41848f2536c1d940f067c73953006f"
+    },
+    {
+      "number": "09",
+      "file": "09_粉塵沈着とフィルター.ipynb",
+      "external_files": [],
+      "engine_commit": "5eeffb2f8012a2fe41bca705450b0dd0a952326d",
+      "notebook_sha256": "2d7fc54fae2749b35ba165f1dea632ba095e1ddaa0995b7903ca386065d1691f"
+    },
+    {
+      "number": "10",
+      "file": "10_床下を介した多室暖房.ipynb",
+      "external_files": [],
+      "engine_commit": "5eeffb2f8012a2fe41bca705450b0dd0a952326d",
+      "notebook_sha256": "fa0e44234583f445cacab819e2122442f1c32ac5de4dc9b6eb6c82d0b7e5aa66"
+    },
+    {
+      "number": "11",
+      "file": "11_顕熱交換と全熱交換.ipynb",
+      "external_files": [],
+      "engine_commit": "5eeffb2f8012a2fe41bca705450b0dd0a952326d",
+      "notebook_sha256": "b7399d51643f949b76135933a13f0b3276fa2264d6f4219f79942a362e79ff8d"
+    },
+    {
+      "number": "12",
+      "file": "12_別室設置の空調制御.ipynb",
+      "external_files": [],
+      "engine_commit": "5eeffb2f8012a2fe41bca705450b0dd0a952326d",
+      "notebook_sha256": "6e1cef66ce04ba5330ac1fcd549bd1fb68d10e810d54fcaa6f36f3568a98a41f"
+    },
+    {
+      "number": "13",
+      "file": "13_温度優先・湿度優先・再熱.ipynb",
+      "external_files": [],
+      "engine_commit": "5eeffb2f8012a2fe41bca705450b0dd0a952326d",
+      "notebook_sha256": "1f52dee979e01a529af07d957acff39c0d44dab1e7350fc6dfc9fd69a3926766"
+    },
+    {
+      "number": "14",
+      "file": "14_潜熱モデル比較.ipynb",
+      "external_files": [],
+      "engine_commit": "5eeffb2f8012a2fe41bca705450b0dd0a952326d",
+      "notebook_sha256": "8daf748e6ea14ff04dac31b8c4fa524998d563d9a5c3f691ec7b35627b720248"
+    },
+    {
+      "number": "15",
+      "file": "15_隙間倍率6条件の比較.ipynb",
+      "external_files": [],
+      "engine_commit": "5eeffb2f8012a2fe41bca705450b0dd0a952326d",
+      "notebook_sha256": "ac589148dab3742a0c6f60fc7a66946de5dd4441c9ffc51164df6fb6e6123add"
+    },
+    {
+      "number": "16",
+      "file": "16_枚方のαA推定モデル.ipynb",
+      "external_files": [],
+      "engine_commit": "5eeffb2f8012a2fe41bca705450b0dd0a952326d",
+      "notebook_sha256": "a94b62f2d7d08c4b3bc6f0332c1d8738149bd5557a022eef89b99c5433f0f3e2"
+    },
+    {
+      "number": "17",
+      "file": "17_実測と気象の前処理.ipynb",
+      "external_files": [],
+      "engine_commit": "5eeffb2f8012a2fe41bca705450b0dd0a952326d",
+      "notebook_sha256": "9e52b77194d230c39edc76cdaa0d83ac2b1ed902fe4a0e1fa5786fa5cf933f5c"
+    },
+    {
+      "number": "18",
+      "file": "18_全館空調の保存入力を再計算.ipynb",
+      "external_files": [
+        "house_annual_input.json.gz"
+      ],
+      "engine_commit": "5eeffb2f8012a2fe41bca705450b0dd0a952326d",
+      "notebook_sha256": "d0636ef87e6c85451952b48e2274d9dcff6627cff34ee52e0641c4324aa9fbc3"
+    }
+  ],
+  "assets_sha256": {
+    "house_annual_input.json.gz": "f983ca142ad7acb1e13008ad8dd2e96be6429651250d38d03fb2598cd6a1b179",
+    "house_input_provenance.json": "ba4c519a432be3ef41d8bb76cb957b74b2ac9bc3728306aca8c6fdf24ed764d1"
+  },
+  "validation": {
+    "passed": 18,
+    "total": 18,
+    "result_file": "notebook_validation.json",
+    "engine_commit": "5eeffb2f8012a2fe41bca705450b0dd0a952326d",
+    "scope": "Original calculation-cell execution plus separate GitHub packaging checks."
+  }
+}

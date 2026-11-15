@@ -1,0 +1,29 @@
+{
+  "date": "2026-11-15",
+  "notebooks": 18,
+  "code_cells": 91,
+  "unchanged_executed_code_cells": 90,
+  "changed_code_cells": [
+    {
+      "file": "18_全館空調の保存入力を再計算.ipynb",
+      "cell_index": 5
+    }
+  ],
+  "retained_plots": 31,
+  "checks": [
+    "all notebook code parses",
+    "notebook and asset SHA-256 match manifest",
+    "external inputs colocated",
+    "local README links resolve",
+    "no Drive URLs, private machine paths, or common credential patterns in distribution"
+  ],
+  "bootstrap_tests": [
+    "existing valid file: no network access",
+    "missing file: download, verify hash, save identical data (mock HTTP)",
+    "bad_download: SHA-256 mismatch rejected",
+    "bad_local: SHA-256 mismatch rejected"
+  ],
+  "real_github_download": "pending push; local and mocked HTTP paths tested",
+  "full_engine_reexecution": false,
+  "reason": "Calculation cells match the previously executed 18 notebooks; only notebook 18 input bootstrap changed."
+}

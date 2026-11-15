@@ -59,6 +59,8 @@ curl -sS http://127.0.0.1:8000/ping
 
 ### 3) サンプルを動かす
 
+[18教材の計算チュートリアル](tutorials/README.md): 換気・熱・湿気・空気質・空調の代表例を、入力ファイルと計算済みJupyterノートで学べます。
+
 ```bash
 python examples/run_calc_minimal.py
 ```
