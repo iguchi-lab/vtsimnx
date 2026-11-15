@@ -29,12 +29,12 @@ struct CoolingRequest {
 struct Score {
     double temperatureExcess = 0.0;
     double humidityExcess = 0.0;
-    double powerW = 0.0;
     bool feasible() const { return temperatureExcess <= 0.1 && humidityExcess <= 0.1; }
 };
 
 // The requested cooling temperature is an upper constraint. Within that
-// envelope, reduce RH shortfall first, then electricity. Never reward RH that
+// envelope, reduce RH shortfall. Equivalent points retain the first solution;
+// electricity is an output, not a control objective. Never reward RH that
 // fell only because an underpowered candidate let the room overheat.
 inline bool better(const Score& a, const Score& b) {
     if (a.feasible() != b.feasible()) return a.feasible();
@@ -44,10 +44,11 @@ inline bool better(const Score& a, const Score& b) {
     const double ah = std::max(0.0, a.humidityExcess - 0.1);
     const double bh = std::max(0.0, b.humidityExcess - 0.1);
     if (std::abs(ah - bh) > 0.01) return ah < bh;
-    return a.powerW < b.powerW - 0.1;
+    return false;
 }
 
 struct AirflowSearch {
+    bool seededFromPrevious = false;
     bool initialized = false;
     bool complete = false;
     bool restoring = false;
@@ -56,9 +57,11 @@ struct AirflowSearch {
     double minimumRatio = 0.1;
     double bestRatio = 1.0;
     bool bestOn = true;
+    bool bestHumidityHold = false;
+    bool bestCapacityLimited = false;
+    bool bestFanTrialDone = false;
     double bestSetpoint = 0.0;
     Score best{std::numeric_limits<double>::infinity(),
-               std::numeric_limits<double>::infinity(),
                std::numeric_limits<double>::infinity()};
     std::vector<double> tried;
     std::vector<double> pending;

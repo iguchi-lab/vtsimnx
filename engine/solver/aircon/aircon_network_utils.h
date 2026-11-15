@@ -17,6 +17,11 @@ struct PassiveSupplyOutletConstraint {
     double outletXUpperBound;
 };
 
+// Zero-storage discharge nodes reached by actual AC outflow, including nodes
+// with reverse inflow from rooms. Their mixed state must also be unsaturated.
+std::vector<std::string> supplyOutletKeys(
+    const ThermalNetwork& thermalNetwork, const VertexProperties& airconNode);
+
 // Only zero-capacity, source-free, purely advective discharge plenums with one
 // upstream AC qualify. Occupied rooms and mixing/storage networks remain free.
 std::vector<PassiveSupplyOutletConstraint> passiveSupplyOutletConstraints(

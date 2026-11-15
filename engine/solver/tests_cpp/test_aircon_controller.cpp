@@ -266,9 +266,144 @@ void testPassiveDischargeWaterBalance() {
     }
 }
 
+void testMixedDischargeSaturationAcceptance() {
+    ThermalNetwork net;
+    auto ac = makeNode("AC", "aircon", 5.03);
+    ac.on = true; ac.in_node = "return"; ac.set_node = "room"; ac.outside_node = "return";
+    ac.ac_spec = {{"latent_method", "none"}};
+    ac.current_x = aircon::latent::saturationHumidityUpperBound(ac.current_t);
+    net.addNode(ac);
+    auto inlet = makeNode("return", "normal", 28.0);
+    inlet.current_x = 0.018; net.addNode(inlet);
+    net.addNode(makeNode("room", "normal", 26.0));
+    auto outlet = makeNode("outlet", "normal", 7.38104);
+    outlet.calc_x = true; outlet.v = 0.0;
+    outlet.current_x = 0.00641686; // Annual reverse-flow mixture: RH about 100.68%.
+    net.addNode(outlet);
+    auto edge = [&](const std::string& key, const std::string& from,
+                    const std::string& to, double q) {
+        EdgeProperties e{};
+        e.key = e.unique_id = key; e.source = from; e.target = to;
+        e.type = "advection"; e.flow_rate = q; e.current_enabled = true;
+        net.addEdge(e);
+    };
+    edge("supply", "AC", "outlet", 0.045);
+    edge("reverse", "outlet", "return", -0.005);
+    edge("discharge", "outlet", "room", 0.050);
+    expectTrue(aircon::network_utils::passiveSupplyOutletConstraints(net, ac).empty(),
+               "a mixed outlet must not invent an upstream pure-supply humidity cap");
+    expectTrue(aircon::network_utils::supplyOutletKeys(net, ac).size() == 1,
+               "reverse inflow must not remove the outlet from saturation checks");
+    AirconController controller;
+    controller.registerModelForTesting("AC", std::make_unique<FakeAirconModel>(nullptr, nullptr));
+    FlowRateMap flows;
+    flows[{"return", "AC"}] = 0.045;
+    std::ostringstream logs;
+    expectTrue(!controller.invalidMixedSupplyOutlet(net, flows).empty(),
+               "a mixed supersaturated operating point is unavailable without plenum condensation");
+    expectTrue(!controller.acceptedHumidityConverged(net, flows, 1e-7, logs),
+               "common acceptance includes the actual mixed outlet");
+    expectNear(net.getNode("outlet").current_x, outlet.current_x, 0.0,
+               "checking a mixed outlet must not silently delete water");
+    net.getNode("outlet").current_x = aircon::latent::saturationHumidityUpperBound(outlet.current_t);
+    expectTrue(controller.invalidMixedSupplyOutlet(net, flows).empty(),
+               "unsaturated reverse-flow mixing remains admissible");
+}
+
+void testAirflowRestoresControlRegime() {
+    ThermalNetwork thermal;
+    VentilationNetwork ventilation;
+    auto room = makeNode("ROOM", "normal", 26.0);
+    room.current_x = archenv::absolute_humidity(26.0, 65.0);
+    auto ac = makeNode("AC", "aircon", 15.0);
+    ac.model = "DUCT_CENTRAL"; ac.on = true;
+    ac.in_node = ac.set_node = ac.outside_node = "ROOM";
+    ac.current_requested_pre_temp = 27.0; ac.current_pre_temp = 26.0;
+    ac.control_mode = "humidity_priority"; ac.current_pre_rh = 60.0;
+    ac.aircon_control_state = AirconControlState::SetpointControlled;
+    ac.humidity_overcool_hold = false;
+    ac.current_x = aircon::latent::saturationHumidityUpperBound(15.0);
+    ac.ac_spec = {{"latent_method", "none"}, {"Q", {{"cooling", {{"rtd", 7.2}}}}},
+                  {"V_inner", {{"cooling", {{"dsgn", 0.2}}}}}};
+    ac.initializeAirconSpec();
+    thermal.addNode(room); thermal.addNode(ac);
+    auto& graph = ventilation.getGraph();
+    const auto r = boost::add_vertex(room, graph), a = boost::add_vertex(ac, graph);
+    EdgeProperties fan;
+    fan.type = "fan"; fan.subtype = "aircon"; fan.flow_rate = 0.2;
+    fan.fan_curve_rated = true;
+    fan.q_max = fan.q_max_rated = 0.2; fan.q1 = fan.q1_rated = 0.1;
+    fan.p_max = fan.p_max_rated = 80; fan.p1 = fan.p1_rated = 40;
+    boost::add_edge(r, a, fan, graph);
+    AirconController controller;
+    controller.registerModelForTesting("AC", std::make_unique<FakeAirconModel>(nullptr, nullptr));
+    FlowRateMap flows;
+    flows[{"ROOM", "AC"}] = 0.2;
+    std::ostringstream logs;
+    bool changed = controller.advanceHumidityAirflowSearch(thermal, ventilation, flows, logs);
+    bool restored = false;
+    for (int trial = 0; changed && trial < 8; ++trial) {
+        auto& node = thermal.getNode("AC");
+        if (!node.humidity_overcool_hold) {
+            restored = true;
+            expectNear(node.current_pre_temp, 26.0, 0.0, "restore the selected effective temperature");
+            break;
+        }
+        // Supply a worse accepted candidate. Restoring the first point must
+        // restore its control regime, not force a different humidity root.
+        thermal.getNode("ROOM").current_t = 25.0;
+        thermal.getNode("ROOM").current_x = archenv::absolute_humidity(25.0, 70.0);
+        node.current_pre_temp = 25.0;
+        changed = controller.advanceHumidityAirflowSearch(thermal, ventilation, flows, logs);
+    }
+    expectTrue(restored, "restoring a candidate preserves its humidity hold state");
+}
+
+void testSettledFanTrialAdvancesToDehumidification() {
+    ThermalNetwork thermal;
+    VentilationNetwork ventilation;
+    auto room = makeNode("ROOM", "normal", 26.2392);
+    room.current_x = archenv::absolute_humidity(room.current_t, 63.33);
+    thermal.addNode(room);
+    auto inlet = makeNode("RETURN", "normal", 27.0);
+    inlet.current_x = 0.014;
+    thermal.addNode(inlet);
+    auto ac = makeNode("AC", "aircon", 26.9993);
+    ac.on = true; ac.in_node = ac.outside_node = "RETURN"; ac.set_node = "ROOM";
+    ac.current_x = inlet.current_x;
+    ac.control_mode = "humidity_priority"; ac.current_pre_rh = 60.0;
+    ac.current_requested_pre_temp = 27.0; ac.current_pre_temp = room.current_t;
+    ac.aircon_control_state = AirconControlState::SetpointControlled;
+    ac.humidity_overcool_hold = ac.humidity_demand = true;
+    ac.humidity_supply_request = 0.006;
+    ac.humidity_search_low = 26.23919; ac.humidity_search_high = 26.239204;
+    ac.ac_spec = {{"latent_method", "none"}, {"Q", {{"cooling", {{"rtd", 7.2}}}}}};
+    ac.initializeAirconSpec();
+    thermal.addNode(ac);
+    AirconController controller;
+    controller.registerModelForTesting("AC", std::make_unique<FakeAirconModel>(nullptr, nullptr));
+    FlowRateMap flows;
+    flows[{"RETURN", "AC"}] = 0.045;
+    SimulationConstants constants{};
+    constants.humidityCalc = true;
+    std::ostringstream logs;
+    int iterations = 0;
+    expectTrue(controller.checkAndAdjustCapacity(thermal, ventilation, constants, flows, logs, iterations),
+               "settled fan-only root cannot be accepted while humidity is still demanded");
+    expectNear(thermal.getNode("AC").current_pre_temp, room.current_t, 0.0,
+               "phase transition first requests re-evaluation at the same temperature");
+    expectTrue(controller.checkAndAdjustCapacity(thermal, ventilation, constants, flows, logs, iterations),
+               "the next evaluation starts the dehumidification root");
+    expectTrue(thermal.getNode("AC").current_pre_temp < room.current_t-0.1,
+               "humidity request lowers the effective temperature after fan-only evaluation");
+}
+
 } // namespace
 
 int main() {
+    testMixedDischargeSaturationAcceptance();
+    testAirflowRestoresControlRegime();
+    testSettledFanTrialAdvancesToDehumidification();
     // A new requested temperature must not reuse the preceding overcooling
     // point's small fan speed before its first coupled solve.
     {
@@ -321,9 +456,9 @@ int main() {
         expectTrue(request.on(), "sensible demand persists after humidity is satisfied");
         request.blocked = true;
         expectTrue(!request.on(), "infeasible floor cannot force unreported heating");
-        expectTrue(better({0, 0, 800}, {0, 15, 100}), "humidity goal precedes lower power");
-        expectTrue(better({0, 0, 400}, {0, 0, 800}), "feasible points compare electricity");
-        expectTrue(better({0, 5, 400}, {2, 0, 300}), "hot room cannot win through lower RH alone");
+        expectTrue(better({0, 0}, {0, 15}), "humidity feasibility is the airflow control objective");
+        expectTrue(!better({0, 0}, {0, 0}), "equivalent feasible points retain the first solution");
+        expectTrue(better({0, 5}, {2, 0}), "hot room cannot win through lower RH alone");
         AirflowSearch search;
         search.minimumRatio = 0.2;
         search.tried = {0.2, 0.5};

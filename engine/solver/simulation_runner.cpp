@@ -215,7 +215,7 @@ void runSimulation(VentilationNetwork& ventNetwork,
     std::size_t controlIterations = 0;
     std::size_t boundaryIterations = 0;
     std::size_t airflowCandidates = 0;
-    SeparatedHeatSources acceptedCandidateHeatSources;
+    SeparatedHeatSources acceptedCandidateHeatSources = heatSources;
     bool outerLoopConverged = false;
     bool stateAcceptanceRejected = false;
     for (std::size_t iteration = 0; controlIterations < maxOuter; ++iteration) {
@@ -279,6 +279,19 @@ void runSimulation(VentilationNetwork& ventNetwork,
                 continue;
             }
 
+            const auto invalidOutlet = ctx.constants.humidityCalc
+                ? ctx.aircon.invalidMixedSupplyOutlet(ctx.thermal, step.flowRates) : std::string{};
+            if (!invalidOutlet.empty()) {
+                if (!ctx.aircon.rejectHumidityAirflowCandidate(
+                        ctx.thermal, ctx.ventilation, ctx.logs, invalidOutlet))
+                    throw simulation::Error(simulation::ErrorCode::CapacityConstraintUnresolved, invalidOutlet);
+                if (++airflowCandidates > 8*ctx.aircon.getAirconKeys().size())
+                    throw simulation::Error(simulation::ErrorCode::CouplingMaxIterations,
+                        "Humidity airflow candidate limit exceeded");
+                heatSources = acceptedCandidateHeatSources;
+                controlIterations = 0; boundaryIterations = 0;
+                continue;
+            }
             stateAcceptanceRejected = !acceptedStateConverged(ctx, initial, heatSources, step.flowRates, false);
             if (stateAcceptanceRejected) continue;
 

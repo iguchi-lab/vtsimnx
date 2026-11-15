@@ -97,7 +97,10 @@ private:
     };
     mutable std::unordered_map<std::string, BoundaryIteration> boundaryIterations_;
     mutable std::unordered_map<std::string, aircon::operating_point::AirflowSearch> humidityAirflowSearch_;
+    mutable std::unordered_map<std::string, double> humidityAirflowWarmRatio_;
+    mutable bool disableHumidityWarmStart_ = false;
     struct AirflowCandidateSnapshot {
+        bool initialWarmStart = false;
         std::string key;
         double ratio = 0.0;
         // Only runtime scalar fields are copied; annual schedule arrays and
@@ -264,6 +267,12 @@ public:
     // a discarded trial is unavailable, not evidence of physical infeasibility.
     bool rejectHumidityAirflowCandidate(ThermalNetwork& thermal, VentilationNetwork& ventilation,
                                         std::ostream& logs, const std::string& detail) const;
+
+    // Mixing moist reverse flow into cold supply can require condensation in
+    // a plenum. This model has no plenum condensate/latent-heat sink; reject
+    // that operating point rather than silently deleting its excess water.
+    std::string invalidMixedSupplyOutlet(ThermalNetwork& thermal,
+                                         const FlowRateMap& flows) const;
 
     bool checkAndAdjustCapacity(ThermalNetwork& thermalNetwork, VentilationNetwork& ventNetwork,
                                 const SimulationConstants& constants,

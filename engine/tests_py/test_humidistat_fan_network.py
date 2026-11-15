@@ -83,3 +83,20 @@ def test_temperature_priority_does_not_start_for_humidity():
     assert np.max(s("aircon_latent_heat", "AC")) == 0
     assert np.max(s("aircon_sensible_heat", "AC")) < 0.01
     assert np.max(s("aircon_power", "AC")) == 0
+
+
+@pytest.mark.parametrize("method", ["rh95", "bf_fixed", "bf", "coil_aoaf", "none"])
+def test_previous_airflow_does_not_override_weather_setpoint_or_off(method):
+    raw = fan_case(method)
+    raw["nodes"][0].update(x=[0.018] * 10, t=[27.0] * 3 + [30.0] * 4 + [27.0] * 3)
+    target = np.array([27.0] * 4 + [26.0] * 6)
+    raw["aircon"][0].update(pre_temp=target.tolist(), mode=["COOLING"] * 8 + ["OFF", "COOLING"])
+    s = run(raw)
+    active = np.array([0, 1, 2, 3, 4, 5, 6, 7, 9])
+    temperature = s("thermal_temperature", "room")
+    assert np.max(temperature[active] - target[active]) < 0.01
+    assert np.min(temperature[active] - target[active]) >= -2.001
+    assert np.max(s("aircon_room_rh", "AC")[active]) <= 60.15
+    assert np.min(s("aircon_power", "AC")[active]) > 0
+    assert s("aircon_power", "AC")[8] == 0
+    assert abs(s("vent_flow_rate", "return->AC")[8]) < 1e-4
