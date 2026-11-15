@@ -53,7 +53,7 @@ std::uint64_t airconStateSignature(const ThermalNetwork& thermal) {
 bool acceptedStateConverged(simulation::Context& ctx,
                              const TimestepInitialState& initial,
                              const SeparatedHeatSources& heatSources,
-                             const FlowRateMap& flows) {
+                             const FlowRateMap& flows, bool logAccepted = true) {
     if (ctx.constants.pressureCalc && !ctx.ventilation.getLastPressureConverged()) return false;
     auto& graph = ctx.thermal.getGraph();
     if (ctx.constants.temperatureCalc) {
@@ -134,7 +134,7 @@ bool acceptedStateConverged(simulation::Context& ctx,
     if (ctx.constants.temperatureCalc && ctx.constants.humidityCalc &&
         !ctx.aircon.acceptedHumidityConverged(ctx.thermal, flows, couplingHumidityTol(ctx.constants), ctx.logs)) return false;
     if (ctx.constants.temperatureCalc) ctx.aircon.validateAcceptedCapacity(ctx.thermal, flows);
-    if (ctx.constants.logVerbosity > 0) {
+    if (logAccepted && ctx.constants.logVerbosity > 0) {
         std::ostringstream message;
         message << "最終状態整合: thermal_max_W=" << ctx.thermal.getLastThermalMaxBalance()
                 << ", humidity_defect_kgkg=" << waterDefect << ", latent_defect_W=" << latentDefect
@@ -214,6 +214,8 @@ void runSimulation(VentilationNetwork& ventNetwork,
     const std::size_t maxBoundary = effectiveMaxCouplingIterations(ctx.constants);
     std::size_t controlIterations = 0;
     std::size_t boundaryIterations = 0;
+    std::size_t airflowCandidates = 0;
+    SeparatedHeatSources acceptedCandidateHeatSources;
     bool outerLoopConverged = false;
     bool stateAcceptanceRejected = false;
     for (std::size_t iteration = 0; controlIterations < maxOuter; ++iteration) {
@@ -233,8 +235,21 @@ void runSimulation(VentilationNetwork& ventNetwork,
             ctx.aircon.syncHumidityBoundariesBeforeSolve(ctx.thermal);
             ctx.aircon.prepareAirflowForSolve(ctx.thermal, ctx.ventilation);
 
-            runInnerCoupling(innerCtx, logEnabled, iteration, initial, step, totalIterations,
-                             heatSources, forceMinTwo && iteration == 0);
+            try {
+                runInnerCoupling(innerCtx, logEnabled, iteration, initial, step, totalIterations,
+                                 heatSources, forceMinTwo && iteration == 0);
+            } catch (const simulation::Error& error) {
+                const bool unavailableTrial =
+                    dynamic_cast<const simulation::ThermalDomainError*>(&error) != nullptr ||
+                    error.code() == simulation::ErrorCode::CouplingMaxIterations;
+                if (!unavailableTrial || !ctx.aircon.rejectHumidityAirflowCandidate(
+                        ctx.thermal, ctx.ventilation, ctx.logs, error.what()))
+                    throw;
+                if (++airflowCandidates > 8*ctx.aircon.getAirconKeys().size()) throw;
+                heatSources=acceptedCandidateHeatSources;
+                controlIterations=0; boundaryIterations=0;
+                continue;
+            }
 
             if (!ctx.constants.pressureCalc) {
                 step.flowRates = ctx.ventilation.collectFlowRateMap();
@@ -264,8 +279,23 @@ void runSimulation(VentilationNetwork& ventNetwork,
                 continue;
             }
 
-            stateAcceptanceRejected = !acceptedStateConverged(ctx, initial, heatSources, step.flowRates);
+            stateAcceptanceRejected = !acceptedStateConverged(ctx, initial, heatSources, step.flowRates, false);
             if (stateAcceptanceRejected) continue;
+
+            acceptedCandidateHeatSources=heatSources;
+            if (ctx.constants.humidityCalc && ctx.constants.temperatureCalc &&
+                ctx.aircon.advanceHumidityAirflowSearch(ctx.thermal, ctx.ventilation, step.flowRates, ctx.logs)) {
+                // Each candidate gets the existing bounded control solve;
+                // the candidate count is separately bounded, never an
+                // unbounded extension of a failed numerical iteration.
+                if (++airflowCandidates > 8*ctx.aircon.getAirconKeys().size())
+                    throw simulation::Error(simulation::ErrorCode::CouplingMaxIterations,
+                        "Humidity airflow candidate limit exceeded");
+                controlIterations = 0;
+                boundaryIterations = 0;
+                continue;
+            }
+            if (!acceptedStateConverged(ctx, initial, heatSources, step.flowRates)) continue;
 
             if (!ctx.thermal.getLastThermalConverged()) {
                 logThermalNotConverged(ctx.logs,

@@ -254,6 +254,67 @@ void testPassiveDischargeWaterBalance() {
 } // namespace
 
 int main() {
+    // A new requested temperature must not reuse the preceding overcooling
+    // point's small fan speed before its first coupled solve.
+    {
+        ThermalNetwork thermal;
+        VentilationNetwork ventilation;
+        auto room = makeNode("ROOM", "normal", 25.0);
+        auto node = makeNode("AC", "aircon", 12.0);
+        node.model = "DUCT_CENTRAL";
+        node.on = true;
+        node.in_node = "ROOM";
+        node.set_node = "ROOM";
+        node.control_mode = "humidity_priority";
+        node.current_pre_rh = 60;
+        node.ac_spec = {{"Q", {{"cooling", {{"rtd", 7.2}}}}},
+                        {"V_inner", {{"cooling", {{"dsgn", 0.2}}}}}};
+        node.initializeAirconSpec();
+        thermal.addNode(room); thermal.addNode(node);
+        auto& graph = ventilation.getGraph();
+        const auto r = boost::add_vertex(room, graph);
+        const auto a = boost::add_vertex(node, graph);
+        EdgeProperties fan;
+        fan.type = "fan"; fan.subtype = "aircon";
+        fan.flow_rate = 0.02;
+        fan.fan_curve_rated = true;
+        fan.q_max_rated = 0.2; fan.q1_rated = 0.1;
+        fan.p_max_rated = 80; fan.p1_rated = 40;
+        fan.q_max = 0.02; fan.q1 = 0.01;
+        fan.p_max = 0.8; fan.p1 = 0.4;
+        const auto edge = boost::add_edge(r, a, fan, graph).first;
+        AirconController controller;
+        controller.registerModelForTesting("AC", std::make_unique<FakeAirconModel>(nullptr, nullptr));
+        controller.prepareAirflowForSolve(thermal, ventilation);
+        expectNear(graph[edge].q_max, 0.2, 1e-12, "new humidity point starts at full fan speed");
+        expectNear(graph[edge].p_max, 80, 1e-12, "startup pressure uses rated affinity");
+        graph[edge] = fan;
+        thermal.getNode("AC").control_mode = "temperature_priority";
+        controller.prepareAirflowForSolve(thermal, ventilation);
+        expectNear(graph[edge].q_max, 0.02, 1e-12, "temperature-priority warm start is preserved");
+    }
+    {
+        using namespace aircon::operating_point;
+        CoolingRequest request;
+        request.humidity = true;
+        request.latentW = 500;
+        expectTrue(request.on(), "humidity-only demand starts cooling without sensible demand");
+        expectNear(request.coolingW(), 500, 1e-12, "latent demand participates in minimum-process request");
+        request.humidity = false;
+        expectTrue(!request.on(), "both fulfilled requests stop equipment");
+        request.temperature = true;
+        expectTrue(request.on(), "sensible demand persists after humidity is satisfied");
+        request.blocked = true;
+        expectTrue(!request.on(), "infeasible floor cannot force unreported heating");
+        expectTrue(better({0, 0, 800}, {0, 15, 100}), "humidity goal precedes lower power");
+        expectTrue(better({0, 0, 400}, {0, 0, 800}), "feasible points compare electricity");
+        expectTrue(better({0, 5, 400}, {2, 0, 300}), "hot room cannot win through lower RH alone");
+        AirflowSearch search;
+        search.minimumRatio = 0.2;
+        search.tried = {0.2, 0.5};
+        search.enqueue(0.0); search.enqueue(0.5); search.enqueue(0.8); search.enqueue(0.8);
+        expectTrue(search.pending.size() == 1, "bounded candidate list excludes solved/duplicate points");
+    }
     // Reference BF varies with actual network airflow, without changing that flow.
     {
         VertexProperties node{};

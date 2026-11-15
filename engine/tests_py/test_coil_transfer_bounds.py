@@ -9,7 +9,7 @@ from vtsimnx.archenv.archenv import humidity_ratio_from_rh
 
 @pytest.mark.parametrize("method", ["bf", "coil_aoaf"])
 @pytest.mark.parametrize("control", ["temperature_priority", "humidity_priority"])
-def test_coil_surface_floor_applies_to_both_controls(method, control):
+def test_coil_surface_floor_applies_to_both_controls(method, control, tmp_path):
     raw = _raw_coil_case([.018] * 4, duct=True)
     ac = raw["aircon"][0]
     ac.update(control_mode=control, min_coil_temperature=20.0, pre_rh=50.0)
@@ -33,6 +33,11 @@ def test_coil_surface_floor_applies_to_both_controls(method, control):
     xsat = humidity_ratio_from_rh(coil, 100)
     assert np.min(xout-np.minimum(xin, xsat)) >= -2e-7
     assert np.min(s("aircon_temperature_unmet", "AC")) > .1
+    log = next(tmp_path.rglob("solver.log")).read_text()
+    # Speculative points never export a timestep or advance its inventory.
+    assert log.count("最終状態整合") == 4
+    if control == "humidity_priority":
+        assert "rejected speculative airflow" in log
 
 
 def test_bf_uses_network_flow_and_reference_default():
