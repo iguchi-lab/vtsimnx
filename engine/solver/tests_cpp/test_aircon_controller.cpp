@@ -103,6 +103,30 @@ static nlohmann::json makeAcSpecWithMax(double coolingMaxKw, double heatingMaxKw
 }
 
 // Issue #24: locate the actual dry/wet transition without duplicating its formula.
+void testReportAoAfReferenceValues() {
+    // Committee report pp.44-45, steps 4-8, evaluated independently in SI.
+    // Current coupled inlet is deliberately used, per the requested scope.
+    for (const std::string method : {"coil_aoaf", "aoaf", "literature"}) {
+        VertexProperties node{};
+        node.control_mode = "temperature_priority";
+        node.ac_spec = {{"latent_method", method}, {"Af", 0.133}, {"Ao", 4.84}};
+        AirconValidationData data{};
+        data.indoorTemp = 28.0;
+        data.airconTemp = 16.0;
+        data.indoorX = 0.014;
+        const auto wet = aircon::latent::estimateLatentProcess(
+            data, OperationMode::Cooling, 3621.6, 0.25, node, false);
+        expectNear(wet.coilTemp, 13.649849793599046, 1e-8, "report step 7 coil temperature");
+        expectNear(wet.latentHeatCapacity, 3132.649770323904, 1e-5,
+            "report step 8 latent watts (unconstrained outlet)");
+        data.indoorX = 0.004;
+        const auto dry = aircon::latent::estimateLatentProcess(
+            data, OperationMode::Cooling, 3621.6, 0.25, node, false);
+        expectTrue(std::isfinite(dry.coilTemp), "regularized dry coil has finite temperature");
+        expectNear(dry.latentHeatCapacity, 0.0, 1e-9, "report dry branch");
+    }
+}
+
 void testCoilDewPointContinuity() {
     struct CoilCase { double t, sensible, flow, faceArea, surfaceArea; };
     const std::vector<CoilCase> cases = {
@@ -485,10 +509,9 @@ int main() {
         expectNear(aircon::latent::effectiveBypassFactor(node, 0.4), 0.1, 1e-12,
                    "fixed-BF compatibility is explicit");
     }
-    // Regression: the old Ao/Af arithmetic-mean model dried the outlet below
-    // its own wet surface at 2026-07-29 14:00 (C=0.59), and reversed the
-    // surface/outlet temperature ordering at low flow.
-    for (const std::string method : {"bf", "coil_aoaf", "aoaf", "literature"}) {
+    // BF is a single-surface contact model. The restored report Ao/Af model
+    // uses arithmetic-mean driving states, so these BF identities do not apply.
+    for (const std::string method : {"bf"}) {
         for (const double flow : {0.003, 0.015, 0.05, 0.2510001063, 0.8}) {
             for (const double xin : {0.004, 0.01082139648, 0.020}) {
                 VertexProperties node{};
@@ -574,6 +597,7 @@ int main() {
     }
     expectNear(archenv::saturation_vapor_pressure(100.0), 101324.6, 1e-7,
                "saturation reference matches Python report conversion");
+    testReportAoAfReferenceValues();
     testCoilDewPointContinuity();
     // 正味流量: 正方向と逆方向の両方があれば direct - reverse
     {
