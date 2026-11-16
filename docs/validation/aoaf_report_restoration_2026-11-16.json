@@ -1,0 +1,278 @@
+{
+  "key": "coil_aoaf_8",
+  "batch": "/home/ubuntu/work/vtsimnx-aoaf-report-20261116/short-r1-new",
+  "hours": 168,
+  "room_and_material_nodes": 37,
+  "node_hours_checked": 6179,
+  "max_RH_recompute_error_pp": 8.14313675334688e-06,
+  "supply_RH_max_pct": {
+    "全館空調": 99.999989186425,
+    "AC出口": 99.999989186425
+  },
+  "water_balance": [
+    {
+      "node": "床下",
+      "max_residual_kg_s": 0.0,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "和室",
+      "max_residual_kg_s": 1.4067967132281933e-10,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "LD",
+      "max_residual_kg_s": 2.17077065365555e-10,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "台所",
+      "max_residual_kg_s": 1.536310719000219e-10,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "浴室",
+      "max_residual_kg_s": 4.872078278350575e-11,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "1階トイレ",
+      "max_residual_kg_s": 5.119331230199088e-11,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "洗面所",
+      "max_residual_kg_s": 4.8139079114441775e-11,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "ホール",
+      "max_residual_kg_s": 3.537823850671941e-10,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "クローゼット",
+      "max_residual_kg_s": 6.309878421113748e-11,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "寝室",
+      "max_residual_kg_s": 1.5562165482790337e-10,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "子供室1",
+      "max_residual_kg_s": 1.6263728605817325e-10,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "子供室2",
+      "max_residual_kg_s": 1.401426872718782e-10,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "2階ホール",
+      "max_residual_kg_s": 6.33180498373984e-10,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "切妻",
+      "max_residual_kg_s": 3.436657253442984e-10,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "片流れ(3)",
+      "max_residual_kg_s": 8.192384947078644e-11,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "片流れ(4)",
+      "max_residual_kg_s": 2.1858002474685698e-11,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "階間(L4)",
+      "max_residual_kg_s": 0.0,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "2階トイレ",
+      "max_residual_kg_s": 7.597629276840745e-11,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "AC出口",
+      "max_residual_kg_s": 6.757198472637227e-10,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "床下_mx",
+      "max_residual_kg_s": 0.0,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "和室_mx",
+      "max_residual_kg_s": 1.0324486842446922e-10,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "LD_mx",
+      "max_residual_kg_s": 1.342053421789658e-10,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "台所_mx",
+      "max_residual_kg_s": 7.499863083408565e-11,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "浴室_mx",
+      "max_residual_kg_s": 3.87005921871915e-11,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "1階トイレ_mx",
+      "max_residual_kg_s": 1.9376269645086287e-11,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "洗面所_mx",
+      "max_residual_kg_s": 3.8700592188038534e-11,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "ホール_mx",
+      "max_residual_kg_s": 8.389457233299105e-11,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "クローゼット_mx",
+      "max_residual_kg_s": 6.192094750052284e-11,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "寝室_mx",
+      "max_residual_kg_s": 2.477876841970421e-10,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "子供室1_mx",
+      "max_residual_kg_s": 1.3417936861836966e-10,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "子供室2_mx",
+      "max_residual_kg_s": 1.342313157226213e-10,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "2階ホール_mx",
+      "max_residual_kg_s": 1.4176364574423894e-10,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "切妻_mx",
+      "max_residual_kg_s": 2.439539879649363e-10,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "片流れ(3)_mx",
+      "max_residual_kg_s": 5.806647241180863e-11,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "片流れ(4)_mx",
+      "max_residual_kg_s": 1.547504216479025e-11,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "階間(L4)_mx",
+      "max_residual_kg_s": 0.0,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    },
+    {
+      "node": "2階トイレ_mx",
+      "max_residual_kg_s": 3.093450019771209e-11,
+      "max_excess_over_rounding_kg_s": 0.0,
+      "max_normalized_defect_kgkg": 0.0
+    }
+  ],
+  "sample_room_state": {
+    "index": 38,
+    "timestamp": "2026-08-05T14:00:00",
+    "temperature_C": 25.658336639404297,
+    "x_gkg": 12.37048115581274,
+    "ventilation_g_h": -226.93480102637233,
+    "generation_g_h": 0.0,
+    "material_g_h": 170.50466629490256,
+    "storage_g_h": -56.429642099887126,
+    "residual_g_h": 0.0004926315826339514,
+    "RH_pct": 60.00014024599373
+  },
+  "selected_coil_forward_reconstruction": {
+    "latent_method": "coil_aoaf",
+    "active_cooling_hours": 153,
+    "forward_supply_x_max_error_kgkg": 9.793072234740019e-08,
+    "min_inferred_coil_T_C": 5.021569307085674,
+    "no_cooling_load_without_positive_power": true
+  },
+  "max_abs_moisture_residual_kg_s": 6.757198472637227e-10,
+  "max_normalized_defect_after_float32_bound_kgkg": 0.0,
+  "passed": true,
+  "accepted": 168,
+  "solver_sha256": "4b227ac2dd11f5ba90176fab7fcbddad32152498df5e01fe3899aa7e8d71ed1e",
+  "input_sha256": "42ef17a4a44a2e8a85fef8a2dbd2668e51d85f7dc0388d9f350943ebaed195e1",
+  "source_commit": "62a6190f5961ab0c62c0243f62d9b90e1dbd922d",
+  "engine_python_passed": 572,
+  "cpp_passed": 29,
+  "targeted_passed": 24,
+  "annual_recomputed": false,
+  "report_pages": [
+    44,
+    45
+  ],
+  "pdf_pages": [
+    46,
+    47
+  ],
+  "source_pdf_sha256": "6a770020a44ca877b85efde92c72b95b2ccaeb61cfdd401084c216ccd1954948",
+  "log_base": "natural; retained prior implementation convention",
+  "boundary_regularization": "Xe=min(Xr,xsat(Te))",
+  "inlet_timing": "current coupled timestep"
+}
