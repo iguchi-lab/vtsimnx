@@ -61,11 +61,11 @@ flowchart LR
   `bf_reference_flow_rate` [m³/s]（省略時 `V_inner.cooling.rtd`）を基準に実風量で補正する。`bf_flow_correction: false` または基準風量なしなら固定BF。
   吹出RHが100%を超える場合は、温度を保持して飽和上限まで凝縮させ、その潜熱を能力・電力に含める。
 - `latent_method: "coil_aoaf"`（別名: `"aoaf"`, `"literature"`）  
-  コイル前面風速・有効表面積からNTUを求め、熱・水分移動の接触効率を一致させる。
+  報告書4.2.1の手順4)〜8)に従い、仮定出口湿度と平均空気状態から除湿量を求める。
   - 追加パラメータ:
     - `Af` または `coil_face_area` : 実質コイル前面面積 [m²]（既定 `0.133`）
     - `Ao` または `coil_surface_area` : コイル有効表面積 [m²]（既定 `4.84`）
-  - 吸込/吹出温度と接触効率からコイル面温度と `supplyX` を決め、凝縮水量から `Q_L` を評価する
+  - 係数は `0.037*ln(V/Af)+0.0637`。吸込状態は現在時刻の連成値を維持し、最終出口の飽和制約と水分収支を適用する
 - `latent_method: "rh100"`（`"none"` と同義）
   吸込絶対湿度を引き継ぎ、吹出温度で過飽和になる分だけ凝縮する。
 - `latent_method: "ideal_coil"`

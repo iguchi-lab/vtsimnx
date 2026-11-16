@@ -265,19 +265,35 @@ LatentProcessResult estimateLatentProcess(const AirconValidationData& validData,
         result.supplyX = std::min(xIn, x95);
     };
 
-    if (usesPhysicalCoil(nodeProps)) {
+    if (usesPhysicalCoil(nodeProps) && latentMethod != "bf") {
         const double flow = std::abs(airFlowRate);
-        double contact = 0.0;
-        if (latentMethod == "bf") {
-            result.effectiveBypassFactor = effectiveBypassFactor(nodeProps, flow);
-            contact = 1.0 - result.effectiveBypassFactor;
-        } else {
-            const double coefficient = coolingCoilMassTransferCoefficient(
-                flow, readCoilFaceArea(nodeProps));
-            const double ntu = coefficient * readCoilSurfaceArea(nodeProps) / (kAirDensity * flow);
-            result.effectiveBypassFactor = std::exp(-ntu);
-            contact = -std::expm1(-ntu);
+        const double kx = coolingCoilMassTransferCoefficient(flow, readCoilFaceArea(nodeProps));
+        const double hs = result.sensibleHeatCapacity;
+        const double te = tIn - hs / (kAirSpecificHeat * kAirDensity * flow);
+        // Report 4.2.1 steps 4-8; retain the current coupled inlet state.
+        // Boundary-only regularization authorized for current-time coupling:
+        // a hypothetical outlet must not be wetter than the inlet. In the
+        // fully wet domain Xsat(Te) <= Xr the report equation is unchanged.
+        const double xe = std::min(xIn, archenv::absolute_humidity(std::max(-80.0, te), 100.0));
+        const double ts = 0.5 * (tIn + te), xs = 0.5 * (xIn + xe);
+        const double alpha = kx * (kAirSpecificHeat + archenv::SPECIFIC_HEAT_WATER_VAPOR * xs);
+        result.regime = "coil_dry_or_inactive";
+        if (alpha > 0.0 && hs > 0.0) {
+            result.coilTemp = ts - hs / (alpha * readCoilSurfaceArea(nodeProps));
+            result.coilX = archenv::absolute_humidity(std::max(-80.0, result.coilTemp), 100.0);
+            if (aircon::humidity_control::dewPoint(xIn) > result.coilTemp) {
+                const double hr = std::max(0.0, (archenv::LATENT_HEAT_VAPORIZATION +
+                    archenv::SPECIFIC_HEAT_WATER_VAPOR * result.coilTemp) *
+                    kx * (xs-result.coilX) * readCoilSurfaceArea(nodeProps));
+                // Report watts become water removal using the common energy ledger.
+                result.supplyX = xIn - hr / (archenv::vapor_latent_heat(tOut) * kAirDensity * flow);
+                result.regime = "coil_wet";
+            }
         }
+    } else if (latentMethod == "bf") {
+        const double flow = std::abs(airFlowRate);
+        result.effectiveBypassFactor = effectiveBypassFactor(nodeProps, flow);
+        const double contact = 1.0 - result.effectiveBypassFactor;
         // Integrate heat and water transfer through ONE uniform-temperature
         // surface. Lewis relation gives the same contact effectiveness for T
         // and x; no guessed outlet humidity or arithmetic-mean overshoot.
@@ -318,11 +334,21 @@ double minimumCoolingOutletTemperature(const AirconValidationData& data,
         (method != "bf" && method != "coil_aoaf" && method != "aoaf" && method != "literature"))
         return node.min_coil_temperature;
     if (data.indoorTemp <= node.min_coil_temperature) return node.min_coil_temperature;
-    const auto probe = coolingAtTemperature(data, node, flow, moist, node.min_coil_temperature);
-    const double bf = probe.effectiveBypassFactor;
-    // Both physical coils have a flow-dependent, temperature-independent
-    // contact factor: their surface limit has an exact inverse.
-    return bf*data.indoorTemp + (1.0-bf)*node.min_coil_temperature;
+    if (method == "bf") {
+        const double bf = effectiveBypassFactor(node, flow);
+        return bf*data.indoorTemp + (1.0-bf)*node.min_coil_temperature;
+    }
+    if (!(coolingCoilMassTransferCoefficient(flow, readCoilFaceArea(node)) > 0.0))
+        return data.indoorTemp;
+    double lo = node.min_coil_temperature, hi = data.indoorTemp;
+    if (coolingAtTemperature(data, node, flow, moist, lo).coilTemp >= node.min_coil_temperature) return lo;
+    for (int i = 0; i < 40; ++i) {
+        const double mid = 0.5 * (lo + hi);
+        if (coolingAtTemperature(data, node, flow, moist, mid).coilTemp < node.min_coil_temperature) lo = mid;
+        else hi = mid;
+    }
+    return hi;
+
 }
 
 double humidityRequestedOutletTemperature(const AirconValidationData& data,
