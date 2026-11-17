@@ -410,6 +410,26 @@ def room_nodes(
     return nodes
 
 
+def _store_keys(store: Mapping[str, Any]) -> list[str]:
+    columns = getattr(store, "columns", None)
+    if columns is not None:
+        return [str(key) for key in columns]
+    return [str(key) for key in store]
+
+
+def _require_series(store: Mapping[str, Any] | None, key: str, *, kind: str, surface: str) -> Any:
+    if store is None:
+        raise ValueError(f"surface {surface!r} needs {kind}[{key!r}]")
+    keys = _store_keys(store)
+    if key not in keys:
+        hint = "h.compute_solar(dni, dhi)" if kind == "solar" else "h.compute_nocturnal(rn_horizontal)"
+        raise KeyError(
+            f"surface {surface!r} needs {kind}[{key!r}]. "
+            f"available={keys}. fill with {hint}"
+        )
+    return store[key]
+
+
 def bind_surface_types(
     types: Mapping[str, Mapping[str, Any]],
     layers: Mapping[str, Any],
@@ -425,14 +445,10 @@ def bind_surface_types(
             item["layers"] = layers[layer_key]
         solar_key = spec.get("solar_key")
         if solar_key is not None:
-            if solar is None:
-                raise ValueError(f"surface {name!r} needs solar[{solar_key!r}]")
-            item["solar"] = solar[solar_key]
+            item["solar"] = _require_series(solar, solar_key, kind="solar", surface=name)
         nocturnal_key = spec.get("nocturnal_key")
         if nocturnal_key is not None:
-            if nocturnal is None:
-                raise ValueError(f"surface {name!r} needs nocturnal[{nocturnal_key!r}]")
-            item["nocturnal"] = nocturnal[nocturnal_key]
+            item["nocturnal"] = _require_series(nocturnal, nocturnal_key, kind="nocturnal", surface=name)
         bound[name] = item
     return bound
 

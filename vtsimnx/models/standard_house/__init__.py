@@ -37,6 +37,7 @@ from .geometry import (
     SHADED_WINDOWS,
     WALL_SOLAR,
 )
+from .irradiance import compute_nocturnal, compute_solar
 from .systems import (
     HEAT_RATIO,
     make_aircon_ac4,
@@ -109,4 +110,6 @@ __all__ = [
     "room_nodes",
     "bind_surface_types",
     "compose_surfaces",
+    "compute_solar",
+    "compute_nocturnal",
 ]

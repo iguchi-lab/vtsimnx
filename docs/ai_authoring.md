@@ -21,10 +21,11 @@
 ```text
 h.rooms / h.layers / h.shade / h.solar_plane
 h.surface_types / h.surface_rows
+h.compute_solar(dni, dhi) / h.compute_nocturnal(rn)  庇付き窓の列も含む
 h.ventilation["24h"]     取り出したあと枝を足したり消したりしてよい
 h.aircon["ac4"]          取り出したあと台数・機種を差し替えてよい
 h.heat_source / h.humidity_source
-外部・地盤ノードと日射系列は気象側（部品に含めない）
+外部・地盤ノードは気象側。日射列は compute_solar に直達・拡散を渡す
 ```
 
 面積は数値に潰さず、一般部／熱橋や窓控除が見える式のまま置きます。例: `8.74 * 0.83`、`(10.92 - 4.59) * 0.17`。
