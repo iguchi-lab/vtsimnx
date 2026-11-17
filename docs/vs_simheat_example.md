@@ -9,7 +9,7 @@ ACは **LD・寝室・子供室1・子供室2に各1台** で、ケース識別�
 | 標準住宅・隙間追加ケース（AC4台） | `sim検討2/sim8760_001.ipynb` で入力作成、`隙間比較_003.ipynb` で集計 | Issue #33の対象。[元入力の特定・再現記録](gap_house_replay_2026-11-15.md)。基本JSONだけでは元の停止条件を再現できない |
 | 全館空調・湿度方式の比較ケース | AC1台など、空調構成を変更した派生入力 | 過去の年間24条件の比較。AC4台の基本ケースの検証とは区別する |
 
-入力作成用Pythonは [`examples/vs_simheat_sample.py`](../examples/vs_simheat_sample.py) です。
+建物の部品は `vt.standard_house` にあります。気象は含めません。換気は `ventilation["24h"]`、空調は `aircon["ac4"]` を選んだあと差し替えできます。組み立て例は [`examples/vs_simheat_sample.py`](../examples/vs_simheat_sample.py) です。
 保存済みJSONと、新しくPythonから作成した入力の同一性は、気象・スケジュール等も含めて確認してください。
 入力を複製して別の正本を作らず、基本ファイルへの参照と変更条件を残します。
 

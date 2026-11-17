@@ -11,7 +11,7 @@ APIサーバー実装の正本は `engine/` です。
 
 最新リリース: [GitHub Releases](https://github.com/iguchi-lab/vtsimnx/releases/latest)
 
-mainのv1.8.1修正内容と移行上の注意：[領域別点検の修正記録](docs/releases/v1.8.1.md)。
+最新安定版は v1.9.0（[標準住宅の部品カタログ](docs/releases/v1.9.0.md)）。v1.8.1 の領域別修正は [v1.8.1.md](docs/releases/v1.8.1.md)。
 
 バージョン正本は `pyproject.toml`（API / `get_version()` / tag が参照）。運用: `docs/release_policy.md`  
 公開 API の安定性: `docs/public_api.md`　単位系: `docs/units.md`
@@ -66,7 +66,8 @@ python examples/run_calc_minimal.py
 ```
 
 **標準住宅の基本ケース（AC4台）**: LD・寝室・子供室1・子供室2に各1台。
-入力作成例は [`examples/vs_simheat_sample.py`](examples/vs_simheat_sample.py)、
+部品は `import vtsimnx as vt` のあと `vt.standard_house` から選びます。
+組み立て例は [`examples/vs_simheat_sample.py`](examples/vs_simheat_sample.py)、
 保存済み年間入力は [`engine/app/test_json/vs_simheat_8760.json`](engine/app/test_json/vs_simheat_8760.json) です。
 ケースの区別と再実行方法は [標準住宅の計算例](docs/vs_simheat_example.md) を参照してください。
 

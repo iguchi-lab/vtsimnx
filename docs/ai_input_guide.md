@@ -67,7 +67,7 @@ raw 入力（この文書の対象）
 
 Python から動かす最小コードは [クイックスタート](builder_input_quickstart.md) と [`examples/run_calc_minimal.py`](../examples/run_calc_minimal.py) です。中身は同じ一室モデルです。
 
-複数室の住宅は、これらの JSON を足し合わせないでください。よく使う建物は [`examples/vs_simheat_sample.py`](../examples/vs_simheat_sample.py) で、気積・層構成・部位カタログ・接続面積に分けて書いています。AI への指令は [モデル作成を AI に頼むとき](ai_authoring.md) です。
+複数室の住宅は、これらの JSON を足し合わせないでください。よく使う建物は `vt.standard_house` の部品です。組み立て例は [`examples/vs_simheat_sample.py`](../examples/vs_simheat_sample.py) です。AI への指令は [モデル作成を AI に頼むとき](ai_authoring.md) です。
 
 ## 5. 本計算の前に検査する
 

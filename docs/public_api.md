@@ -83,6 +83,8 @@ print(vt.get_version())
 
 例: `from vtsimnx.archenv import solar_gain_by_angles`
 
+標準住宅は `vt.standard_house`（`vtsimnx.models.standard_house`）。室・層・換気・空調などを名前で選び、気象は呼び出し側で載せる。`h.available()` で登録名を見る。換気は `h.ventilation["24h"]`、空調は `h.aircon["ac4"]` を選んだあとリストを編集して差し替える。
+
 archenv の DataFrame 列名は英語キーが正本です（`vtsimnx.archenv.columns`）。
 `calc_R` / `calc_C` / `calc_RC` および `_alt_deg_from_sin` 等はパッケージ公開面から外しています（`vtsimnx.archenv.comfort` 内の `_calc_*` を参照）。
 

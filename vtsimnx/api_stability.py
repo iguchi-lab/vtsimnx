@@ -49,6 +49,7 @@ EXPERIMENTAL: Final[tuple[ApiSymbol, ...]] = (
     ApiSymbol("columns", "experimental", "vtsimnx.archenv.columns", returns="module"),
     ApiSymbol("materials", "experimental", "vtsimnx.materials"),
     ApiSymbol("schedule", "experimental", "vtsimnx.schedule", returns="module"),
+    ApiSymbol("standard_house", "experimental", "vtsimnx.models.standard_house", returns="module"),
     ApiSymbol("read_json", "experimental", "vtsimnx.utils"),
     ApiSymbol("read_csv", "experimental", "vtsimnx.utils"),
     ApiSymbol("index", "experimental", "vtsimnx.utils"),
