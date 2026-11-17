@@ -1,6 +1,6 @@
 # モデル作成を AI に頼むとき
 
-> **使い方** — 人間が GitHub の URL を AI に渡して入力を作らせるときの指令です。入力の意味は [入力JSONの組み立て](ai_input_guide.md)。住宅1棟の層構造は [`examples/vs_simheat_sample.py`](../examples/vs_simheat_sample.py) と [SimHeat 比較ケース](vs_simheat_example.md)。
+> **使い方** — 人間が GitHub の URL を AI に渡して入力を作らせるときの指令です。入力の意味は [入力JSONの組み立て](ai_input_guide.md)。標準住宅の部品は `vt.standard_house`、組み立て例は [`examples/vs_simheat_sample.py`](../examples/vs_simheat_sample.py) と [SimHeat 比較ケース](vs_simheat_example.md)。
 
 このページを先に読んでから、入力を書いてください。展開済みの巨大 JSON を一枚で書かないでください。
 
@@ -9,23 +9,22 @@
 | 頼まれたもの | 真似る場所 | 出力の形 |
 |---|---|---|
 | 一室、発熱、発湿、壁1面、RAC 1台 | [`examples/ai_input/`](../examples/ai_input/) | 短い JSON（または同じ内容の `dict`） |
-| 複数室の住宅、外皮、日射、スケジュール | [`examples/vs_simheat_sample.py`](../examples/vs_simheat_sample.py) | 同じ層構造の Python |
+| 複数室の住宅、外皮、日射、スケジュール | `vt.standard_house` の部品と [`examples/vs_simheat_sample.py`](../examples/vs_simheat_sample.py) | 部品を選んで組み立てた Python |
 | `vt.run_calc` の呼び方 | [`examples/run_calc_minimal.py`](../examples/run_calc_minimal.py) | 実行コード |
 
-よく使う建物は `vs_simheat_sample.py` です。室名・気積・壁・窓・換気・発熱・空調の置き方は、このファイルの層を踏襲します。キーの意味が分からないときだけ [早見表](node_branch_schema.md) と [単位](units.md) を見ます。
+よく使う建物は `vt.standard_house` です。気積・層・庇・換気・空調は名前で選び、気象・日射は呼び出し側で載せます。換気回路やエアコンは取り出したリストを編集して差し替えます。キーの意味が分からないときだけ [早見表](node_branch_schema.md) と [単位](units.md) を見ます。
 
 ## 2. 住宅は層に分けて書く
 
-`vs_simheat_sample.py` は、壁のすべての層温度を JSON に展開していません。人間が直せる単位で分けています。同じ分け方にしてください。
+`vt.standard_house` は、壁のすべての層温度を JSON に展開していません。人間が直せる単位の部品に分けています。同じ分け方にしてください。
 
 ```text
-room_volume     室の気積
-layers          壁・床・天井の層構成（一度だけ）
-surface         方位・日射・窓種の部位カタログ
-nodes           室と外部（気積から熱容量を付ける）
-ventilation_branches  給気・排気・室間（vol は m³/s。m³/h なら / 3600）
-surfaces        接続と面積だけ（key は「室A->室B||部位」、面積は式のまま）
-heat_source / humidity_source / aircon
+h.rooms / h.layers / h.shade / h.solar_plane
+h.surface_types / h.surface_rows
+h.ventilation["24h"]     取り出したあと枝を足したり消したりしてよい
+h.aircon["ac4"]          取り出したあと台数・機種を差し替えてよい
+h.heat_source / h.humidity_source
+外部・地盤ノードと日射系列は気象側（部品に含めない）
 ```
 
 面積は数値に潰さず、一般部／熱橋や窓控除が見える式のまま置きます。例: `8.74 * 0.83`、`(10.92 - 4.59) * 0.17`。

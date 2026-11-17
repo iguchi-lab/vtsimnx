@@ -37,6 +37,7 @@ from .utils.utils import read_hasp as read_hasp
 from .utils.utils import read_json as read_json
 from .materials import materials as materials
 from . import schedule as schedule
+from .models import standard_house as standard_house
 
 # deprecated top-level names are resolved lazily in __getattr__
 
@@ -68,6 +69,7 @@ __all_experimental__ = [
     "read_hasp",
     "materials",
     "schedule",
+    "standard_house",
 ]
 
 __all_deprecated__ = [
