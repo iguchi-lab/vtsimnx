@@ -67,7 +67,10 @@ def make_ventilation_24h(
     if room_volume is None:
         room_volume = ROOM_VOLUME
     if vol_schedule is None:
-        from vtsimnx.schedule import vol as vol_schedule
+        from vtsimnx.schedule import vol as default_vol
+        schedule = default_vol
+    else:
+        schedule = vol_schedule
     return [
         {"key": "外部->和室->ホール", "vol": 20 / 3600},
         {"key": "外部->台所->LD->ホール", "vol": 20 / 3600},
@@ -83,9 +86,9 @@ def make_ventilation_24h(
         {"key": "2階ホール->外部", "vol": 40 / 3600},
         {"key": "ホール->2階ホール->ホール", "vol": 273 / 3600},
         {"key": "LD->台所->LD", "vol": 5000 / 3600},
-        {"key": "外部->台所->外部", "vol": vol_schedule["LD"]},
-        {"key": "外部->ホール->洗面所->浴室->外部", "vol": vol_schedule["浴室"]},
-        {"key": "外部->ホール->1階トイレ->外部", "vol": vol_schedule["1階トイレ"]},
+        {"key": "外部->台所->外部", "vol": schedule["LD"]},
+        {"key": "外部->ホール->洗面所->浴室->外部", "vol": schedule["浴室"]},
+        {"key": "外部->ホール->1階トイレ->外部", "vol": schedule["1階トイレ"]},
         {"key": "外部->床下->外部", "vol": room_volume["床下"] * 5.0 / 3600},
         {"key": "外部->切妻->外部", "vol": room_volume["切妻"] * 5.0 / 3600},
         {"key": "外部->片流れ(3)->外部", "vol": room_volume["片流れ(3)"] * 5.0 / 3600},

@@ -11,6 +11,8 @@
     acs = h.aircon["ac4"]        # 4台。機種や台数を差し替えてよい
 """
 
+from typing import Any
+
 from .catalog import PartCatalog, snapshot
 from .envelope import (
     M_CAPA_PER_M3,
@@ -44,22 +46,24 @@ from .systems import (
     make_ventilation_24h,
 )
 
-rooms = PartCatalog({"default": lambda: snapshot(ROOM_VOLUME)})
-layers = PartCatalog({"default": make_layers})
-shade = PartCatalog({"default": lambda: snapshot(SHADE_POLYS)})
-solar_plane = PartCatalog({
+rooms: PartCatalog[dict[str, float]] = PartCatalog({"default": lambda: snapshot(ROOM_VOLUME)})
+layers: PartCatalog[dict[str, list[dict[str, Any]]]] = PartCatalog({"default": make_layers})
+shade: PartCatalog[dict[str, Any]] = PartCatalog({"default": lambda: snapshot(SHADE_POLYS)})
+solar_plane: PartCatalog[dict[str, Any]] = PartCatalog({
     "wall": lambda: snapshot(WALL_SOLAR),
     "roof": lambda: snapshot(ROOF_SOLAR),
     "window_shade": lambda: snapshot(SHADED_WINDOWS),
 })
-nocturnal_tilt = PartCatalog({"default": lambda: snapshot(NOCTURNAL_TILTS)})
-surface_types = PartCatalog({"default": make_surface_types})
-surface_rows = PartCatalog({"default": lambda: snapshot(SURFACE_ROWS)})
-ventilation = PartCatalog({"24h": make_ventilation_24h})
-aircon = PartCatalog({"ac4": make_aircon_ac4})
-aircon_spec = PartCatalog({name: (lambda n=name: make_aircon_specs()[n]) for name in ("highspec", "standard", "rac", "rac_standard")})
-heat_source = PartCatalog({"default": make_heat_sources})
-humidity_source = PartCatalog({"default": make_humidity_sources})
+nocturnal_tilt: PartCatalog[dict[str, Any]] = PartCatalog({"default": lambda: snapshot(NOCTURNAL_TILTS)})
+surface_types: PartCatalog[dict[str, dict[str, Any]]] = PartCatalog({"default": make_surface_types})
+surface_rows: PartCatalog[list[Any]] = PartCatalog({"default": lambda: snapshot(SURFACE_ROWS)})
+ventilation: PartCatalog[list[dict[str, Any]]] = PartCatalog({"24h": make_ventilation_24h})
+aircon: PartCatalog[list[dict[str, Any]]] = PartCatalog({"ac4": make_aircon_ac4})
+aircon_spec: PartCatalog[dict[str, Any]] = PartCatalog(
+    {name: (lambda n=name: make_aircon_specs()[n]) for name in ("highspec", "standard", "rac", "rac_standard")}
+)
+heat_source: PartCatalog[list[dict[str, Any]]] = PartCatalog({"default": make_heat_sources})
+humidity_source: PartCatalog[list[dict[str, Any]]] = PartCatalog({"default": make_humidity_sources})
 
 
 def available() -> dict[str, list[str]]:

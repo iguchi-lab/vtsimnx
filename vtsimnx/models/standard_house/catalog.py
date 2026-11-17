@@ -12,7 +12,7 @@ T = TypeVar("T")
 class PartCatalog(Mapping[str, T]):
     """登録した部品を名前で取り出す。callable なら呼び、それ以外は deepcopy する。"""
 
-    def __init__(self, factories: Mapping[str, Callable[[], T] | T]) -> None:
+    def __init__(self, factories: Mapping[str, Callable[..., T] | T]) -> None:
         self._factories = dict(factories)
 
     def __getitem__(self, name: str) -> T:
