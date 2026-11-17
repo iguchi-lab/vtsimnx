@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-!pip install git+https://github.com/iguchi-lab/vtsimnx/
+!pip install -U git+https://github.com/iguchi-lab/vtsimnx/
 import vtsimnx as vt
 
 import os
@@ -24,44 +24,9 @@ df_i = vt.read_hasp(weather_file)
 
 h = vt.standard_house
 
-shade_polys = h.shade["default"]
-solar = pd.DataFrame(index=df_i.index)
-nocturnal = pd.DataFrame(index=df_i.index)
-
-dni = df_i["直達日射量"]
-dhi = df_i["水平面拡散日射量"]
-rn_horizontal = df_i["夜間放射量"]
-lat_deg = h.LAT_DEG
-lon_deg = h.LON_DEG
-
-for name, spec in h.solar_plane["wall"].items():
-    solar[name] = vt.solar_gain_by_angles(
-        dni=dni, dhi=dhi, lat_deg=lat_deg, lon_deg=lon_deg, **spec
-    )
-
-for name, spec in h.solar_plane["roof"].items():
-    solar[name] = vt.solar_gain_by_angles(
-        dni=dni, dhi=dhi, lat_deg=lat_deg, lon_deg=lon_deg, **spec
-    )
-
-for name, tilt_deg in h.nocturnal_tilt["default"].items():
-    nocturnal[name] = vt.nocturnal_gain_by_angles(
-        rn_horizontal=rn_horizontal, tilt_deg=tilt_deg
-    )
-
-for name, spec in h.solar_plane["window_shade"].items():
-    window = dict(spec)
-    shade_key = window.pop("shade_key")
-    solar[name] = vt.solar_gain_by_angles_with_shade(
-        dni=dni,
-        dhi=dhi,
-        lat_deg=lat_deg,
-        lon_deg=lon_deg,
-        shade_coords=shade_polys[shade_key],
-        shade_origin_mode="window_top_center",
-        glass=True,
-        **window,
-    )
+# 壁・屋根に加え、庇付き窓（和室_南面ガラス など）もここで全部載せる。
+solar = h.compute_solar(df_i["直達日射量"], df_i["水平面拡散日射量"])
+nocturnal = h.compute_nocturnal(df_i["夜間放射量"])
 
 """#地盤温度"""
 
