@@ -27,6 +27,8 @@ from .envelope import (
     make_surface_types,
     room_nodes,
 )
+from .foundation import foundation_layers
+from .gaps import GAP_CASES, central_aircon, facade_pressures, gap_network, gap_nodes
 from .geometry import (
     CASE_ID,
     CASE_NAME,
@@ -55,6 +57,7 @@ rooms: PartCatalog[dict[str, float]] = PartCatalog({"default": lambda: snapshot(
 layers: PartCatalog[dict[str, list[dict[str, Any]]]] = PartCatalog({
     "default": make_layers,
     **{f"grade{g}": partial(grade_layers, g) for g in GRADE_PATHS},
+    **{f"foundation{g}": partial(foundation_layers, g) for g in range(4, 8)},
 })
 shade: PartCatalog[dict[str, Any]] = PartCatalog({"default": lambda: snapshot(SHADE_POLYS)})
 solar_plane: PartCatalog[dict[str, Any]] = PartCatalog({
@@ -66,10 +69,14 @@ nocturnal_tilt: PartCatalog[dict[str, Any]] = PartCatalog({"default": lambda: sn
 surface_types: PartCatalog[dict[str, dict[str, Any]]] = PartCatalog({
     "default": make_surface_types,
     **{f"grade{g}": partial(grade_surface_types, g) for g in GRADE_PATHS},
+    "foundation4": make_surface_types,
+    **{f"foundation{g}": partial(grade_surface_types, g) for g in GRADE_PATHS},
 })
 surface_rows: PartCatalog[list[Any]] = PartCatalog({
     "default": lambda: snapshot(SURFACE_ROWS),
     **{f"grade{g}": partial(grade_surface_rows, g) for g in GRADE_PATHS},
+    "foundation4": lambda: snapshot(SURFACE_ROWS),
+    **{f"foundation{g}": partial(grade_surface_rows, g) for g in GRADE_PATHS},
 })
 ventilation: PartCatalog[list[dict[str, Any]]] = PartCatalog({"24h": make_ventilation_24h})
 aircon: PartCatalog[list[dict[str, Any]]] = PartCatalog({"ac4": make_aircon_ac4})
@@ -99,6 +106,11 @@ def available() -> dict[str, list[str]]:
 
 
 __all__ = [
+    "GAP_CASES",
+    "central_aircon",
+    "facade_pressures",
+    "gap_network",
+    "gap_nodes",
     "CASE_ID",
     "CASE_NAME",
     "LAT_DEG",
