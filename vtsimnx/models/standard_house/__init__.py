@@ -11,6 +11,7 @@
     acs = h.aircon["ac4"]        # 4台。機種や台数を差し替えてよい
 """
 
+from functools import partial
 from typing import Any
 
 from .catalog import PartCatalog, snapshot
@@ -38,6 +39,8 @@ from .geometry import (
     SHADED_WINDOWS,
     WALL_SOLAR,
 )
+from .grade_data import GRADE_PATHS
+from .grades import grade_layers, grade_surface_rows, grade_surface_types
 from .irradiance import compute_nocturnal, compute_solar
 from .systems import (
     HEAT_RATIO,
@@ -49,7 +52,10 @@ from .systems import (
 )
 
 rooms: PartCatalog[dict[str, float]] = PartCatalog({"default": lambda: snapshot(ROOM_VOLUME)})
-layers: PartCatalog[dict[str, list[dict[str, Any]]]] = PartCatalog({"default": make_layers})
+layers: PartCatalog[dict[str, list[dict[str, Any]]]] = PartCatalog({
+    "default": make_layers,
+    **{f"grade{g}": partial(grade_layers, g) for g in GRADE_PATHS},
+})
 shade: PartCatalog[dict[str, Any]] = PartCatalog({"default": lambda: snapshot(SHADE_POLYS)})
 solar_plane: PartCatalog[dict[str, Any]] = PartCatalog({
     "wall": lambda: snapshot(WALL_SOLAR),
@@ -57,8 +63,14 @@ solar_plane: PartCatalog[dict[str, Any]] = PartCatalog({
     "window_shade": lambda: snapshot(SHADED_WINDOWS),
 })
 nocturnal_tilt: PartCatalog[dict[str, Any]] = PartCatalog({"default": lambda: snapshot(NOCTURNAL_TILTS)})
-surface_types: PartCatalog[dict[str, dict[str, Any]]] = PartCatalog({"default": make_surface_types})
-surface_rows: PartCatalog[list[Any]] = PartCatalog({"default": lambda: snapshot(SURFACE_ROWS)})
+surface_types: PartCatalog[dict[str, dict[str, Any]]] = PartCatalog({
+    "default": make_surface_types,
+    **{f"grade{g}": partial(grade_surface_types, g) for g in GRADE_PATHS},
+})
+surface_rows: PartCatalog[list[Any]] = PartCatalog({
+    "default": lambda: snapshot(SURFACE_ROWS),
+    **{f"grade{g}": partial(grade_surface_rows, g) for g in GRADE_PATHS},
+})
 ventilation: PartCatalog[list[dict[str, Any]]] = PartCatalog({"24h": make_ventilation_24h})
 aircon: PartCatalog[list[dict[str, Any]]] = PartCatalog({"ac4": make_aircon_ac4})
 aircon_spec: PartCatalog[dict[str, Any]] = PartCatalog(
