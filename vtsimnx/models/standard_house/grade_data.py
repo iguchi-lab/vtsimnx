@@ -1,6 +1,6 @@
 """SimHeat等級5～7・自然室温ケースの外皮データ（InputPart / InputComb）。"""
 
-MATERIAL_PROPERTIES = {
+MATERIAL_PROPERTIES: dict[str, dict[str, float | bool]] = {
     "【H28基準】合板": {"lambda": 0.16, "v_capa": 715000.0},
     "【H28基準】押出法ポリスチレンフォーム保温板3種": {"lambda": 0.028, "v_capa": 40300.0},
     "【H28基準】天然木材": {"lambda": 0.12, "v_capa": 520000.0},
