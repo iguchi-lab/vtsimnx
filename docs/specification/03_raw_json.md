@@ -11,7 +11,7 @@
 
 | 項目 | 型 | 現行ビルダーでの取扱い |
 |---|---|---|
-| simulation | object | index と tolerance を読み込み、coupling・iteration・log 等も引き継ぐ |
+| simulation | object | index と tolerance を読み込み、coupling・iteration・log・warmup 等も引き継ぐ |
 | nodes | array of object | 必須。各要素に key が必要 |
 | ventilation_branches | array | 未指定／None は空。旧資料の「必須」と異なる |
 | thermal_branches | array | 未指定／None は空 |
@@ -30,7 +30,9 @@ simulation.index は start、end（日時文字列）、timestep（s）、length
 
 tolerance.ventilation、thermal、convergence のパーサ既定値は各 1e-6 とする。用途別の aircon_temperature、thermal_balance、thermal_linear_residual、coupling_pressure、coupling_temperature、coupling_humidity は保持する。
 
-**実装上の受渡し：** `_parse_simulation` は index と tolerance を読み込み、calc_flag 以外の追加キー（coupling、iteration、log、max_* 等）も値があれば引き継ぐ。calc_flag はノードから再計算される。HTTP サービスはビルド後にログ冗長度を別途設定することがある。C++ が読む追加設定の検証は第五章を参照する。
+simulation.warmup.start は MM-DD（例 12-15）。parse の前に典型年のその日以降を前年として全時系列の先頭へ付ける。index にその月日が必要であり、評価開始より後の暦日にする。steps・eval_start・eval_length はビルダーが埋める。C++ は warmup を読まず、伸ばした index で積分する。結果系列の助走行は run_calc が落とす。
+
+**実装上の受渡し：** `_parse_simulation` は index と tolerance を読み込み、calc_flag 以外の追加キー（coupling、iteration、log、warmup、max_* 等）も値があれば引き継ぐ。calc_flag はノードから再計算される。HTTP サービスはビルド後にログ冗長度を別途設定することがある。C++ が読む追加設定の検証は第五章を参照する。
 
 ## 4. ノード
 

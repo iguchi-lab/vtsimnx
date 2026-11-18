@@ -11,6 +11,9 @@ from vtsimnx.archenv.solar_gain import solar_gain_by_angles, solar_gain_by_angle
 
 from .geometry import (
     LAT_DEG,
+    LD_SOUTH_SOLAR_KEY,
+    LD_SOUTH_SPLIT,
+    LD_SOUTH_SPLIT_SIZE,
     LON_DEG,
     NOCTURNAL_TILTS,
     ROOF_SOLAR,
@@ -20,6 +23,19 @@ from .geometry import (
 )
 
 _SHADE_ORIGIN = "window_top_center"
+
+
+def _windows_for_shades(
+    windows: Mapping[str, Mapping[str, Any]],
+) -> tuple[dict[str, dict[str, Any]], str | None]:
+    """LD南は東西2窓で日除けが違う。部位は1面なので平均用の列名を返す。"""
+    planes = {name: dict(spec) for name, spec in windows.items()}
+    if LD_SOUTH_SOLAR_KEY not in planes:
+        return planes, None
+    combined = planes.pop(LD_SOUTH_SOLAR_KEY)
+    for name, shade_key in LD_SOUTH_SPLIT:
+        planes[name] = {**combined, "shade_key": shade_key, **LD_SOUTH_SPLIT_SIZE}
+    return planes, LD_SOUTH_SOLAR_KEY
 
 
 def compute_solar(
@@ -38,7 +54,7 @@ def compute_solar(
     lon = LON_DEG if lon_deg is None else lon_deg
     wall_planes = WALL_SOLAR if walls is None else walls
     roof_planes = ROOF_SOLAR if roofs is None else roofs
-    window_planes = SHADED_WINDOWS if windows is None else windows
+    window_planes, ld_south = _windows_for_shades(SHADED_WINDOWS if windows is None else windows)
     shades = SHADE_POLYS if shade_polys is None else shade_polys
 
     solar = pd.DataFrame(index=dni.index)
@@ -59,6 +75,10 @@ def compute_solar(
             glass=True,
             **window,
         )
+    if ld_south is not None:
+        west, east = (name for name, _key in LD_SOUTH_SPLIT)
+        # LD南の既存表面は 6.93 m²。2窓が等面積・同仕様なので平均日射量を渡す。
+        solar[ld_south] = (solar[west] + solar[east]) / 2
     return solar
 
 

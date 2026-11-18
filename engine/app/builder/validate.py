@@ -550,12 +550,14 @@ def validate_sim_config(sim_config: Dict[str, Any]) -> Tuple[SimConfigType, Vali
     # APIと直接builderで同じ計算設定を検証する（未知の入れ子キーもstrictに従う）。
     from app.schemas.config import (
         SimulationSection, SimulationCoupling, SimulationIteration, SimulationLog,
+        SimulationWarmup,
         dump_config_without_extras,
     )
     from pydantic import ValidationError as ModelValidationError
 
     for name, nested_model in (("coupling", SimulationCoupling),
-                               ("iteration", SimulationIteration), ("log", SimulationLog)):
+                               ("iteration", SimulationIteration), ("log", SimulationLog),
+                               ("warmup", SimulationWarmup)):
         if name in sim_config and isinstance(sim_config[name], dict):
             warnings.extend(strip_unknown_fields(
                 sim_config[name], set(nested_model.model_fields), f"simulation.{name}"
@@ -564,7 +566,7 @@ def validate_sim_config(sim_config: Dict[str, Any]) -> Tuple[SimConfigType, Vali
         normalized = dump_config_without_extras(SimulationSection.model_validate(sim_config))
     except ModelValidationError as e:
         return sim_config, ValidationResult(False, [str(e)], warnings)
-    for name in ("coupling", "iteration", "log", "max_inner_iteration",
+    for name in ("coupling", "iteration", "log", "warmup", "max_inner_iteration",
                  "max_coupling_iteration", "max_aircon_control_iteration"):
         if name in normalized:
             sim_config[name] = normalized[name]

@@ -50,6 +50,7 @@ raw 入力（この文書の対象）
 - 外部は既知温度、室の `t` は初期値です。
 - 時系列を使うなら配列長を `simulation.index.length` に合わせます。`end = start + (length-1)*timestep` です。
 - `simulation.coupling` と `simulation.iteration` は v1.8.1 以降、検証したうえで計算に渡ります。
+- 典型年で建物を評価開始より前から積分するときは `simulation.warmup.start`（`MM-DD`、例 `"12-15"`）。地盤の `spinup` とは別に、全時系列の末尾を先頭へ付けます。結果は評価期間に戻します。標準住宅は `h.WARMUP_START`。
 
 組み立てる順は、時刻 → ノード名 → 換気と熱の接続 → 壁 → 空調・発熱・発湿、です。存在しないノード名を参照するとそこで止まります。
 

@@ -21,12 +21,14 @@ from .moisture_capacity import (
     strip_moisture_capacity_fields,
 )
 from .validate import validate_dict_with_warnings, validate_dict_with_warning_details
+from .warmup import apply_typical_year_warmup
 
 logger = get_logger(__name__)
 
 
 def _build_output_json(raw: Dict[str, Any], *, options: BuildOptions) -> Dict[str, Any]:
     logger.info("設定データのパース開始: keys=%d", len(raw) if isinstance(raw, dict) else -1)
+    apply_typical_year_warmup(raw)
     sim_config, node_config, ventilation_config, thermal_config, surface_config, aircon_config = parse_all(raw)
     logger.info(
         "設定データのパース完了: nodes=%d, vents=%d, thermals=%d, surfaces=%d, aircons=%d",

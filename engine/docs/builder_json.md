@@ -14,7 +14,8 @@ builder は raw_config を **正規化/展開**して、C++ solver が読める�
 
 ```mermaid
 flowchart TD
-    RAW["raw_config"] --> P["parse_all"]
+    RAW["raw_config"] --> W["apply_typical_year_warmup"]
+    W --> P["parse_all"]
     P --> S["process_surfaces<br/>壁・日射・放射"]
     S --> A["process_aircons<br/>空調ノード・送風枝"]
     A --> C["process_capacities<br/>thermal_mass → capacity"]
@@ -24,6 +25,9 @@ flowchart TD
 
 処理の流れ（概念）:
 
+- `apply_typical_year_warmup(raw)`（任意）
+  - `simulation.warmup.start`（`MM-DD`）があるとき、典型年のその日以降を前年として全時系列の先頭に付ける
+  - ソルバは伸ばした `index` で積分する。`run_calc` の結果 DataFrame は評価期間（元の `index`）に戻す
 - `parse_all(raw)`
   - `simulation` / `nodes` / `ventilation_branches` / `thermal_branches` / `surfaces` / `aircon` を読み取る
   - `nodes` には自動で `{"key":"void"}` が先頭に追加される
@@ -246,6 +250,9 @@ builder / validation は、時系列になり得るフィールドを **`simulat
 - `simulation.index.timestep`: 秒
 - `simulation.index.length`: ステップ数
 - `simulation.tolerance.*`: 収束閾値
+- `simulation.warmup.start`: 助走開始日（`MM-DD`）。典型年のこの日以降を先頭に付けてから解く。例: `"12-15"`。地盤の `spinup` とは別で、建物側の初期状態を評価開始より前から積分する
+
+`warmup.start` は評価開始より後の暦日にする（1/1開始なら 12/15）。`index` にその月日が含まれない期間（1月だけ等）はエラー。助走後の `warmup.steps` / `eval_start` / `eval_length` は builder が埋める。
 
 `calc_flag` は builder が自動設定します（入力で省略してOK）。
 

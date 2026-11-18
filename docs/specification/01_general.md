@@ -60,7 +60,7 @@
 
 ## 5. 仕様の適用経路
 
-同じ名前の項目でも、raw JSON、計算用 JSON、HTTP 要求のそれぞれで受入条件が異なる。v1.8.1以降、raw simulation の coupling・iteration・log はビルダーが検証して引き継ぐ。C++ の対応機能がそのまま Python の run_calc から指定可能とは限らない（第三～五章）。
+同じ名前の項目でも、raw JSON、計算用 JSON、HTTP 要求のそれぞれで受入条件が異なる。v1.8.1以降、raw simulation の coupling・iteration・log はビルダーが検証して引き継ぐ。simulation.warmup はビルダーが時系列を伸ばし、C++ は伸ばした index だけを見る。C++ の対応機能がそのまま Python の run_calc から指定可能とは限らない（第三～五章）。
 
 ## 6. 根拠・検証・履歴
 
