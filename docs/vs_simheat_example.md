@@ -210,3 +210,20 @@ print(result.log)
 - 利用者向けの入力組み立て導線: `builder_input_quickstart.md`, `node_branch_schema.md`
 - builder・API 側の厳密 JSON 仕様: `engine/docs/builder_json.md`
 
+
+### 等級5・6・7の自然室温モデル
+
+等級4は従来の `default`、等級5・6・7は `grade5`、`grade6`、`grade7` を指定します。
+室・日除け・換気・発熱は共通です。日射と夜間放射を計算したあと、3つの外皮カタログに同じ等級名を渡します。
+
+```python
+h = vt.standard_house
+grade = "grade6"
+catalog = h.bind_surface_types(h.surface_types[grade], h.layers[grade], solar=solar, nocturnal=nocturnal)
+input_data["surfaces"] = h.compose_surfaces(h.surface_rows[grade], catalog)
+```
+
+各等級のSimHeat自然室温ケースの部位表・組合せ表から、床・外壁・断熱天井・小屋間仕切壁の材料、
+厚さ、断面面積比、17窓と外部ドアの面積・熱性能、窓の日射係数を設定しています。
+屋根・小屋裏の外界側、地盤は標準住宅の共通仕様です。
+年間比較では空調を設定せず、12月15～31日の408時間を入力の先頭に加え、評価時に助走期間を除きます。

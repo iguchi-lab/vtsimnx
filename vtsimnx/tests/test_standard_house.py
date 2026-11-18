@@ -152,3 +152,24 @@ def test_room_nodes_omit_weather_boundaries():
     ld = nodes[2]
     assert ld["calc_t"] is True
     assert ld["v"] == pytest.approx(51.67)
+
+@pytest.mark.parametrize("grade, count, window_u, scr", [
+    (5, 260, 3.49, 0.453644),
+    (6, 260, 2.33, 0.357674),
+    (7, 274, 1.60, 0.214955),
+])
+def test_grade_envelopes(grade, count, window_u, scr):
+    h = vt.standard_house
+    name = f"grade{grade}"
+    types = h.surface_types[name]
+    solar = {s["solar_key"]: 1.0 for s in types.values() if "solar_key" in s}
+    night = {s["nocturnal_key"]: 0.0 for s in types.values() if "nocturnal_key" in s}
+    catalog = h.bind_surface_types(types, h.layers[name], solar=solar, nocturnal=night)
+    surfaces = h.compose_surfaces(h.surface_rows[name], catalog)
+    assert len({s["key"] for s in surfaces}) == len(surfaces) == count
+    assert sum(s["part"] == "glass" for s in surfaces) == 17
+    child = next(s for s in surfaces if s["key"] == "子供室1->外部||S_窓_レース_11")
+    assert child["SCR"] == pytest.approx(scr)
+    assert 1 / (1 / child["u_value"] + 1 / 25 + 1 / 9.1) == pytest.approx(window_u)
+    wall = [s for s in surfaces if s["key"].startswith("子供室1->外部||部位40_断面")]
+    assert [s["area"] / 3.8793 for s in wall] == pytest.approx([0.75, 0.08, 0.12, 0.05])
