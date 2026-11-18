@@ -2,7 +2,7 @@
 潜熱由来の水分発生（主に人体）のスケジュール（単位: kg/s）。
 
 現状は「人体」のみを対象とし、時間プロファイルは顕熱スケジュールと同一、
-強度だけ「56 W/人」を蒸発潜熱で割って kg/s に換算している。
+強度だけ「44 W/人」（全熱 106 W − 顕熱 62 W、室温 24℃）を蒸発潜熱で割って kg/s に換算している。
 """
 
 import numpy as np
@@ -10,11 +10,11 @@ import numpy as np
 from vtsimnx.archenv import Vap_L  # [kJ/kg]
 
 from .common import HOURS_PER_DAY, holiday, make_8760_by_holiday
-from .sensible_heat import sensible_heat_profiles
+from .sensible_heat import OCCUPANT_LATENT_AT_24C_W, OCCUPANT_SENSIBLE_AT_24C_W, sensible_heat_profiles
 
 
-# 1 人あたりの潜熱発熱 [W]
-LATENT_POWER_PER_PERSON_W = 56.0
+# 1 人あたりの潜熱発熱 [W]（作業強度2、24℃）
+LATENT_POWER_PER_PERSON_W = OCCUPANT_LATENT_AT_24C_W
 
 # 蒸発潜熱 [J/kg]
 LATENT_HEAT_J_PER_KG = Vap_L * 1000.0
@@ -38,11 +38,9 @@ def _extract_people_profiles():
         weekday = np.asarray(people["平日"], dtype="float64")
         holiday_ = np.asarray(people["休日"], dtype="float64")
 
-        # 顕熱側の人体プロファイルは
-        #   （人数プロファイル）× 63[W/人]
-        # になっているため、63 で割って人数に戻す。
-        people_count_weekday = weekday / 63.0
-        people_count_holiday = holiday_ / 63.0
+        # 顕熱側の人体プロファイルは人数 × 62 W/人（24℃）なので、割って人数に戻す。
+        people_count_weekday = weekday / OCCUPANT_SENSIBLE_AT_24C_W
+        people_count_holiday = holiday_ / OCCUPANT_SENSIBLE_AT_24C_W
 
         latent_weekday = (people_count_weekday * LATENT_KG_PER_S_PER_PERSON).tolist()
         latent_holiday = (people_count_holiday * LATENT_KG_PER_S_PER_PERSON).tolist()
@@ -142,6 +140,8 @@ latent_moisture = build_latent_moisture_schedule()
 
 
 __all__ = [
+    "LATENT_POWER_PER_PERSON_W",
+    "LATENT_KG_PER_S_PER_PERSON",
     "latent_moisture_profiles",
     "build_latent_moisture_schedule",
     "latent_moisture",
