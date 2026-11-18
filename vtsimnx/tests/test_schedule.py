@@ -1,5 +1,14 @@
+import numpy as np
+
 import vtsimnx as vt
+from vtsimnx.archenv import Vap_L
 from vtsimnx.schedule import aircon as aircon_mod
+from vtsimnx.schedule.sensible_heat import (
+    OCCUPANT_LATENT_AT_24C_W,
+    OCCUPANT_SENSIBLE_AT_24C_W,
+    OCCUPANT_TOTAL_W,
+    occupant_sensible_latent_w,
+)
 
 
 def test_schedule_vol_heat_match_legacy_make_8760_data():
@@ -32,6 +41,13 @@ def test_schedule_vol_heat_match_legacy_make_8760_data():
         )
         assert built["LD"][use_name] == legacy
         assert len(vt.schedule.sensible_heat["LD"][use_name]) == 8760
+
+    # 平日 7時は 1人。作業強度2・24℃の顕熱 62 W。
+    assert vt.schedule.sensible_heat_profiles["LD"]["人体"]["平日"][6] == OCCUPANT_SENSIBLE_AT_24C_W
+    latent_1 = OCCUPANT_LATENT_AT_24C_W / (Vap_L * 1000.0)
+    np.testing.assert_allclose(
+        vt.schedule.latent_moisture_profiles["LD"]["人体"]["平日"][6], latent_1
+    )
 
 
 def test_schedule_aircon_match_legacy_make_8760_data():
@@ -106,5 +122,18 @@ def test_whole_house_aircon_is_24h_in_season():
     # 冷房期の先頭日（period_6 で最初の -1）
     cool_day = period.index(-1)
     assert vt.schedule.pre_tmp["region6"][key][cool_day * 24] == 27.0
+
+
+def test_occupant_heat_is_activity_level_2():
+    assert OCCUPANT_TOTAL_W == 106.0
+    assert OCCUPANT_SENSIBLE_AT_24C_W == 62.0
+    assert OCCUPANT_LATENT_AT_24C_W == 44.0
+    sh, lh = occupant_sensible_latent_w(24.0)
+    assert (sh, lh) == (62.0, 44.0)
+    sh, lh = occupant_sensible_latent_w(24.0 - 44.0 / 3.6)
+    np.testing.assert_allclose(sh, 106.0)
+    np.testing.assert_allclose(lh, 0.0, atol=1e-12)
+    sh, lh = occupant_sensible_latent_w(0.0)
+    assert (sh, lh) == (106.0, 0.0)
 
 

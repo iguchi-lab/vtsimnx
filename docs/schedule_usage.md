@@ -151,7 +151,7 @@ LD_vol = sch.vol["LD"]
 
 ### 5. 顕熱スケジュール（`sensible_heat`）
 
-`schedule/sensible_heat.py` は、照明・機器・人体などの **顕熱発熱** の 24h プロファイルを定義し、8760 に展開します。
+`schedule/sensible_heat.py` は、照明・機器・人体などの **顕熱発熱** の 24h プロファイルを定義し、8760 に展開します。人体は作業強度2の全熱 106 W/人のうち、室温 24℃の顕熱 62 W/人です。
 
 #### 5.1 `sensible_heat_profiles`
 
@@ -183,10 +183,10 @@ LD_heat_legacy = sch.sensible_heat["LD"]
 
 ### 6. 潜熱（水分発生）スケジュール（`latent_moisture`）
 
-`schedule/latent_moisture.py` は、潜熱に対応する **水分発生量 [kg/h]** の 24h プロファイルを定義し、8760 に展開します。
+`schedule/latent_moisture.py` は、潜熱に対応する **水分発生量 [kg/s]** の 24h プロファイルを定義し、8760 に展開します。
 
 - 現状の対象:
-  - 人体: 顕熱スケジュールと同じ「在室プロファイル」を用い、**56 W/人** を水分発生量に換算（蒸発潜熱で割り戻し）。
+  - 人体: 顕熱スケジュールと同じ「在室プロファイル」を用い、**44 W/人**（全熱 106 W − 顕熱 62 W、室温 24℃）を水分発生量に換算（蒸発潜熱で割り戻し）。
   - 台所機器: 最大 50 g/h (=0.05 kg/h) を上限として、指定の時間帯プロファイル [%] を乗算。
 
 #### 6.1 `latent_moisture_profiles`
@@ -196,12 +196,12 @@ LD_heat_legacy = sch.sensible_heat["LD"]
 ```python
 from vtsimnx import schedule as sch
 
-sch.latent_moisture_profiles["LD"]["人体"]["平日"]   # LD・人体・平日 24h [kg/h]
+sch.latent_moisture_profiles["LD"]["人体"]["平日"]   # LD・人体・平日 24h [kg/s]
 sch.latent_moisture_profiles["台所"]["機器"]["休日"] # 台所・機器・休日 24h [kg/h]
 ```
 
-- 人体プロファイルは、`sensible_heat_profiles["部屋"]["人体"][...]` を 63 W/人 で割って人数に戻し、
-  さらに `56 W/人` を蒸発潜熱で割り戻して **kg/h/人** に換算したものを掛けています。
+- 人体プロファイルは、`sensible_heat_profiles["部屋"]["人体"][...]` を 62 W/人 で割って人数に戻し、
+  さらに `44 W/人` を蒸発潜熱で割り戻して **kg/s/人** に換算したものを掛けています。
 - 台所機器プロファイルは、与えられた [%] を `0.05 kg/h` に掛けたものです。
 
 #### 6.2 `build_latent_moisture_schedule` と `latent_moisture`
@@ -210,8 +210,8 @@ sch.latent_moisture_profiles["台所"]["機器"]["休日"] # 台所・機器・�
 from vtsimnx import schedule as sch
 
 lm_8760 = sch.build_latent_moisture_schedule()
-LD_lm_profiles = lm_8760["LD"]        # {"人体": 8760要素のlist(kg/h)} の dict
-KITCHEN_lm = lm_8760["台所"]["機器"]  # 台所機器からの 8760h 水分発生量 [kg/h]
+LD_lm_profiles = lm_8760["LD"]        # {"人体": 8760要素のlist(kg/s)} の dict
+KITCHEN_lm = lm_8760["台所"]["機器"]  # 台所機器からの 8760h 水分発生量 [kg/s]
 
 # 互換性のため、モジュール import 時点で sch.latent_moisture も生成済み
 LD_lm_legacy = sch.latent_moisture["LD"]
@@ -224,7 +224,7 @@ LD_lm_legacy = sch.latent_moisture["LD"]
 
 ### 6.3 builder へ渡すときの単位換算
 
-`latent_moisture` は **kg/h**、`humidity_source.generation_rate` および `humidity_generation` は **kg/s** である。
+`latent_moisture` と `humidity_source.generation_rate` はともに **kg/s** である。
 
 ```python
 from vtsimnx import schedule as sch
@@ -232,11 +232,11 @@ from vtsimnx import schedule as sch
 humidity_source = [{
     "key": "LD_人体発湿",
     "room": "LD",
-    "generation_rate": [v / 3600.0 for v in sch.latent_moisture["LD"]["人体"]],
+    "generation_rate": sch.latent_moisture["LD"]["人体"],
 }]
 ```
 
-同じ人体の潜熱を別の顕熱源にも加えると二重計上し得る。熱・湿気の連成設定と、発熱・発湿の配分を併記する。56 W/人、63 W/人等はこのプロファイルの仮定値であり、活動量によらない人体の普遍定数ではない。
+同じ人体の潜熱を別の顕熱源にも加えると二重計上し得る。熱・湿気の連成設定と、発熱・発湿の配分を併記する。人体は作業強度2の全熱 106 W/人（24℃で顕熱 62 W・潜熱 44 W）。室温依存の 3.6 W/K は時間スケジュールには入れず、`occupant_sensible_latent_w(t)` で計算する。活動量によらない普遍定数ではない。
 
 ### 7. カスタマイズの入り口
 

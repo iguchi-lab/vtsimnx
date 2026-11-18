@@ -10,6 +10,22 @@ import numpy as np
 
 from .common import HOURS_PER_DAY, holiday, make_8760_by_holiday
 
+# 人体全熱は作業強度2の 106 W/人（平成28年省エネ基準 非住宅 表19、安岡ら SHASE 論文）。
+# 室温 24℃で顕熱 62 W、潜熱 44 W。室温が 1℃下がると顕熱が 3.6 W 増える（全熱は 106 W のまま）。
+# SimHeat fixedvalue.dat 先頭 106, 62, 3.6 と同じ。時間スケジュールは 24℃の配分を使う。
+OCCUPANT_TOTAL_W = 106.0
+OCCUPANT_SENSIBLE_AT_24C_W = 62.0
+OCCUPANT_SENSIBLE_PER_K = 3.6
+OCCUPANT_REF_TEMP_C = 24.0
+OCCUPANT_LATENT_AT_24C_W = OCCUPANT_TOTAL_W - OCCUPANT_SENSIBLE_AT_24C_W
+
+
+def occupant_sensible_latent_w(t_c: float) -> tuple[float, float]:
+    """1人あたりの顕熱・潜熱 [W]。全熱 106 W を保ち、顕熱は 0〜106 W。"""
+    sensible = OCCUPANT_SENSIBLE_AT_24C_W - OCCUPANT_SENSIBLE_PER_K * (float(t_c) - OCCUPANT_REF_TEMP_C)
+    sensible = min(max(sensible, 0.0), OCCUPANT_TOTAL_W)
+    return sensible, OCCUPANT_TOTAL_W - sensible
+
 # 顕熱プロファイル（1日24要素 × 平日/休日）
 sensible_heat_profiles: Dict[str, Any] = {
     "LD": {
@@ -61,14 +77,14 @@ sensible_heat_profiles["LD"]["人体"]["平日"] = (
     np.array([0.000,  0.000,  0.000,  0.000,  0.000,  0.000,
               1.000,  2.000,  1.000,  1.000,  0.000,  0.000,
               1.000,  1.000,  0.000,  0.000,  1.000,  2.000,
-              2.000,  3.000,  3.000,  2.000,  1.000,  1.000]) * 63.0
+              2.000,  3.000,  3.000,  2.000,  1.000,  1.000]) * OCCUPANT_SENSIBLE_AT_24C_W
 ).tolist()
 
 sensible_heat_profiles["LD"]["人体"]["休日"] = (
     np.array([0.000,  0.000,  0.000,  0.000,  0.000,  0.000,
               0.000,  0.000,  3.000,  2.000,  2.000,  2.000,
               2.000,  1.000,  0.000,  0.000,  2.000,  3.000,
-              3.000,  4.000,  2.000,  2.000,  1.000,  0.000]) * 63.0
+              3.000,  4.000,  2.000,  2.000,  1.000,  0.000]) * OCCUPANT_SENSIBLE_AT_24C_W
 ).tolist()
 
 # LD照明 137.5W  蛍光灯：対流成分60%、放射成分40%
@@ -230,13 +246,13 @@ sensible_heat_profiles["寝室"]["人体"]["平日"] = (
     np.array([2.000,  2.000,  2.000,  2.000,  2.000,  2.000,
               1.000,  0.000,  0.000,  0.000,  0.000,  0.000,
               0.000,  0.000,  0.000,  0.000,  0.000,  0.000,
-              0.000,  0.000,  0.000,  0.000,  0.000,  1.000]) * 63.0
+              0.000,  0.000,  0.000,  0.000,  0.000,  1.000]) * OCCUPANT_SENSIBLE_AT_24C_W
 ).tolist()
 sensible_heat_profiles["寝室"]["人体"]["休日"] = (
     np.array([2.000,  2.000,  2.000,  2.000,  2.000,  2.000,
               2.000,  1.000,  0.000,  0.000,  0.000,  0.000,
               0.000,  0.000,  0.000,  0.000,  0.000,  0.000,
-              0.000,  0.000,  0.000,  0.000,  0.000,  2.000]) * 63.0
+              0.000,  0.000,  0.000,  0.000,  0.000,  2.000]) * OCCUPANT_SENSIBLE_AT_24C_W
 ).tolist()
 
 # 寝室照明 52.5W  蛍光灯：対流成分60%、放射成分40%
@@ -273,13 +289,13 @@ sensible_heat_profiles["子供室1"]["人体"]["平日"] = (
     np.array([1.000,  1.000,  1.000,  1.000,  1.000,  1.000,
               1.000,  0.000,  0.000,  0.000,  0.000,  0.000,
               0.000,  0.000,  0.000,  0.000,  0.000,  0.000,
-              0.000,  0.000,  1.000,  0.000,  1.000,  1.000]) * 63.0
+              0.000,  0.000,  1.000,  0.000,  1.000,  1.000]) * OCCUPANT_SENSIBLE_AT_24C_W
 ).tolist()
 sensible_heat_profiles["子供室1"]["人体"]["休日"] = (
     np.array([1.000,  1.000,  1.000,  1.000,  1.000,  1.000,
               1.000,  1.000,  1.000,  1.000,  1.000,  1.000,
               0.000,  0.000,  0.000,  0.000,  1.000,  1.000,
-              1.000,  0.000,  1.000,  1.000,  1.000,  1.000]) * 63.0
+              1.000,  0.000,  1.000,  1.000,  1.000,  1.000]) * OCCUPANT_SENSIBLE_AT_24C_W
 ).tolist()
 
 # 子供室1照明 70W  蛍光灯：対流成分60%、放射成分40%
@@ -316,13 +332,13 @@ sensible_heat_profiles["子供室2"]["人体"]["平日"] = (
     np.array([1.000,  1.000,  1.000,  1.000,  1.000,  1.000,
               1.000,  0.000,  0.000,  0.000,  0.000,  0.000,
               0.000,  0.000,  0.000,  0.000,  0.000,  0.000,
-              1.000,  0.000,  0.000,  1.000,  1.000,  1.000]) * 63.0
+              1.000,  0.000,  0.000,  1.000,  1.000,  1.000]) * OCCUPANT_SENSIBLE_AT_24C_W
 ).tolist()
 sensible_heat_profiles["子供室2"]["人体"]["休日"] = (
     np.array([1.000,  1.000,  1.000,  1.000,  1.000,  1.000,
               1.000,  1.000,  0.000,  1.000,  1.000,  1.000,
               1.000,  0.000,  0.000,  0.000,  0.000,  0.000,
-              0.000,  0.000,  1.000,  1.000,  1.000,  1.000]) * 63.0
+              0.000,  0.000,  1.000,  1.000,  1.000,  1.000]) * OCCUPANT_SENSIBLE_AT_24C_W
 ).tolist()
 
 # 子供室2照明 70W  蛍光灯：対流成分60%、放射成分40%
@@ -396,6 +412,12 @@ _validate_sensible_heat_profiles(sensible_heat_profiles)
 sensible_heat = build_sensible_heat_schedule()
 
 __all__ = [
+    "OCCUPANT_TOTAL_W",
+    "OCCUPANT_SENSIBLE_AT_24C_W",
+    "OCCUPANT_SENSIBLE_PER_K",
+    "OCCUPANT_REF_TEMP_C",
+    "OCCUPANT_LATENT_AT_24C_W",
+    "occupant_sensible_latent_w",
     "sensible_heat_profiles",
     "build_sensible_heat_schedule",
     "sensible_heat",
