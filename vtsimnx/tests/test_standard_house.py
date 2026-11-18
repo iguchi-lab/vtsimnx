@@ -64,11 +64,29 @@ def test_compute_solar_includes_shaded_windows():
     nocturnal = h.compute_nocturnal(pd.Series([10.0, 20.0, 5.0], index=idx))
 
     assert "日射熱取得量（和室_南面ガラス）" in solar.columns
+    assert "日射熱取得量（LD_南面ガラス_西窓）" in solar.columns
+    assert "日射熱取得量（LD_南面ガラス_東窓）" in solar.columns
+    pd.testing.assert_series_equal(
+        solar["日射熱取得量（LD_南面ガラス）"],
+        (solar["日射熱取得量（LD_南面ガラス_西窓）"] + solar["日射熱取得量（LD_南面ガラス_東窓）"]) / 2,
+        check_names=False,
+    )
     types = h.surface_types["default"]
     needed_solar = {spec["solar_key"] for spec in types.values() if "solar_key" in spec}
     needed_nocturnal = {spec["nocturnal_key"] for spec in types.values() if "nocturnal_key" in spec}
     assert needed_solar <= set(solar.columns)
     assert needed_nocturnal <= set(nocturnal.columns)
+
+    shades = h.shade["default"]
+    assert "LD_S_西窓" in shades
+    assert "LD_S_東窓" in shades
+    assert "LD_S" not in shades
+    assert len(shades["子供室1_S"]) == 4
+    assert len(shades["子供室2_S"]) == 4
+    for name, spec in h.solar_plane["window_shade"].items():
+        if name == "日射熱取得量（LD_南面ガラス）":
+            continue
+        assert spec["shade_key"] in shades
 
 
 def test_bind_surfaces_missing_window_solar_names_the_key():
@@ -105,6 +123,23 @@ def test_bind_surfaces_uses_caller_solar():
     ld_window = next(row for row in surfaces if row["key"] == "LD->外部||S_窓_レース")
     assert ld_window["area"] == pytest.approx(3.465 + 3.465)
     assert list(ld_window["solar"]) == [0.0, 1.0, 2.0]
+
+
+def test_simheat_geometry_and_parts():
+    h = vt.standard_house
+    assert h.LAT_DEG == pytest.approx(35.69)
+    assert h.LON_DEG == pytest.approx(139.76)
+    assert h.WARMUP_START == "12-15"
+    types = h.surface_types["default"]
+    assert types["W_玄関ドア"]["u_value"] == pytest.approx(4.65)
+    assert types["N_台所ドア"]["u_value"] == pytest.approx(4.65)
+    assert types["S_子供室1_窓"]["SCR"] == pytest.approx(0.446099)
+    assert types["S_子供室1_窓"]["SCC"] == pytest.approx(0.136472)
+    assert types["S_子供室2_窓"]["SCR"] == pytest.approx(0.446099)
+    assert types["S_LD_窓"]["SCR"] == pytest.approx(0.491)
+    win = h.solar_plane["window_shade"]["日射熱取得量（子供室1_南面ガラス）"]
+    assert win["window_width"] == pytest.approx(1.65)
+    assert win["window_height"] == pytest.approx(1.95)
 
 
 def test_room_nodes_omit_weather_boundaries():

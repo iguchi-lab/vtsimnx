@@ -132,8 +132,12 @@ def _glass(solar_key: str, scr: float, scc: float, u_value: float | None = None)
 
 def make_surface_types() -> dict[str, dict[str, Any]]:
     lace = (0.491, 0.139)
+    # SimHeat 等級4 InputPart.csv 子供室南窓（放射 / 対流）
+    child_south = (0.446099, 0.136472)
     sheer = (0.986, 0.014)
     shoji_u = 1 / (1 / U_VALUE_WINDOW + 0.069)
+    # SimHeat 部位表のドア U。solver はここに alpha_i / alpha_o を別途積む。
+    exterior_door_u = 4.65
     return {
         "地盤": {"part": "floor", "layer_key": "地盤"},
         "E_基礎外壁": _wall("基礎外壁", "日射熱取得量（東面）"),
@@ -164,7 +168,7 @@ def make_surface_types() -> dict[str, dict[str, Any]]:
         "室内建具": {"part": "wall", "u_value": 2.33, "alpha_i": 4.4, "alpha_o": 4.4},
         "W_玄関ドア": {
             "part": "wall",
-            "u_value": 2.33,
+            "u_value": exterior_door_u,
             "alpha_i": 4.4,
             "alpha_o": _ALPHA_OUT,
             "solar_key": "日射熱取得量（西面）",
@@ -172,7 +176,7 @@ def make_surface_types() -> dict[str, dict[str, Any]]:
         },
         "N_台所ドア": {
             "part": "wall",
-            "u_value": 2.33,
+            "u_value": exterior_door_u,
             "alpha_i": 4.4,
             "alpha_o": _ALPHA_OUT,
             "solar_key": "日射熱取得量（北面）",
@@ -181,8 +185,8 @@ def make_surface_types() -> dict[str, dict[str, Any]]:
         "S_和室_窓": _glass("日射熱取得量（和室_南面ガラス）", 0.342, 0.087, shoji_u),
         "S_LD_窓": _glass("日射熱取得量（LD_南面ガラス）", *lace),
         "S_寝室_窓": _glass("日射熱取得量（寝室_南面ガラス）", *lace),
-        "S_子供室1_窓": _glass("日射熱取得量（子供室1_南面ガラス）", *lace),
-        "S_子供室2_窓": _glass("日射熱取得量（子供室2_南面ガラス）", *lace),
+        "S_子供室1_窓": _glass("日射熱取得量（子供室1_南面ガラス）", *child_south),
+        "S_子供室2_窓": _glass("日射熱取得量（子供室2_南面ガラス）", *child_south),
         "E_LD_窓": _glass("日射熱取得量（LD_東面ガラス）", *lace),
         "E_キッチン_窓": _glass("日射熱取得量（キッチン_東面ガラス）", *sheer),
         "E_子供室2_窓": _glass("日射熱取得量（子供室2_東面ガラス）", *lace),

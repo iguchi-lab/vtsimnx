@@ -25,6 +25,7 @@ h.compute_solar(dni, dhi) / h.compute_nocturnal(rn)  庇付き窓の列も含む
 h.ventilation["24h"]     取り出したあと枝を足したり消したりしてよい
 h.aircon["ac4"]          取り出したあと台数・機種を差し替えてよい
 h.heat_source / h.humidity_source
+h.WARMUP_START           simulation.warmup.start に渡す（12-15）
 外部・地盤ノードは気象側。日射列は compute_solar に直達・拡散を渡す
 ```
 

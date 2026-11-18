@@ -49,14 +49,13 @@ python3 engine/tools/benchmark_standard_house.py \
 
 ### 2. 日射・夜間放射の計算（solar/nocturnal）
 
-1. `df_i` から直達/拡散日射量 (`dni`/`dhi`) と夜間放射量 (`rn_horizontal`) を取り出す。
-2. `vt.solar_gain_by_angles(...)` を複数回呼び出し、次のような列をもつ `solar` DataFrame を作る。
-   - `日射熱取得量（南面）`, `日射熱取得量（東面）`, `日射熱取得量（西面）`, `日射熱取得量（北面）`
-   - 各方位のガラス用 `日射熱取得量（南面ガラス）` など
-   - 屋根面用 `日射熱取得量（南面屋根）` など
-3. 必要に応じて遮蔽ポリゴン `shade_polys` を定義し、遮蔽込みの日射取得を計算する（`solar_usage.md` 参照）。
+1. `h = vt.standard_house` の方位・傾斜・庇を使う。立地は東京（`h.LAT_DEG=35.69`, `h.LON_DEG=139.76`）。
+2. `solar = h.compute_solar(df_i["直達日射量"], df_i["水平面拡散日射量"])` で壁・屋根に加え、庇付き窓列も載せる。
+   - LD南は東西 1.65×2.10 m の2窓を分けて計算し、面積加重ではなく平均を `日射熱取得量（LD_南面ガラス）` に戻す。
+   - 子供室南は SimHeat 窓の日除け4面。日射熱取得率はレースより小さい SCR/SCC を使う。
+3. `nocturnal = h.compute_nocturnal(df_i["夜間放射量"])`。
 
-→ これらの列は後で `surface[...]` の `solar` に渡されます。
+→ これらの列は `h.bind_surface_types(..., solar=solar, nocturnal=nocturnal)` に渡します。
 
 ---
 
@@ -107,12 +106,8 @@ input_data = {
 
 ```python
 input_data["simulation"] = {
-    "index": {
-        "start": str(df_i.index[0]),
-        "end": str(df_i.index[-1]),
-        "timestep": 3600,
-        "length": len(df_i.index),
-    },
+    "index": df_i.index,  # 1/1〜。DatetimeIndex のままでよい
+    "warmup": {"start": h.WARMUP_START},  # 12/15 から助走し、結果は 1/1 から
     "tolerance": {
         "ventilation": 1e-6,
         "thermal": 1e-6,
@@ -120,6 +115,8 @@ input_data["simulation"] = {
     },
 }
 ```
+
+`warmup` は典型年の末尾（12/15〜）を前年として建物側の積分に付ける。地盤温度の `ground_temperature_by_depth(..., spinup=True)` とは別で、土壌の助走を建物期間の延長には使わない。結果の DataFrame は評価期間（元の `index`）に揃う。
 
 #### 4.2 `nodes`
 

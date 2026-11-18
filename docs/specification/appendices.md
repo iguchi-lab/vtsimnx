@@ -37,6 +37,7 @@
 | humidity_source | humidity_generation枝、発湿先calc_x | 水蒸気源 |
 | simulation.calc_flag | 展開後のcalc_*から再生成 | 分野別実行選択 |
 | simulation.coupling、iteration | v1.8.1以降は検証して保持 | API・直接ビルダーに共通 |
+| simulation.warmup | 典型年の末尾を先頭へ付けてから解く | ビルダーが時系列を伸ばす。C++は index のみ |
 
 ノード key の && は複合ノードを展開、枝 key の A->B->C は A->B と B->C を展開、|| 以降はコメントに分離する。枝の空端点は void に置換する。根拠：[utils.py](../../engine/app/builder/utils.py)。
 

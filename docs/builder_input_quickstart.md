@@ -73,6 +73,7 @@ result = vt.run_calc("http://127.0.0.1:8000", input_data)
 
 - 多くの値は `number`（定数）または `number[]`（時系列）で指定可能です。
 - 時系列配列長は原則 `simulation.index.length` に合わせます。スカラー・1要素配列は builder が展開します。`end = start + (length-1)*timestep` とし、開始・終了を含む点数を指定します。
+- 典型年で評価開始より前から建物を積分するときは `simulation.warmup.start`（`MM-DD`）。地盤温度の `spinup` とは別です。
 - `vt.run_calc` は `pandas.Series` / `DatetimeIndex` も受け取れるため、前処理で `DataFrame` を作る運用と相性が良いです。
 
 ---

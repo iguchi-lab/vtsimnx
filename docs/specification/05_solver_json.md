@@ -39,6 +39,7 @@ thermal は、aircon_temperature [K]、thermal_balance [W]、thermal_linear_resi
 | simulation.max_aircon_control_iteration | 同上 | 引継ぎ・型検証 |
 | simulation.coupling | 湿気・潜熱・エンタルピー等の連成設定 | 引継ぎ・範囲検証 |
 | simulation.log | ログの設定 | verbosityを保持。debugは指定レベル以上へ引上げ |
+| simulation.warmup | ビルダーが埋めた助走メタデータ | C++は読まない。index は助走込み |
 
 通常のrun_calcもAPI・ビルダーの同じスキーマを経由する。反復上限は正の整数、緩和係数は0より大きく1以下、log.verbosityは0～3。未知キーはstrip/errorに従う。湿り空気エンタルピー連成と潜熱モードの組合せ制約はC++パーサでも検査する。
 

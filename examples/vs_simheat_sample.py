@@ -24,7 +24,7 @@ df_i = vt.read_hasp(weather_file)
 
 h = vt.standard_house
 
-# 壁・屋根に加え、庇付き窓（和室_南面ガラス など）もここで全部載せる。
+# 壁・屋根に加え、庇付き窓も載せる。LD南は東西2窓の平均。
 solar = h.compute_solar(df_i["直達日射量"], df_i["水平面拡散日射量"])
 nocturnal = h.compute_nocturnal(df_i["夜間放射量"])
 
@@ -61,6 +61,7 @@ input_data = {}
 
 input_data["simulation"] = {
     "index": df_i.index,
+    "warmup": {"start": h.WARMUP_START},  # 12/15から助走し、結果は1/1から
     "tolerance": {
         "ventilation": 1e-6, "thermal": 1e-6, "convergence": 1e-6
     },

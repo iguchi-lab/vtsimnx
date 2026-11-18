@@ -77,6 +77,7 @@ class SimConfigType(TypedDict):
     log: NotRequired[dict[str, Any]]
     iteration: NotRequired[dict[str, Any]]
     coupling: NotRequired[dict[str, Any]]
+    warmup: NotRequired[dict[str, Any]]
     max_inner_iteration: NotRequired[int]
     max_coupling_iteration: NotRequired[int]
     max_aircon_control_iteration: NotRequired[int]

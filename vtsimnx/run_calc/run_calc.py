@@ -10,13 +10,16 @@ from typing import Any, Dict, List, Optional, Union
 import pandas as pd
 
 from vtsimnx.artifacts import ArtifactClient, decode_f32_series
+from vtsimnx.artifacts._decode import apply_time_index
 from vtsimnx.artifacts._schema import extract_manifest_error, extract_result_files
 from vtsimnx.artifacts.errors import ArtifactError, ArtifactNotFound
 from vtsimnx.run_calc._http import RunCalcAPIError, _post_run, _submit_and_wait
 from vtsimnx.run_calc._http import wait_for_run as _wait_for_response
 from vtsimnx.run_calc._index import (
+    _index_spec_from_config,
     _normalize_simulation_index_inplace,
     _pick_index_spec,
+    _warmup_skip_rows,
 )
 from vtsimnx.run_calc._io import _write_json
 from vtsimnx.run_calc._response import _output_block
@@ -306,6 +309,16 @@ class CalcRunResult:
                 index_spec=index_spec,
                 source_name=fname,
             )
+            skip = _warmup_skip_rows(self.config, T)
+            if skip:
+                df = df.iloc[skip:].copy()
+                eval_spec = _index_spec_from_config(self.config)
+                if eval_spec is not None:
+                    apply_time_index(df, eval_spec, expected_length=int(df.shape[0]))
+                else:
+                    idx = (self.config or {}).get("simulation", {}).get("index")
+                    if hasattr(idx, "__len__") and len(idx) == len(df):
+                        df.index = idx
             t_df = time.perf_counter()
 
             self._dataframes[series_name] = df

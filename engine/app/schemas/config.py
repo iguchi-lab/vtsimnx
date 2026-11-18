@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Literal, Optional, Sequence, Union
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.units import (
     AREA_M2,
@@ -123,6 +123,13 @@ class SimulationCoupling(_StrictExtraBase):
     humidity_solver_tolerance: Optional[float] = Field(default=None, gt=0, allow_inf_nan=False)
 
 
+class SimulationWarmup(_StrictExtraBase):
+    start: str = Field(description="助走開始日（MM-DD）。典型年のこの日以降を先頭に付けてから解く")
+    steps: Optional[int] = Field(default=None, strict=True, ge=1, description="builder が埋める助走ステップ数")
+    eval_start: Optional[str] = Field(default=None, description="評価開始時刻（助走適用前の index.start）")
+    eval_length: Optional[int] = Field(default=None, strict=True, ge=1, description="評価期間のステップ数")
+
+
 class SimulationSection(_StrictExtraBase):
     index: SimulationIndex
     tolerance: Optional[SimulationTolerance] = None
@@ -130,9 +137,17 @@ class SimulationSection(_StrictExtraBase):
     log: Optional[SimulationLog] = None
     iteration: Optional[SimulationIteration] = None
     coupling: Optional[SimulationCoupling] = None
+    warmup: Optional[SimulationWarmup] = None
     max_inner_iteration: Optional[int] = Field(default=None, strict=True, gt=0)
     max_coupling_iteration: Optional[int] = Field(default=None, strict=True, gt=0)
     max_aircon_control_iteration: Optional[int] = Field(default=None, strict=True, gt=0)
+
+    @field_validator("warmup", mode="before")
+    @classmethod
+    def _coerce_warmup(cls, value: Any) -> Any:
+        if isinstance(value, str):
+            return {"start": value}
+        return value
 
 
 class NodeModel(_StrictExtraBase):
