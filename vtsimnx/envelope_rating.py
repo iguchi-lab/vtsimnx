@@ -67,7 +67,8 @@ def _solar(spec, season, region, conductivity):
         return D(0)
     nu = sum(D(str(table[d][region - 1])) for d in directions if d is not None) / D(len(directions))
     if spec["kind"] == "window":
-        eta = _number(spec["eta_d"], f"{spec['keys'][0]}: eta_d", maximum=1) * _number(
+        coefficient = spec.get("eta_d_" + season, spec.get("eta_d"))
+        eta = _number(coefficient, f"{spec['keys'][0]}: eta_d", maximum=1) * _number(
             spec.get("f_" + season, 0.93 if season == "C" else 0.51), "f_" + season, maximum=1
         )
     else:

@@ -21,6 +21,9 @@ def test_south_window_wall_and_foundation():
     assert result["m_C"] == pytest.approx((0.17 + 2 * 0.6 * 0.93) * 0.434)
     assert result["m_H"] == pytest.approx((0.17 + 2 * 0.6 * 0.51) * 0.936)
     assert (result["UA"], result["eta_AC"], result["eta_AH"]) == (0.60, 2.8, 3.6)
+    assessment["parts"][1]["eta_d_C"] = .4
+    seasonal = vt.envelope_performance(data, assessment)
+    assert seasonal["eta_AC"] < result["eta_AC"] and seasonal["eta_AH"] == result["eta_AH"]
     assessment["region"] = 8
     assert vt.envelope_performance(data, assessment)["eta_AH"] is None
     with pytest.raises(ValueError, match="perimeter"):
