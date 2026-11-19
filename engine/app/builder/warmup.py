@@ -53,16 +53,18 @@ def _fmt(ts: pd.Timestamp) -> str:
     return ts.strftime("%Y-%m-%d %H:%M:%S")
 
 
-def _prepend_value(value: Any, head: list[int], orig_len: int) -> Any:
-    if isinstance(value, dict):
-        return {key: _prepend_value(item, head, orig_len) for key, item in value.items()}
-    if isinstance(value, tuple):
-        value = list(value)
-    if isinstance(value, list):
-        if len(value) == orig_len and (not value or not isinstance(value[0], (dict, list))):
-            return [value[i] for i in head] + value
-        return [_prepend_value(item, head, orig_len) for item in value]
-    return value
+# Only fields whose outer axis represents simulation time may be extended.
+_SERIES_FIELDS = {
+    "nodes": ("t", "p", "x", "c", "beta", "w", "pre_temp", "pre_rh", "mode"),
+    "ventilation_branches": ("enable", "vol", "humidity_generation", "dust_generation"),
+    "thermal_branches": ("enable", "heat_generation"),
+    "surfaces": ("solar", "nocturnal", "night_radiation"),
+    "aircon": ("mode", "pre_temp", "pre_rh", "vol"),
+    "heat_source": ("generation_rate",),
+    "heat_sources": ("generation_rate",),
+    "humidity_sources": ("generation_rate", "mx"),
+    "humidity_source": ("generation_rate", "mx"),
+}
 
 
 def apply_typical_year_warmup(raw: dict[str, Any]) -> None:
@@ -120,10 +122,19 @@ def apply_typical_year_warmup(raw: dict[str, Any]) -> None:
     else:
         raise ValueError("simulation.warmup には正の index.timestep が必要です。")
 
-    for key, value in list(raw.items()):
-        if key == "simulation":
-            continue
-        raw[key] = _prepend_value(value, head, orig_len)
+    for section, fields in _SERIES_FIELDS.items():
+        records = raw.get(section) or []
+        if isinstance(records, dict):
+            records = records.values()
+        for record in records:
+            if not isinstance(record, dict):
+                continue
+            for field in fields:
+                series = record.get(field)
+                if hasattr(series, "tolist"):
+                    series = series.tolist()
+                if isinstance(series, (list, tuple)) and len(series) == orig_len:
+                    record[field] = [series[i] for i in head] + list(series)
 
     warmup["start"] = f"{month:02d}-{day:02d}"
     warmup["steps"] = int(len(head))

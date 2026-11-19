@@ -137,3 +137,15 @@ def test_occupant_heat_is_activity_level_2():
     assert (sh, lh) == (106.0, 0.0)
 
 
+
+
+def test_bri_heat_and_moisture_use_same_occupancy():
+    from vtsimnx.schedule.latent_moisture import LATENT_HEAT_J_PER_KG
+
+    sensible = vt.schedule.build_sensible_heat_schedule(occupant_model="bri")["LD"]
+    moisture = vt.schedule.build_latent_moisture_schedule(occupant_model="bri")["LD"]
+    people = np.asarray(vt.schedule.sensible_heat["LD"]["人体"]) / 62
+    np.testing.assert_allclose(sensible["人体"], people * 63)
+    np.testing.assert_allclose(np.asarray(moisture["人体"]) * LATENT_HEAT_J_PER_KG, people * 56)
+    assert sensible["照明"] == vt.schedule.sensible_heat["LD"]["照明"]
+    assert occupant_sensible_latent_w(25, occupant_model="bri") == (59, 60)

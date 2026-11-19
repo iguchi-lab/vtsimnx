@@ -309,7 +309,11 @@ class CalcRunResult:
                 index_spec=index_spec,
                 source_name=fname,
             )
-            skip = _warmup_skip_rows(self.config, T)
+            server_warmup = _output_block(self.output).get("warmup")
+            if isinstance(server_warmup, dict):
+                skip = _warmup_skip_rows({"simulation": {"warmup": server_warmup}}, T)
+            else:
+                skip = _warmup_skip_rows(self.config, T)
             if skip:
                 df = df.iloc[skip:].copy()
                 eval_spec = _index_spec_from_config(self.config)
@@ -474,6 +478,7 @@ def wait_for_run(
     ``as_result=True`` なら ``run_calc`` と同じ遅延ロード結果を返す。
     既存コードとの互換性のため、既定は生のAPIレスポンスdictを維持する。
     時系列の日時は保存済み結果のindexまたはschemaから復元する。
+    サーバー出力に warmup があれば助走行を除去する。旧結果で期間情報がない場合は全行を返す。
     ``raise_on_error`` は系列・ログ取得時に適用する。
     """
     if api_key is None:
