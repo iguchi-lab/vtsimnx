@@ -1,5 +1,6 @@
 """住宅の外皮面積を用いる標準計算（第三章第二節 8）。"""
 
+import warnings
 from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP
 
 from .window_rating import window_eta
@@ -79,6 +80,32 @@ def _solar(spec, season, region, conductivity):
     return eta * nu
 
 
+def _line_length(line, surfaces, used_keys):
+    """面積は当該区間の立上り見付面積。土間の水平面積は使わない。"""
+    if line.get("length") is not None or line["kind"] != "perimeter":
+        length = _number(line.get("length"), f"{line['name']}: length", positive=True)
+        return length, {"length": float(length), "length_source": "input"}
+    keys = line.get("wall_keys") or []
+    if line.get("wall_area") is not None:
+        area = _number(line["wall_area"], "wall_area", positive=True)
+        source = "wall_area"
+    elif keys:
+        area = D(0)
+        for key in keys:
+            if key not in surfaces or key in used_keys:
+                raise ValueError(f"{line['name']}: unknown or repeated foundation wall {key}")
+            if surfaces[key].get("part") not in (None, "wall"):
+                raise ValueError(f"{key}: wall_keys must reference vertical foundation walls")
+            used_keys.add(key)
+            area += _number(surfaces[key]["area"], key, positive=True)
+        source = "wall_keys"
+    else:
+        raise ValueError(f"{line['name']}: specify length [m], wall_area [m²] or wall_keys")
+    length = area / D("0.4")
+    warnings.warn(f"{line['name']}: 外周長が未入力。立上り面積 {area} m² / 0.4 m = {length} m を採用", stacklevel=3)
+    return length, {"length": float(length), "length_source": source, "wall_area": float(area)}
+
+
 def envelope_performance(input_data, assessment):
     """実際の surfaces と評価条件から UA, eta_AC, eta_AH と部位別熱損失・日射取得量を返す。"""
     region = assessment["region"]
@@ -131,8 +158,10 @@ def envelope_performance(input_data, assessment):
         line["kind"] == "perimeter" for line in assessment["lines"]
     ):
         raise ValueError("specify slab perimeter length and psi")
+    used_wall_keys = set()
+    line_details = []
     for line in assessment["lines"]:
-        length = _number(line["length"], "length", positive=True)
+        length, adopted_length = _line_length(line, surfaces, used_wall_keys)
         psi = _number(line["psi"], "psi")
         q = length * psi * _number(line["H"], "H", maximum=1)
         if line["kind"] not in {"perimeter", "bridge"}:
@@ -140,10 +169,11 @@ def envelope_performance(input_data, assessment):
         bridge = line["kind"] == "bridge"
         mc = length * _solar(line, "C", region, psi) if bridge else D(0)
         mh = length * _solar(line, "H", region, psi) if bridge and region != 8 else D(0)
-        details.append((line["name"], D(0), q, mc, mh))
+        line_details.append((line["name"], D(0), q, mc, mh, adopted_length))
     if not details or not (area := sum(row[1] for row in details)):
         raise ValueError("positive envelope area required")
-    q, mc, mh = (sum(row[i] for row in details) for i in (2, 3, 4))
+    rows = [(*row, window_values.get(row[0], {})) for row in details] + line_details
+    q, mc, mh = (sum(row[i] for row in rows) for i in (2, 3, 4))
     return {
         "UA": float((q / area).quantize(D(".01"), rounding=ROUND_CEILING)),
         "eta_AC": float((100 * mc / area).quantize(D(".1"), rounding=ROUND_CEILING)),
@@ -155,12 +185,12 @@ def envelope_performance(input_data, assessment):
         "parts": [
             {
                 "name": name,
-                **window_values.get(name, {}),
+                **extra,
                 "area": float(a),
                 "q": float(loss),
                 "m_C": float(c),
                 "m_H": float(h) if region != 8 else None,
             }
-            for name, a, loss, c, h in details
+            for name, a, loss, c, h, extra in rows
         ],
     }

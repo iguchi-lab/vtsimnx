@@ -47,7 +47,8 @@ def test_standard_house_from_surface_input(model):
             part["U"] = 3
         if part["kind"] == "window":
             part["eta_d"] = 0.5
-    assessment["lines"][0].update(length=30, psi=0.5)
+    for line in assessment["lines"]:
+        line.update(length=30, psi=0.5)
     result = vt.envelope_performance(data, assessment)
     assert result["UA"] > 0 and result["eta_AC"] > 0 and result["eta_AH"] > 0
     with pytest.raises(ValueError, match="mismatch"):
@@ -100,3 +101,33 @@ def test_window_specification_and_fallback():
     part["glass_type"] = "入力誤り"
     with pytest.raises(ValueError, match="glass_type"):
         evaluate()
+
+
+def test_perimeter_length_sources():
+    import warnings
+
+    part = {"kind": "slab", "keys": ["土間"]}
+    wall = {"key": "立上り", "part": "wall", "area": 1.6}
+    data = {"surfaces": [{"key": "土間", "area": 20}, wall]}
+    line = {"name": "外周", "kind": "perimeter", "H": 0.7, "psi": 0.5, "wall_keys": ["立上り"]}
+    assessment = {"region": 6, "parts": [part], "excluded": ["立上り"], "lines": [line]}
+
+    def run():
+        return vt.envelope_performance(data, assessment)["parts"][-1]
+
+    with pytest.warns(UserWarning, match="外周.*0.4"):
+        row = run()
+    assert (row["length"], row["length_source"], row["q"]) == (4, "wall_keys", 1.4)
+    line["wall_area"] = 2
+    with pytest.warns(UserWarning):
+        assert run()["length"] == 5
+    line["length"] = 6
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        assert run()["length_source"] == "input"
+    line["length"] = 0
+    with pytest.raises(ValueError, match="length"):
+        run()
+    line.update(length=None, wall_area=None, wall_keys=[])
+    with pytest.raises(ValueError, match="wall_area"):
+        run()

@@ -56,11 +56,26 @@ def rating_template(model="default", *, region=6):
                 raise ValueError(f"{key}: missing facade direction")
             item["directions"] = [direction]
         parts[group] = item
-    return {
-        "region": region,
-        "parts": list(parts.values()),
-        "excluded": excluded,
-        "lines": [
-            {"name": "土間外周（接する空間ごとに分割）", "kind": "perimeter", "length": None, "psi": None, "H": 1}
-        ],
+    exterior = {
+        "name": "外気側土間外周",
+        "kind": "perimeter",
+        "H": 1,
+        "psi": None,
+        "length": None,
+        "wall_area": None,
+        "wall_keys": [],
     }
+    lines = [exterior]
+    if foundation:
+        exterior["wall_keys"] = [row["key"] for row in rows if row["surface"].endswith("_基礎外壁")]
+    else:
+        # 換気床下の外周は断熱境界外。玄関土間の外気側立上りの面積は独立入力。
+        lines.append(
+            {
+                **exterior,
+                "name": "玄関土間・床下側",
+                "H": 0.7,
+                "wall_keys": [row["key"] for row in rows if row["surface"] == "ホール-床下"],
+            }
+        )
+    return {"region": region, "parts": list(parts.values()), "excluded": excluded, "lines": lines}
