@@ -56,7 +56,7 @@
 ## 研究で利用した版の記録
 
 `CITATION.cff` の `version` はソースの版を示す。未公開版には公開日を推測して書かない。
-2026-11-17時点の最新公開版は[v1.9.0](https://github.com/iguchi-lab/vtsimnx/releases/tag/v1.9.0)。
+2026-11-19時点の最新公開版は[v1.10.0](https://github.com/iguchi-lab/vtsimnx/releases/tag/v1.10.0)。
 v1.8.1 はタグを切らず、1.9.0 に同梱した。
 
 mainや作業版を使った計算では、版番号に加えて実際に使用したcommitを記録する。

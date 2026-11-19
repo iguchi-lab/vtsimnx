@@ -11,7 +11,7 @@ APIサーバー実装の正本は `engine/` です。
 
 最新リリース: [GitHub Releases](https://github.com/iguchi-lab/vtsimnx/releases/latest)
 
-最新安定版は v1.9.0（[標準住宅の部品カタログ](docs/releases/v1.9.0.md)）。v1.8.1 の領域別修正は [v1.8.1.md](docs/releases/v1.8.1.md)。
+最新安定版は [v1.10.0（住宅の外皮性能と等級別モデル）](docs/releases/v1.10.0.md) です。
 
 バージョン正本は `pyproject.toml`（API / `get_version()` / tag が参照）。運用: `docs/release_policy.md`  
 公開 API の安定性: `docs/public_api.md`　単位系: `docs/units.md`
