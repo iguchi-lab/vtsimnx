@@ -121,3 +121,20 @@ def test_auto_response_coefficients_modal_expsum_respects_terms():
     assert len(resp["resp_c_tgt"]) == 1
 
 
+
+
+@pytest.mark.parametrize("reverse", [False, True])
+def test_massless_layer_preserves_adjacent_wall_storage(reverse):
+    layers = [{"lambda": 1., "t": .1, "v_capa": 0.}, {"lambda": 1., "t": .2, "v_capa": 1e6}]
+    if reverse:
+        layers.reverse()
+    surface = {"key": "A->B", "part": "wall", "area": 10., "layers": layers, "layer_method": "response"}
+    _, branches = process_surfaces([surface], sim_length=2, time_step=600., add_solar=False, add_radiation=False)
+    branch, = [b for b in branches if b.get("type") == "response_conduction"]
+    gs, gt = (10., 5.) if reverse else (5., 10.)
+    storage = .2 * 1e6 / 600.
+    # Unit step on the source surface, initially at equilibrium at zero.
+    center = gs / (storage + gs + gt)
+    assert branch["resp_a_src"][0] == pytest.approx(gs * (1 - center))
+    assert branch["resp_b_tgt"][0] == pytest.approx(-gt * center)
+    assert branch["resp_c_src"] == pytest.approx([storage / (storage + gs + gt)])
