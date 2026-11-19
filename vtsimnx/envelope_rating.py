@@ -2,6 +2,8 @@
 
 from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP
 
+from .window_rating import window_eta
+
 D = Decimal
 
 # 第三章第二節 付録C 表1・2。列は地域1から順。
@@ -87,6 +89,7 @@ def envelope_performance(input_data, assessment):
         raise ValueError("duplicate surface key")
     seen = set(assessment["excluded"])
     details = []
+    window_values = {}
     for spec in assessment["parts"]:
         keys = spec["keys"]
         if not keys or len(set(keys)) != len(keys) or seen.intersection(keys):
@@ -105,6 +108,20 @@ def envelope_performance(input_data, assessment):
             raise ValueError(f"{keys[0]}: specify whole-opening U")
         u = sum(a * _u(surfaces[k], spec) for a, k in zip(weights, keys)) / total
         q = area * u * _number(spec["H"], "H", maximum=1)
+        if kind == "window":
+            seasons = ("C",) if region == 8 else ("C", "H")
+            # A grouped part can contain windows with different surface specifications.
+            values = [window_eta(spec, surfaces[k], seasons) for k in keys]
+            spec = dict(spec)
+            adopted = {}
+            for season in seasons:
+                eta = (
+                    sum(w * _number(v[season], f"{k}: eta_d", maximum=1) for k, w, v in zip(keys, weights, values))
+                    / total
+                )
+                spec["eta_d_" + season] = eta
+                adopted["eta_d_" + season] = float(eta)
+            window_values[keys[0]] = adopted
         mc = area * _solar(spec, "C", region, u)
         mh = area * _solar(spec, "H", region, u) if region != 8 else D(0)
         details.append((keys[0], area, q, mc, mh))
@@ -138,6 +155,7 @@ def envelope_performance(input_data, assessment):
         "parts": [
             {
                 "name": name,
+                **window_values.get(name, {}),
                 "area": float(a),
                 "q": float(loss),
                 "m_C": float(c),

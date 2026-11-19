@@ -36,7 +36,10 @@ def rating_template(model="default", *, region=6):
         if adjacent == "地下1m":
             item["kind"] = "slab"
         elif spec["part"] == "glass":
-            item.update(kind="window", U=None, eta_d=None)
+            item.update(kind="window", U=None, eta_d=None, frame_type=None, glass_type=None, attachment=None)
+            if model in {"default", "foundation4"}:
+                # 等級4 UA.xlsx の窓仕様。基礎断熱ケースでも開口部は共通。
+                item.update(frame_type="金属製など", glass_type="一般複層", attachment="なし", U=4.65)
         elif "ドア" in template:
             item.update(kind="door", U=None)
         elif "天井" in template:

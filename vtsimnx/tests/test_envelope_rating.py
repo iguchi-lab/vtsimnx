@@ -21,7 +21,7 @@ def test_south_window_wall_and_foundation():
     assert result["m_C"] == pytest.approx((0.17 + 2 * 0.6 * 0.93) * 0.434)
     assert result["m_H"] == pytest.approx((0.17 + 2 * 0.6 * 0.51) * 0.936)
     assert (result["UA"], result["eta_AC"], result["eta_AH"]) == (0.60, 2.8, 3.6)
-    assessment["parts"][1]["eta_d_C"] = .4
+    assessment["parts"][1]["eta_d_C"] = 0.4
     seasonal = vt.envelope_performance(data, assessment)
     assert seasonal["eta_AC"] < result["eta_AC"] and seasonal["eta_AH"] == result["eta_AH"]
     assessment["region"] = 8
@@ -72,3 +72,31 @@ def test_ventilated_wall_ends_at_air_layer():
     }
     result = vt.envelope_performance(data, spec)
     assert result["q"] == pytest.approx(10 / (0.11 + 2 + 0.11))
+
+
+def test_window_specification_and_fallback():
+    window = {"key": "南窓", "area": 2}
+    part = {"kind": "window", "keys": ["南窓"], "U": 2, "H": 1, "directions": ["S"]}
+    assessment = {"region": 6, "parts": [part], "lines": [], "excluded": []}
+
+    def evaluate():
+        return vt.envelope_performance({"surfaces": [window]}, assessment)["parts"][0]
+
+    with pytest.warns(UserWarning, match="南窓.*frame_type"):
+        result = evaluate()
+    assert (result["eta_d_C"], result["eta_d_H"]) == (0.88, 0.0576)
+    window.update(frame_type="金属製など", glass_type="一般複層", attachment="なし")
+    assert evaluate()["eta_d_C"] == evaluate()["eta_d_H"] == 0.632
+    part["attachment"] = "和障子"
+    assert evaluate()["eta_d_C"] == 0.304
+    del window["glass_type"]
+    part["eta_d_C"] = 0.4
+    with pytest.warns(UserWarning, match="glass_type"):
+        result = evaluate()
+    assert (result["eta_d_C"], result["eta_d_H"]) == (0.4, 0.176)
+    assessment["region"] = 8
+    assert "eta_d_H" not in evaluate()
+    del part["eta_d_C"]
+    part["glass_type"] = "入力誤り"
+    with pytest.raises(ValueError, match="glass_type"):
+        evaluate()
