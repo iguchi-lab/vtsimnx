@@ -68,7 +68,7 @@ def _collect_room_to_node_area(
             part_start = _get_surface_part(s)
         except Exception:
             continue
-        if exclude_glass and part_start == "glass":
+        if part_start == "glass" and (exclude_glass or s.get("whole_window_u") is not None):
             continue
         try:
             start_node, end_node, i_prefix, o_prefix = get_node_prefix(s)

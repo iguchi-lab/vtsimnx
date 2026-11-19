@@ -131,3 +131,23 @@ def test_perimeter_length_sources():
     line.update(length=None, wall_area=None, wall_keys=[])
     with pytest.raises(ValueError, match="wall_area"):
         run()
+
+
+def test_window_spec_to_rating_and_solver_inputs():
+    spec = dict(frame_type="金属製", glass_type="一般複層", attachment="なし", gap_mm=6)
+    props = vt.window_properties(**spec, convective_fraction=0.25)
+    assert props["rating"] == {"U": 4.65, "eta_d": 0.632}
+    assert props["surface"] == pytest.approx({"whole_window_u": 4.65, "SCC": 0.158, "SCR": 0.474})
+    window = {"key": "窓", "area": 2}
+    assessment = {"parts": [dict(spec, keys=["窓"], kind="window", H=1, directions=["S"])],
+                  "region": 6, "excluded": [], "lines": []}
+    assert vt.envelope_performance({"surfaces": [window]}, assessment)["q"] == pytest.approx(9.3)
+    with pytest.warns(UserWarning, match="対流割合"), pytest.raises(ValueError, match="convective_fraction"):
+        vt.window_properties(**spec)
+    with pytest.raises(ValueError, match="適用範囲外"):
+        vt.window_properties(**{**spec, "gap_mm": 3}, convective_fraction=0)
+    props = vt.window_properties(**{**spec, "attachment": "和障子"}, SCC=0.1, SCR=0.2)
+    assert props["rating"]["U"] == pytest.approx((4.65 + 1 / (1 / 4.65 + 0.18)) / 2)
+    assert props["surface"]["SCC"] == 0.1 and props["surface"]["SCR"] == 0.2
+    explicit = vt.window_properties(**{**spec, "attachment": "和障子"}, U=3.7, SCC=0.1, SCR=0.2)
+    assert explicit["surface"]["whole_window_u"] == 3.7

@@ -22,6 +22,7 @@ from .artifacts import get_artifact_bytes as get_artifact_bytes
 from .artifacts import get_artifact_file as get_artifact_file
 
 # --- experimental (top-level re-export; 変更しうる) ---
+from .window_rating import window_properties as window_properties
 from .envelope_rating import envelope_performance as envelope_performance
 from .archenv import calc_PMV as calc_PMV
 from .archenv import calc_PPD as calc_PPD
@@ -56,6 +57,7 @@ __all_stable__ = [
 
 __all_experimental__ = [
     "envelope_performance",
+    "window_properties",
     "sun_loc",
     "make_wind",
     "nocturnal_gain_by_angles",

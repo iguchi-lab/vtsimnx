@@ -345,6 +345,7 @@ class SurfaceLayerModel(_StrictExtraBase):
 
 
 class SurfaceModel(_StrictExtraBase):
+    whole_window_u: Optional[float] = Field(default=None, gt=0, description="窓全体の熱貫流率（両側の表面抵抗込み）", json_schema_extra=field_extra(U_VALUE_W_M2K))
     key: str
     part: Optional[str] = None
     area: Optional[float] = Field(

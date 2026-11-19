@@ -3,7 +3,7 @@
 import warnings
 from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP
 
-from .window_rating import window_eta
+from .window_rating import window_eta, window_u
 
 D = Decimal
 
@@ -45,6 +45,10 @@ def _number(value, name, *, positive=False, maximum=None):
 
 
 def _u(surface, spec):
+    if spec["kind"] == "window" and spec.get("U") is None:
+        if surface.get("whole_window_u") is not None:
+            return _number(surface["whole_window_u"], "whole_window_u", positive=True)
+        return D(str(window_u({**surface, **{k: v for k, v in spec.items() if v is not None}})))
     if "U" in spec:
         return _number(spec["U"], f"{surface['key']}: U", positive=True)
     # 入力順は室内側から屋外側。通気層に達したら、その外側の仕上げを除く。
@@ -131,7 +135,7 @@ def envelope_performance(input_data, assessment):
             continue
         if kind not in {"window", "door", "wall", "floor", "ceiling", "roof"}:
             raise ValueError(f"unknown kind {kind!r}")
-        if kind in {"window", "door"} and "U" not in spec:
+        if kind == "door" and "U" not in spec:
             raise ValueError(f"{keys[0]}: specify whole-opening U")
         u = sum(a * _u(surfaces[k], spec) for a, k in zip(weights, keys)) / total
         q = area * u * _number(spec["H"], "H", maximum=1)

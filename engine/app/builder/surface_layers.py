@@ -275,6 +275,23 @@ def process_surface(
     alpha_o = surface.get("alpha_o", DEFAULT_ALPHA_O)
     layer_method = surface.get("layer_method", "rc")
 
+    if surface.get("whole_window_u") is not None:
+        if _get_surface_part(surface) != "glass" or any(surface.get(k) is not None for k in ("u_value", "layers", "response")):
+            raise ValueError(f"{surface['key']}: whole_window_u は単独で窓の熱抵抗を指定します")
+        # 等価総合熱伝達率。別途室内長波放射ブランチを生成しない。
+        alpha_i = surface.get("alpha_i", 1 / 0.11)
+        alpha_o = surface.get("alpha_o", 1 / 0.04)
+        u = surface["whole_window_u"]
+        if not all(np.isfinite(x) and x > 0 for x in (alpha_i, alpha_o, u)):
+            raise ValueError(f"{surface['key']}: whole_window_u, alpha_i, alpha_o must be finite and positive")
+        resistance = 1 / u - 1 / alpha_i - 1 / alpha_o
+        if resistance <= 0:
+            raise ValueError(f"{surface['key']}: 全熱抵抗が表面熱抵抗の合計以下です。Uw・総合熱伝達率を確認してください")
+        return _process_surface_u_value(
+            {**surface, "u_value": 1 / resistance}, start_node, end_node, i_prefix, o_prefix,
+            a, alpha_i, alpha_o, initial_t_by_node_key, verbose,
+        )
+
     if "layers" in surface and layer_method == "response":
         from .surface_response import _process_surface_response_method
 
