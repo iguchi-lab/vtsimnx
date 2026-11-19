@@ -43,6 +43,7 @@ from .geometry import (
 )
 from .grade_data import GRADE_PATHS
 from .grades import grade_layers, grade_surface_rows, grade_surface_types
+from .rating import rating_template
 from .irradiance import compute_nocturnal, compute_solar
 from .systems import (
     HEAT_RATIO,
@@ -106,6 +107,7 @@ def available() -> dict[str, list[str]]:
 
 
 __all__ = [
+    "rating_template",
     "GAP_CASES",
     "central_aircon",
     "facade_pressures",

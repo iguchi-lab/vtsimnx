@@ -22,6 +22,7 @@ from .artifacts import get_artifact_bytes as get_artifact_bytes
 from .artifacts import get_artifact_file as get_artifact_file
 
 # --- experimental (top-level re-export; 変更しうる) ---
+from .envelope_rating import envelope_performance as envelope_performance
 from .archenv import calc_PMV as calc_PMV
 from .archenv import calc_PPD as calc_PPD
 from .archenv import calc_fungal_index as calc_fungal_index
@@ -54,6 +55,7 @@ __all_stable__ = [
 ]
 
 __all_experimental__ = [
+    "envelope_performance",
     "sun_loc",
     "make_wind",
     "nocturnal_gain_by_angles",
