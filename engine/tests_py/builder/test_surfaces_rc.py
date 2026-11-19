@@ -297,3 +297,31 @@ def test_surfaces_rc_legacy_layer_flags_are_not_supported():
         )
 
 
+
+
+@pytest.mark.parametrize("uw,area", [(4.65, 2.0), (6.51, 3.0), (1.60, 1.5)])
+def test_whole_window_u_includes_both_films_once(uw, area):
+    window = {"key": "A->B", "part": "glass", "area": area, "whole_window_u": uw}
+    wall = {"key": "A->C", "part": "wall", "area": 8, "u_value": 1.0}
+    _, branches = process_surfaces([window, wall], sim_length=1, add_radiation=True)
+    assert all(b["subtype"] != "radiation" for b in branches)
+    chain = branches[:3]
+    assert [b["subtype"] for b in chain] == ["convection", "conduction", "convection"]
+    assert 1 / sum(1 / b["conductance"] for b in chain) == pytest.approx(area * uw)
+    for extra in ({"u_value": uw}, {"layers": []}, {"alpha_i": 1.0}):
+        with pytest.raises(ValueError):
+            process_surfaces([{**window, **extra}], sim_length=1)
+
+
+@pytest.mark.parametrize("include_floor", [False, True])
+def test_whole_window_solar_gain_is_conserved(include_floor):
+    window = {"key": "A->B", "part": "glass", "area": 2, "whole_window_u": 4.65,
+              "SCC": 0.158, "SCR": 0.474, "solar": [500, 0]}
+    surfaces = [window, {"key": "A->C", "part": "wall", "area": 4, "u_value": 1, "eta": 0.65}]
+    if include_floor:
+        surfaces.append({"key": "A->D", "part": "floor", "area": 6, "u_value": 1})
+    _, branches = process_surfaces(surfaces, sim_length=2)
+    gains = [b for b in branches if b["subtype"] == "solar_gain"]
+    assert sum(b["heat_generation"][0] for b in gains if b["key"] != "void->A") == pytest.approx(474)
+    assert sum(b["heat_generation"][0] for b in gains if b["key"] == "void->A") == pytest.approx(158)
+    assert all(b["heat_generation"][1] == 0 for b in gains)

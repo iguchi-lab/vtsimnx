@@ -81,8 +81,25 @@ def process_glass_solar(surface: dict, surfaces: list, sim_length: int, verbose:
     scc = surface.get("SCC", surface.get("scc", 0.0))
 
     base = np.array(surface["solar"]) * surface["area"]
-    heat_generation_floor        = base * 0.50 * scr
-    heat_generation_ceiling_wall = base * 0.50 * scr
+    floor_share = 0.50
+    if surface.get("whole_window_u") is not None and scr:
+        # SCR is already the room-side gain. Weight absorption within each group,
+        # conserving the gain even when a room has only one receiving group.
+        def absorbing_area(parts):
+            return sum(area * float(s.get("eta", DEFAULT_ETA_SW))
+                       for s, _, part, area in room_side_surfaces if part in parts)
+
+        area_floor = absorbing_area({"floor"})
+        area_ceiling_wall = absorbing_area({"ceiling", "wall"})
+        if not (area_floor or area_ceiling_wall):
+            if np.any(base):
+                raise ValueError(f"{surface['key']}: SCR を受ける床・壁・天井の吸収面が必要です")
+        elif not area_floor:
+            floor_share = 0.0
+        elif not area_ceiling_wall:
+            floor_share = 1.0
+    heat_generation_floor        = base * floor_share * scr
+    heat_generation_ceiling_wall = base * (1 - floor_share) * scr
     heat_generation_space        = base * scc
 
     heat_generation_floor        = ensure_timeseries(heat_generation_floor,        sim_length)
