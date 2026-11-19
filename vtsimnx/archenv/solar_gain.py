@@ -19,7 +19,7 @@ def eta(c):
     return c * (2.3920 + c2 * (-3.8636 + c2 * (3.7568 + c2 * (-1.3968))))
 
 
-def _select_target_surface(out: pd.DataFrame, *, glass: bool) -> pd.DataFrame:
+def _select_target_surface(out: pd.DataFrame, *, glass: bool, normalize_glass: bool = False) -> pd.DataFrame:
     """壁面/ガラス面の内訳列を統一キーへそろえる。"""
     result = pd.DataFrame(index=out.index)
     result[C.COS_INCIDENCE] = out[C.COS_INCIDENCE]
@@ -33,6 +33,11 @@ def _select_target_surface(out: pd.DataFrame, *, glass: bool) -> pd.DataFrame:
         result[C.DIFFUSE_SKY_ON_SURFACE] = out[C.DIFFUSE_SKY_ON_SURFACE]
         result[C.DIFFUSE_GROUND_REFLECTED] = out[C.DIFFUSE_GROUND_REFLECTED]
         result[C.SOLAR_GAIN] = out[C.SOLAR_GAIN_WALL]
+    if normalize_glass:
+        if not glass:
+            raise ValueError("normalize_glass requires glass=True")
+        flux_columns = [C.BEAM_ON_SURFACE, C.DIFFUSE_SKY_ON_SURFACE, C.DIFFUSE_GROUND_REFLECTED, C.SOLAR_GAIN]
+        result[flux_columns] = result[flux_columns] / eta(1.0)
     return result
 
 
@@ -352,6 +357,7 @@ def solar_gain_by_angles(
     dni: pd.Series | None = None,
     dhi: pd.Series | None = None,
     glass: bool = False,
+    normalize_glass: bool = False,
     return_details: bool = False,
     use_astro: bool = False,
     time_alignment: str = "timestamp",
@@ -404,7 +410,7 @@ def solar_gain_by_angles(
         albedo=albedo,
         glass_tau_diffuse=glass_tau_diffuse,
     )
-    result = _select_target_surface(out, glass=glass)
+    result = _select_target_surface(out, glass=glass, normalize_glass=normalize_glass)
 
     if not return_details:
         return result[C.SOLAR_GAIN].rename(C.SOLAR_GAIN)
@@ -426,6 +432,7 @@ def solar_gain_by_angles_with_shade(
     dni: pd.Series | None = None,
     dhi: pd.Series | None = None,
     glass: bool = False,
+    normalize_glass: bool = False,
     return_details: bool = False,
     use_astro: bool = False,
     time_alignment: str = "timestamp",
@@ -507,7 +514,7 @@ def solar_gain_by_angles_with_shade(
         glass_tau_diffuse=glass_tau_diffuse,
     )
     out = _apply_shade_to_direct_components(out, sunlit)
-    result = _select_target_surface(out, glass=glass)
+    result = _select_target_surface(out, glass=glass, normalize_glass=normalize_glass)
 
     result[C.SHADE_RATIO] = eta_shade
     result[C.SUNLIT_RATIO] = sunlit

@@ -98,3 +98,13 @@ def test_no_warmup_keeps_length():
     out = build_config(_year_raw(), output_path=None, add_surface=False)
     assert out["simulation"]["index"]["length"] == 365
     assert "warmup" not in out["simulation"]
+
+
+def test_time_axis_is_extended_without_changing_response_coefficients():
+    raw = _year_raw(warmup="12-15")
+    matrix = [[i, -i] for i in range(365)]
+    raw["nodes"][0]["c"] = matrix
+    raw["thermal_branches"][0]["resp_a_src"] = list(range(365))
+    apply_typical_year_warmup(raw)
+    assert raw["nodes"][0]["c"] == matrix[-17:] + matrix
+    assert raw["thermal_branches"][0]["resp_a_src"] == list(range(365))

@@ -46,7 +46,8 @@ def _number(value, name, *, positive=False, maximum=None):
 
 def _u(surface, spec):
     if spec["kind"] == "window" and spec.get("U") is None:
-        if surface.get("whole_window_u") is not None:
+        has_rating_spec = any(spec.get(k) is not None for k in ("frame_type", "glass_type", "gap_mm", "gap_gas", "attachment"))
+        if not has_rating_spec and surface.get("whole_window_u") is not None:
             return _number(surface["whole_window_u"], "whole_window_u", positive=True)
         return D(str(window_u({**surface, **{k: v for k, v in spec.items() if v is not None}})))
     if "U" in spec:

@@ -12,13 +12,16 @@ from vtsimnx.run_calc import _http
 from vtsimnx.tests.test_run_retry import Session, response
 
 
+@pytest.mark.parametrize("warmup", [False, True])
 @pytest.mark.parametrize("from_environment", [False, True])
-def test_resumed_result_matches_run_calc_without_resubmission(monkeypatch, tmp_path, from_environment):
+def test_resumed_result_matches_run_calc_without_resubmission(monkeypatch, tmp_path, from_environment, warmup):
     calls = []
     index = {"start": "2026-07-29T00:00:00", "length": 2, "timestep": 3600}
     output = {"result": {"status": "ok", "artifact_dir": "saved-artifacts", "index": index,
                          "log": {"text": "saved log"},
                          "result_files": {"schema": "schema.json", "thermal_temperature": "t.f32.bin"}}}
+    if warmup:
+        output["result"]["warmup"] = {"steps": 1, "eval_length": 1}
     schema = {"dtype": "f32le", "layout": "timestep-major", "length": 2,
               "series": {"thermal_temperature": {"keys": ["room"]}}}
 
@@ -73,8 +76,8 @@ def test_resumed_result_matches_run_calc_without_resubmission(monkeypatch, tmp_p
         assert len(calls) == 3  # No artifact requests before series access.
         got = resumed.get_series_df("thermal_temperature")
         pd.testing.assert_frame_equal(got, original.get_series_df("thermal_temperature"))
-        assert list(got.iloc[:, 0]) == [26., 26.5]
-        assert got.index.equals(pd.date_range(index["start"], periods=2, freq="h"))
+        assert list(got.iloc[:, 0]) == [26., 26.5][int(warmup):]
+        assert got.index.equals(pd.date_range(index["start"], periods=2, freq="h")[int(warmup):])
         assert all(call[2] == "test-resume-key" for call in calls)
         assert sum(call[0] == "POST" for call in calls) == 1
     finally:

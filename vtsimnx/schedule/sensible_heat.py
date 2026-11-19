@@ -20,8 +20,13 @@ OCCUPANT_REF_TEMP_C = 24.0
 OCCUPANT_LATENT_AT_24C_W = OCCUPANT_TOTAL_W - OCCUPANT_SENSIBLE_AT_24C_W
 
 
-def occupant_sensible_latent_w(t_c: float) -> tuple[float, float]:
-    """1人あたりの顕熱・潜熱 [W]。全熱 106 W を保ち、顕熱は 0〜106 W。"""
+def occupant_sensible_latent_w(t_c: float, *, occupant_model: str = "simheat") -> tuple[float, float]:
+    """1人あたりの顕熱・潜熱 [W]。年間プロファイルでは参照温度24℃を使う。"""
+    if occupant_model == "bri":
+        sensible = min(63.0 - 4.0 * (float(t_c) - 24.0), 119.0)
+        return sensible, 119.0 - sensible
+    if occupant_model != "simheat":
+        raise ValueError("occupant_model must be simheat or bri")
     sensible = OCCUPANT_SENSIBLE_AT_24C_W - OCCUPANT_SENSIBLE_PER_K * (float(t_c) - OCCUPANT_REF_TEMP_C)
     sensible = min(max(sensible, 0.0), OCCUPANT_TOTAL_W)
     return sensible, OCCUPANT_TOTAL_W - sensible
@@ -397,14 +402,17 @@ def _validate_sensible_heat_profiles(profiles):
                 )
 
 
-def build_sensible_heat_schedule(*, holiday_days=holiday):
+def build_sensible_heat_schedule(*, holiday_days=holiday, occupant_model="simheat"):
     """
     顕熱（sensible heat）スケジュールを生成する。
     """
     out = {}
+    scale = occupant_sensible_latent_w(24.0, occupant_model=occupant_model)[0] / OCCUPANT_SENSIBLE_AT_24C_W
     for room, by_use in sensible_heat_profiles.items():
         # 用途（人体/照明/機器…）ごとに 8760 を生成する（合算しない）
         out[room] = _build_room_sensible_heat(by_use, holiday_days=holiday_days)
+        if "人体" in out[room] and scale != 1:
+            out[room]["人体"] = [value * scale for value in out[room]["人体"]]
     return out
 
 

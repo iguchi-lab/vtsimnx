@@ -10,7 +10,7 @@ import numpy as np
 from vtsimnx.archenv import Vap_L  # [kJ/kg]
 
 from .common import HOURS_PER_DAY, holiday, make_8760_by_holiday
-from .sensible_heat import OCCUPANT_LATENT_AT_24C_W, OCCUPANT_SENSIBLE_AT_24C_W, sensible_heat_profiles
+from .sensible_heat import occupant_sensible_latent_w, OCCUPANT_LATENT_AT_24C_W, OCCUPANT_SENSIBLE_AT_24C_W, sensible_heat_profiles
 
 
 # 1 人あたりの潜熱発熱 [W]（作業強度2、24℃）
@@ -116,7 +116,7 @@ def _validate_latent_moisture_profiles(profiles):
                 )
 
 
-def build_latent_moisture_schedule(*, holiday_days=holiday):
+def build_latent_moisture_schedule(*, holiday_days=holiday, occupant_model="simheat"):
     """
     潜熱由来の水分発生スケジュール（kg/s）を生成する。
 
@@ -130,8 +130,11 @@ def build_latent_moisture_schedule(*, holiday_days=holiday):
       }
     """
     out: dict[str, dict[str, np.ndarray]] = {}
+    scale = occupant_sensible_latent_w(24.0, occupant_model=occupant_model)[1] / LATENT_POWER_PER_PERSON_W
     for room, by_use in latent_moisture_profiles.items():
         out[room] = _build_room_latent_moisture(by_use, holiday_days=holiday_days)
+        if "人体" in out[room] and scale != 1:
+            out[room]["人体"] = [value * scale for value in out[room]["人体"]]
     return out
 
 

@@ -11,7 +11,8 @@ def rating_template(model="default", *, region=6):
 
     foundation = model.startswith("foundation")
     rows = surface_rows[model]
-    opening_data = OPENING_PROPERTIES.get(int(model[-1]), {}) if model != "default" else {}
+    grade = 4 if model == "default" else int(model[-1])
+    opening_data = OPENING_PROPERTIES.get(grade, {})
     types = surface_types[model]
     outside_nodes = {"外部", "地下1m", "切妻", "片流れ(3)", "片流れ(4)"}
     if not foundation:
@@ -50,6 +51,13 @@ def rating_template(model="default", *, region=6):
             item["kind"] = "wall"
         if template in opening_data:
             item["U"] = opening_data[template][0]
+            if item["kind"] == "window":
+                glass = {5: "一般複層", 6: "Low-E二層・取得型", 7: "Low-E三層・複数膜・遮蔽型"}[grade]
+                # 各等級の UA.xlsx が指定する日射評価条件（和室も付属部材なし）。
+                item.update(frame_type="木製・樹脂製", glass_type=glass, attachment="なし")
+                if template == "S_和室_窓":
+                    bare_u = {5: 3.49, 6: 2.33, 7: 1.60}[grade]
+                    item["U"] = (bare_u + 1 / (1 / bare_u + 0.18)) / 2
         if adjacent == "外部":
             direction = template.split("_")[0]
             if direction not in {"E", "W", "S", "N"}:
@@ -67,6 +75,8 @@ def rating_template(model="default", *, region=6):
     }
     lines = [exterior]
     if foundation:
+        # InputFace 1階床の外周。南北向きの辺各7.28 m、東西向きの辺各10.465 m。
+        exterior["length"] = 2 * (10.465 + 7.28)
         exterior["wall_keys"] = [row["key"] for row in rows if row["surface"].endswith("_基礎外壁")]
     else:
         # 換気床下の外周は断熱境界外。玄関土間の外気側立上りの面積は独立入力。

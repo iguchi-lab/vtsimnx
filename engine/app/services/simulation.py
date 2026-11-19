@@ -129,6 +129,10 @@ def execute_simulation(
         solver_t0 = time.perf_counter()
         output = _call_run_solver(built_config, run_id=rid, cancel_event=cancel_event)
         solver_t1 = time.perf_counter()
+        sim = built_config.get("simulation", {})
+        if isinstance(sim.get("warmup"), dict) and sim["warmup"].get("steps"):
+            output["warmup"] = sim["warmup"]
+            output.setdefault("index", sim["index"])
 
         _progress("postprocess", "attaching artifacts")
         artifact_t0 = time.perf_counter()

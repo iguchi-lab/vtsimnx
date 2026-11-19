@@ -269,3 +269,8 @@ custom_pre_tmp = vt.schedule.build_pre_tmp()
 - 利用者向け最短導線: `builder_input_quickstart.md`
 - ノード/ブランチの早見表: `node_branch_schema.md`
 - 空調制御の詳細仕様（必要時のみ）: `engine/docs/aircon_control_overview.md`
+
+
+### 人体顕熱と発湿の根拠
+
+`build_sensible_heat_schedule(occupant_model="simheat")` と `build_latent_moisture_schedule(occupant_model="simheat")` は既定のSimHeat比較用で、非住宅の作業強度2に対応する全熱106 W、24℃で顕熱62 W・潜熱44 Wを用います。両方の引数を `"bri"` にすると建研の住宅用モデルの24℃値（119 W、63 W・56 W）で年間系列を作ります。在室人数と照明・機器の値は共通です。どちらも固定温度の配分で、前ステップの室温には連動しません。任意温度の1人あたりの配分は `occupant_sensible_latent_w(t_c, occupant_model=...)` で取得できます。建研式は顕熱を min(63 − 4 × (室温 − 24), 119) W とします。[住宅用負荷計算の実装](https://github.com/BRI-EES-House/heat_load_calc/blob/master/heat_load_calc/occupants.py)

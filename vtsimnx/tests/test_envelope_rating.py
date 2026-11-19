@@ -141,6 +141,7 @@ def test_window_spec_to_rating_and_solver_inputs():
     window = {"key": "窓", "area": 2}
     assessment = {"parts": [dict(spec, keys=["窓"], kind="window", H=1, directions=["S"])],
                   "region": 6, "excluded": [], "lines": []}
+    window["whole_window_u"] = 5.0
     assert vt.envelope_performance({"surfaces": [window]}, assessment)["q"] == pytest.approx(9.3)
     with pytest.warns(UserWarning, match="対流割合"), pytest.raises(ValueError, match="convective_fraction"):
         vt.window_properties(**spec)
@@ -151,3 +152,19 @@ def test_window_spec_to_rating_and_solver_inputs():
     assert props["surface"]["SCC"] == 0.1 and props["surface"]["SCR"] == 0.2
     explicit = vt.window_properties(**{**spec, "attachment": "和障子"}, U=3.7, SCC=0.1, SCR=0.2)
     assert explicit["surface"]["whole_window_u"] == 3.7
+
+
+@pytest.mark.parametrize("grade,bare,eta", [(5, 3.49, .5688), (6, 2.33, .4608), (7, 1.6, .2376)])
+def test_standard_window_rating(grade, bare, eta):
+    from vtsimnx.window_rating import window_eta
+
+    for model in (f"grade{grade}", f"foundation{grade}"):
+        template = vt.standard_house.rating_template(model)
+        windows = [part for part in template["parts"] if part["kind"] == "window"]
+        for part in windows:
+            solar = window_eta(part, {"key": part["keys"][0]}, ("C", "H"))
+            assert float(solar["C"]) == float(solar["H"]) == eta
+        shoji, = [part for part in windows if "和室" in part["keys"][0]]
+        assert shoji["U"] == pytest.approx((bare + 1 / (1 / bare + .18)) / 2)
+        if model.startswith("foundation"):
+            assert template["lines"][0]["length"] == pytest.approx(35.49)

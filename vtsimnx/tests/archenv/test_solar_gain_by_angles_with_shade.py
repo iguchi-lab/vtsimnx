@@ -253,3 +253,16 @@ def test_solar_gain_by_angles_with_shade_eta_zero_when_sun_below_horizon():
 
     assert float(out.iloc[0, 9]) <= 0.0  # solar_altitude_deg
     assert np.isclose(float(out.iloc[0, 5]), 0.0, atol=1e-12)  # shade_ratio
+
+
+def test_normalized_glass_uses_normal_incidence_reference():
+    from vtsimnx.archenv.solar_gain import eta
+
+    idx = pd.date_range("2026-06-21 12:00", periods=2, freq="h")
+    args = dict(azimuth_deg=0., tilt_deg=90., dni=pd.Series(800., index=idx),
+                dhi=pd.Series(100., index=idx), glass=True)
+    shaded = dict(window_width=2., window_height=2., shade_coords=[(-1., 1., 0.), (1., 1., 0.), (1., 1., 1.), (-1., 1., 1.)])
+    for func, options in ((vt.solar_gain_by_angles, {}), (vt.solar_gain_by_angles_with_shade, shaded)):
+        previous = func(**args, **options)
+        normalized = func(**args, **options, normalize_glass=True)
+        np.testing.assert_allclose(normalized, previous / eta(1.))
