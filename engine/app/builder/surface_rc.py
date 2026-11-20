@@ -38,7 +38,7 @@ def _build_rc_continuous_abcd(
     B = np.zeros((n, 2), dtype=float)
     g_s = invR(R_half[0])
     if n == 1:
-        g_t = invR(R_half[0])
+        g_t = invR(R_half[-1])
         A[0, 0] = -(g_s + g_t) / C[0] if C[0] > 0 else 0.0
         B[0, 0] = g_s / C[0] if C[0] > 0 else 0.0
         B[0, 1] = g_t / C[0] if C[0] > 0 else 0.0

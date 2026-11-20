@@ -50,6 +50,17 @@ def _auto_response_coefficients_from_layers(
         raise ValueError(f"time_step must be positive, got {dt}")
 
     n, lam, thk, vc, C, R_half, R_between = _layers_to_rc_arrays(layers)
+    massive = np.flatnonzero(C > 0)
+    if 0 < len(massive) < n:
+        # Massless layers add series resistance, not a temperature memory state.
+        resistance = thk / lam
+        first, last = massive[0], massive[-1]
+        ends = [sum(resistance[:first]) + R_half[first], R_half[last] + sum(resistance[last + 1:])]
+        R_between = np.array([R_half[i] + sum(resistance[i + 1:j]) + R_half[j]
+                              for i, j in zip(massive[:-1], massive[1:])])
+        R_half = np.array(ends)
+        C = C[massive]
+        n = len(massive)
     A, B, Cmat, Dmat = _build_rc_continuous_abcd(n, C, R_half, R_between)
 
     # 離散化（Backward Euler）: x_k = (I - dt*A)^-1 x_{k-1} + (I - dt*A)^-1 (dt*B) u_k
