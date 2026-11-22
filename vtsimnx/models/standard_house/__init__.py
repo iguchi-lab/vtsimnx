@@ -16,13 +16,16 @@ from typing import Any
 
 from .catalog import PartCatalog, snapshot
 from .envelope import (
+    GEOMETRIC_VOLUME,
     M_CAPA_PER_M3,
     ROOM_VOLUME,
     SURFACE_ROWS,
     T_CAPA_PER_M3,
     U_VALUE_WINDOW,
+    WHOLE_OPENING_U,
     bind_surface_types,
     compose_surfaces,
+    face_to_face_u,
     make_layers,
     make_surface_types,
     room_nodes,
@@ -121,6 +124,9 @@ __all__ = [
     "T_CAPA_PER_M3",
     "M_CAPA_PER_M3",
     "U_VALUE_WINDOW",
+    "WHOLE_OPENING_U",
+    "GEOMETRIC_VOLUME",
+    "face_to_face_u",
     "HEAT_RATIO",
     "rooms",
     "layers",

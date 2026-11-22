@@ -131,8 +131,14 @@ def test_simheat_geometry_and_parts():
     assert h.LON_DEG == pytest.approx(139.76)
     assert h.WARMUP_START == "12-15"
     types = h.surface_types["default"]
-    assert types["W_玄関ドア"]["u_value"] == pytest.approx(4.65)
-    assert types["N_台所ドア"]["u_value"] == pytest.approx(4.65)
+    face_u = h.face_to_face_u(h.WHOLE_OPENING_U)
+    assert types["W_玄関ドア"]["u_value"] == pytest.approx(face_u)
+    assert types["N_台所ドア"]["u_value"] == pytest.approx(face_u)
+    assert types["S_LD_窓"]["u_value"] == pytest.approx(face_u)
+    assert types["S_LD_窓"]["alpha_o"] == pytest.approx(20.3)
+    assert types["S_LD_窓"]["alpha_i"] == pytest.approx(4.4)
+    # 面間Uは全体Uから対流+放射フィルムを除いて導出する
+    assert 1 / (1 / face_u + 1 / 25.0 + 1 / 9.1) == pytest.approx(h.WHOLE_OPENING_U)
     assert types["S_子供室1_窓"]["SCR"] == pytest.approx(0.446099)
     assert types["S_子供室1_窓"]["SCC"] == pytest.approx(0.136472)
     assert types["S_子供室2_窓"]["SCR"] == pytest.approx(0.446099)
@@ -140,6 +146,19 @@ def test_simheat_geometry_and_parts():
     win = h.solar_plane["window_shade"]["日射熱取得量（子供室1_南面ガラス）"]
     assert win["window_width"] == pytest.approx(1.65)
     assert win["window_height"] == pytest.approx(1.95)
+
+
+def test_crawl_attic_volumes_follow_simheat_horizontal_rule():
+    h = vt.standard_house
+    rooms = h.rooms["default"]
+    assert rooms["床下"] == pytest.approx(65.42 * 0.5)
+    assert rooms["切妻"] == pytest.approx(52.18 * 0.9)
+    assert rooms["片流れ(3)"] == pytest.approx(12.42 * 0.9)
+    assert rooms["片流れ(4)"] == pytest.approx(3.31 * 0.9)
+    assert h.GEOMETRIC_VOLUME["床下"] == pytest.approx(13.08)
+    vent = {row["key"]: row["vol"] for row in h.ventilation["24h"]}
+    assert vent["外部->床下->外部"] == pytest.approx(rooms["床下"] * 5.0 / 3600)
+    assert vent["外部->切妻->外部"] == pytest.approx(rooms["切妻"] * 5.0 / 3600)
 
 
 def test_room_nodes_omit_weather_boundaries():
