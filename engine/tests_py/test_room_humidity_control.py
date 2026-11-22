@@ -1,5 +1,7 @@
 """Room humidistat modes: independent room balances and infeasible targets."""
 from copy import deepcopy
+from pathlib import Path
+import json
 
 import numpy as np
 import pytest
@@ -12,6 +14,11 @@ from tests_py.physics.test_coil_latent_continuity import _raw_coil_case
 from vtsimnx.archenv.archenv import humidity_ratio_from_rh
 
 
+def _load_ideal_room_load_single_room_case():
+    path = Path(__file__).resolve().parents[1] / "app" / "test_json" / "ideal_room_load_single_room.json"
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def case(mode="temperature_humidity", *, moist=False, outside_t=26.0, x=0.018, count=6):
     raw = _raw_coil_case([x] * count, duct=True, moist=moist)
     raw["nodes"][0]["t"] = outside_t
@@ -21,7 +28,7 @@ def case(mode="temperature_humidity", *, moist=False, outside_t=26.0, x=0.018, c
               control_mode=mode, max_overcooling=2.0)
     ac["ac_spec"]["Q"]["cooling"]["max"] = 20.0
     ac["ac_spec"]["Q"]["cooling"]["min"] = 0.01
-    if mode != "temperature_priority":
+    if mode in {"humidity_priority", "temperature_humidity"}:
         ac["ac_spec"]["latent_method"] = "ideal_coil"
     return raw
 
@@ -293,6 +300,38 @@ def test_selected_coil_temperature_limit_reports_unmet(method):
 def test_naturally_cool_room_is_not_cooling_temperature_unmet():
     s = run(case("temperature_priority", outside_t=22.0))
     assert max(s("aircon_temperature_unmet", "AC")) == 0
+
+
+def test_ideal_room_load_does_not_start_for_humidity_only():
+    raw = case("ideal_room_load")
+    raw["aircon"][0].pop("pre_rh", None)
+    s = run(raw)
+    assert np.allclose(s("thermal_temperature", "room"), 26.0, atol=0.01)
+    assert max(abs(s("aircon_sensible_heat", "AC"))) == 0
+    assert max(abs(s("aircon_latent_heat", "AC"))) == 0
+    assert max(abs(s("aircon_power", "AC"))) == 0
+    assert max(abs(s("aircon_humidity_unmet", "AC"))) == 0
+
+
+def test_ideal_room_load_starts_for_sensible_cooling_and_reports_power():
+    raw = case("ideal_room_load", outside_t=36.0, x=0.012)
+    raw["aircon"][0].pop("pre_rh", None)
+    s = run(raw)
+    assert min(s("aircon_sensible_heat", "AC")) > 10.0
+    assert min(s("aircon_power", "AC")) > 1.0
+
+
+def test_ideal_room_load_single_room_fixture_matches_simheat_start_rule():
+    # Fixed Sim/Heat-style fixture:
+    # hours 0-2 cool outdoor / high humidity → no start
+    # hours 3-5 hot outdoor → sensible cooling + power
+    s = run(_load_ideal_room_load_single_room_case())
+    qs = s("aircon_sensible_heat", "AC")
+    power = s("aircon_power", "AC")
+    assert max(abs(qs[:3])) == 0
+    assert max(abs(power[:3])) == 0
+    assert min(qs[3:]) > 10.0
+    assert min(power[3:]) > 1.0
 
 
 @pytest.mark.parametrize("target", [56.0, 58.0])

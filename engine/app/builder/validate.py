@@ -714,9 +714,9 @@ def validate_node_config(
                 validate_aircon_spec(node)
             except ValueError as exc:
                 errors.append(f"ノード {node['key']}: {exc}")
-            if control not in ("temperature_priority", "humidity_priority", "temperature_humidity"):
+            if control not in ("temperature_priority", "humidity_priority", "temperature_humidity", "ideal_room_load"):
                 errors.append(f"ノード {node['key']} の control_mode が不正です: {control}")
-            if control != "temperature_priority":
+            if control in ("humidity_priority", "temperature_humidity"):
                 if not sim_config["calc_flag"]["x"]:
                     errors.append(f"ノード {node['key']}: 湿度制御には calc_flag.x=true が必要です")
                 if node.get("pre_rh") is None:
@@ -745,7 +745,7 @@ def validate_node_config(
                 for idx, val in enumerate(rh_series):
                     if _is_nan_like(val):
                         requested_mode = ensure_timeseries(mode, sim_length)[idx]
-                        if control != "temperature_priority" and requested_mode in ("COOLING", 2):
+                        if control in ("humidity_priority", "temperature_humidity") and requested_mode in ("COOLING", 2):
                             errors.append(f"ノード {node['key']}: 冷房時の湿度制御には有効な pre_rh が必要です")
                         # 当該時刻は理想除湿オフ（従来 latent_method）
                         continue

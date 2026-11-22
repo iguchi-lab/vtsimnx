@@ -8,6 +8,7 @@ ACは **LD・寝室・子供室1・子供室2に各1台** で、ケース識別�
 | 標準住宅・基本ケース（AC4台） | [`engine/app/test_json/vs_simheat_8760.json`](../engine/app/test_json/vs_simheat_8760.json)、`standard_house_ac4` | 保存済み年間8760時間の基本入力。換気は固定流量で、窓・建具の圧力依存の隙間は含まない |
 | 標準住宅・隙間追加ケース（AC4台） | `sim検討2/sim8760_001.ipynb` で入力作成、`隙間比較_003.ipynb` で集計 | Issue #33の対象。[元入力の特定・再現記録](gap_house_replay_2026-11-15.md)。基本JSONだけでは元の停止条件を再現できない |
 | 全館空調・湿度方式の比較ケース | AC1台など、空調構成を変更した派生入力 | 過去の年間24条件の比較。AC4台の基本ケースの検証とは区別する |
+| 単室・ideal_room_load | [`engine/app/test_json/ideal_room_load_single_room.json`](../engine/app/test_json/ideal_room_load_single_room.json) | Sim/Heat起動判定の照合用。顕熱要求時のみ起動し、処理熱量と電力を出力する。湿度超過だけでは起動しない |
 
 建物の部品は `vt.standard_house` にあります。気象は含めません。換気は `ventilation["24h"]`、空調は `aircon["ac4"]` を選んだあと差し替えできます。組み立て例は [`examples/vs_simheat_sample.py`](../examples/vs_simheat_sample.py) です。
 保存済みJSONと、新しくPythonから作成した入力の同一性は、気象・スケジュール等も含めて確認してください。
@@ -227,3 +228,11 @@ input_data["surfaces"] = h.compose_surfaces(h.surface_rows[grade], catalog)
 厚さ、断面面積比、17窓と外部ドアの面積・熱性能、窓の日射係数を設定しています。
 屋根・小屋裏の外界側、地盤は標準住宅の共通仕様です。
 年間比較では空調を設定せず、12月15～31日の408時間を入力の先頭に加え、評価時に助走期間を除きます。
+
+### 単室 ideal_room_load の照合
+
+標準住宅AC4台とは別に、Sim/Heatの冷房起動判定を単室で固定確認するケースがある。
+入力は [`engine/app/test_json/ideal_room_load_single_room.json`](../engine/app/test_json/ideal_room_load_single_room.json)。
+`control_mode="ideal_room_load"` とし、外気が涼しい高湿度時間は停止、暑い時間は顕熱と電力を出力する。
+湿度超過だけでは起動しない。詳細は [室温・室湿度の制御モード](aircon_room_humidity_modes.md#simheat照合用の-ideal_room_load) を参照。
+
