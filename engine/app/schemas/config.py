@@ -196,7 +196,9 @@ class NodeModel(_StrictExtraBase):
         description="エアコン設定温度",
         json_schema_extra=field_extra(TEMPERATURE_C),
     )
-    control_mode: Literal["temperature_priority", "humidity_priority", "temperature_humidity"] = "temperature_priority"
+    control_mode: Literal[
+        "temperature_priority", "humidity_priority", "temperature_humidity", "ideal_room_load"
+    ] = "temperature_priority"
     max_overcooling: float = Field(default=2.0, ge=0.0, allow_inf_nan=False, description="湿度優先時の許容過冷却幅 [K]（有限の非負値）")
     min_coil_temperature: float = Field(default=5.0, ge=0.0, le=20.0, description="冷却コイルの最低温度 [℃]。BF・Ao/Afでは温度優先にも適用")
     reheat_cop: float = Field(default=1.0, gt=0.0, description="温湿度満足時の再熱COP（既定は電気ヒーター）")
@@ -527,7 +529,9 @@ class AirconModel(_StrictExtraBase):
         description="設定温度",
         json_schema_extra=field_extra(TEMPERATURE_C),
     )
-    control_mode: Literal["temperature_priority", "humidity_priority", "temperature_humidity"] = "temperature_priority"
+    control_mode: Literal[
+        "temperature_priority", "humidity_priority", "temperature_humidity", "ideal_room_load"
+    ] = "temperature_priority"
     max_overcooling: float = Field(default=2.0, ge=0.0, allow_inf_nan=False, description="湿度優先時の許容過冷却幅 [K]（有限の非負値）")
     min_coil_temperature: float = Field(default=5.0, ge=0.0, le=20.0, description="冷却コイルの最低温度 [℃]。BF・Ao/Afでは温度優先にも適用")
     reheat_cop: float = Field(default=1.0, gt=0.0, description="温湿度満足時の再熱COP（既定は電気ヒーター）")

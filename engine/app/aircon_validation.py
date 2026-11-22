@@ -6,7 +6,8 @@ from typing import Any
 def validate_aircon_spec(node: dict[str, Any]) -> None:
     spec = node.get("ac_spec") or {}
     control = node.get("control_mode", "temperature_priority")
-    default = "rh95" if control == "temperature_priority" else "ideal_coil"
+    humidity_control = control in {"humidity_priority", "temperature_humidity"}
+    default = "ideal_coil" if humidity_control else "rh95"
     method = spec.get("latent_method", default)
     if not isinstance(method, str) or method.lower() not in {
         "rh95", "rh100", "none", "bf", "coil_aoaf", "aoaf", "literature", "ideal_coil",
@@ -15,8 +16,8 @@ def validate_aircon_spec(node: dict[str, Any]) -> None:
     method = method.lower()
     if control == "temperature_humidity" and method not in {"none", "rh100", "ideal_coil"}:
         raise ValueError("temperature_humidity latent_method must be ideal_coil (none/rh100 aliases)")
-    if control == "temperature_priority" and method == "ideal_coil":
-        raise ValueError("latent_method=ideal_coil requires a room humidity control mode; use rh100 for temperature priority")
+    if not humidity_control and method == "ideal_coil":
+        raise ValueError("latent_method=ideal_coil requires humidity control mode; use rh100 for temperature/ideal_room_load")
     if "bf_flow_correction" in spec and not isinstance(spec["bf_flow_correction"], bool):
         raise ValueError("ac_spec.bf_flow_correction must be a boolean")
     for key in ("bf", "BF", "bypass_factor", "bf_reference_flow_rate", "Af", "Ao", "coil_face_area", "coil_surface_area"):

@@ -9,6 +9,7 @@
 | `temperature_priority` | 室温要求で運転し、`latent_method` に従って冷却に伴う除湿だけを行う。`pre_rh` は室RHの未達評価に使い、吹出湿度の強制指定や湿度単独の運転はしない。 |
 | `humidity_priority` | 室湿度の要求でも運転する。指定した `latent_method` による冷却除湿を行い、室温を設定温度から `max_overcooling` K まで下げられる。再熱は行わない。 |
 | `temperature_humidity` | 室温設定と室RH上限の両立を目指す。理想コイルで除湿し、必要に応じて再熱する。冷却コイル能力が不足する場合は温度を優先し、残る湿度超過を出力する。 |
+| `ideal_room_load` | Sim/Heat照合向け。顕熱冷房が必要な時間だけ運転し、風量調整・機器電力計算は温度優先と同じ経路を使う。湿度超過だけでは起動せず、再熱・湿度起動は行わない。 |
 
 新しい2モードの `pre_rh=60` は、**設定対象室のRHを60％以下にする除湿要求**を意味する。
 乾燥時には加湿しない。湿度優先のRHは実際の室温で評価する。
@@ -34,7 +35,7 @@
 ```
 
 これは既存入力の空調部分の抜粋。別途 `ac_spec`、参照ノード、換気・熱回路を指定する。
-`calc_flag.x=true`、設定対象室の `calc_x=true` / `calc_t=true` が必要。
+`humidity_priority` と `temperature_humidity` では `calc_flag.x=true`、設定対象室の `calc_x=true` / `calc_t=true` が必要。
 新モードでは `COOLING` / `HEATING` / `OFF` を明示し、`AUTO` は使用しない。
 暖房時は従来の温度制御、停止時は除湿を行わない。各時刻の設定温度・湿度を使用する。
 
@@ -54,6 +55,8 @@
 `temperature_humidity` は `ideal_coil`（省略時、`none` / `rh100` も同義）と再熱を使用する。その他の潜熱方式との組合せは入力エラーになる。指定された `max_overcooling` は使用しないため、builder が警告する。
 吸込・吹出・設定対象室は別室にできる。除湿目標は湿気回路網を用いて、発湿、外気流入、
 水分蓄積、材料との水分交換を含めて算定する。室湿度の結果値を直接固定・切り詰めない。
+
+`ideal_room_load` は湿度制御モードではない。既定 `latent_method` は `rh95` で、`ideal_coil` は入力エラーになる。`pre_rh` は未達評価に使えるが、湿度単独での起動には使わない。
 
 `max_overcooling` の既定値は2 K（有限の非負値。10 K の上限は撤廃）。温度が下限より低いとき、湿度優先は
 除湿のための加熱を行わず、湿度未達を残す。`min_coil_temperature` の既定値は5℃（0～20℃）。
@@ -116,6 +119,22 @@ ACが実際のコイル特性以上に除湿したことにしたりしない。
 
 検証は `engine/tests_py/test_room_humidity_control.py`、PQファンの起動・停止・再起動は
 `engine/tests_py/test_humidistat_fan_network.py`。従来条件の回帰検証も併用する。
+
+## Sim/Heat照合用の ideal_room_load
+
+`ideal_room_load` は、Sim/Heatの冷房起動に近い「顕熱要求がある時間だけ運転する」比較用モードである。
+湿度超過だけでは起動せず、再熱もしない。風量は負荷に応じて調整し、処理熱量と電力は既存系列で出力する。
+
+固定ケースは [`engine/app/test_json/ideal_room_load_single_room.json`](../engine/app/test_json/ideal_room_load_single_room.json)。
+外気条件を次の2区間に分け、起動判定を固定する。
+
+| 時刻 | 外気条件 | 期待される挙動 |
+|---|---|---|
+| 0〜2 | 22℃・高湿度 | 室温が設定以下のため停止。`aircon_sensible_heat` と `aircon_power` は0 |
+| 3〜5 | 36℃ | 顕熱冷房が必要となり起動。`aircon_sensible_heat` と `aircon_power` が正 |
+
+回帰テストは `test_ideal_room_load_single_room_fixture_matches_simheat_start_rule`。
+標準住宅AC4台の年間比較とは別系統であり、単室で起動判定だけを確認する。
 
 ## 旧「理想60％」条件の移行
 

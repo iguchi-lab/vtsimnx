@@ -7,7 +7,9 @@
 namespace aircon::humidity_control {
 
 inline bool enabled(const VertexProperties& n) {
-    return n.control_mode != "temperature_priority" &&
+    const bool humidityControl =
+        (n.control_mode == "humidity_priority" || n.control_mode == "temperature_humidity");
+    return humidityControl &&
            n.current_mode == "COOLING" && std::isfinite(n.current_pre_rh);
 }
 

@@ -99,7 +99,7 @@ void AirconController::initializeModels(ThermalNetwork& thermalNetwork,
         // 制御対象キーはモデル有無に関わらず全 aircon を登録する
         airconKeysOrdered_.push_back(node.key);
 
-        if (node.control_mode != "temperature_priority") {
+        if (node.control_mode == "humidity_priority" || node.control_mode == "temperature_humidity") {
             if (node.set_node.empty()) throw std::runtime_error("Humidistat requires set_node: " + node.key);
             const auto& room = thermalNetwork.getNode(node.set_node);
             if (!room.calc_x || !room.calc_t)

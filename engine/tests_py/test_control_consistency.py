@@ -80,6 +80,15 @@ def test_unsupported_humidistat_coil_combination_is_not_silently_ignored(mode):
         build_config(raw, output_path=None, add_surface=False, add_capacity=False)
 
 
+@pytest.mark.parametrize("mode", ["temperature_priority", "ideal_room_load"])
+def test_non_humidity_mode_rejects_ideal_coil(mode):
+    raw = cooling_case()
+    raw["aircon"][0].update(control_mode=mode)
+    raw["aircon"][0]["ac_spec"]["latent_method"] = "ideal_coil"
+    with pytest.raises((ValidationError, ValueError), match="latent_method"):
+        build_config(raw, output_path=None, add_surface=False, add_capacity=False)
+
+
 def fan_case(off_flow, initial_outdoor=32.0):
     raw = cooling_case("DUCT_CENTRAL", 20.0)
     raw["nodes"][0]["t"] = [initial_outdoor, 24.0, 24.0]

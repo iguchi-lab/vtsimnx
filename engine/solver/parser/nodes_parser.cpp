@@ -207,7 +207,7 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
 
         node.control_mode = nodeJson.value("control_mode", std::string("temperature_priority"));
         if (node.control_mode != "temperature_priority" && node.control_mode != "humidity_priority" &&
-            node.control_mode != "temperature_humidity")
+            node.control_mode != "temperature_humidity" && node.control_mode != "ideal_room_load")
             throw std::runtime_error(nodePrefix + ".control_mode is invalid");
         node.max_overcooling = parser_utils::getNumberIfPresent(nodeJson, "max_overcooling", nodePrefix, 2.0);
         node.min_coil_temperature = parser_utils::getNumberIfPresent(nodeJson, "min_coil_temperature", nodePrefix, 5.0);
@@ -216,9 +216,11 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
             !(node.min_coil_temperature >= 0.0 && node.min_coil_temperature <= 20.0) ||
             !(node.reheat_cop > 0.0) || !std::isfinite(node.reheat_cop))
             throw std::runtime_error(nodePrefix + ": invalid humidity control limits");
-        if (node.control_mode != "temperature_priority" && node.current_mode == "AUTO")
+        const bool humidityControl =
+            (node.control_mode == "humidity_priority" || node.control_mode == "temperature_humidity");
+        if (humidityControl && node.current_mode == "AUTO")
             throw std::runtime_error(nodePrefix + ": humidistat requires explicit COOLING/HEATING/OFF");
-        if (node.control_mode != "temperature_priority") {
+        if (humidityControl) {
             if (!config.at("simulation").at("calc_flag").value("x", false))
                 throw std::runtime_error(nodePrefix + ": humidistat requires calc_flag.x=true");
             const auto& modes = node.mode.empty() ? std::vector<std::string>{node.current_mode} : node.mode;

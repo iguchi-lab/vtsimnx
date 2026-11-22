@@ -1,0 +1,118 @@
+{
+  "comment": "単室・ideal_room_load のSim/Heat照合用固定ケース。時刻0-2は室温が設定以下で湿度超過でも停止、時刻3-5は顕熱冷房負荷で起動し顕熱・電力を出力する。",
+  "simulation": {
+    "index": {
+      "start": "2000-07-01T00:00:00",
+      "end": "2000-07-01T05:00:00",
+      "timestep": 3600,
+      "length": 6
+    },
+    "tolerance": {
+      "thermal": 0.001,
+      "convergence": 1e-06,
+      "coupling_humidity": 1e-08
+    },
+    "calc_flag": {
+      "p": false,
+      "t": true,
+      "x": true,
+      "c": false
+    },
+    "coupling": {
+      "moisture_enabled": true,
+      "moist_enthalpy_enabled": false
+    }
+  },
+  "nodes": [
+    {
+      "key": "outside",
+      "t": [22.0, 22.0, 22.0, 36.0, 36.0, 36.0],
+      "x": [0.014, 0.014, 0.014, 0.012, 0.012, 0.012]
+    },
+    {
+      "key": "room",
+      "t": 26.0,
+      "calc_t": true,
+      "x": 0.014,
+      "calc_x": true,
+      "v": 40.0
+    }
+  ],
+  "thermal_branches": [
+    {
+      "key": "outside->room",
+      "conductance": 1000.0
+    }
+  ],
+  "ventilation_branches": [
+    {
+      "key": "outside->room",
+      "vol": 0.05
+    },
+    {
+      "key": "room->outside",
+      "vol": 0.05
+    }
+  ],
+  "aircon": [
+    {
+      "key": "AC",
+      "set": "room",
+      "outside": "outside",
+      "in": "room",
+      "out": "room",
+      "pre_temp": 27.0,
+      "pre_rh": 50.0,
+      "mode": "COOLING",
+      "model": "RAC",
+      "control_mode": "ideal_room_load",
+      "vol": 0.1,
+      "ac_spec": {
+        "latent_method": "rh95",
+        "Q": {
+          "cooling": {
+            "min": 0.01,
+            "mid": 3.832323,
+            "rtd": 7.664646,
+            "max": 20.0
+          },
+          "heating": {
+            "min": 0.01,
+            "mid": 3.866996,
+            "rtd": 7.733992
+          }
+        },
+        "P": {
+          "cooling": {
+            "rtd": 2.41787
+          },
+          "heating": {
+            "rtd": 2.056912
+          }
+        },
+        "P_fan": {
+          "cooling": {
+            "mid": 0.188513,
+            "rtd": 0.240326
+          },
+          "heating": {
+            "mid": 0.188981,
+            "rtd": 0.241263
+          }
+        },
+        "V_inner": {
+          "cooling": {
+            "mid": 0.349611,
+            "dsgn": 0.361468,
+            "rtd": 0.457554
+          },
+          "heating": {
+            "mid": 0.350587,
+            "dsgn": 0.363011,
+            "rtd": 0.459508
+          }
+        }
+      }
+    }
+  ]
+}

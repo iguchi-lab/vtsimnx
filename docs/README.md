@@ -50,7 +50,7 @@
 | [`heat_recovery_vent.md`](heat_recovery_vent.md) | 熱交換換気 |
 | [`schedule_usage.md`](schedule_usage.md) | 8760 スケジュール |
 | [`archenv_comfort_nocturnal_wind_usage.md`](archenv_comfort_nocturnal_wind_usage.md) | 風圧・夜間放射・地盤・PMV |
-| [`vs_simheat_example.md`](vs_simheat_example.md) | 標準住宅の基本ケース（AC4台）・SimHeat 比較 |
+| [`vs_simheat_example.md`](vs_simheat_example.md) | 標準住宅の基本ケース（AC4台）・SimHeat 比較（単室 ideal_room_load 含む） |
 | [`building_environment_engineering_basics.md`](building_environment_engineering_basics.md) | 建築環境の背景 |
 
 ## 方針
