@@ -248,7 +248,7 @@ bool increaseAirflowForCoupledSolve(VentilationNetwork& ventNetwork,
         // airflow recovery when its load rises from a low-speed state.
         const bool humidityControl =
             (node.control_mode == "humidity_priority" || node.control_mode == "temperature_humidity");
-        if (!isHeating(mode) && humidityControl) continue;
+        if (!isHeating(mode) && (humidityControl || node.control_mode == "ideal_room_load")) continue;
         if ((isHeating(mode) && node.required_heat_w < 0.0) ||
             (!isHeating(mode) && node.required_heat_w > 0.0)) continue;
         // 設定維持負荷と能力上限は通常の外側風量制御と同じ定義を使う。

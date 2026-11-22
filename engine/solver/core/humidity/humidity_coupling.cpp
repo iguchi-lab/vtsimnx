@@ -1,5 +1,6 @@
 #include "core/humidity/humidity_coupling.h"
 
+#include "aircon/aircon_humidity_control.h"
 #include "core/thermal/thermal_linear_utils.h"
 
 #include <cmath>
@@ -70,7 +71,8 @@ SolveStats solveHumidityImplicitStep(const Graph& tGraph,
                                      const HumidityNetworkTerms& terms,
                                      double dt,
                                      double tolerance,
-                                     HumiditySolverContext& ctx) {
+                                     HumiditySolverContext& ctx,
+                                     const std::unordered_map<Vertex, double>* fixedHumidity) {
     constexpr double rho = PhysicalConstants::DENSITY_DRY_AIR; // [kg/m3]
     const double tol = (tolerance > 0.0) ? tolerance : 1e-9;
     SolveStats stats{};
@@ -94,6 +96,21 @@ SolveStats solveHumidityImplicitStep(const Graph& tGraph,
     std::uint64_t coeffSig = 0;
     patternSig = fnv1a64_update(patternSig, static_cast<std::uint64_t>(n));
     coeffSig = hashDoubleBits(coeffSig, dt);
+    if (fixedHumidity) {
+        for (const auto& kv : *fixedHumidity) {
+            patternSig = fnv1a64_update(patternSig, static_cast<std::uint64_t>(kv.first));
+            patternSig = fnv1a64_update(patternSig, 1u);
+            coeffSig = hashDoubleBits(coeffSig, kv.second);
+        }
+    }
+
+    auto fixedXOf = [&](Vertex v, double* out) -> bool {
+        if (!fixedHumidity) return false;
+        auto it = fixedHumidity->find(v);
+        if (it == fixedHumidity->end()) return false;
+        *out = it->second;
+        return true;
+    };
 
     for (int r = 0; r < n; ++r) {
         const Vertex v = terms.updateVertices[static_cast<size_t>(r)];
@@ -103,6 +120,12 @@ SolveStats solveHumidityImplicitStep(const Graph& tGraph,
         patternSig = fnv1a64_update(
             patternSig,
             (static_cast<std::uint64_t>(r) << 32) ^ static_cast<std::uint64_t>(r));
+
+        double fixedX = 0.0;
+        if (fixedXOf(v, &fixedX)) {
+            coeffSig = hashDoubleBits(coeffSig, fixedX);
+            continue;
+        }
 
         const double V = tGraph[v].v;
         const double cap = (tGraph[v].moisture_capacity > 0.0)
@@ -196,6 +219,13 @@ SolveStats solveHumidityImplicitStep(const Graph& tGraph,
         for (int r = 0; r < n; ++r) {
             const Vertex v = terms.updateVertices[static_cast<size_t>(r)];
             const size_t i = idxOf(v);
+            double fixedX = 0.0;
+            if (fixedXOf(v, &fixedX)) {
+                // Identity row: x = x_target (ideal_room_load set-node humidity)
+                if (tripsOut) tripsOut->emplace_back(r, r, 1.0);
+                bOut[r] = fixedX;
+                continue;
+            }
             const double V = tGraph[v].v;
             const double cap = (tGraph[v].moisture_capacity > 0.0)
                                    ? tGraph[v].moisture_capacity
@@ -477,8 +507,19 @@ void evaluateMoistureBalanceTerms(const Graph& tGraph,
         out.residual[i] = out.storage[i]
                           - (out.ventilationTransport[i] + out.vaporGeneration[i]
                              + out.materialTransport[i]);
+        // Ideal-room-load set nodes keep a nonzero residual that is the AC sink;
+        // do not treat it as an unsolved moisture defect.
+        bool idealSetNode = false;
+        for (auto ac : boost::make_iterator_range(boost::vertices(tGraph))) {
+            const auto& n = tGraph[ac];
+            if (!aircon::humidity_control::idealRoomLoadHumidityActive(n)) continue;
+            if (n.set_node == tGraph[v].key) {
+                idealSetNode = true;
+                break;
+            }
+        }
         // 方程式を解いた calc_x ノードのみ residual を検算する
-        if (active.count(v) != 0) {
+        if (active.count(v) != 0 && !idealSetNode) {
             out.maxAbsResidual = std::max(out.maxAbsResidual, std::abs(out.residual[i]));
         }
     }

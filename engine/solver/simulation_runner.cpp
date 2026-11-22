@@ -1,6 +1,7 @@
 #include "simulation_runner.h"
 
 #include "aircon/aircon_controller.h"
+#include "aircon/aircon_humidity_control.h"
 #include "core/thermal/thermal_linear_utils.h"
 #include "core/thermal/thermal_solver_linear_direct.h"
 #include "core/humidity/humidity_coupling.h"
@@ -72,6 +73,21 @@ bool acceptedStateConverged(simulation::Context& ctx,
         const auto& linear = ctx.humidity.humiditySolverContext();
         if (!terms.updateVertices.empty() &&
             (!linear.factorized || terms.updateVertices != linear.updateVertices)) return false;
+        // Ideal-room-load set nodes carry a moisture residual equal to the
+        // ideal AC sink S_ac = -required_moisture_kg_s. Explain it before
+        // accepting the coupled state.
+        auto idealRemovalAt = [&](Vertex roomV) -> double {
+            double removal = 0.0;
+            for (auto ac : boost::make_iterator_range(boost::vertices(graph))) {
+                const auto& n = graph[ac];
+                if (!aircon::humidity_control::idealRoomLoadHumidityActive(n)) continue;
+                if (n.set_node != graph[roomV].key) continue;
+                if (std::isfinite(n.required_moisture_kg_s))
+                    removal += std::max(0.0, n.required_moisture_kg_s);
+            }
+            return removal;
+        };
+
         double residualSquared = 0.0;
         for (auto v : terms.updateVertices) {
             if (couplingHumidityUnphysical(graph[v].current_x)) return false;
@@ -80,13 +96,14 @@ bool acceptedStateConverged(simulation::Context& ctx,
                 ? graph[v].moisture_capacity : PhysicalConstants::DENSITY_DRY_AIR * graph[v].v;
             double diagonal = capacity / ctx.constants.timestep + terms.outSum[i];
             for (const auto& link : terms.moistureLinks[i]) diagonal += link.second;
-            const double defect = std::abs(water.residual[i]) / std::max(diagonal, 1e-30);
+            const double explained = water.residual[i] + idealRemovalAt(v);
+            const double defect = std::abs(explained) / std::max(diagonal, 1e-30);
             if (!std::isfinite(defect)) return false;
             waterDefect = std::max(waterDefect, defect);
             // Match the humidity solver's row scaling: inventory rows use
             // dt/C, algebraic rows remain in kg/s. Evaluate the current state,
             // not the pre-relaxation vector that the linear solver checked.
-            const double scaled = water.residual[i] *
+            const double scaled = explained *
                 (capacity > 0.0 ? ctx.constants.timestep / capacity : 1.0);
             residualSquared += scaled * scaled;
         }

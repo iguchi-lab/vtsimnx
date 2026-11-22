@@ -304,34 +304,39 @@ def test_naturally_cool_room_is_not_cooling_temperature_unmet():
 
 def test_ideal_room_load_does_not_start_for_humidity_only():
     raw = case("ideal_room_load")
-    raw["aircon"][0].pop("pre_rh", None)
+    # Keep pre_rh (required) but no sensible cooling demand at Tset=outside.
     s = run(raw)
     assert np.allclose(s("thermal_temperature", "room"), 26.0, atol=0.01)
     assert max(abs(s("aircon_sensible_heat", "AC"))) == 0
     assert max(abs(s("aircon_latent_heat", "AC"))) == 0
     assert max(abs(s("aircon_power", "AC"))) == 0
-    assert max(abs(s("aircon_humidity_unmet", "AC"))) == 0
 
 
-def test_ideal_room_load_starts_for_sensible_cooling_and_reports_power():
-    raw = case("ideal_room_load", outside_t=36.0, x=0.012)
-    raw["aircon"][0].pop("pre_rh", None)
+def test_ideal_room_load_starts_for_sensible_cooling_and_holds_rh():
+    raw = case("ideal_room_load", outside_t=36.0, x=0.016)
+    raw["aircon"][0]["pre_rh"] = 50.0
     s = run(raw)
     assert min(s("aircon_sensible_heat", "AC")) > 10.0
-    assert min(s("aircon_power", "AC")) > 1.0
+    assert max(abs(s("aircon_power", "AC"))) == 0
+    # While cooling, room RH should stay near the setpoint (ideal load).
+    rh = s("aircon_room_rh", "AC")
+    assert max(abs(np.asarray(rh) - 50.0)) < 2.0
 
 
 def test_ideal_room_load_single_room_fixture_matches_simheat_start_rule():
-    # Fixed Sim/Heat-style fixture:
+    # Fixed fixture:
     # hours 0-2 cool outdoor / high humidity → no start
-    # hours 3-5 hot outdoor → sensible cooling + power
+    # hours 3-5 hot outdoor → ideal sensible (+ latent) loads, power=0
     s = run(_load_ideal_room_load_single_room_case())
     qs = s("aircon_sensible_heat", "AC")
+    ql = s("aircon_latent_heat", "AC")
     power = s("aircon_power", "AC")
     assert max(abs(qs[:3])) == 0
+    assert max(abs(ql[:3])) == 0
     assert max(abs(power[:3])) == 0
     assert min(qs[3:]) > 10.0
-    assert min(power[3:]) > 1.0
+    assert max(abs(power[3:])) == 0
+    assert min(ql[3:]) >= 0.0
 
 
 @pytest.mark.parametrize("target", [56.0, 58.0])

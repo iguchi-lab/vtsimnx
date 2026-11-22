@@ -7,13 +7,82 @@
 #include "simulation_error.h"
 #include <Eigen/QR>
 #include "aircon/aircon_humidity_control.h"
+#include "archenv/include/archenv.h"
+#include "types/common_types.h"
 
 #include <boost/range/iterator_range.hpp>
+#include <unordered_map>
+#include <cmath>
 #include <vector>
 
 namespace core::humidity {
 
 namespace {
+constexpr double kIdealHumidityTol = 1e-9;
+
+void clearIdealRoomLoadLatent(Graph& graph) {
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        auto& n = graph[v];
+        if (n.getTypeCode() != VertexProperties::TypeCode::Aircon) continue;
+        if (!aircon::humidity_control::idealRoomLoad(n)) continue;
+        n.required_moisture_kg_s = 0.0;
+        n.required_latent_w = 0.0;
+    }
+}
+
+std::unordered_map<Vertex, double> idealRoomLoadHumidityFixes(const Graph& graph) {
+    std::unordered_map<std::string, Vertex> byKey;
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        byKey.emplace(graph[v].key, v);
+    }
+    std::unordered_map<Vertex, double> fixes;
+    for (auto ac : boost::make_iterator_range(boost::vertices(graph))) {
+        const auto& node = graph[ac];
+        if (!aircon::humidity_control::idealRoomLoadHumidityActive(node)) continue;
+        auto it = byKey.find(node.set_node);
+        if (it == byKey.end()) continue;
+        const Vertex room = it->second;
+        const double targetX = archenv::absolute_humidity(
+            node.current_pre_temp, node.current_pre_rh);
+        if (!(targetX >= 0.0) || !std::isfinite(targetX)) continue;
+        // Dehumidify only: fix when free-floating humidity exceeds the setpoint.
+        if (graph[room].current_x > targetX + kIdealHumidityTol) {
+            fixes[room] = targetX;
+        }
+    }
+    return fixes;
+}
+
+void assignIdealRoomLoadLatent(Graph& graph, const HumidityNetworkTerms& terms,
+                               const std::vector<double>& xN, double dt,
+                               MoistureBalanceTerms& bal) {
+    clearIdealRoomLoadLatent(graph);
+    std::unordered_map<std::string, Vertex> byKey;
+    for (auto v : boost::make_iterator_range(boost::vertices(graph))) {
+        byKey.emplace(graph[v].key, v);
+    }
+    for (auto ac : boost::make_iterator_range(boost::vertices(graph))) {
+        auto& node = graph[ac];
+        if (!aircon::humidity_control::idealRoomLoadHumidityActive(node)) continue;
+        auto it = byKey.find(node.set_node);
+        if (it == byKey.end()) continue;
+        const size_t i = static_cast<size_t>(it->second);
+        if (i >= bal.residual.size()) continue;
+        // residual = S_ac [kg/s] into air; removal is positive when S_ac < 0.
+        const double removal = std::max(0.0, -bal.residual[i]);
+        node.required_moisture_kg_s = removal;
+        node.required_latent_w = removal * PhysicalConstants::LATENT_HEAT_VAPORIZATION;
+        bal.residual[i] = 0.0;
+    }
+    bal.maxAbsResidual = 0.0;
+    for (Vertex v : terms.updateVertices) {
+        const size_t i = static_cast<size_t>(v);
+        if (i < bal.residual.size()) {
+            bal.maxAbsResidual = std::max(bal.maxAbsResidual, std::abs(bal.residual[i]));
+        }
+    }
+}
+
 // Probe all controlled supply boundaries together. One factorization serves the
 // baseline and every response column; the small AC response system accounts for
 // cross-room interference before the outer physical constraint iteration.
@@ -192,38 +261,55 @@ HumiditySolveStats updateHumidityIfEnabled(const SimulationConstants& constants,
         }
     }
 
-    const SolveStats solve = solveHumidityImplicitStep(
-        tGraph,
-        terms,
-        dt,
-        constants.humiditySolverTolerance,
-        ctx);
-    stats.iterations = solve.iterations;
-    stats.finalRelativeResidual = solve.finalRelativeResidual;
-    stats.converged = solve.converged;
-    stats.patternAnalyzes = solve.patternAnalyzes;
-    stats.factorizes = solve.factorizes;
-    stats.rhsOnlySolves = solve.rhsOnlySolves;
-    stats.solutionReuse = solve.solutionReuse;
+    clearIdealRoomLoadLatent(tGraph);
 
-    if (metrics) {
-        metrics->humidityPatternAnalyzes += solve.patternAnalyzes;
-        metrics->humidityFactorizes += solve.factorizes;
-        metrics->humidityRhsOnlySolves += solve.rhsOnlySolves;
-        metrics->humiditySolutionReuse += solve.solutionReuse;
-    }
+    auto accumulateSolve = [&](const SolveStats& solve) {
+        stats.iterations += solve.iterations;
+        stats.finalRelativeResidual = solve.finalRelativeResidual;
+        stats.converged = solve.converged;
+        stats.patternAnalyzes += solve.patternAnalyzes;
+        stats.factorizes += solve.factorizes;
+        stats.rhsOnlySolves += solve.rhsOnlySolves;
+        stats.solutionReuse += solve.solutionReuse;
+        if (metrics) {
+            metrics->humidityPatternAnalyzes += solve.patternAnalyzes;
+            metrics->humidityFactorizes += solve.factorizes;
+            metrics->humidityRhsOnlySolves += solve.rhsOnlySolves;
+            metrics->humiditySolutionReuse += solve.solutionReuse;
+        }
+    };
 
-    // 未収束・非有限・非物理解はグラフへ反映しない（連成の偽収束を防ぐ）
+    SolveStats solve = solveHumidityImplicitStep(
+        tGraph, terms, dt, constants.humiditySolverTolerance, ctx, nullptr);
+    accumulateSolve(solve);
     if (!solve.converged) {
         stats.updated = false;
         return stats;
     }
     applyHumidityStateToGraphs(tGraph, vGraph, vKeyToV, terms.updateVertices, ctx.xSolved);
+
+    const auto idealFixes = idealRoomLoadHumidityFixes(tGraph);
+    if (!idealFixes.empty()) {
+        // Neighbor states after the free solve become the iterate for the fixed pass.
+        for (auto v : boost::make_iterator_range(boost::vertices(tGraph))) {
+            ctx.xIterate[static_cast<size_t>(v)] = tGraph[v].current_x;
+        }
+        solve = solveHumidityImplicitStep(
+            tGraph, terms, dt, constants.humiditySolverTolerance, ctx, &idealFixes);
+        accumulateSolve(solve);
+        if (!solve.converged) {
+            stats.updated = false;
+            return stats;
+        }
+        applyHumidityStateToGraphs(tGraph, vGraph, vKeyToV, terms.updateVertices, ctx.xSolved);
+    }
+
     updateHumidistatRequests(tGraph, terms, dt, constants.humiditySolverTolerance, ctx,
         humidityNetwork.humidistatSolverContext(), metrics);
 
     MoistureBalanceTerms bal;
     evaluateMoistureBalanceTerms(tGraph, terms, ctx.xN, dt, bal);
+    assignIdealRoomLoadLatent(tGraph, terms, ctx.xN, dt, bal);
     humidityNetwork.setLastMoistureBalance(std::move(bal));
     stats.maxMoistureBalanceResidual = humidityNetwork.lastMoistureBalance().maxAbsResidual;
 

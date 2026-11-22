@@ -726,6 +726,20 @@ def validate_node_config(
                 set_node = next((n for n in node_config if n.get("key") == node.get("set_node")), None)
                 if set_node is None or not set_node.get("calc_x") or not set_node.get("calc_t"):
                     errors.append(f"ノード {node['key']}: 設定対象室は calc_x=true, calc_t=true が必要です")
+            if control == "ideal_room_load":
+                if not sim_config["calc_flag"]["x"]:
+                    errors.append(f"ノード {node['key']}: ideal_room_load には calc_flag.x=true が必要です")
+                if node.get("pre_rh") is None:
+                    errors.append(f"ノード {node['key']}: ideal_room_load には pre_rh が必要です")
+                set_node = next((n for n in node_config if n.get("key") == node.get("set_node")), None)
+                if set_node is None or not set_node.get("calc_x") or not set_node.get("calc_t"):
+                    errors.append(f"ノード {node['key']}: ideal_room_load の設定対象室は calc_x=true, calc_t=true が必要です")
+                if (node.get("ac_spec") or {}).get("latent_method") is not None:
+                    message = f"ノード {node['key']}: ideal_room_load では latent_method は無視します（理想温湿度負荷）"
+                    warnings.append(message)
+                    if warning_details is not None:
+                        warning_details.append({"code": "ignored_control_option", "message": message,
+                                                "field": "latent_method", "context": f"node {node['key']}"})
             for field, default, lower, upper in (("max_overcooling", 2.0, 0.0, float("inf")),
                                                  ("min_coil_temperature", 5.0, 0.0, 20.0),
                                                  ("reheat_cop", 1.0, 1e-12, float("inf"))):
@@ -745,8 +759,8 @@ def validate_node_config(
                 for idx, val in enumerate(rh_series):
                     if _is_nan_like(val):
                         requested_mode = ensure_timeseries(mode, sim_length)[idx]
-                        if control in ("humidity_priority", "temperature_humidity") and requested_mode in ("COOLING", 2):
-                            errors.append(f"ノード {node['key']}: 冷房時の湿度制御には有効な pre_rh が必要です")
+                        if control in ("humidity_priority", "temperature_humidity", "ideal_room_load") and requested_mode in ("COOLING", 2):
+                            errors.append(f"ノード {node['key']}: 冷房時の湿度制御/ideal_room_load には有効な pre_rh が必要です")
                         # 当該時刻は理想除湿オフ（従来 latent_method）
                         continue
                     try:
