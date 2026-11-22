@@ -91,6 +91,9 @@ struct VertexProperties {
     // fixed-row 拘束時、設定温度維持に必要な符号付き空調負荷 [W]
     // （暖房正・冷房負。set_node の AC 以外熱収支の符号反転。未評価は NaN）
     double required_heat_w = std::numeric_limits<double>::quiet_NaN();
+    // ideal_room_load: 設定湿度維持に必要な除去水分 [kg/s] と潜熱 [W]（除去を正。未評価は NaN/0）
+    double required_moisture_kg_s = std::numeric_limits<double>::quiet_NaN();
+    double required_latent_w = std::numeric_limits<double>::quiet_NaN();
     // 空調除湿診断 [kg/s]（正=凝縮除去）。空気ノード湿気収支の airconCondensation に反映。
     double aircon_moisture_removal_kg_s = 0.0;
     std::optional<AirconSpec> aircon_spec;
@@ -102,6 +105,8 @@ struct VertexProperties {
         aircon_flow_unmet_boost = false;
         aircon_min_process_hold = false;
         humidity_supply_request = std::numeric_limits<double>::quiet_NaN();
+        required_moisture_kg_s = std::numeric_limits<double>::quiet_NaN();
+        required_latent_w = std::numeric_limits<double>::quiet_NaN();
         humidity_demand = false;
         humidity_overcool_hold = false;
         humidity_capacity_limited = false;

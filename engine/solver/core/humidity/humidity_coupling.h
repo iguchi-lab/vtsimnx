@@ -60,7 +60,8 @@ SolveStats solveHumidityImplicitStep(const Graph& tGraph,
                                      const HumidityNetworkTerms& terms,
                                      double dt,
                                      double tolerance,
-                                     HumiditySolverContext& ctx);
+                                     HumiditySolverContext& ctx,
+                                     const std::unordered_map<Vertex, double>* fixedHumidity = nullptr);
 
 void applyHumidityStateToGraphs(Graph& tGraph,
                                 Graph& vGraph,

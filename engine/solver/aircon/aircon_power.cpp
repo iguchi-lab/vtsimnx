@@ -1,4 +1,5 @@
 #include "aircon/aircon_controller.h"
+#include "aircon/aircon_humidity_control.h"
 #include "aircon/aircon_latent.h"
 #include "aircon/aircon_airflow.h"
 #include "aircon/aircon_network_utils.h"
@@ -19,6 +20,8 @@ std::pair<double, double> AirconController::estimatePowerAndCOPForAircon(
     const FlowRateMap& flowRates,
     std::ostream& logs,
     bool logDetail) const {
+    // Ideal room load reports Qs/Ql only; equipment power is out of scope.
+    if (aircon::humidity_control::idealRoomLoad(nodeProps)) return {0.0, 0.0};
     auto context = prepareRuntimeContext(airconKey, thermalNetwork, nodeProps, flowRates);
     auto* model = getModel(airconKey);
     const auto loads = aircon::latent::estimateLatentProcess(

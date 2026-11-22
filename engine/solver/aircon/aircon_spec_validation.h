@@ -12,13 +12,15 @@ inline void validateSpec(const nlohmann::json& spec, const std::string& model,
                          const std::string& control, const std::vector<std::string>& modes, double offFlow = 0.0) {
     if (!spec.is_object()) throw std::runtime_error("ac_spec must be an object");
     const bool humidityControl = control == "humidity_priority" || control == "temperature_humidity";
+    const bool idealRoomLoad = control == "ideal_room_load";
     const std::string method = toLowerCopy(spec.value("latent_method",
         humidityControl ? std::string("ideal_coil") : std::string("rh95")));
     const std::set<std::string> methods{"rh95", "rh100", "none", "bf", "coil_aoaf", "aoaf", "literature", "ideal_coil"};
     if (!methods.count(method)) throw std::runtime_error("invalid ac_spec.latent_method: " + method);
     if (control == "temperature_humidity" && method != "none" && method != "rh100" && method != "ideal_coil")
         throw std::runtime_error("temperature_humidity latent_method requires ideal_coil (none/rh100 aliases)");
-    if (!humidityControl && method == "ideal_coil")
+    // ideal_room_load ignores latent_method; do not require a coil humidity model.
+    if (!humidityControl && !idealRoomLoad && method == "ideal_coil")
         throw std::runtime_error("latent_method=ideal_coil requires a humidity control mode");
     if (spec.contains("bf_flow_correction") && !spec["bf_flow_correction"].is_boolean())
         throw std::runtime_error("ac_spec.bf_flow_correction must be a boolean");

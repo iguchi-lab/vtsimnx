@@ -551,6 +551,7 @@ bool AirconController::acceptedHumidityConverged(ThermalNetwork& thermalNetwork,
     for (const auto& key : getAirconKeys()) {
         const auto& node = thermalNetwork.getNode(key);
         if (!node.on) continue;
+        if (aircon::humidity_control::idealRoomLoad(node)) continue;
         const auto context = prepareRuntimeContext(key, thermalNetwork, node, flowRates);
         if (context.operationMode != OperationMode::Cooling) continue;
         const auto loads = aircon::latent::estimateLatentProcess(
@@ -583,6 +584,7 @@ void AirconController::validateAcceptedCapacity(ThermalNetwork& thermalNetwork,
     for (const auto& key : getAirconKeys()) {
         const auto& node = thermalNetwork.getNode(key);
         if (!node.on) continue;
+        if (aircon::humidity_control::idealRoomLoad(node)) continue;
         const auto context = prepareRuntimeContext(key, thermalNetwork, node, flowRates);
         const auto loads = aircon::latent::estimateLatentProcess(
             context.validData, context.operationMode, context.heatCapacity,
@@ -633,6 +635,7 @@ bool AirconController::checkAndAdjustCapacity(ThermalNetwork& thermalNetwork,
     for (const auto& airconKey : getAirconKeys()) {
         auto& nodeProps = thermalNetwork.getNode(airconKey);
         if (!nodeProps.on) continue;
+        if (aircon::humidity_control::idealRoomLoad(nodeProps)) continue;
         auto context = prepareRuntimeContext(airconKey, thermalNetwork, nodeProps, flowRates);
         auto loads = aircon::latent::estimateLatentProcess(
             context.validData, context.operationMode, context.heatCapacity, context.airFlowRate,
@@ -1100,10 +1103,10 @@ bool AirconController::checkAndAdjustDuctCentralAirflow(ThermalNetwork& thermalN
             continue;
         }
 
-        if (aircon::humidity_control::enabled(nodeProps)) {
-            // Airflow is a separate, bounded operating-point search. Hold it
-            // while the current room/coil/capacity candidate converges. In
-            // particular, do not overwrite it with design/design == speed 1.
+        if (aircon::humidity_control::enabled(nodeProps) ||
+            aircon::humidity_control::idealRoomLoad(nodeProps)) {
+            // Humidistat: hold airflow during room/coil search.
+            // Ideal room load: no equipment airflow tracking (loads only).
             continue;
         }
 
@@ -1272,6 +1275,18 @@ std::vector<double> AirconController::collectAirconDataValues(ThermalNetwork& th
                     values[i] = 0.0;
                     continue;
                 }
+                if (aircon::humidity_control::idealRoomLoad(nodeProps)) {
+                    if (dataType == "reheatCapacity") {
+                        values[i] = 0.0;
+                    } else if (dataType == "sensibleHeatCapacity") {
+                        values[i] = std::isfinite(nodeProps.required_heat_w)
+                            ? std::abs(nodeProps.required_heat_w) : 0.0;
+                    } else {
+                        values[i] = std::isfinite(nodeProps.required_latent_w)
+                            ? std::max(0.0, nodeProps.required_latent_w) : 0.0;
+                    }
+                    continue;
+                }
                 auto context = prepareRuntimeContext(airconKey, thermalNetwork, nodeProps, flowRates);
                 const auto loads = aircon::latent::estimateLatentProcess(
                     context.validData, context.operationMode, context.heatCapacity, context.airFlowRate,
@@ -1301,6 +1316,7 @@ AirconController::applyLatentFeedbackToThermal(ThermalNetwork& thermalNetwork,
     for (const auto& airconKey : getAirconKeys()) {
         auto& nodeProps = thermalNetwork.getNode(airconKey);
         if (!nodeProps.on) continue;
+        if (aircon::humidity_control::idealRoomLoad(nodeProps)) continue;
         try {
             auto context = prepareRuntimeContext(airconKey, thermalNetwork, nodeProps, flowRates);
             if (context.operationMode != OperationMode::Cooling) continue;
