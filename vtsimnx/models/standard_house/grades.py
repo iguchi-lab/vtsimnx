@@ -1,6 +1,14 @@
 """部位の並列断面を保持した標準住宅の等級別外皮カタログ。"""
 
-from .envelope import SURFACE_ROWS, make_layers, make_surface_types
+from .envelope import (
+    SURFACE_ROWS,
+    _ALPHA_I_CONV,
+    _ALPHA_O_CONV,
+    _ALPHA_I_FILM,
+    _ALPHA_O_FILM,
+    make_layers,
+    make_surface_types,
+)
 from .grade_data import GRADE_PATHS, MATERIAL_PROPERTIES, OPENING_PROPERTIES, OPENING_ROWS, WALL_ROWS
 
 
@@ -21,8 +29,10 @@ def grade_surface_types(grade: int) -> dict:
             layer = f"{part}_断面{i}"
             types[f"{template}_{layer}"] = dict(types[template], layer_key=layer)
     for template, (u, scr, scc) in OPENING_PROPERTIES[grade].items():
-        # 部位表のU値は室内外の表面熱抵抗込み。solverには面間の値を渡す。
-        types[template]["u_value"] = 1 / (1 / u - 1 / (20.3 + 4.7) - 1 / (4.4 + 4.7))
+        # 部位表のU値は室内外の表面熱抵抗込み。solverには面間の値を渡し、alphaは対流のみ。
+        types[template]["u_value"] = 1 / (1 / u - 1 / _ALPHA_O_FILM - 1 / _ALPHA_I_FILM)
+        types[template]["alpha_i"] = _ALPHA_I_CONV
+        types[template]["alpha_o"] = _ALPHA_O_CONV
         if scr is not None:
             types[template].update(SCR=scr, SCC=scc)
     return types

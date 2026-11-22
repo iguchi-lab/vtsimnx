@@ -6,11 +6,41 @@ from typing import Any, Mapping
 
 T_CAPA_PER_M3 = 12.6 * 1000  # J/(K·m³)
 M_CAPA_PER_M3 = 25.1 * 1000 * 1000  # J/(kg/kg' · m³)
-U_VALUE_WINDOW = 12.0
-_ALPHA_OUT = 20.3 + 4.7
+
+# Sim/Heat 等級4の開口部入力U（枠・表面熱抵抗込み）。builder へは面間値を渡す。
+WHOLE_OPENING_U = 4.65
+_ALPHA_I_CONV = 4.4
+_ALPHA_O_CONV = 20.3
+_ALPHA_I_FILM = _ALPHA_I_CONV + 4.7  # 対流+放射
+_ALPHA_O_FILM = _ALPHA_O_CONV + 4.7
+_ALPHA_OUT = _ALPHA_O_FILM  # 壁など既存の外気側総合熱伝達
+
+
+def face_to_face_u(whole_u: float) -> float:
+    """全体Uから両側表面熱抵抗を除いた面間熱貫流率。"""
+    return 1.0 / (1.0 / whole_u - 1.0 / _ALPHA_O_FILM - 1.0 / _ALPHA_I_FILM)
+
+
+U_VALUE_WINDOW = face_to_face_u(WHOLE_OPENING_U)
+
+# AE-Sim/Heat 操作マニュアル 6.3.6 (2)、表6.3.3:
+# 計算用気積 = 通常空間との水平接続面積（床または天井）× 相当高さ（床下0.5 m、小屋裏0.9 m）。
+# 換気5.0回/h・熱容量もこの計算用気積に追随する。図面上の幾何学的気積とは別。
+_CRAWL_FLOOR_AREA = 65.42
+_ATTIC_CEILING_AREA = {
+    "切妻": 52.18,
+    "片流れ(3)": 12.42,
+    "片流れ(4)": 3.31,
+}
+GEOMETRIC_VOLUME: dict[str, float] = {
+    "床下": 13.08,
+    "切妻": 47.70,
+    "片流れ(3)": 5.82,
+    "片流れ(4)": 1.13,
+}
 
 ROOM_VOLUME: dict[str, float] = {
-    "床下": 65.42 * 0.5,  # 実際の気積は13.08m3
+    "床下": _CRAWL_FLOOR_AREA * 0.5,
     "和室": 39.75,
     "LD": 51.67,
     "台所": 19.25,
@@ -23,9 +53,9 @@ ROOM_VOLUME: dict[str, float] = {
     "子供室1": 25.83,
     "子供室2": 25.84,
     "2階ホール": 27.29,
-    "切妻": 52.18 * 0.9,  # 実際の気積は47.70m3
-    "片流れ(3)": 12.42 * 0.9,  # 実際の気積は 5.82m3
-    "片流れ(4)": 3.31 * 0.9,  # 実際の気積は 1.13m3
+    "切妻": _ATTIC_CEILING_AREA["切妻"] * 0.9,
+    "片流れ(3)": _ATTIC_CEILING_AREA["片流れ(3)"] * 0.9,
+    "片流れ(4)": _ATTIC_CEILING_AREA["片流れ(4)"] * 0.9,
     "階間(L4)": 24.64,
     "2階トイレ": 3.97,
 }
@@ -123,8 +153,9 @@ def _glass(solar_key: str, scr: float, scc: float, u_value: float | None = None)
         "u_value": U_VALUE_WINDOW if u_value is None else u_value,
         "SCR": scr,
         "SCC": scc,
-        "alpha_i": 4.4,
-        "alpha_o": _ALPHA_OUT,
+        # 面間 u_value 導出時は対流+放射を除く。runtime の alpha は対流のみ（室内放射は別枝）。
+        "alpha_i": _ALPHA_I_CONV,
+        "alpha_o": _ALPHA_O_CONV,
         "solar_key": solar_key,
         "nocturnal_key": "夜間放射量_垂直",
     }
@@ -136,8 +167,8 @@ def make_surface_types() -> dict[str, dict[str, Any]]:
     child_south = (0.446099, 0.136472)
     sheer = (0.986, 0.014)
     shoji_u = 1 / (1 / U_VALUE_WINDOW + 0.069)
-    # SimHeat 部位表のドア U。solver はここに alpha_i / alpha_o を別途積む。
-    exterior_door_u = 4.65
+    # SimHeat 部位表のドア全体Uを面間値へ変換。alpha は対流のみ。
+    exterior_door_u = face_to_face_u(WHOLE_OPENING_U)
     return {
         "地盤": {"part": "floor", "layer_key": "地盤"},
         "E_基礎外壁": _wall("基礎外壁", "日射熱取得量（東面）"),
@@ -169,16 +200,16 @@ def make_surface_types() -> dict[str, dict[str, Any]]:
         "W_玄関ドア": {
             "part": "wall",
             "u_value": exterior_door_u,
-            "alpha_i": 4.4,
-            "alpha_o": _ALPHA_OUT,
+            "alpha_i": _ALPHA_I_CONV,
+            "alpha_o": _ALPHA_O_CONV,
             "solar_key": "日射熱取得量（西面）",
             "nocturnal_key": "夜間放射量_垂直",
         },
         "N_台所ドア": {
             "part": "wall",
             "u_value": exterior_door_u,
-            "alpha_i": 4.4,
-            "alpha_o": _ALPHA_OUT,
+            "alpha_i": _ALPHA_I_CONV,
+            "alpha_o": _ALPHA_O_CONV,
             "solar_key": "日射熱取得量（北面）",
             "nocturnal_key": "夜間放射量_垂直",
         },
