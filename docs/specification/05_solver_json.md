@@ -25,7 +25,7 @@
 
 start・end は文字列、timestep・length は数値として読み込む。tolerance の ventilation・thermal・convergence は数値が必要であり、欠落又は型不正は runtime_error とする。
 
-thermal は、aircon_temperature [K]、thermal_balance [W]、thermal_linear_residual [相対値] の初期値へコピーする。個別キーがある場合は個別値で上書きする。同じ数値から始まっても、三者の次元は異なる。
+thermal は、aircon_temperature [K]、thermal_balance [W]、thermal_linear_residual [相対値] の初期値へコピーする。個別キーがある場合は個別値で上書きする。同じ数値から始まっても、三者の次元は異なる。aircon_restart_band [K] は再起動ヒステリシス床で、未指定時は 1.0（thermal とは独立）。0 以上の有限値が必要。
 
 ## 4. 追加計算設定（v1.8.1以降はraw/APIからも引継ぎ）
 

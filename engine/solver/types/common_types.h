@@ -50,6 +50,9 @@ struct SimulationConstants {
     // 用途別の正本は以下3つ（パーサ未指定時は thermal と同じ値で埋める）。
     double thermalTolerance;
     double airconTemperatureToleranceK = 0.0;                 // 空調ON/OFF判定 [K]
+    // 停止後の再起動ヒステリシス床 [K]。未指定時は 1.0。0 で床なし（帯 = aircon_temperature）。
+    // ideal_room_load では常に床 0 を使う。
+    double airconRestartBandK = 1.0;
     double thermalBalanceToleranceW = 0.0;                    // 熱収支RMSE合否 [W]
     double thermalLinearResidualRelativeTolerance = 0.0;      // DirectT の max|Ax-b| / max(1,|b|) 相対許容
     double convergenceTolerance;

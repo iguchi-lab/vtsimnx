@@ -36,7 +36,8 @@ AirconIterationAction runAirconIteration(AirconIterationContext& ctx,
         allAirconControlled =
             ctx.aircon.controlAllAircons(
                 ctx.thermal, effectiveAirconTemperatureToleranceK(ctx.constants), ctx.logs,
-                &supplyHumidityChanged, humidityAbsTol, &proposals, &flowRates);
+                &supplyHumidityChanged, humidityAbsTol, &proposals, &flowRates,
+                ctx.constants.airconRestartBandK);
         if (metrics) {
             metrics->airconMs +=
                 std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - t0)

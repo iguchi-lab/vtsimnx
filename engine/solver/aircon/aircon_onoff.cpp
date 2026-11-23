@@ -7,8 +7,10 @@
 
 namespace aircon::onoff {
 
-double restartBandK(double tolerance) {
-    return std::max(tolerance, kRestartBandK);
+double restartBandK(double tolerance, double floorK) {
+    const double floor = std::max(0.0, floorK);
+    const double tol = std::max(0.0, tolerance);
+    return std::max(tol, floor);
 }
 
 bool temperatureWouldRestart(const std::string& mode,
@@ -138,8 +140,9 @@ Decision decideFromTemperature(const std::string& mode,
                                bool currentlyOn,
                                double currentTemp,
                                double targetTemp,
-                               double tolerance) {
-    const double bandK = restartBandK(tolerance);
+                               double tolerance,
+                               double restartBandFloorK) {
+    const double bandK = restartBandK(tolerance, restartBandFloorK);
     const double diff = currentTemp - targetTemp;
     const bool withinBand = std::abs(diff) <= bandK;
 
@@ -172,12 +175,14 @@ Decision decide(const std::string& mode,
                 double loadDeadbandW,
                 double minProcessHeatW,
                 bool holdAtMinimumCapacity,
-                bool previouslyHeldAtMinimum) {
+                bool previouslyHeldAtMinimum,
+                double restartBandFloorK) {
     if (useRequiredHeat && currentlyOn && std::isfinite(requiredHeatW)) {
         return decideFromRequiredHeat(mode, requiredHeatW, loadDeadbandW, minProcessHeatW,
                                       holdAtMinimumCapacity, previouslyHeldAtMinimum);
     }
-    return decideFromTemperature(mode, currentlyOn, currentTemp, targetTemp, tolerance);
+    return decideFromTemperature(mode, currentlyOn, currentTemp, targetTemp, tolerance,
+                                 restartBandFloorK);
 }
 
 std::string formatLog(const std::string& targetName,

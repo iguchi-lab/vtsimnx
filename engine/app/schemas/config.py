@@ -66,6 +66,12 @@ class SimulationTolerance(_StrictExtraBase):
         default=None,
         description="空調ON/OFF温度差許容 [K]",
     )
+    aircon_restart_band: Optional[float] = Field(
+        default=None,
+        ge=0,
+        allow_inf_nan=False,
+        description="停止後の再起動ヒステリシス床 [K]（既定1.0。0で床なし。ideal_room_loadは常に床0）",
+    )
     thermal_balance: Optional[float] = Field(
         default=None,
         description="熱収支RMSE合否許容 [W]",

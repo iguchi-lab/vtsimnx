@@ -28,7 +28,7 @@ nodes にユーザーが key="void" を指定した場合はエラーとする�
 
 simulation.index は start、end（日時文字列）、timestep（s）、length（要素数）を持つ。直接パーサの初期値は空文字・0であり、使用可能な計算条件を補完する既定値ではない。
 
-tolerance.ventilation、thermal、convergence のパーサ既定値は各 1e-6 とする。用途別の aircon_temperature、thermal_balance、thermal_linear_residual、coupling_pressure、coupling_temperature、coupling_humidity は保持する。
+tolerance.ventilation、thermal、convergence のパーサ既定値は各 1e-6 とする。用途別の aircon_temperature、aircon_restart_band、thermal_balance、thermal_linear_residual、coupling_pressure、coupling_temperature、coupling_humidity は保持する。aircon_restart_band の未指定時は 1.0 K（thermal からのコピーではない）。
 
 simulation.warmup.start は MM-DD（例 12-15）。parse の前に典型年のその日以降を前年として全時系列の先頭へ付ける。index にその月日が必要であり、評価開始より後の暦日にする。steps・eval_start・eval_length はビルダーが埋める。C++ は warmup を読まず、伸ばした index で積分する。結果系列の助走行は run_calc が落とす。
 

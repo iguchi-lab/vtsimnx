@@ -209,7 +209,8 @@ public:
                                       double loadDeadbandW = 1.0,
                                       double minProcessHeatW = 0.0,
                                       bool holdAtMinimumCapacity = false,
-                                      bool previouslyHeldAtMinimum = false) const {
+                                      bool previouslyHeldAtMinimum = false,
+                                      double restartBandFloorK = aircon::onoff::kRestartBandK) const {
         AirconControlResult result{false, nodeProps.on, ""};
         const std::string targetName = nodeProps.set_node.empty() ? nodeProps.key : nodeProps.set_node;
         if (nodeProps.current_mode == "OFF") {
@@ -227,7 +228,7 @@ public:
         const auto decision = aircon::onoff::decide(
             nodeProps.current_mode, nodeProps.on, currentTemp, targetTemp, tolerance,
             useRequiredHeat, requiredHeatW, loadDeadbandW, minProcessHeatW, holdAtMinimumCapacity,
-            previouslyHeldAtMinimum);
+            previouslyHeldAtMinimum, restartBandFloorK);
         result.on = decision.shouldBeOn;
         result.stateChanged = decision.shouldBeOn != nodeProps.on;
         result.logMessage = aircon::onoff::formatLog(
@@ -241,7 +242,8 @@ public:
                            bool* supplyHumidityChanged = nullptr,
                            double humidityAbsTol = 1e-9,
                            std::vector<AirconStateProposal>* outProposals = nullptr,
-                           const FlowRateMap* flowRates = nullptr) const;
+                           const FlowRateMap* flowRates = nullptr,
+                           double restartBandFloorK = aircon::onoff::kRestartBandK) const;
 
     // 湿度ソルバ実行前に空調ノードの吹出湿度境界を整える（外側再計算は要求しない）。
     // calc_x=false の空調を current_x=0 のまま解くと還気循環が室内を乾燥させるため、
