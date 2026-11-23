@@ -393,6 +393,14 @@ class SurfaceModel(_StrictExtraBase):
     SCR: Optional[float] = None
     scc: Optional[float] = None
     scr: Optional[float] = None
+    scr_distribution: Optional[Literal["simheat"]] = Field(
+        default=None,
+        description=(
+            "窓透過日射の SCR 室内配分の明示（省略時も同じ）。"
+            "'simheat' のみ可。床50%/その他50%を面積×吸収率で按分し ΣQi=Qrad を保存。"
+            "受熱面 eta で放射をさらに減衰させる旧配分は不可。"
+        ),
+    )
     response: Optional[Dict[str, Any]] = None
 
 

@@ -10,6 +10,11 @@ from .utils import CHAIN_DELIMITER, ensure_timeseries
 
 logger = get_logger(__name__)
 
+# 窓透過日射の SCR 室内配分は保存的配分のみ（AE-Sim/Heat §6.8.4 相当）。
+# scr_distribution は互換・明示用。省略時も同じ。非保存的な旧経路は不可。
+SCR_DISTRIBUTION_SIMHEAT = "simheat"
+_VALID_SCR_DISTRIBUTIONS = {SCR_DISTRIBUTION_SIMHEAT}
+
 
 def process_wall_solar(surface: dict, sim_length: int, verbose: bool = True) -> list:
     thermal_branches: list = []
@@ -55,6 +60,55 @@ def process_wall_nocturnal(surface: dict, sim_length: int, verbose: bool = True)
     return thermal_branches
 
 
+def _scr_distribution_mode(surface: dict) -> str:
+    """常に保存的配分。明示値は simheat のみ可（省略も同じ）。"""
+    raw = surface.get("scr_distribution")
+    if raw is None:
+        return SCR_DISTRIBUTION_SIMHEAT
+    mode = str(raw).strip().lower()
+    if mode not in _VALID_SCR_DISTRIBUTIONS:
+        raise ValueError(
+            f"{surface.get('key', '?')}: scr_distribution は "
+            f"{sorted(_VALID_SCR_DISTRIBUTIONS)} または省略のみです（got {raw!r}）。"
+            "放射成分を受熱面 eta でさらに減衰させる旧配分は不可です。"
+        )
+    return mode
+
+
+def _group_weight_sum(faces: list[tuple[dict, str, str, float]], *, use_absorptance: bool) -> float:
+    total = 0.0
+    for s, _node, _part, area in faces:
+        if use_absorptance:
+            total += area * float(s.get("eta", DEFAULT_ETA_SW))
+        else:
+            total += area
+    return total
+
+
+def _allocate_group_heat(
+    group_heat: np.ndarray,
+    faces: list[tuple[dict, str, str, float]],
+) -> list[tuple[str, list[float]]]:
+    """1群分の放射熱を A*η 重み（ゼロなら面積比）で配分し、(node_key, series) を返す。"""
+    if not faces or not np.any(group_heat):
+        return []
+
+    weight_sum = _group_weight_sum(faces, use_absorptance=True)
+    use_absorptance = True
+    if weight_sum <= 0.0:
+        weight_sum = _group_weight_sum(faces, use_absorptance=False)
+        use_absorptance = False
+        if weight_sum <= 0.0:
+            return []
+
+    out: list[tuple[str, list[float]]] = []
+    for s, room_node_key, _part, area in faces:
+        eta_abs = float(s.get("eta", DEFAULT_ETA_SW))
+        weight = area * eta_abs if use_absorptance else area
+        out.append((room_node_key, (group_heat * weight / weight_sum).tolist()))
+    return out
+
+
 def process_glass_solar(surface: dict, surfaces: list, sim_length: int, verbose: bool = True) -> list:
     thermal_branches: list = []
 
@@ -62,75 +116,67 @@ def process_glass_solar(surface: dict, surfaces: list, sim_length: int, verbose:
     # - 同一室（start_node が同じ）の表面に対して配分する。
     # - startswith だと "Room1" と "Room10" のような前方一致で誤って混ざるため、
     #   CHAIN_DELIMITER で分割した先頭ノードの「完全一致」で判定する。
+    _ = _scr_distribution_mode(surface)  # 不正指定を拒否
     node = str(surface["key"]).split(CHAIN_DELIMITER, 1)[0]
     # 基準室 node に接する表面（start/end 両側）を収集する。
-    # これにより "X->LD" のような面でも LD 側表面ノードを配分対象に含められる。
     room_side_surfaces = collect_room_side_surfaces(node, surfaces)
 
-    area_ceiling = sum([area for _s, _node_key, part, area in room_side_surfaces if part == "ceiling"])
-    area_wall = sum([area for _s, _node_key, part, area in room_side_surfaces if part == "wall"])
-    area_ceiling_wall = area_ceiling + area_wall
-    area_floor = sum([area for _s, _node_key, part, area in room_side_surfaces if part == "floor"])
+    floor_faces = [item for item in room_side_surfaces if item[2] == "floor"]
+    other_faces = [item for item in room_side_surfaces if item[2] in ("ceiling", "wall")]
 
-    # ガラス透過日射の配分:
-    # - 床/床以外（壁・天井）: eta の代わりに SCR を掛けて表面ノードへ投入
-    # - 室空間（空気ノード）   : SCC を掛けて投入（追加ブランチ）
-    #
-    # 互換: 既存入力が eta のみの場合は SCR のデフォルトとして eta を使用する。日射は短波なので 0.8。
+    # ガラス透過日射:
+    # Q_rad = Q_tr * SCR を床50%/その他50%（片群なら全量）へ、群内は A*η で保存的配分。
+    # Q_conv = Q_tr * SCC は室空気へ。
+    # 互換: 既存入力が eta のみの場合は SCR のデフォルトとして eta を使用する。
     scr = surface.get("SCR", surface.get("scr", surface.get("eta", DEFAULT_ETA_SW)))
     scc = surface.get("SCC", surface.get("scc", 0.0))
 
-    base = np.array(surface["solar"]) * surface["area"]
-    floor_share = 0.50
-    if surface.get("whole_window_u") is not None and scr:
-        # SCR is already the room-side gain. Weight absorption within each group,
-        # conserving the gain even when a room has only one receiving group.
-        def absorbing_area(parts):
-            return sum(area * float(s.get("eta", DEFAULT_ETA_SW))
-                       for s, _, part, area in room_side_surfaces if part in parts)
+    base = np.asarray(surface["solar"], dtype=float) * float(surface["area"])
+    q_rad = base * float(scr)
+    q_conv = base * float(scc)
 
-        area_floor = absorbing_area({"floor"})
-        area_ceiling_wall = absorbing_area({"ceiling", "wall"})
-        if not (area_floor or area_ceiling_wall):
-            if np.any(base):
-                raise ValueError(f"{surface['key']}: SCR を受ける床・壁・天井の吸収面が必要です")
-        elif not area_floor:
+    if np.any(q_rad):
+        if not floor_faces and not other_faces:
+            raise ValueError(
+                f"{surface['key']}: SCR を受ける床・壁・天井の吸収面が必要です"
+                f"（室 {node}）"
+            )
+
+        if not floor_faces:
             floor_share = 0.0
-        elif not area_ceiling_wall:
+        elif not other_faces:
             floor_share = 1.0
-    heat_generation_floor        = base * floor_share * scr
-    heat_generation_ceiling_wall = base * (1 - floor_share) * scr
-    heat_generation_space        = base * scc
-
-    heat_generation_floor        = ensure_timeseries(heat_generation_floor,        sim_length)
-    heat_generation_ceiling_wall = ensure_timeseries(heat_generation_ceiling_wall, sim_length)
-    heat_generation_space        = ensure_timeseries(heat_generation_space,        sim_length)
-
-    for s, room_node_key, part, area in room_side_surfaces:
-        branch_key = f"void->{room_node_key}"
-        # 室内側の各面での「日射吸収」を表すため、受け側表面の eta を掛ける（短波なので 0.8）
-        eta_abs = float(s.get("eta", DEFAULT_ETA_SW))
-        if part == "floor":
-            if area_floor <= 0:
-                continue
-            heat_generation = (
-                np.array(heat_generation_floor) * eta_abs * area / area_floor
-            ).tolist()
-        elif part == "ceiling" or part == "wall":
-            if area_ceiling_wall <= 0:
-                continue
-            heat_generation = (
-                np.array(heat_generation_ceiling_wall) * eta_abs * area / area_ceiling_wall
-            ).tolist()
         else:
-            continue
-        b = {"key": branch_key, "heat_generation": heat_generation, "subtype": "solar_gain"}
-        if verbose:
-            logger.info(f"　ガラス透過日射熱ブランチ【{branch_key}】を追加します。{_branch_log_detail(b)}")
-        thermal_branches.append(b)
+            floor_share = 0.50
 
-    # 室空間（ノード）へ SCC 分を追加投入
-    # key は一旦 "void->{node}" として生成し、重複があれば validation 側で (01),(02)... にリネームされる。
+        heat_floor = q_rad * floor_share
+        heat_other = q_rad * (1.0 - floor_share)
+
+        for room_node_key, series in _allocate_group_heat(heat_floor, floor_faces):
+            b = {
+                "key": f"void->{room_node_key}",
+                "heat_generation": ensure_timeseries(series, sim_length),
+                "subtype": "solar_gain",
+            }
+            if verbose:
+                logger.info(
+                    f"　ガラス透過日射熱ブランチ【{b['key']}】を追加します。{_branch_log_detail(b)}"
+                )
+            thermal_branches.append(b)
+
+        for room_node_key, series in _allocate_group_heat(heat_other, other_faces):
+            b = {
+                "key": f"void->{room_node_key}",
+                "heat_generation": ensure_timeseries(series, sim_length),
+                "subtype": "solar_gain",
+            }
+            if verbose:
+                logger.info(
+                    f"　ガラス透過日射熱ブランチ【{b['key']}】を追加します。{_branch_log_detail(b)}"
+                )
+            thermal_branches.append(b)
+
+    heat_generation_space = ensure_timeseries(q_conv, sim_length)
     if any(v != 0.0 for v in heat_generation_space):
         branch_key = f"void->{node}"
         b = {
@@ -140,7 +186,10 @@ def process_glass_solar(surface: dict, surfaces: list, sim_length: int, verbose:
             "comment": "glass_solar_space(SCC)",
         }
         if verbose:
-            logger.info(f"　ガラス透過日射（室空間SCC）熱ブランチ【{branch_key}】を追加します。{_branch_log_detail(b)}")
+            logger.info(
+                f"　ガラス透過日射（室空間SCC）熱ブランチ【{branch_key}】を追加します。"
+                f"{_branch_log_detail(b)}"
+            )
         thermal_branches.append(b)
 
     return thermal_branches
