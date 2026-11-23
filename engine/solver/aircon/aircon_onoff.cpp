@@ -1,11 +1,25 @@
 #include "aircon/aircon_onoff.h"
 
+#include <algorithm>
 #include <cmath>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 
 namespace aircon::onoff {
+
+OnOffPolicy OnOffPolicy::make(bool idealRoomLoad,
+                              double temperatureTolK,
+                              double configuredRestartFloorK) {
+    OnOffPolicy policy;
+    policy.idealRoomLoad = idealRoomLoad;
+    policy.restartBandFloorK = idealRoomLoad ? 0.0 : std::max(0.0, configuredRestartFloorK);
+    // 信頼帯は再起動床と独立。入力で床を狭めても max(ε, 1 K) を維持する。
+    policy.trustBandK = restartBandK(temperatureTolK);
+    policy.trustUsesProcessFlow = !idealRoomLoad;
+    policy.allowMinProcess = !idealRoomLoad;
+    return policy;
+}
 
 double restartBandK(double tolerance, double floorK) {
     const double floor = std::max(0.0, floorK);
@@ -111,27 +125,12 @@ bool demandKeepsOn(const std::string& mode,
 
 Decision decideFromRequiredHeat(const std::string& mode,
                                 double requiredHeatW,
-                                double loadDeadbandW,
-                                double minProcessHeatW,
-                                bool holdAtMinimumCapacity,
-                                bool previouslyHeldAtMinimum) {
+                                double loadDeadbandW) {
     const double qTol = std::max(0.0, loadDeadbandW);
-    const char* minMode = minCapacityModeKey(mode, requiredHeatW);
-    const bool demandOn = demandKeepsOn(mode, requiredHeatW, qTol);
-    // 逆符号・ほぼ零では hold を無視して OFF/通常判定へ。同符号ならステップ内は維持。
-    const bool holdApplies =
-        holdAtMinimumCapacity &&
-        inMinProcessHoldBand(minMode, requiredHeatW, minProcessHeatW, qTol,
-                             previouslyHeldAtMinimum);
-
     Decision decision;
-    decision.shouldBeOn = holdApplies ? true : demandOn;
-
+    decision.shouldBeOn = demandKeepsOn(mode, requiredHeatW, qTol);
     std::ostringstream detail;
     detail << "Qreq=" << requiredHeatW << "W";
-    if (holdApplies) {
-        detail << ", min_process=" << minProcessHeatW << "W, 最低能力帯のON維持";
-    }
     decision.detail = detail.str();
     return decision;
 }
@@ -179,13 +178,9 @@ Decision decide(const std::string& mode,
                 bool useRequiredHeat,
                 double requiredHeatW,
                 double loadDeadbandW,
-                double minProcessHeatW,
-                bool holdAtMinimumCapacity,
-                bool previouslyHeldAtMinimum,
                 double restartBandFloorK) {
     if (useRequiredHeat && currentlyOn && std::isfinite(requiredHeatW)) {
-        return decideFromRequiredHeat(mode, requiredHeatW, loadDeadbandW, minProcessHeatW,
-                                      holdAtMinimumCapacity, previouslyHeldAtMinimum);
+        return decideFromRequiredHeat(mode, requiredHeatW, loadDeadbandW);
     }
     return decideFromTemperature(mode, currentlyOn, currentTemp, targetTemp, tolerance,
                                  restartBandFloorK);

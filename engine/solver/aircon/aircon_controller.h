@@ -110,7 +110,6 @@ private:
         aircon::capacity::CapacityBracketMap capacity;
         std::unordered_set<std::string> flowBoost, recovery, floorBlocked, fanTrial, rebase;
         std::unordered_map<std::string, BoundaryIteration> boundary;
-        std::unordered_map<std::string, double> freeTemperature;
     };
     mutable std::optional<AirflowCandidateSnapshot> airflowCandidateSnapshot_;
     void captureAirflowCandidate(ThermalNetwork& thermal, VentilationNetwork& ventilation,
@@ -120,9 +119,6 @@ private:
         ThermalNetwork& thermal, const VertexProperties& node, bool temperatureDemand,
         bool numericalTrial, bool mayCool, bool blocked, const FlowRateMap* flows,
         double restartBandFloorK = aircon::onoff::kRestartBandK) const;
-
-    // OFF 中に観測した set 室温。停止後の再起動判定などで参照する。
-    mutable std::unordered_map<std::string, double> lastFreeSetTempC_;
 
     // 外側連成の forceMinTwo 判定用（ON/OFF・mode 署名）。initializeModels でクリア。
     std::uint64_t prevAirconStateSig_ = 0;
@@ -200,17 +196,14 @@ public:
                                         const FlowRateMap& flowRates) const;
 
     // === 制御関数 ===
-    // minProcessHeatW > 0 かつ holdAtMinimumCapacity のとき、最低能力で運転を続ける。
-    // ON/OFF そのものは負荷デッドバンド（約 1 W）のみ。カタログ Q.min では止めない。
+    // ON/OFF は温度バンドまたは負荷デッドバンド（約 1 W）のみ。
+    // 最低能力ホールドは controlAllAircons 側で Qreq 上書き・風量下限に使う。
     template<typename NodeType>
     AirconControlResult controlAircon(const NodeType& nodeProps, double currentTemp,
                                       double targetTemp, double tolerance, [[maybe_unused]] std::ostream& logs,
                                       bool useRequiredHeat = false,
                                       double requiredHeatW = 0.0,
                                       double loadDeadbandW = 1.0,
-                                      double minProcessHeatW = 0.0,
-                                      bool holdAtMinimumCapacity = false,
-                                      bool previouslyHeldAtMinimum = false,
                                       double restartBandFloorK = aircon::onoff::kRestartBandK) const {
         AirconControlResult result{false, nodeProps.on, ""};
         const std::string targetName = nodeProps.set_node.empty() ? nodeProps.key : nodeProps.set_node;
@@ -228,8 +221,7 @@ public:
 
         const auto decision = aircon::onoff::decide(
             nodeProps.current_mode, nodeProps.on, currentTemp, targetTemp, tolerance,
-            useRequiredHeat, requiredHeatW, loadDeadbandW, minProcessHeatW, holdAtMinimumCapacity,
-            previouslyHeldAtMinimum, restartBandFloorK);
+            useRequiredHeat, requiredHeatW, loadDeadbandW, restartBandFloorK);
         result.on = decision.shouldBeOn;
         result.stateChanged = decision.shouldBeOn != nodeProps.on;
         result.logMessage = aircon::onoff::formatLog(
