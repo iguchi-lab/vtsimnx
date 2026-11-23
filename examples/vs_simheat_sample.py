@@ -77,6 +77,9 @@ input_data["nodes"] = [
 
 """##換気回路網"""
 
+# simheat2の個別空調ケースと同じ局所換気経路を使う。
+# 外部→ホール→洗面所→浴室→外部、外部→ホール→1階トイレ→外部。
+# 風量と24時間換気の丸めの扱いは docs/vs_simheat_example.md を参照。
 input_data["ventilation_branches"] = h.ventilation["24h"]
 
 """##室の表面"""

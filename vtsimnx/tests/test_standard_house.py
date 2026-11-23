@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
+
+import numpy as np
 import pandas as pd
 import pytest
 
@@ -53,6 +56,28 @@ def test_ventilation_and_aircon_are_replaceable():
     spec = h.aircon_spec["highspec"]
     spec["Q"]["heating"]["rtd"] = 99.0
     assert h.aircon_spec["highspec"]["Q"]["heating"]["rtd"] == pytest.approx(2.5)
+
+
+def test_standard_house_local_ventilation_matches_simheat2():
+    branches = {item["key"]: item["vol"] for item in vt.standard_house.ventilation["24h"]}
+    for path, peak, hours in (
+        ("外部->ホール->洗面所->浴室->外部", 100, 1323),
+        ("外部->ホール->1階トイレ->外部", 6, 3901),
+    ):
+        hourly = np.asarray(branches[path]) * 3600
+        assert hourly.shape == (8760,)
+        assert hourly.max() == pytest.approx(peak)
+        assert np.count_nonzero(hourly) == hours
+    assert branches["2階ホール->2階トイレ->外部"] * 3600 == pytest.approx(40)
+
+    balance = defaultdict(lambda: np.zeros(8760))
+    for path, vol in branches.items():
+        rooms = path.split("->")
+        for source, target in zip(rooms, rooms[1:]):
+            balance[source] -= vol
+            balance[target] += vol
+    for room in ("ホール", "洗面所", "浴室", "1階トイレ", "2階ホール", "2階トイレ"):
+        np.testing.assert_allclose(balance[room], 0.0, atol=1e-12, err_msg=room)
 
 
 def test_compute_solar_includes_shaded_windows():
