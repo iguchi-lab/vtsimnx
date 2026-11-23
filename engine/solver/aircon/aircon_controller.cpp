@@ -422,82 +422,111 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
         const bool useRequiredHeat =
             aircon::onoff::shouldUseRequiredHeat(nodeProps.on, nodeProps.required_heat_w, trust);
 
-        const char* minMode = aircon::onoff::minCapacityModeKey(
-            nodeProps.current_mode, nodeProps.required_heat_w);
-        double minProcessHeatW = 0.0;
-        bool holdAtMinimumCapacity = false;
-        if (useRequiredHeat && policy.allowMinProcess) {
-            if (const auto* spec = nodeProps.getAirconSpec()) {
-                minProcessHeatW =
-                    aircon::onoff::resolveMinProcessHeatW(spec->getMinProcess(minMode));
-            }
-            holdAtMinimumCapacity = aircon::onoff::inMinProcessHoldBand(
-                minMode, nodeProps.required_heat_w, minProcessHeatW,
-                aircon::onoff::kLoadDeadbandW, nodeProps.aircon_min_process_hold);
+        std::optional<double> minProcessKW;
+        if (const auto* spec = nodeProps.getAirconSpec()) {
+            const char* minMode = aircon::onoff::minCapacityModeKey(
+                nodeProps.current_mode, nodeProps.required_heat_w);
+            minProcessKW = spec->getMinProcess(minMode);
         }
+        const auto minPlan = useRequiredHeat
+            ? aircon::onoff::planMinProcess(policy, nodeProps.current_mode,
+                                            nodeProps.required_heat_w, minProcessKW,
+                                            nodeProps.aircon_min_process_hold)
+            : aircon::onoff::MinProcessPlan{};
 
         auto result = controlAircon(nodeProps, currentTemp, targetTemp, tolerance, logFile,
                                     useRequiredHeat, nodeProps.required_heat_w,
                                     aircon::onoff::kLoadDeadbandW, policy.restartBandFloorK);
-        // A humidity-triggered fan can itself satisfy RH by mixing dry return
-        // air. Keep that trial active while solving its cooling/fan-only state;
-        // turning it off merely because its own airflow removed the demand
-        // would alternate between two different moisture networks forever.
-        const bool humidityTrial = nodeProps.on && nodeProps.humidity_overcool_hold;
-        if (aircon::humidity_control::enabled(nodeProps)) {
-            const bool reheat = aircon::humidity_control::simultaneous(nodeProps);
-            const double floor = targetTemp - nodeProps.max_overcooling;
-            // A remote return room can be colder than the controlled room.
-            // Use the coil's actual sensible sign, not just the set-room load:
-            // maintaining the floor must never introduce unreported heating.
-            const double heatingNeededW = flowRates
-                ? calculateHeatCapacity(thermalNetwork, "HEATING", nodeProps.in_node, airconKey, *flowRates)
-                : std::max(0.0, nodeProps.required_heat_w);
-            if (!reheat && nodeProps.on && heatingNeededW > 1.0 &&
-                nodeProps.current_pre_temp <= floor + 1e-4) {
-                humidityFloorBlocked_.insert(airconKey);
-            }
-            // Do not heat an already cold room in humidity-priority mode.
-            const bool mayCool = currentTemp >= floor - 1e-4 &&
-                !humidityFloorBlocked_.count(airconKey);
-            const auto request = coolingRequest(thermalNetwork, nodeProps, result.on,
-                humidityTrial, mayCool, humidityFloorBlocked_.count(airconKey), flowRates,
-                configuredFloorK);
-            result.on = request.on();
-            result.stateChanged = result.on != nodeProps.on;
-            nodeProps.humidity_overcool_hold = result.on && !reheat &&
-                (request.humidity || request.numericalTrial);
-            // The minimum-process diagnostic uses the whole cooling request;
-            // it must not drop a latent-only request just because Qs is small.
-            if (const auto* spec = nodeProps.getAirconSpec()) {
-                minProcessHeatW = aircon::onoff::resolveMinProcessHeatW(spec->getMinProcess("cooling"));
-            }
-            nodeProps.aircon_min_process_hold = result.on && aircon::onoff::inMinProcessHoldBand(
-                "cooling", -request.coolingW(), minProcessHeatW, aircon::onoff::kLoadDeadbandW,
-                nodeProps.aircon_min_process_hold);
-            result.logMessage = nodeProps.key + (result.on ? " humidistat: ON" : " humidistat: OFF") +
-                (request.blocked ? " (overcooling floor requires heating)" : "");
+
+        const bool humidityEnabled = aircon::humidity_control::enabled(nodeProps);
+        if (humidityEnabled) {
+            applyHumidistatOnOffOverride(thermalNetwork, airconKey, nodeProps, result,
+                                         currentTemp, targetTemp, configuredFloorK, flowRates);
+        } else {
+            finalizeOrdinaryMinProcess(nodeProps, policy, minPlan, useRequiredHeat, result.on,
+                                       false);
         }
-        if (!aircon::humidity_control::enabled(nodeProps) && result.on && useRequiredHeat) {
-            nodeProps.aircon_min_process_hold = holdAtMinimumCapacity;
-        } else if (!result.on) {
-            nodeProps.aircon_min_process_hold = false;
-        }
-        // DUCTの風量は生の設定維持負荷を参照する。最低能力は風量則側で
-        // 下限として適用し、ON/OFF判定で負荷を上書きしない。
-        // ideal_room_load は理想 Qreq を報告するため上書きしない。
-        if (policy.allowMinProcess && !aircon::humidity_control::enabled(nodeProps) &&
-            holdAtMinimumCapacity && result.on && std::isfinite(nodeProps.required_heat_w) &&
-            !aircon::airflow::isDuctCentralModel(nodeProps)) {
-            nodeProps.required_heat_w =
-                aircon::onoff::signedMinProcessHeatW(minMode, minProcessHeatW);
-        }
+
         writeDomainLog(logFile, "空調", result.logMessage);
         applyOnOffControlResult(thermalNetwork, airconKey, nodeProps, result, humidityAbsTol,
                                 allControlled, supplyHumidityChanged, outProposals);
     }
 
     return allControlled;
+}
+
+void AirconController::applyHumidistatOnOffOverride(
+    ThermalNetwork& thermalNetwork,
+    const std::string& airconKey,
+    VertexProperties& nodeProps,
+    AirconControlResult& result,
+    double currentTemp,
+    double targetTemp,
+    double configuredRestartFloorK,
+    const FlowRateMap* flowRates) const {
+    // A humidity-triggered fan can itself satisfy RH by mixing dry return
+    // air. Keep that trial active while solving its cooling/fan-only state;
+    // turning it off merely because its own airflow removed the demand
+    // would alternate between two different moisture networks forever.
+    const bool humidityTrial = nodeProps.on && nodeProps.humidity_overcool_hold;
+    const bool reheat = aircon::humidity_control::simultaneous(nodeProps);
+    const double floor = targetTemp - nodeProps.max_overcooling;
+    // A remote return room can be colder than the controlled room.
+    // Use the coil's actual sensible sign, not just the set-room load:
+    // maintaining the floor must never introduce unreported heating.
+    const double heatingNeededW = flowRates
+        ? calculateHeatCapacity(thermalNetwork, "HEATING", nodeProps.in_node, airconKey, *flowRates)
+        : std::max(0.0, nodeProps.required_heat_w);
+    if (!reheat && nodeProps.on && heatingNeededW > 1.0 &&
+        nodeProps.current_pre_temp <= floor + 1e-4) {
+        humidityFloorBlocked_.insert(airconKey);
+    }
+    // Do not heat an already cold room in humidity-priority mode.
+    const bool mayCool = currentTemp >= floor - 1e-4 &&
+        !humidityFloorBlocked_.count(airconKey);
+    const auto request = coolingRequest(thermalNetwork, nodeProps, result.on,
+        humidityTrial, mayCool, humidityFloorBlocked_.count(airconKey), flowRates,
+        configuredRestartFloorK);
+    result.on = request.on();
+    result.stateChanged = result.on != nodeProps.on;
+    nodeProps.humidity_overcool_hold = result.on && !reheat &&
+        (request.humidity || request.numericalTrial);
+    // The minimum-process diagnostic uses the whole cooling request;
+    // it must not drop a latent-only request just because Qs is small.
+    std::optional<double> minProcessKW;
+    if (const auto* spec = nodeProps.getAirconSpec()) {
+        minProcessKW = spec->getMinProcess("cooling");
+    }
+    const auto coolingPlan = aircon::onoff::planMinProcessForCoolingDemand(
+        request.coolingW(), minProcessKW, nodeProps.aircon_min_process_hold);
+    nodeProps.aircon_min_process_hold = result.on && coolingPlan.hold;
+    result.logMessage = nodeProps.key + (result.on ? " humidistat: ON" : " humidistat: OFF") +
+        (request.blocked ? " (overcooling floor requires heating)" : "");
+}
+
+void AirconController::finalizeOrdinaryMinProcess(
+    VertexProperties& nodeProps,
+    const aircon::onoff::OnOffPolicy& policy,
+    const aircon::onoff::MinProcessPlan& plan,
+    bool useRequiredHeat,
+    bool decidedOn,
+    bool humidityControlEnabled) const {
+    if (!decidedOn) {
+        nodeProps.aircon_min_process_hold = false;
+        return;
+    }
+    if (useRequiredHeat) {
+        nodeProps.aircon_min_process_hold = plan.hold;
+    }
+    // DUCT の風量は生の設定維持負荷を参照する。最低能力は風量則側で下限として適用。
+    // ideal_room_load は理想 Qreq を報告するため上書きしない。
+    if (aircon::onoff::shouldOverwriteRequiredHeat(
+            policy, plan, humidityControlEnabled,
+            aircon::airflow::isDuctCentralModel(nodeProps), decidedOn) &&
+        std::isfinite(nodeProps.required_heat_w)) {
+        nodeProps.required_heat_w =
+            aircon::onoff::signedMinProcessHeatW(plan.modeKey, plan.heatW);
+    }
 }
 
 void AirconController::applyOnOffControlResult(

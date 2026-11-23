@@ -106,6 +106,43 @@ double signedMinProcessHeatW(const char* minModeKey, double minProcessHeatW) {
     return cooling ? -minProcessHeatW : minProcessHeatW;
 }
 
+MinProcessPlan planMinProcess(const OnOffPolicy& policy,
+                              const std::string& currentMode,
+                              double requiredHeatW,
+                              std::optional<double> minProcessKW,
+                              bool previouslyHeld,
+                              double deadbandW) {
+    MinProcessPlan plan;
+    plan.modeKey = minCapacityModeKey(currentMode, requiredHeatW);
+    if (!policy.allowMinProcess) return plan;
+    plan.heatW = resolveMinProcessHeatW(minProcessKW);
+    plan.hold = inMinProcessHoldBand(plan.modeKey, requiredHeatW, plan.heatW, deadbandW,
+                                     previouslyHeld);
+    return plan;
+}
+
+MinProcessPlan planMinProcessForCoolingDemand(double coolingDemandW,
+                                              std::optional<double> minProcessKW,
+                                              bool previouslyHeld,
+                                              double deadbandW) {
+    MinProcessPlan plan;
+    plan.modeKey = "cooling";
+    plan.heatW = resolveMinProcessHeatW(minProcessKW);
+    // coolingDemandW は正の冷却量。hold 判定は符号付き Qreq（冷房は負）で行う。
+    plan.hold = inMinProcessHoldBand(plan.modeKey, -coolingDemandW, plan.heatW, deadbandW,
+                                     previouslyHeld);
+    return plan;
+}
+
+bool shouldOverwriteRequiredHeat(const OnOffPolicy& policy,
+                                 const MinProcessPlan& plan,
+                                 bool humidityControlEnabled,
+                                 bool isDuctCentral,
+                                 bool decidedOn) {
+    return policy.allowMinProcess && !humidityControlEnabled && !isDuctCentral && plan.hold &&
+           decidedOn;
+}
+
 namespace {
 
 bool demandKeepsOn(const std::string& mode,

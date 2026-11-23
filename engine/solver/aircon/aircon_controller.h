@@ -148,6 +148,24 @@ private:
                                  bool* supplyHumidityChanged,
                                  std::vector<AirconStateProposal>* outProposals) const;
 
+    // humidistat 有効時: 温度 ON/OFF 結果を冷却要求で上書きし、min_process フラグも更新する。
+    void applyHumidistatOnOffOverride(ThermalNetwork& thermalNetwork,
+                                      const std::string& airconKey,
+                                      VertexProperties& nodeProps,
+                                      AirconControlResult& result,
+                                      double currentTemp,
+                                      double targetTemp,
+                                      double configuredRestartFloorK,
+                                      const FlowRateMap* flowRates) const;
+
+    // 通常機種: min_process フラグ更新と（非 DUCT の）required_heat_w 上書き。
+    void finalizeOrdinaryMinProcess(VertexProperties& nodeProps,
+                                    const aircon::onoff::OnOffPolicy& policy,
+                                    const aircon::onoff::MinProcessPlan& plan,
+                                    bool useRequiredHeat,
+                                    bool decidedOn,
+                                    bool humidityControlEnabled) const;
+
     /** 1台分の電力[W]とCOPを推定する。logDetail が true のときのみ WARN と詳細1行を出力。失敗時は例外。 */
     std::pair<double, double> estimatePowerAndCOPForAircon(const std::string& airconKey,
                                                            ThermalNetwork& thermalNetwork,

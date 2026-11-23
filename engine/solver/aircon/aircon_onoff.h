@@ -91,6 +91,34 @@ bool inMinProcessHoldBand(const char* minModeKey,
 // DUCT以外のホールド時に required_heat_w へ書き込む符号付き最低能力 [W]。
 double signedMinProcessHeatW(const char* minModeKey, double minProcessHeatW);
 
+// 最低能力ホールドの計画（ON/OFF 後の Qreq 上書き・フラグ更新用）。
+struct MinProcessPlan {
+    const char* modeKey = "heating";
+    double heatW = 0.0;
+    bool hold = false;
+};
+
+// policy.allowMinProcess が false、または minProcessKW 無効なら hold=false。
+MinProcessPlan planMinProcess(const OnOffPolicy& policy,
+                              const std::string& currentMode,
+                              double requiredHeatW,
+                              std::optional<double> minProcessKW,
+                              bool previouslyHeld,
+                              double deadbandW = kLoadDeadbandW);
+
+// humidistat 冷房要求（正の冷却量 W）向け。modeKey は常に "cooling"。
+MinProcessPlan planMinProcessForCoolingDemand(double coolingDemandW,
+                                              std::optional<double> minProcessKW,
+                                              bool previouslyHeld,
+                                              double deadbandW = kLoadDeadbandW);
+
+// 通常機種・非 humidistat・非 DUCT で hold 中なら required_heat を置き換えてよい。
+bool shouldOverwriteRequiredHeat(const OnOffPolicy& policy,
+                                 const MinProcessPlan& plan,
+                                 bool humidityControlEnabled,
+                                 bool isDuctCentral,
+                                 bool decidedOn);
+
 // 設定維持中の室負荷、または停止中の温度バンドで ON/OFF を決める。
 // 負荷経路の継続条件はデッドバンドのみ（最低能力ホールドはここでは見ない）。
 Decision decide(const std::string& mode,

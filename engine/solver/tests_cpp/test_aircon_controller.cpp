@@ -1657,6 +1657,25 @@ int main() {
         expectTrue(!ideal.trustUsesProcessFlow && !ideal.allowMinProcess,
                    "ideal policy disables flow trust and min_process");
 
+        using aircon::onoff::planMinProcess;
+        using aircon::onoff::planMinProcessForCoolingDemand;
+        using aircon::onoff::shouldOverwriteRequiredHeat;
+        const auto holdPlan = planMinProcess(ordinary, "HEATING", 160.0, 0.7, false);
+        expectTrue(holdPlan.hold, "planMinProcess holds small heating load");
+        expectNear(holdPlan.heatW, 700.0, 0.0, "planMinProcess converts kW to W");
+        expectTrue(shouldOverwriteRequiredHeat(ordinary, holdPlan, false, false, true),
+                   "ordinary non-duct hold overwrites Qreq");
+        expectTrue(!shouldOverwriteRequiredHeat(ordinary, holdPlan, false, true, true),
+                   "DUCT does not overwrite Qreq");
+        expectTrue(!shouldOverwriteRequiredHeat(ideal, holdPlan, false, false, true),
+                   "ideal policy never overwrites Qreq");
+        const auto coolPlan = planMinProcessForCoolingDemand(160.0, 0.7, false);
+        expectTrue(coolPlan.hold && std::string(coolPlan.modeKey) == "cooling",
+                   "cooling demand plan uses cooling mode key");
+        const auto idealSkip = planMinProcess(ideal, "HEATING", 160.0, 0.7, false);
+        expectTrue(!idealSkip.hold && idealSkip.heatW == 0.0,
+                   "ideal planMinProcess leaves hold off");
+
         // 冷房・停止中: 設定+0.5 K は既定床では再起動しないが、床0では起動する。
         const auto stayOff = decide("COOLING", false, 27.5, 27.0, 0.001, false, 0.0, 1.0, 1.0);
         expectTrue(!stayOff.shouldBeOn, "0.5 K overshoot stays OFF with 1 K floor");
