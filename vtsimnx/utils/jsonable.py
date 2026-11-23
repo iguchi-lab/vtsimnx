@@ -31,6 +31,9 @@ def to_jsonable(obj: Any) -> Any:
     if isinstance(obj, float):
         return None if _is_nan_or_inf(obj) else obj
 
+    if obj is pd.NaT:
+        return None
+
     # datetime/date
     if isinstance(obj, (datetime, date)):
         return obj.isoformat()
@@ -40,15 +43,6 @@ def to_jsonable(obj: Any) -> Any:
         return str(obj)
 
     # pandas
-    if isinstance(obj, pd.Timestamp):
-        # NaT もここに来る可能性があるため isna を見る
-        try:
-            if pd.isna(obj):
-                return None
-        except (TypeError, ValueError):
-            pass
-        return obj.isoformat()
-
     if isinstance(obj, pd.Series):
         return [to_jsonable(v) for v in obj.tolist()]
 

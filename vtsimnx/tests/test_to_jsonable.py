@@ -36,3 +36,11 @@ def test_to_jsonable_handles_pandas_numpy_and_specials():
     assert all(not (isinstance(v, float) and (math.isnan(v) or math.isinf(v))) for v in out["series"] if v is not None)
 
 
+def test_missing_datetime_in_payload():
+    index = pd.DatetimeIndex(["2026-01-01", None], tz="UTC")
+    expected = ["2026-01-01T00:00:00+00:00", None]
+    assert to_jsonable(pd.NaT) is None
+    assert to_jsonable({"index": index, "data": pd.DataFrame({"t": index})}) == {
+        "index": expected,
+        "data": {"t": expected},
+    }
