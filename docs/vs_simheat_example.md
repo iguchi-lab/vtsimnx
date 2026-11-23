@@ -237,5 +237,5 @@ input_data["surfaces"] = h.compose_surfaces(h.surface_rows[grade], catalog)
 標準住宅AC4台とは別に、理想室負荷の起動判定とQs/Qlを単室で固定確認するケースがある。
 入力は [`engine/app/test_json/ideal_room_load_single_room.json`](../engine/app/test_json/ideal_room_load_single_room.json)。
 `control_mode="ideal_room_load"` とし、外気が涼しい高湿度時間は停止、暑い時間は設定T/RHを維持する理想負荷を出力する（電力は0）。
-湿度超過だけでは起動しない。詳細は [室温・室湿度の制御モード](aircon_room_humidity_modes.md#理想室負荷モード-ideal_room_load) を参照。
+湿度超過だけでは起動しない。再起動ヒステリシス床（通常 1 K）は本モードでは付けない。詳細は [室温・室湿度の制御モード](aircon_room_humidity_modes.md#理想室負荷モード-ideal_room_load) を参照。
 

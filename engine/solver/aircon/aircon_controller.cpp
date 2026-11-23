@@ -387,12 +387,17 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
                                          bool* supplyHumidityChanged,
                                          double humidityAbsTol,
                                          std::vector<AirconStateProposal>* outProposals,
-                                         const FlowRateMap* flowRates) const {
+                                         const FlowRateMap* flowRates,
+                                         double restartBandFloorK) const {
     bool allControlled = true;
-    const double setpointBandK = aircon::onoff::restartBandK(tolerance);
+    const double configuredFloorK = std::max(0.0, restartBandFloorK);
 
     for (const auto& airconKey : getAirconKeys()) {
         auto& nodeProps = thermalNetwork.getNode(airconKey);
+        // ideal_room_load は Sim/Heat 照合向けに再起動ヒステリシス床を付けない（帯 = ε_T,ac）。
+        const double nodeFloorK =
+            aircon::humidity_control::idealRoomLoad(nodeProps) ? 0.0 : configuredFloorK;
+        const double setpointBandK = aircon::onoff::restartBandK(tolerance, nodeFloorK);
         const double currentTemp =
             aircon::network_utils::getControlledRoomTemperature(thermalNetwork, nodeProps);
         const double targetTemp = nodeProps.current_requested_pre_temp;
@@ -432,7 +437,8 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
         auto result = controlAircon(nodeProps, currentTemp, targetTemp, tolerance, logFile,
                                     useRequiredHeat, nodeProps.required_heat_w,
                                     aircon::onoff::kLoadDeadbandW, minProcessHeatW,
-                                    holdAtMinimumCapacity, nodeProps.aircon_min_process_hold);
+                                    holdAtMinimumCapacity, nodeProps.aircon_min_process_hold,
+                                    nodeFloorK);
         // A humidity-triggered fan can itself satisfy RH by mixing dry return
         // air. Keep that trial active while solving its cooling/fan-only state;
         // turning it off merely because its own airflow removed the demand

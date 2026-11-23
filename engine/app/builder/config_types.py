@@ -56,6 +56,7 @@ class ToleranceType(TypedDict):
     thermal: float  # 互換代表値（既定では空調温度差[K]と各用途の初期値）
     convergence: float
     aircon_temperature: NotRequired[float]  # 空調ON/OFF温度差 [K]
+    aircon_restart_band: NotRequired[float]  # 再起動ヒステリシス床 [K]（既定1.0）
     thermal_balance: NotRequired[float]  # 熱収支RMSE合否 [W]
     thermal_linear_residual: NotRequired[float]  # DirectT 相対残差許容
     coupling_pressure: NotRequired[float]

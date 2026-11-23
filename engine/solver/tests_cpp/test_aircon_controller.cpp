@@ -1663,6 +1663,24 @@ int main() {
                    "hold-min log should cite min process");
     }
 
+    // 再起動ヒステリシス床: 既定1 K、0なら ε のみ。
+    {
+        using aircon::onoff::restartBandK;
+        using aircon::onoff::decide;
+        expectNear(restartBandK(0.001), 1.0, 0.0, "default floor is 1 K");
+        expectNear(restartBandK(0.001, 0.0), 0.001, 0.0, "floor 0 uses tolerance only");
+        expectNear(restartBandK(0.5, 0.2), 0.5, 0.0, "tolerance above floor wins");
+        expectNear(restartBandK(0.1, 0.5), 0.5, 0.0, "floor above tolerance wins");
+
+        // 冷房・停止中: 設定+0.5 K は既定床では再起動しないが、床0では起動する。
+        const auto stayOff = decide("COOLING", false, 27.5, 27.0, 0.001,
+                                    false, 0.0, 1.0, 0.0, false, false, 1.0);
+        expectTrue(!stayOff.shouldBeOn, "0.5 K overshoot stays OFF with 1 K floor");
+        const auto turnOn = decide("COOLING", false, 27.5, 27.0, 0.001,
+                                   false, 0.0, 1.0, 0.0, false, false, 0.0);
+        expectTrue(turnOn.shouldBeOn, "0.5 K overshoot turns ON with floor 0");
+    }
+
     // inMinProcessHoldBand の符号表（コントローラを通さない単体）。
     {
         using aircon::onoff::inMinProcessHoldBand;

@@ -67,11 +67,12 @@ $$
 
 $$
 \Delta T_{\mathrm{restart}}=
-\max(\text{空調温度許容値},1.0\ \mathrm{K})
+\max(\text{空調温度許容値},\Delta T_{\mathrm{band}})
 $$
 
-ここでの1.0 Kは再起動ヒステリシスである。前節の0.5 Kは、要求未達時に風量基準を
-能力上限へ切り替える判定であり、目的が異なる。
+$\Delta T_{\mathrm{band}}$ は `simulation.tolerance.aircon_restart_band`（未指定時 1.0 K）である。
+ここでの床は再起動ヒステリシスである。前節の0.5 Kは、要求未達時に風量基準を
+能力上限へ切り替える判定であり、目的が異なる。`ideal_room_load` では床を付けない。
 
 最低能力運転中の風量は $V_{\mathrm{dsgn}}\times Q_{\mathrm{min\_process}}/Q_{\mathrm{rtd}}$ とする。
 負荷0のときの風量は既定で0であり、`aircon.vol_zero` [m³/s] で換気用の下限を与えられる。

@@ -1,4 +1,5 @@
 #include "sim_constants_parser.h"
+#include <cmath>
 #include <stdexcept>
 #include <type_traits>
 #include <sstream>
@@ -96,6 +97,23 @@ SimulationConstants parseSimulationConstants(const nlohmann::json& config,
         outConstants.airconTemperatureToleranceK = tol["aircon_temperature"];
         logLine([&](std::ostringstream& oss) {
             oss << "  空調温度許容誤差[K]: " << outConstants.airconTemperatureToleranceK;
+        });
+    }
+    // 再起動ヒステリシス床。thermal とは独立。未指定は 1.0 K（従来固定値）。
+    outConstants.airconRestartBandK = 1.0;
+    if (tol.contains("aircon_restart_band")) {
+        if (!tol["aircon_restart_band"].is_number()) {
+            throw std::runtime_error(
+                "Missing or invalid 'simulation.tolerance.aircon_restart_band' (number required)");
+        }
+        const double band = tol["aircon_restart_band"].get<double>();
+        if (!(band >= 0.0) || !std::isfinite(band)) {
+            throw std::runtime_error(
+                "Invalid 'simulation.tolerance.aircon_restart_band' (non-negative finite number required)");
+        }
+        outConstants.airconRestartBandK = band;
+        logLine([&](std::ostringstream& oss) {
+            oss << "  空調再起動ヒステリシス床[K]: " << outConstants.airconRestartBandK;
         });
     }
     if (tol.contains("thermal_balance")) {

@@ -532,11 +532,13 @@ void testParserPositiveIntegerIterations() {
         auto j = minimalSimJson();
         j["simulation"]["tolerance"]["thermal"] = 1e-3;
         j["simulation"]["tolerance"]["aircon_temperature"] = 0.5;
+        j["simulation"]["tolerance"]["aircon_restart_band"] = 0.0;
         j["simulation"]["tolerance"]["thermal_balance"] = 2.0;
         j["simulation"]["tolerance"]["thermal_linear_residual"] = 1e-8;
         const auto c = parseSimulationConstants(j, logs);
         expectNear(c.thermalTolerance, 1e-3, 0.0, "parser: thermal compat");
         expectNear(c.airconTemperatureToleranceK, 0.5, 0.0, "parser: aircon_temperature");
+        expectNear(c.airconRestartBandK, 0.0, 0.0, "parser: aircon_restart_band");
         expectNear(c.thermalBalanceToleranceW, 2.0, 0.0, "parser: thermal_balance");
         expectNear(c.thermalLinearResidualRelativeTolerance, 1e-8, 0.0,
                    "parser: thermal_linear_residual");
@@ -544,6 +546,26 @@ void testParserPositiveIntegerIterations() {
         expectNear(effectiveThermalBalanceToleranceW(c), 2.0, 0.0, "effective balance");
         expectNear(effectiveThermalLinearResidualRelativeTolerance(c), 1e-8, 0.0,
                    "effective linear residual");
+    }
+
+    {
+        auto j = minimalSimJson();
+        const auto c = parseSimulationConstants(j, logs);
+        expectNear(c.airconRestartBandK, 1.0, 0.0, "parser: aircon_restart_band default 1.0");
+    }
+
+    {
+        auto j = minimalSimJson();
+        j["simulation"]["tolerance"]["aircon_restart_band"] = -0.1;
+        bool threw = false;
+        try {
+            (void)parseSimulationConstants(j, logs);
+        } catch (const std::runtime_error& e) {
+            threw = true;
+            expectTrue(std::string(e.what()).find("aircon_restart_band") != std::string::npos,
+                       "parser: negative restart band message");
+        }
+        expectTrue(threw, "parser: negative aircon_restart_band rejected");
     }
 
     {

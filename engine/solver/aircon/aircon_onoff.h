@@ -5,7 +5,8 @@
 
 namespace aircon::onoff {
 
-// 停止後の再起動ヒステリシス。数値 tol が極小でも 1 K 未満では再起動しない。
+// 停止後の再起動ヒステリシス床（既定）。数値 tol が極小でもこの幅未満では再起動しない。
+// simulation.tolerance.aircon_restart_band で上書き可。ideal_room_load では床 0 を使う。
 constexpr double kRestartBandK = 1.0;
 constexpr double kLoadDeadbandW = 1.0;
 // 最低能力ホールド。入るのは 1.2 倍。一度入ったら、同符号でデッドバンド超なら
@@ -28,7 +29,8 @@ struct RequiredHeatTrust {
     bool processFlowTooLow = false;       // ほぼ無風ではコイル熱が信用できない
 };
 
-double restartBandK(double tolerance);
+// ΔT_restart = max(tolerance, floorK)。floorK 既定は kRestartBandK。
+double restartBandK(double tolerance, double floorK = kRestartBandK);
 
 // 暖房は要求より十分低い、冷房は十分高いときに再起動する。AUTO は幅の外なら再起動。
 bool temperatureWouldRestart(const std::string& mode,
@@ -88,7 +90,8 @@ Decision decide(const std::string& mode,
                 double loadDeadbandW,
                 double minProcessHeatW,
                 bool holdAtMinimumCapacity,
-                bool previouslyHeldAtMinimum = false);
+                bool previouslyHeldAtMinimum = false,
+                double restartBandFloorK = kRestartBandK);
 
 std::string formatLog(const std::string& targetName,
                       bool currentlyOn,

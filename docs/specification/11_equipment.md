@@ -18,7 +18,7 @@
 
 requestedSetpoint は要求設定、effectiveSetpoint は能力制限後の実効設定である。ON/OFF と温度固定行で参照する役割を分ける。
 
-温度判定は d=T−T_set、b=max(tolerance,kRestartBandK) とする。|d|≤b では現在の状態を保持する。帯域外では HEATING は d<0、COOLING は d>0、AUTO は真を ON 条件とする。不正モードは例外とする。
+温度判定は d=T−T_set、b=max(tolerance,aircon_restart_band) とする（aircon_restart_band 未指定時は kRestartBandK=1.0 K。ideal_room_load では床 0）。|d|≤b では現在の状態を保持する。帯域外では HEATING は d<0、COOLING は d>0、AUTO は真を ON 条件とする。不正モードは例外とする。
 
 運転中で有限な required_heat_w を使える場合、Q_on=max(非負の負荷不感帯, 有効な最低能力) を基準とする。最低能力を使う場合は暖房 Q_req≥Q_on、冷房 Q_req≤−Q_on、AUTO |Q_req|≥Q_on。最低能力を使わない場合は等号を除く。最低能力保持が有効な経路では ON を保持する。required_heat_w を使う条件と待ち時間等は controller 側で評価する。
 
