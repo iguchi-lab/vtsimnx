@@ -219,8 +219,11 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
         const bool humidityControl =
             (node.control_mode == "humidity_priority" || node.control_mode == "temperature_humidity");
         const bool idealRoomLoad = (node.control_mode == "ideal_room_load");
-        if (humidityControl && node.current_mode == "AUTO")
-            throw std::runtime_error(nodePrefix + ": humidistat requires explicit COOLING/HEATING/OFF");
+        if ((humidityControl || idealRoomLoad) && node.current_mode == "AUTO")
+            throw std::runtime_error(
+                nodePrefix + (idealRoomLoad
+                                  ? ": ideal_room_load requires explicit COOLING/HEATING/OFF"
+                                  : ": humidistat requires explicit COOLING/HEATING/OFF"));
         if (humidityControl || idealRoomLoad) {
             if (!config.at("simulation").at("calc_flag").value("x", false))
                 throw std::runtime_error(nodePrefix + ": humidity setpoint modes require calc_flag.x=true");
@@ -228,6 +231,8 @@ std::vector<VertexProperties> parseNodes(const json& config, std::ostream& logs,
             for (size_t i = 0; i < modes.size(); ++i) {
                 if (humidityControl && modes[i] == "AUTO")
                     throw std::runtime_error(nodePrefix + ": humidistat does not support AUTO");
+                if (idealRoomLoad && modes[i] == "AUTO")
+                    throw std::runtime_error(nodePrefix + ": ideal_room_load does not support AUTO");
                 const double rh = node.pre_rh.empty() ? node.current_pre_rh
                     : node.pre_rh[std::min(i, node.pre_rh.size() - 1)];
                 if (modes[i] == "COOLING" && !(rh > 0.0 && rh <= 100.0))

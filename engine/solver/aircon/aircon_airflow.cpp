@@ -246,9 +246,11 @@ bool increaseAirflowForCoupledSolve(VentilationNetwork& ventNetwork,
             : parseOperationModeOrDefaultCooling(node.current_mode);
         // Humidistat modes alter cooling only; heating still needs the same
         // airflow recovery when its load rises from a low-speed state.
+        // ideal_room_load は機器風量を使わないので冷暖とも除外する。
+        if (node.control_mode == "ideal_room_load") continue;
         const bool humidityControl =
             (node.control_mode == "humidity_priority" || node.control_mode == "temperature_humidity");
-        if (!isHeating(mode) && (humidityControl || node.control_mode == "ideal_room_load")) continue;
+        if (!isHeating(mode) && humidityControl) continue;
         if ((isHeating(mode) && node.required_heat_w < 0.0) ||
             (!isHeating(mode) && node.required_heat_w > 0.0)) continue;
         // 設定維持負荷と能力上限は通常の外側風量制御と同じ定義を使う。

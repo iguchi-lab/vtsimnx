@@ -123,8 +123,9 @@ ACが実際のコイル特性以上に除湿したことにしたりしない。
 ## 理想室負荷モード ideal_room_load
 
 `ideal_room_load` は、顕熱要求がある時間だけ起動し、運転中は設定対象室の温湿度を設定値に合わせて理想負荷を取るモードである。
-湿度超過だけでは起動しない。再熱・機器風量探索・COP電力は行わない（`aircon_power=0`）。
+湿度超過だけでは起動しない。再熱・機器風量探索・COP電力・最低能力ホールドは行わない（`aircon_power=0`、報告 Qs/Ql は理想必要負荷そのもの）。
 停止後の再起動ヒステリシス床（`aircon_restart_band`、通常機種の既定 1 K）は本モードでは付けず、帯は `aircon_temperature`（ε）のみとする。Sim/Heat との起動タイミング差を抑えるためである。
+`AUTO` は不可（`COOLING`/`HEATING`/`OFF` を明示）。冷房時は `pre_rh` 必須。
 
 固定ケースは [`engine/app/test_json/ideal_room_load_single_room.json`](../engine/app/test_json/ideal_room_load_single_room.json)。
 

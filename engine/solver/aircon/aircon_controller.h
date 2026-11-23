@@ -118,7 +118,8 @@ private:
 
     aircon::operating_point::CoolingRequest coolingRequest(
         ThermalNetwork& thermal, const VertexProperties& node, bool temperatureDemand,
-        bool numericalTrial, bool mayCool, bool blocked, const FlowRateMap* flows) const;
+        bool numericalTrial, bool mayCool, bool blocked, const FlowRateMap* flows,
+        double restartBandFloorK = aircon::onoff::kRestartBandK) const;
 
     // OFF 中に観測した set 室温。停止後の再起動判定などで参照する。
     mutable std::unordered_map<std::string, double> lastFreeSetTempC_;
