@@ -1466,8 +1466,8 @@ int main() {
         expectTrue(r.stateChanged && !r.on, "heating with Qreq≈0 must turn OFF");
     }
 
-    // 設定維持中、制御用 min_process 以下なら停止せず最低能力分を処理する。
-    // カタログ Q.min だけでは止まらない。
+    // ON/OFF は負荷デッドバンドのみ。小負荷でも |Q|>1 W なら継続、逆符号は停止。
+    // min_process 上書きは controlAllAircons 側の責務。
     {
         VertexProperties ac;
         ac.key = "HMIN";
@@ -1476,25 +1476,16 @@ int main() {
         ac.on = true;
         ac.required_heat_w = 160.0;
         std::ostringstream logs;
-        auto r = controller.controlAircon(ac, 20.0, 20.0, 0.5, logs, true, ac.required_heat_w, 1.0,
-                                          /*minProcessHeatW=*/2706.9, /*holdAtMinimumCapacity=*/true);
-        expectTrue(!r.stateChanged && r.on, "heating below min_process stays ON when hold is set");
-        expectTrue(r.logMessage.find("min_process=") != std::string::npos,
-                   "min_process hold should cite min_process");
+        auto r = controller.controlAircon(ac, 20.0, 20.0, 0.5, logs, true, ac.required_heat_w, 1.0);
+        expectTrue(!r.stateChanged && r.on, "heating with Qreq>deadband stays ON");
 
         ac.required_heat_w = 2800.0;
-        auto stay = controller.controlAircon(ac, 20.0, 20.0, 0.5, logs, true, ac.required_heat_w, 1.0,
-                                             2706.9, /*holdAtMinimumCapacity=*/false);
-        expectTrue(!stay.stateChanged && stay.on, "heating above min_process stays ON");
+        auto stay = controller.controlAircon(ac, 20.0, 20.0, 0.5, logs, true, ac.required_heat_w, 1.0);
+        expectTrue(!stay.stateChanged && stay.on, "heating with large Qreq stays ON");
 
-        // 暖房で負の Qreq は min_process ホールド対象外（誤って hold しても OFF）。
         ac.required_heat_w = -65.9;
-        auto neg = controller.controlAircon(ac, 20.0, 20.0, 0.5, logs, true, ac.required_heat_w, 1.0,
-                                            773.4, /*holdAtMinimumCapacity=*/true);
-        expectTrue(neg.stateChanged && !neg.on,
-                   "heating negative Qreq must turn OFF even if hold flag is set");
-        expectTrue(neg.logMessage.find("最低能力帯のON維持") == std::string::npos,
-                   "negative heating Qreq must not cite min-process hold");
+        auto neg = controller.controlAircon(ac, 20.0, 20.0, 0.5, logs, true, ac.required_heat_w, 1.0);
+        expectTrue(neg.stateChanged && !neg.on, "heating negative Qreq must turn OFF");
     }
     // RAC / CRIEPI / DUCT: カタログ Q.min だけでは最低能力停止しない。
     // 明示 min_process が無ければ Q.rtd の 10% を既定とし、小負荷はそれを処理する。
@@ -1527,8 +1518,7 @@ int main() {
             if (expectHold) {
                 expectTrue(held.on, msg + " stays ON");
                 expectNear(held.required_heat_w, expectedHoldW, 1e-6, msg + " processes min_process");
-                expectTrue(logs.str().find("min_process=") != std::string::npos,
-                           msg + " should cite min_process");
+                expectTrue(held.aircon_min_process_hold, msg + " sets min-process hold flag");
             } else {
                 expectTrue(held.on, msg + " stays ON without min_process stop");
                 expectNear(held.required_heat_w, qReq, 1e-6, msg + " keeps original Qreq");
@@ -1585,8 +1575,8 @@ int main() {
             (void)local.controlAllAircons(net, 0.5, logs, nullptr, 1e-9, nullptr, &flows);
             auto& held = net.getNode("RAC_NEG");
             expectTrue(!held.on, "heating negative Qreq turns OFF (no abs min_process hold)");
-            expectTrue(logs.str().find("最低能力帯のON維持") == std::string::npos,
-                       "heating negative Qreq must not log min-process hold");
+            expectTrue(!held.aircon_min_process_hold,
+                       "heating negative Qreq must clear min-process hold");
             expectTrue(!std::isfinite(held.required_heat_w),
                        "heating negative Qreq clears required heat on OFF");
         }
@@ -1616,8 +1606,8 @@ int main() {
             (void)local.controlAllAircons(net, 0.5, logs, nullptr, 1e-9, nullptr, &flows);
             auto& held = net.getNode("RAC_POS_COOL");
             expectTrue(!held.on, "cooling positive Qreq turns OFF (no abs min_process hold)");
-            expectTrue(logs.str().find("最低能力帯のON維持") == std::string::npos,
-                       "cooling positive Qreq must not log min-process hold");
+            expectTrue(!held.aircon_min_process_hold,
+                       "cooling positive Qreq must clear min-process hold");
         }
 
         const auto criepi = nlohmann::json{
@@ -1643,45 +1633,57 @@ int main() {
         ac.current_mode = "HEATING";
         ac.on = false;
         std::ostringstream logs;
-        auto r = controller.controlAircon(ac, 19.2, 20.0, 0.5, logs, false, 160.0, 1.0, 2706.9);
+        auto r = controller.controlAircon(ac, 19.2, 20.0, 0.5, logs, false, 160.0, 1.0);
         expectTrue(!r.stateChanged && !r.on, "OFF must not restart inside 1K band");
     }
 
-    // holdAtMinimumCapacity=true なら最低能力で継続する。
-    {
-        VertexProperties ac;
-        ac.key = "HMIN_HOLD";
-        ac.set_node = "ROOM";
-        ac.current_mode = "HEATING";
-        ac.on = true;
-        ac.required_heat_w = 160.0;
-        std::ostringstream logs;
-        auto r = controller.controlAircon(ac, 20.0, 20.0, 0.5, logs, true, ac.required_heat_w, 1.0,
-                                          2706.9, /*holdAtMinimumCapacity=*/true);
-        expectTrue(!r.stateChanged && r.on, "hold must stay ON at minimum capacity");
-        expectTrue(r.logMessage.find("最低能力帯のON維持") != std::string::npos,
-                   "hold-min log should cite min process");
-    }
-
-    // 再起動ヒステリシス床: 既定1 K、0なら ε のみ。
+    // 再起動ヒステリシス床: 既定1 K、0なら ε のみ。OnOffPolicy も検証。
     {
         using aircon::onoff::restartBandK;
         using aircon::onoff::decide;
+        using aircon::onoff::OnOffPolicy;
         expectNear(restartBandK(0.001), 1.0, 0.0, "default floor is 1 K");
         expectNear(restartBandK(0.001, 0.0), 0.001, 0.0, "floor 0 uses tolerance only");
         expectNear(restartBandK(0.5, 0.2), 0.5, 0.0, "tolerance above floor wins");
         expectNear(restartBandK(0.1, 0.5), 0.5, 0.0, "floor above tolerance wins");
 
+        const auto ordinary = OnOffPolicy::make(false, 0.001, 0.25);
+        expectNear(ordinary.restartBandFloorK, 0.25, 0.0, "ordinary policy uses configured floor");
+        expectNear(ordinary.trustBandK, 1.0, 0.0, "trust band keeps 1 K floor");
+        expectTrue(ordinary.trustUsesProcessFlow && ordinary.allowMinProcess,
+                   "ordinary policy allows flow trust and min_process");
+        const auto ideal = OnOffPolicy::make(true, 0.001, 1.0);
+        expectNear(ideal.restartBandFloorK, 0.0, 0.0, "ideal policy forces floor 0");
+        expectTrue(!ideal.trustUsesProcessFlow && !ideal.allowMinProcess,
+                   "ideal policy disables flow trust and min_process");
+
+        using aircon::onoff::planMinProcess;
+        using aircon::onoff::planMinProcessForCoolingDemand;
+        using aircon::onoff::shouldOverwriteRequiredHeat;
+        const auto holdPlan = planMinProcess(ordinary, "HEATING", 160.0, 0.7, false);
+        expectTrue(holdPlan.hold, "planMinProcess holds small heating load");
+        expectNear(holdPlan.heatW, 700.0, 0.0, "planMinProcess converts kW to W");
+        expectTrue(shouldOverwriteRequiredHeat(ordinary, holdPlan, false, false, true),
+                   "ordinary non-duct hold overwrites Qreq");
+        expectTrue(!shouldOverwriteRequiredHeat(ordinary, holdPlan, false, true, true),
+                   "DUCT does not overwrite Qreq");
+        expectTrue(!shouldOverwriteRequiredHeat(ideal, holdPlan, false, false, true),
+                   "ideal policy never overwrites Qreq");
+        const auto coolPlan = planMinProcessForCoolingDemand(160.0, 0.7, false);
+        expectTrue(coolPlan.hold && std::string(coolPlan.modeKey) == "cooling",
+                   "cooling demand plan uses cooling mode key");
+        const auto idealSkip = planMinProcess(ideal, "HEATING", 160.0, 0.7, false);
+        expectTrue(!idealSkip.hold && idealSkip.heatW == 0.0,
+                   "ideal planMinProcess leaves hold off");
+
         // 冷房・停止中: 設定+0.5 K は既定床では再起動しないが、床0では起動する。
-        const auto stayOff = decide("COOLING", false, 27.5, 27.0, 0.001,
-                                    false, 0.0, 1.0, 0.0, false, false, 1.0);
+        const auto stayOff = decide("COOLING", false, 27.5, 27.0, 0.001, false, 0.0, 1.0, 1.0);
         expectTrue(!stayOff.shouldBeOn, "0.5 K overshoot stays OFF with 1 K floor");
-        const auto turnOn = decide("COOLING", false, 27.5, 27.0, 0.001,
-                                   false, 0.0, 1.0, 0.0, false, false, 0.0);
+        const auto turnOn = decide("COOLING", false, 27.5, 27.0, 0.001, false, 0.0, 1.0, 0.0);
         expectTrue(turnOn.shouldBeOn, "0.5 K overshoot turns ON with floor 0");
 
         const auto nanKeep = decide("AUTO", false, std::numeric_limits<double>::quiet_NaN(), 24.0,
-                                    0.001, false, 0.0, 1.0, 0.0, false, false, 0.0);
+                                    0.001, false, 0.0, 1.0, 0.0);
         expectTrue(!nanKeep.shouldBeOn, "NaN temperature must not force AUTO ON");
     }
 
@@ -1779,8 +1781,7 @@ int main() {
             if (expectHold) {
                 expectTrue(held.on, msg + " stays ON");
                 expectNear(held.required_heat_w, signedMin, 1e-6, msg + " processes signed min_process");
-                expectTrue(logs2.str().find("最低能力帯のON維持") != std::string::npos,
-                           msg + " cites min process");
+                expectTrue(held.aircon_min_process_hold, msg + " sets min-process hold flag");
             } else {
                 // |Qreq| がデッドバンド以下なら OFF（min_process でも負荷0は止める）
                 expectTrue(!held.on, msg + " turns OFF");

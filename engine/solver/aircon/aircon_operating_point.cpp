@@ -70,7 +70,7 @@ void AirconController::captureAirflowCandidate(ThermalNetwork& thermal,
     snap.capacity=capacityLimitBracket_; snap.flowBoost=capacityFlowBoost_;
     snap.recovery=capacityRecoveryAttempted_; snap.floorBlocked=humidityFloorBlocked_;
     snap.fanTrial=humidityFanTrialDone_; snap.rebase=humiditySearchRebase_;
-    snap.boundary=boundaryIterations_; snap.freeTemperature=lastFreeSetTempC_;
+    snap.boundary=boundaryIterations_;
 }
 
 bool AirconController::rejectHumidityAirflowCandidate(ThermalNetwork& thermal,
@@ -99,7 +99,7 @@ bool AirconController::rejectHumidityAirflowCandidate(ThermalNetwork& thermal,
     capacityLimitBracket_=snap.capacity; capacityFlowBoost_=snap.flowBoost;
     capacityRecoveryAttempted_=snap.recovery; humidityFloorBlocked_=snap.floorBlocked;
     humidityFanTrialDone_=snap.fanTrial; humiditySearchRebase_=snap.rebase;
-    boundaryIterations_=snap.boundary; lastFreeSetTempC_=snap.freeTemperature;
+    boundaryIterations_=snap.boundary;
     if (snap.initialWarmStart) {
         // Previous airflow is only an initial guess. Retry the canonical
         // full-flow initial point once, from the unchanged timestep inventory.
