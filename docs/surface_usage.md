@@ -80,19 +80,27 @@ $$
 | `solar` | 面の日射照度系列 [W/m²] |
 | `eta` | 不透明面の短波吸収率（既定0.8）。ガラスでは未指定 `SCR` の代替にも使われる |
 | `SCR`, `SCC` | ガラス日射の表面配分係数・室空気配分係数 |
+| `scr_distribution` | 省略可。付けるなら `"simheat"` のみ（既定と同じ保存的配分）。旧・非保存配分は不可 |
 | `nocturnal` | 外表面からの放射損失を正とした系列 [W/m²] |
 | `night_radiation` | `nocturnal` の互換キー |
 | `epsilon` | 夜間放射に掛ける長波放射率（既定0.9） |
 
 `noctural` は誤記で、夜間放射枝を生成しない。`nocturnal` は係数ではなく放射照度である。外壁の発熱は `A*eta*solar`、夜間放射は `-A*epsilon*nocturnal` となり、いずれも室B側表面へ加える。入力が既に吸収率・放射率を含む場合は、再度掛けない設定にする。
 
-`solar_gain_by_angles(glass=False)` は壁への入射日射、`glass=True` はガラスの角度・透過補正後の値である。後者を `solar` に渡す場合、builder はさらに次の配分を行う。
+`solar_gain_by_angles(glass=False)` は壁への入射日射、`glass=True` はガラスの角度・透過補正後の値である。後者を `solar` に渡す場合、builder は次の配分を行う（`u_value` / `whole_window_u` を問わず共通）。
 
-- `A*solar*SCR` の50%を床、50%を壁・天井へ、各群の面積比で配分する。
-- 受熱面ごとの `eta`（既定0.8）をさらに掛ける。
-- `A*solar*SCC` は室空気へ加える。
+- \(Q_{\mathrm{tr}}=A\cdot\mathrm{solar}\)、\(Q_{\mathrm{rad}}=Q_{\mathrm{tr}}\cdot\mathrm{SCR}\)、\(Q_{\mathrm{conv}}=Q_{\mathrm{tr}}\cdot\mathrm{SCC}\)。
+- \(Q_{\mathrm{rad}}\) を床 50%・壁・天井 50% に分け、群内は \(A_i\eta_i\) で按分し \(\sum Q_i=Q_{\mathrm{rad}}\) を保つ（AE-Sim/Heat §6.8.4 相当）。
+- 片群のみならその群に全量。群の吸収率重みがゼロなら面積比。放射が正なのに受け面が無い場合は入力エラー。放射が全時刻ゼロなら放射配分をスキップ（SCC のみ処理し得る）。
+- \(Q_{\mathrm{conv}}\) は室空気へ加える。受熱面 \(\eta\) で \(Q_{\mathrm{rad}}\) をさらに減衰させる旧経路は不可。
 
-この実装は短波の多重反射を追跡しない。床や壁・天井が存在しない群の配分は再配分されず、受熱面の未吸収分も追跡されない。窓の日射熱取得率一つだけで全処理を表すと考えず、各係数の基準と、生成された枝の合計熱流を確認する。
+この実装は短波の多重反射を追跡しない。窓の日射熱取得率一つだけで全処理を表すと考えず、各係数の基準と、生成された枝の合計熱流を確認する。
+
+```python
+{"key": "LD->外||窓", "part": "glass", "area": 2.0, "u_value": 5.0,
+ "SCR": 0.5, "SCC": 0.25, "solar": solar_series}
+# 明示するなら scr_distribution="simheat"（省略時と同じ）
+```
 
 ## 5. `surfaces` への展開例
 
