@@ -1,6 +1,7 @@
 #pragma once
 #include "aircon/aircon_operation_mode.h"
 #include <nlohmann/json.hpp>
+#include <algorithm>
 #include <cmath>
 #include <set>
 #include <stdexcept>

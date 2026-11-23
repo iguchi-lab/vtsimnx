@@ -729,8 +729,12 @@ def validate_node_config(
             if control == "ideal_room_load":
                 if not sim_config["calc_flag"]["x"]:
                     errors.append(f"ノード {node['key']}: ideal_room_load には calc_flag.x=true が必要です")
-                if node.get("pre_rh") is None:
-                    errors.append(f"ノード {node['key']}: ideal_room_load には pre_rh が必要です")
+                if any(str(m).upper() == "AUTO" or m == 3 for m in ensure_timeseries(mode, sim_length)):
+                    errors.append(f"ノード {node['key']}: ideal_room_load は COOLING/HEATING/OFF を明示してください")
+                modes_series = ensure_timeseries(mode, sim_length)
+                needs_pre_rh = any(str(m).upper() == "COOLING" or m == 2 for m in modes_series)
+                if needs_pre_rh and node.get("pre_rh") is None:
+                    errors.append(f"ノード {node['key']}: ideal_room_load の冷房時には pre_rh が必要です")
                 set_node = next((n for n in node_config if n.get("key") == node.get("set_node")), None)
                 if set_node is None or not set_node.get("calc_x") or not set_node.get("calc_t"):
                     errors.append(f"ノード {node['key']}: ideal_room_load の設定対象室は calc_x=true, calc_t=true が必要です")

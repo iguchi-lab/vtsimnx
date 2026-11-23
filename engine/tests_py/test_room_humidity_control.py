@@ -323,6 +323,19 @@ def test_ideal_room_load_starts_for_sensible_cooling_and_holds_rh():
     assert max(abs(np.asarray(rh) - 50.0)) < 2.0
 
 
+def test_ideal_room_load_reports_small_sensible_without_min_process_clamp():
+    # Small cooling demand must stay as ideal Qs (~UA*dT), not jump to RAC min_process.
+    raw = case("ideal_room_load", outside_t=26.3, x=0.010)
+    raw["aircon"][0]["pre_rh"] = 50.0
+    raw["aircon"][0]["pre_temp"] = 26.0
+    raw["thermal_branches"][0]["conductance"] = 200.0  # ~60 W at 0.3 K
+    s = run(raw)
+    qs = np.asarray(s("aircon_sensible_heat", "AC"))
+    assert min(qs) > 10.0
+    assert max(qs) < 120.0  # well below typical 10% of rtd (~200+ W)
+    assert max(abs(s("aircon_power", "AC"))) == 0
+
+
 def test_ideal_room_load_single_room_fixture_matches_simheat_start_rule():
     # Fixed fixture:
     # hours 0-2 cool outdoor / high humidity → no start

@@ -118,7 +118,7 @@ bool AirconController::rejectHumidityAirflowCandidate(ThermalNetwork& thermal,
 aircon::operating_point::CoolingRequest AirconController::coolingRequest(
         ThermalNetwork& thermal, const VertexProperties& node,
         bool temperatureDemand, bool numericalTrial, bool mayCool, bool blocked,
-        const FlowRateMap* flows) const {
+        const FlowRateMap* flows, double restartBandFloorK) const {
     aircon::operating_point::CoolingRequest request;
     request.temperature = temperatureDemand;
     request.humidity = node.humidity_demand;
@@ -126,8 +126,9 @@ aircon::operating_point::CoolingRequest AirconController::coolingRequest(
     request.mayCool = mayCool;
     request.blocked = blocked;
     const double roomT = aircon::network_utils::getControlledRoomTemperature(thermal, node);
+    const double reheatBandK = aircon::onoff::restartBandK(0.0, restartBandFloorK);
     request.reheat = aircon::humidity_control::simultaneous(node) &&
-        (roomT < node.current_requested_pre_temp - aircon::onoff::kRestartBandK ||
+        (roomT < node.current_requested_pre_temp - reheatBandK ||
          (node.on && std::isfinite(node.required_heat_w) && node.required_heat_w > 1.0));
     if (flows && node.on) {
         const auto context = prepareRuntimeContext(node.key, thermal, node, *flows);

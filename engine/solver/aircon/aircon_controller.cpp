@@ -99,11 +99,18 @@ void AirconController::initializeModels(ThermalNetwork& thermalNetwork,
         // 制御対象キーはモデル有無に関わらず全 aircon を登録する
         airconKeysOrdered_.push_back(node.key);
 
-        if (node.control_mode == "humidity_priority" || node.control_mode == "temperature_humidity") {
-            if (node.set_node.empty()) throw std::runtime_error("Humidistat requires set_node: " + node.key);
+        if (node.control_mode == "humidity_priority" || node.control_mode == "temperature_humidity" ||
+            aircon::humidity_control::idealRoomLoad(node)) {
+            const char* kind =
+                aircon::humidity_control::idealRoomLoad(node) ? "ideal_room_load" : "Humidistat";
+            if (node.set_node.empty()) {
+                throw std::runtime_error(std::string(kind) + " requires set_node: " + node.key);
+            }
             const auto& room = thermalNetwork.getNode(node.set_node);
-            if (!room.calc_x || !room.calc_t)
-                throw std::runtime_error("Humidistat set room requires calc_x and calc_t: " + node.key);
+            if (!room.calc_x || !room.calc_t) {
+                throw std::runtime_error(std::string(kind) +
+                                         " set room requires calc_x and calc_t: " + node.key);
+            }
         }
 
         if (node.model == "IDEAL") {
@@ -391,13 +398,15 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
                                          double restartBandFloorK) const {
     bool allControlled = true;
     const double configuredFloorK = std::max(0.0, restartBandFloorK);
+    // 必要負荷の信頼判定は再起動床とは独立。入力で床を狭めても信頼帯は従来どおり
+    // max(ε, 1 K) を使い、温度判定へ不用意に落ちないようにする。
+    const double trustBandK = aircon::onoff::restartBandK(tolerance);
 
     for (const auto& airconKey : getAirconKeys()) {
         auto& nodeProps = thermalNetwork.getNode(airconKey);
+        const bool isIdeal = aircon::humidity_control::idealRoomLoad(nodeProps);
         // ideal_room_load は Sim/Heat 照合向けに再起動ヒステリシス床を付けない（帯 = ε_T,ac）。
-        const double nodeFloorK =
-            aircon::humidity_control::idealRoomLoad(nodeProps) ? 0.0 : configuredFloorK;
-        const double setpointBandK = aircon::onoff::restartBandK(tolerance, nodeFloorK);
+        const double nodeFloorK = isIdeal ? 0.0 : configuredFloorK;
         const double currentTemp =
             aircon::network_utils::getControlledRoomTemperature(thermalNetwork, nodeProps);
         const double targetTemp = nodeProps.current_requested_pre_temp;
@@ -407,13 +416,14 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
             processFlow = aircon::network_utils::getAirconProcessFlowRate(
                 *flowRates, nodeProps.in_node, nodeProps.key);
         }
+        // ideal の Qreq は設定室熱収支由来で処理風量に依存しないため、無風で信頼を落とさない。
         const auto trust = aircon::onoff::buildRequiredHeatTrust(
             currentTemp,
             nodeProps.current_pre_temp,
             nodeProps.current_requested_pre_temp,
-            setpointBandK,
+            trustBandK,
             nodeProps.aircon_control_state == AirconControlState::CapacityLimited,
-            processFlow);
+            isIdeal ? std::nullopt : processFlow);
         const bool useRequiredHeat =
             aircon::onoff::shouldUseRequiredHeat(nodeProps.on, nodeProps.required_heat_w, trust);
         if (!useRequiredHeat && std::isfinite(currentTemp)) {
@@ -422,17 +432,18 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
 
         const char* minMode = aircon::onoff::minCapacityModeKey(
             nodeProps.current_mode, nodeProps.required_heat_w);
+        // ideal は機器最低能力を持たない（理想負荷そのものを報告する）。
         double minProcessHeatW = 0.0;
-        if (useRequiredHeat) {
+        bool holdAtMinimumCapacity = false;
+        if (useRequiredHeat && !isIdeal) {
             if (const auto* spec = nodeProps.getAirconSpec()) {
                 minProcessHeatW =
                     aircon::onoff::resolveMinProcessHeatW(spec->getMinProcess(minMode));
             }
+            holdAtMinimumCapacity = aircon::onoff::inMinProcessHoldBand(
+                minMode, nodeProps.required_heat_w, minProcessHeatW,
+                aircon::onoff::kLoadDeadbandW, nodeProps.aircon_min_process_hold);
         }
-        const bool holdAtMinimumCapacity = useRequiredHeat &&
-            aircon::onoff::inMinProcessHoldBand(minMode, nodeProps.required_heat_w,
-                                                minProcessHeatW, aircon::onoff::kLoadDeadbandW,
-                                                nodeProps.aircon_min_process_hold);
 
         auto result = controlAircon(nodeProps, currentTemp, targetTemp, tolerance, logFile,
                                     useRequiredHeat, nodeProps.required_heat_w,
@@ -461,7 +472,8 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
             const bool mayCool = currentTemp >= floor - 1e-4 &&
                 !humidityFloorBlocked_.count(airconKey);
             const auto request = coolingRequest(thermalNetwork, nodeProps, result.on,
-                humidityTrial, mayCool, humidityFloorBlocked_.count(airconKey), flowRates);
+                humidityTrial, mayCool, humidityFloorBlocked_.count(airconKey), flowRates,
+                configuredFloorK);
             result.on = request.on();
             result.stateChanged = result.on != nodeProps.on;
             nodeProps.humidity_overcool_hold = result.on && !reheat &&
@@ -484,7 +496,9 @@ bool AirconController::controlAllAircons(ThermalNetwork& thermalNetwork,
         }
         // DUCTの風量は生の設定維持負荷を参照する。最低能力は風量則側で
         // 下限として適用し、ON/OFFホールドで負荷を上書きしない。
-        if (!aircon::humidity_control::enabled(nodeProps) && holdAtMinimumCapacity && result.on && std::isfinite(nodeProps.required_heat_w) &&
+        // ideal_room_load は理想 Qreq を報告するため上書きしない。
+        if (!isIdeal && !aircon::humidity_control::enabled(nodeProps) &&
+            holdAtMinimumCapacity && result.on && std::isfinite(nodeProps.required_heat_w) &&
             !aircon::airflow::isDuctCentralModel(nodeProps)) {
             nodeProps.required_heat_w =
                 aircon::onoff::signedMinProcessHeatW(minMode, minProcessHeatW);
@@ -1285,8 +1299,17 @@ std::vector<double> AirconController::collectAirconDataValues(ThermalNetwork& th
                     if (dataType == "reheatCapacity") {
                         values[i] = 0.0;
                     } else if (dataType == "sensibleHeatCapacity") {
-                        values[i] = std::isfinite(nodeProps.required_heat_w)
-                            ? std::abs(nodeProps.required_heat_w) : 0.0;
+                        // モード方向の需要だけを正で報告（逆符号は 0）。
+                        const double q = nodeProps.required_heat_w;
+                        if (!std::isfinite(q)) {
+                            values[i] = 0.0;
+                        } else if (nodeProps.current_mode == "COOLING") {
+                            values[i] = std::max(0.0, -q);
+                        } else if (nodeProps.current_mode == "HEATING") {
+                            values[i] = std::max(0.0, q);
+                        } else {
+                            values[i] = std::abs(q);
+                        }
                     } else {
                         values[i] = std::isfinite(nodeProps.required_latent_w)
                             ? std::max(0.0, nodeProps.required_latent_w) : 0.0;

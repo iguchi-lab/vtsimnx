@@ -142,11 +142,17 @@ Decision decideFromTemperature(const std::string& mode,
                                double targetTemp,
                                double tolerance,
                                double restartBandFloorK) {
+    Decision decision;
+    if (!std::isfinite(currentTemp) || !std::isfinite(targetTemp)) {
+        // 不正温度では状態を変えず、チャタリングや AUTO 誤起動を避ける。
+        decision.shouldBeOn = currentlyOn;
+        decision.detail = "T=nan";
+        return decision;
+    }
     const double bandK = restartBandK(tolerance, restartBandFloorK);
     const double diff = currentTemp - targetTemp;
     const bool withinBand = std::abs(diff) <= bandK;
 
-    Decision decision;
     if (mode == "HEATING") {
         decision.shouldBeOn = withinBand ? currentlyOn : (diff < 0.0);
     } else if (mode == "COOLING") {

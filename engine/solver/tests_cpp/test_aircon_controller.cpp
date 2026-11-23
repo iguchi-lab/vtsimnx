@@ -1679,6 +1679,10 @@ int main() {
         const auto turnOn = decide("COOLING", false, 27.5, 27.0, 0.001,
                                    false, 0.0, 1.0, 0.0, false, false, 0.0);
         expectTrue(turnOn.shouldBeOn, "0.5 K overshoot turns ON with floor 0");
+
+        const auto nanKeep = decide("AUTO", false, std::numeric_limits<double>::quiet_NaN(), 24.0,
+                                    0.001, false, 0.0, 1.0, 0.0, false, false, 0.0);
+        expectTrue(!nanKeep.shouldBeOn, "NaN temperature must not force AUTO ON");
     }
 
     // inMinProcessHoldBand の符号表（コントローラを通さない単体）。
